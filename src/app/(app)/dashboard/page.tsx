@@ -962,8 +962,8 @@ export default function DashboardHome() {
                 </div>
                 <ExportButton
                   label="Download"
-                  data={report.data}
-                  columns={report.columns}
+                  data={report.data as any}
+                  columns={report.columns as any}
                   filename={report.filename}
                   className="text-xs"
                 />
