@@ -3,25 +3,41 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "dev:turbopack": "next dev --turbopack",
+    "build": "next build",
+    "build:turbopack": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.4"
+    "@clerk/nextjs": "^6.33.7",
+    "@googlemaps/js-api-loader": "^2.0.2",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.4.2",
+    "@supabase/supabase-js": "^2.88.0",
+    "framer-motion": "^12.23.24",
+    "konva": "^10.0.12",
+    "next": "15.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-konva": "^19.2.1",
+    "sonner": "^2.0.7",
+    "three": "^0.182.0",
+    "three-stdlib": "^2.36.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@types/google.maps": "^3.58.1",
+    "@types/node": "^20",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
-    "@eslint/eslintrc": "^3"
+    "playwright": "^1.57.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
