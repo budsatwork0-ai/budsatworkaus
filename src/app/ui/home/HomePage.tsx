@@ -184,7 +184,7 @@ export default function HomePage() {
             className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
             style={{ color: brand.muted }}
           >
-            We're Buds at Work — a local crew that handles cleaning, yard care, dump runs,
+            We&apos;re Buds at Work — a local crew that handles cleaning, yard care, dump runs,
             and car detailing. Get a real quote in minutes, not a callback next week.
           </p>
 
@@ -291,8 +291,8 @@ export default function HomePage() {
               not a faceless platform
             </h2>
             <p className="text-base leading-relaxed mb-6" style={{ color: brand.muted }}>
-              We're a small team based in Logan. When you book with us, you're dealing with real
-              people who take pride in the work — not an algorithm dispatching whoever's closest.
+              We&apos;re a small team based in Logan. When you book with us, you&apos;re dealing with real
+              people who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
             </p>
             <Link
               href="/about"
@@ -334,7 +334,7 @@ export default function HomePage() {
             Want to join the crew?
           </h2>
           <p className="text-base max-w-lg mx-auto mb-6" style={{ color: brand.muted }}>
-            We're always looking for good people — whether you want to work with us,
+            We&apos;re always looking for good people — whether you want to work with us,
             partner up, or support workers looking for meaningful employment.
           </p>
           <Link
@@ -352,7 +352,7 @@ export default function HomePage() {
             Ready to get started?
           </h2>
           <p className="text-base mb-6" style={{ color: brand.muted }}>
-            Pick a service and build your quote. We'll confirm everything before any work begins.
+            Pick a service and build your quote. We&apos;ll confirm everything before any work begins.
           </p>
           <Link
             href="/services"

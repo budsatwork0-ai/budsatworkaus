@@ -221,7 +221,7 @@ export default function AboutPage() {
             className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
             style={{ color: brand.muted }}
           >
-            We're Buds at Work — a small team from Logan building a simple promise:
+            We&apos;re Buds at Work — a small team from Logan building a simple promise:
             show up on time, do the job properly, and treat people like neighbours.
           </p>
 
@@ -450,7 +450,7 @@ export default function AboutPage() {
           </h2>
           <p className="text-base max-w-lg mx-auto mb-6" style={{ color: brand.muted }}>
             Tell us what you need — cleaning, windows, yard care, dump runs, or car detailing —
-            and we'll give you a simple quote with no surprises.
+            and we&apos;ll give you a simple quote with no surprises.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
