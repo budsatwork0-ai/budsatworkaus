@@ -10,6 +10,7 @@ import SideNavItem from './_components/SideNavItem';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div
@@ -98,17 +99,96 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </motion.aside>
 
       {/* =========================
+          MOBILE SIDEBAR OVERLAY
+         ========================= */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 z-40 md:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="fixed left-0 top-0 bottom-0 w-[260px] z-50 md:hidden flex flex-col gap-3 p-4"
+              style={{
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                background: 'rgba(255,255,255,.95)',
+                borderRight: '1px solid rgba(0,0,0,.06)',
+              }}
+            >
+              <div className="flex items-center justify-between px-2 py-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-semibold"
+                    style={{ background: brand.primary }}
+                  >
+                    B
+                  </div>
+                  <div className="leading-tight">
+                    <div className="font-semibold" style={{ color: brand.primary }}>
+                      Buds at Work
+                    </div>
+                    <div className="text-[11px] text-slate-500">Operations Console</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 rounded-lg hover:bg-slate-100"
+                  aria-label="Close menu"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mt-1 text-[11px] uppercase tracking-wider text-slate-500 px-2">
+                Overview
+              </div>
+              <SideNavItem href="/dashboard" label="Dashboard" />
+              <SideNavItem href="/dashboard/quotes" label="Quotes" />
+              <SideNavItem href="/dashboard/orders" label="Orders" />
+              <SideNavItem href="/dashboard/subscriptions" label="Subscriptions" />
+              <SideNavItem href="/dashboard/pipelines" label="Workflows" />
+              <SideNavItem href="/dashboard/alerts" label="Alerts" />
+              <SideNavItem href="/dashboard/reports" label="Reports" />
+              <SideNavItem href="/dashboard/settings" label="Settings" />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* =========================
           MAIN CONTENT AREA
          ========================= */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         {/* Floating Topbar */}
-        <header className="sticky top-3 z-30 px-4 md:px-6">
+        <header className="sticky top-3 z-30 px-3 sm:px-4 md:px-6">
           <div
-            className="w-full rounded-2xl border border-black/5 bg-white/80 backdrop-blur px-4 md:px-6 py-3 shadow-[0_8px_30px_rgba(2,6,23,0.06)] flex items-center gap-3"
+            className="w-full rounded-2xl border border-black/5 bg-white/80 backdrop-blur px-3 sm:px-4 md:px-6 py-3 shadow-[0_8px_30px_rgba(2,6,23,0.06)] flex items-center gap-2 sm:gap-3"
             role="banner"
           >
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100"
+              aria-label="Open menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              </svg>
+            </button>
+
             <h1
-              className="text-base md:text-lg font-semibold"
+              className="text-sm sm:text-base md:text-lg font-semibold truncate"
               style={{ color: brand.primary }}
             >
               {pathname === '/dashboard'
@@ -174,7 +254,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Animated page transitions */}
-        <main className="w-full px-4 md:px-6 py-6 flex-1">
+        <main className="w-full px-2 sm:px-4 md:px-6 py-4 sm:py-6 flex-1 overflow-x-hidden">
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}

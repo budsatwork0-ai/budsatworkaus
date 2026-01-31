@@ -44,7 +44,7 @@ export function Tile({
     <M.button
       onClick={() => !disabled && onClick?.()}
       className={cls(
-        'relative w-full text-left rounded-2xl p-4 transition',
+        'relative w-full min-w-0 text-left rounded-2xl p-4 transition overflow-hidden',
         glass,
         active ? 'ring-2 ring-[var(--accent)]' : 'ring-1 ring-black/10',
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'

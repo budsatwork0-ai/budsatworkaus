@@ -118,12 +118,12 @@ function ArrowRightIcon() {
 }
 
 const services = [
-  { key: 'windows', title: 'Window cleaning', icon: <WindowIcon />, href: '/services' },
-  { key: 'cleaning', title: 'Home cleaning', icon: <HomeIcon />, href: '/services' },
-  { key: 'yard', title: 'Yard & garden', icon: <LeafIcon />, href: '/services' },
-  { key: 'dump', title: 'Dump runs', icon: <TruckIcon />, href: '/services' },
-  { key: 'auto', title: 'Car detailing', icon: <CarIcon />, href: '/services' },
-  { key: 'sneakers', title: 'Sneaker care', icon: <ShoeIcon />, href: '/services' },
+  { key: 'windows', title: 'Window cleaning', icon: <WindowIcon />, href: '/services?service=windows' },
+  { key: 'cleaning', title: 'Home cleaning', icon: <HomeIcon />, href: '/services?service=cleaning' },
+  { key: 'yard', title: 'Yard & garden', icon: <LeafIcon />, href: '/services?service=yard' },
+  { key: 'dump', title: 'Dump runs', icon: <TruckIcon />, href: '/services?service=dump' },
+  { key: 'auto', title: 'Car detailing', icon: <CarIcon />, href: '/services?service=auto' },
+  { key: 'sneakers', title: 'Sneaker care', icon: <ShoeIcon />, href: '/services?service=sneakers' },
 ];
 
 const tools = [
@@ -219,10 +219,10 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {services.map((s) => (
-              <Link key={s.key} href={s.href} className="group">
+              <Link key={s.key} href={s.href} className="group min-w-0">
                 <div
                   className={cx(
-                    'rounded-2xl p-5 md:p-6 text-center transition-all',
+                    'rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all overflow-hidden',
                     glass,
                     'hover:shadow-lg hover:-translate-y-0.5'
                   )}

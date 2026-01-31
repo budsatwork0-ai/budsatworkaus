@@ -4,6 +4,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import StableMapSlot from '@/components/StableMapSlot';
@@ -30,6 +31,7 @@ import type { VehicleSizeCategory } from '@/lib/rego/types';
 import { calculatePrice } from '@/lib/rego/pricing';
 import { v4 as uuidv4 } from 'uuid';
 import { useYardMapping } from '@/app/hooks/useYardMapping';
+import Turnstile from '@/components/Turnstile';
 
 // Extracted modules - Types
 import type {
@@ -4553,6 +4555,7 @@ function WindowsEditor({
 }
 
 export default function ServicesPage() {
+  const searchParams = useSearchParams();
   const [S, dispatch] = useLocalStorageReducer<WizardState>(
     STORAGE_KEY,
     wizardReducer,
@@ -4562,6 +4565,7 @@ export default function ServicesPage() {
   const motionEnabled = !yardActive;
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
+  const [urlServiceHandled, setUrlServiceHandled] = useState(false);
   const { computeQuote, saveQuote, updateAdminRevision } = usePolygonQuote();
   const carSelector = useCarModelSelector();
   const carGlbByType = useMemo(
@@ -4589,6 +4593,7 @@ export default function ServicesPage() {
     [dispatch]
   );
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const handleDistanceInputFocusChange = useCallback((focused: boolean) => {
     setIsDistanceInputFocused(focused);
@@ -4685,11 +4690,46 @@ export default function ServicesPage() {
   }, [hardResetQuote]);
 
 
+  // Track touch/pointer state to distinguish clicks from scrolls on mobile
+  const pointerStartRef = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
+  const scrolledDuringTouchRef = useRef(false);
+
   useEffect(() => {
     if (!isClient) return;
+
     const handlePointerDown = (e: PointerEvent) => {
+      // Record starting position to detect scrolling
+      pointerStartRef.current = { x: e.clientX, y: e.clientY, target: e.target };
+      scrolledDuringTouchRef.current = false;
+    };
+
+    const handleScroll = () => {
+      // Mark that a scroll happened during the touch
+      scrolledDuringTouchRef.current = true;
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
       if (isDistanceInputFocused) return;
       if (!activeServiceId) return;
+
+      // If user scrolled, don't collapse
+      if (scrolledDuringTouchRef.current) {
+        pointerStartRef.current = null;
+        return;
+      }
+
+      // Check if this was a significant movement (scroll gesture on mobile)
+      const start = pointerStartRef.current;
+      if (start) {
+        const dx = Math.abs(e.clientX - start.x);
+        const dy = Math.abs(e.clientY - start.y);
+        // If moved more than 10px, treat as scroll/drag not click
+        if (dx > 10 || dy > 10) {
+          pointerStartRef.current = null;
+          return;
+        }
+      }
+
       const target = e.target as HTMLElement | null;
       if (target?.closest('.pac-container')) return;
       if (target?.closest('[data-card-interactive="true"]')) return;
@@ -4697,9 +4737,19 @@ export default function ServicesPage() {
       const cardEl = target?.closest('[data-scope-card]');
       // Only collapse when clicking completely outside any card; moving between cards should stay open.
       if (!cardEl) setActiveServiceId(null);
+
+      pointerStartRef.current = null;
     };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
+
+    document.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    document.addEventListener('pointerup', handlePointerUp, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+    };
   }, [activeServiceId, isClient, routeCardActive, isDistanceInputFocused]);
 
   useEffect(() => {
@@ -4888,6 +4938,27 @@ export default function ServicesPage() {
       set('winRows', rs);
     }
   }, [S.context]);
+
+  // Handle URL service parameter - navigate directly to step 2 with the selected service
+  useEffect(() => {
+    if (urlServiceHandled) return;
+    const serviceParam = searchParams?.get('service');
+    if (!serviceParam) return;
+
+    const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'sneakers'];
+    if (validServices.includes(serviceParam as ServiceType)) {
+      setUrlServiceHandled(true);
+      // Clear URL parameter to prevent re-triggering
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('service');
+        window.history.replaceState({}, '', url.pathname);
+      }
+      // Select the service and go to step 2
+      selectService(serviceParam as ServiceType);
+      set('step', 2);
+    }
+  }, [searchParams, urlServiceHandled]);
 
   // -------------------------
   // Derived values
@@ -5358,7 +5429,7 @@ function winFmtMins(m: number) {
 
         <main
           className={cls(
-            'relative mx-auto max-w-6xl px-6 md:px-8 py-10',
+            'relative mx-auto max-w-6xl px-4 sm:px-6 md:px-8 py-10 overflow-x-hidden',
             !yardActive && S.step >= 2 ? 'pb-[12rem]' : ''
           )}
         >
@@ -5443,7 +5514,7 @@ function winFmtMins(m: number) {
 
           {/* Service tiles */}
           <div className="text-sm text-slate-700 mb-3">Service</div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 overflow-hidden">
             {SERVICES.map((s) => {
               const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
               const isActive = S.service === s.key && allowed;
@@ -9228,6 +9299,23 @@ const COMM_PRESETS: Record<
                   </>
                 )}
 
+                {/* CAPTCHA verification */}
+                <div className="mt-4">
+                  <div className="text-xs text-slate-600 mb-2">Verify you&apos;re human</div>
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+                    onVerify={(token) => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                    onError={() => setCaptchaToken(null)}
+                    theme="light"
+                  />
+                  {!captchaToken && (
+                    <div className="text-[11px] text-amber-600 mt-1">
+                      Please complete the verification above to submit your quote.
+                    </div>
+                  )}
+                </div>
+
                 {/* Actions */}
                 <div className="mt-4 flex flex-col gap-2">
                   <M.button
@@ -9240,9 +9328,17 @@ const COMM_PRESETS: Record<
                   </M.button>
 
                   <M.button
-                    className="px-4 py-2 rounded-2xl text-sm text-white flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(20,83,45,0.25)]"
+                    className={cls(
+                      "px-4 py-2 rounded-2xl text-sm text-white flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(20,83,45,0.25)]",
+                      !captchaToken && "opacity-60 cursor-not-allowed"
+                    )}
                     style={{ background: 'var(--accent)' }}
                     onClick={() => {
+                      if (!captchaToken) {
+                        toast.error('Please complete the verification to submit.');
+                        return;
+                      }
+
                       const okInputs =
                         S.fullName?.trim().length >= 2 &&
                         /\S+@\S+\.\S+/.test(S.email || '') &&

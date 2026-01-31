@@ -358,13 +358,13 @@ const SummaryCard = ({
   hint?: string;
   viewLabel: string;
 }) => (
-  <div className="rounded-2xl border border-black/5 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
-    <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-    <div className="text-2xl font-semibold text-slate-900 mt-1">{value}</div>
-    {hint && <div className="text-xs text-slate-500 mt-1">{hint}</div>}
+  <div className="rounded-2xl border border-black/5 bg-white/90 px-3 sm:px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.08)] overflow-hidden">
+    <div className="text-[10px] sm:text-[11px] uppercase tracking-wide text-slate-500 truncate">{label}</div>
+    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{value}</div>
+    {hint && <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">{hint}</div>}
     <button
       type="button"
-      className="mt-3 text-xs font-semibold text-slate-500 hover:text-slate-700 underline decoration-slate-200"
+      className="mt-2 sm:mt-3 text-[11px] sm:text-xs font-semibold text-slate-500 hover:text-slate-700 underline decoration-slate-200"
     >
       View {viewLabel}
     </button>
@@ -994,7 +994,7 @@ export default function DashboardHome() {
   };
 
   return (
-    <div className="grid gap-10 w-full px-4 md:px-10 lg:px-12 pb-14">
+    <div className="grid gap-6 sm:gap-10 w-full px-3 sm:px-4 md:px-10 lg:px-12 pb-14 overflow-x-hidden">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>
@@ -1035,20 +1035,20 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-4 gap-3">
         {summaryCards.map((card) => (
           <SummaryCard key={card.label} {...card} />
         ))}
       </div>
 
-      <div className="rounded-2xl border border-black/5 bg-white/90 p-1 text-xs text-slate-600 shadow-sm">
-        <div className="flex flex-wrap gap-1">
+      <div className="rounded-2xl border border-black/5 bg-white/90 p-1 text-xs text-slate-600 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 rounded-xl px-4 py-2 text-center font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+              className={`rounded-xl px-2 sm:px-4 py-2 text-center font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 truncate ${
                 activeTab === tab.key
                   ? 'text-white'
                   : 'bg-transparent text-slate-600 hover:text-slate-900'
