@@ -2,7 +2,7 @@
 // @ts-nocheck
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -4554,7 +4554,7 @@ function WindowsEditor({
   );
 }
 
-export default function ServicesPage() {
+function ServicesPageContent() {
   const searchParams = useSearchParams();
   const [S, dispatch] = useLocalStorageReducer<WizardState>(
     STORAGE_KEY,
@@ -9652,5 +9652,26 @@ const COMM_PRESETS: Record<
       )}
       </div>
     </MotionContext.Provider>
+  );
+}
+
+// Loading fallback for Suspense
+function ServicesPageLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-emerald-600 border-r-transparent" />
+        <p className="mt-4 text-slate-600">Loading services...</p>
+      </div>
+    </div>
+  );
+}
+
+// Wrap in Suspense for useSearchParams
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={<ServicesPageLoading />}>
+      <ServicesPageContent />
+    </Suspense>
   );
 }
