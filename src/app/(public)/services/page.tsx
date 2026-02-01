@@ -4300,17 +4300,17 @@ function WindowsEditor({
       </div>
 
       {/* Controls bar */}
-      <div className="px-5 py-4 bg-white border-b border-slate-100">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="px-4 md:px-5 py-3 md:py-4 bg-white border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           {/* Mode toggle */}
-          <div role="group" aria-label="Mode" className="inline-flex rounded-xl bg-slate-100 p-1">
+          <div role="group" aria-label="Mode" className="inline-flex rounded-xl bg-slate-100 p-1 overflow-x-auto">
             {allowedModes.includes('both') && (
               <button
                 type="button"
                 aria-pressed={currentMode === 'both'}
                 onClick={() => applyMode('both')}
                 className={cls(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
                   currentMode === 'both'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -4325,7 +4325,7 @@ function WindowsEditor({
                 aria-pressed={currentMode === 'inside'}
                 onClick={() => applyMode('inside')}
                 className={cls(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
                   currentMode === 'inside'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -4340,7 +4340,7 @@ function WindowsEditor({
                 aria-pressed={currentMode === 'outside'}
                 onClick={() => applyMode('outside')}
                 className={cls(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
                   currentMode === 'outside'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -4355,7 +4355,7 @@ function WindowsEditor({
                 aria-pressed={currentMode === 'tracks'}
                 onClick={() => applyMode('tracks')}
                 className={cls(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
                   currentMode === 'tracks'
                     ? 'bg-white text-emerald-700 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -4411,8 +4411,8 @@ function WindowsEditor({
       </div>
 
       {/* Levels grid */}
-      <div className="p-5">
-        <div role="table" aria-label="Levels grid" className="w-full">
+      <div className="p-4 md:p-5 overflow-x-auto">
+        <div role="table" aria-label="Levels grid" className="w-full min-w-[400px]">
           {/* Column headers */}
           <div role="row" className="grid gap-3 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 px-4" style={gridTemplate}>
             <div role="columnheader">Level</div>
@@ -6517,11 +6517,11 @@ const COMM_PRESETS: Record<
                     <div
                       className="mt-3 space-y-2 border-t border-slate-200/80 pt-3"
                     >
-                      <div className="flex items-center justify-between text-[11px] text-slate-600">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[11px] text-slate-600">
                         <span className="font-semibold text-slate-800 tracking-tight uppercase">Adjust details</span>
-                        {cleaningHint && <span className="text-slate-500">{cleaningHint}</span>}
+                        {cleaningHint && <span className="text-slate-500 hidden sm:inline">{cleaningHint}</span>}
                       </div>
-                      <div className="flex flex-wrap gap-2 text-[11px] text-slate-700 items-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-700">
                         <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
                           <span className="text-[11px] font-semibold text-slate-700">Bedrooms</span>
                           <button
@@ -6715,12 +6715,12 @@ const COMM_PRESETS: Record<
                           </button>
                         ))}
                       </div>
-                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
                         {[
                           { key: 'oven', label: 'Inside oven' },
-                          { key: 'fridge', label: 'Inside fridge/freezer' },
+                          { key: 'fridge', label: 'Fridge/freezer' },
                           { key: 'windows', label: 'Windows' },
-                          { key: 'cupboards', label: 'Inside cupboards' },
+                          { key: 'cupboards', label: 'Cupboards' },
                           { key: 'walls', label: 'Walls/marks' },
                         ].map((c) => {
                           const active =
@@ -9454,7 +9454,7 @@ const COMM_PRESETS: Record<
 )}
 
 {/* Spacer for sticky footer */}
-{S.service !== 'yard' && (S.step === 2 || S.step === 3) && <div className="h-28" />}
+{(S.step === 2 || S.step === 3) && <div className="h-48 md:h-36" />}
 
 {/* Sticky footer for STEP 2 */}
 {S.service !== 'yard' && S.step === 2 && (
@@ -9469,35 +9469,35 @@ const COMM_PRESETS: Record<
       className="mx-auto max-w-3xl px-4"
     >
       <div
-        className={`pointer-events-auto flex items-center justify-between rounded-2xl px-4 py-3 ${glass}`}
+        className={`pointer-events-auto flex items-center justify-between rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
         role="region"
         aria-label="Step 2 price bar"
       >
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-600">
+            <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-600">
               Price for this scope
             </div>
-            <div className="text-2xl font-bold">{priceLabel}</div>
-            <div className="text-xs text-slate-600 mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <div className="text-xl md:text-2xl font-bold">{priceLabel}</div>
+            <div className="text-[11px] md:text-xs text-slate-600 mt-0.5 md:mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {timeLabel}
             </div>
             {usesRoutePricing && (
-              <div className="text-xs text-slate-600 mt-1" aria-live="polite">
+              <div className="hidden md:block text-xs text-slate-600 mt-1" aria-live="polite">
                 {routeDistanceLabel ??
                   (routeLookupLoading ? 'Calculating travel details…' : 'Add both addresses for travel info.')}
               </div>
             )}
-            <div className="text-[11px] text-slate-600 mt-1">
+            <div className="hidden md:block text-[11px] text-slate-600 mt-1">
               {PRICE_SCOPE_DISCLAIMER}
             </div>
-          <div className="text-[11px] text-slate-600">
+          <div className="hidden md:block text-[11px] text-slate-600">
             {FAIRNESS_PROMISE_COPY}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <M.button
-            className="px-4 py-2 rounded-2xl text-sm text-white"
+            className="px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white"
             style={{ background: 'var(--accent)' }}
             onClick={() => goToStep(1)}
             aria-label="Back to step 1"
@@ -9505,7 +9505,7 @@ const COMM_PRESETS: Record<
             Back
           </M.button>
           <M.button
-            className="px-4 py-2 rounded-2xl text-sm text-white"
+            className="px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white"
             style={{ background: 'var(--accent)' }}
             onClick={() => goToStep(3)}
             aria-label="See full quote"
@@ -9560,20 +9560,29 @@ const COMM_PRESETS: Record<
                 {priceReady ? measurementHint : 'Complete a polygon to reveal calm pricing.'}
               </div>
             </div>
-            <M.button
-              className={cls(
-                'px-4 py-2 rounded-2xl text-sm font-semibold text-white transition',
-                priceReady ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--accent)]/70'
-              )}
-              onClick={() => {
-                if (!priceReady) return;
-                goToStep(3);
-              }}
-              disabled={!priceReady}
-              aria-label="Review yard quote"
-            >
-              Review quote
-            </M.button>
+            <div className="flex items-center gap-2">
+              <M.button
+                className="px-4 py-2 rounded-2xl text-sm font-semibold text-white bg-[color:var(--accent)]"
+                onClick={() => goToStep(1)}
+                aria-label="Back to step 1"
+              >
+                Back
+              </M.button>
+              <M.button
+                className={cls(
+                  'px-4 py-2 rounded-2xl text-sm font-semibold text-white transition',
+                  priceReady ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--accent)]/70'
+                )}
+                onClick={() => {
+                  if (!priceReady) return;
+                  goToStep(3);
+                }}
+                disabled={!priceReady}
+                aria-label="Review yard quote"
+              >
+                Review quote
+              </M.button>
+            </div>
           </div>
         </div>
       </M.div>
