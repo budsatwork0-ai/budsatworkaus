@@ -6318,8 +6318,8 @@ const COMM_PRESETS: Record<
               aria-describedby={hookId}
               className={cls(
                 glassCard(isActive),
-                'relative overflow-visible cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)] transition-all',
-                'flex flex-col h-full',
+                'relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)] transition-all',
+                'flex flex-col h-full min-w-0',
                 className
               )}
               onClick={(e) => {
@@ -6341,7 +6341,7 @@ const COMM_PRESETS: Record<
               }}
             >
               {/* Header */}
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 min-w-0">
                 <svg
                   aria-hidden
                   width="16"
@@ -6430,7 +6430,6 @@ const COMM_PRESETS: Record<
               visibleInclusions.length > 0 && (
                 <div
                   className={`mt-2 ${inclusionMinClass} rounded-xl border border-black/5 bg-white/85 p-3 shadow-sm`}
-                  data-card-interactive="true"
                 >
                   <div className="flex items-center justify-between text-[11px] text-slate-600 mb-1 select-none">
                     <span className="font-semibold text-slate-800 tracking-tight uppercase">Checklist</span>
@@ -6459,6 +6458,7 @@ const COMM_PRESETS: Record<
                   {moreCount > 0 && !shouldShowHidden && (
                     <button
                       type="button"
+                      data-card-interactive="true"
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenChecklists((prev) => ({ ...prev, [sc.key]: true }));
@@ -6497,6 +6497,7 @@ const COMM_PRESETS: Record<
                       <div className="text-left mt-2">
                         <button
                           type="button"
+                          data-card-interactive="true"
                           className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-slate-300 bg-white/95 text-[11px] text-slate-700 shadow-sm hover:border-[color:var(--accent)] hover:text-emerald-700"
                           onClick={(e) => {
                             e.stopPropagation();
