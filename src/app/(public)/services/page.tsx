@@ -4229,7 +4229,7 @@ function WindowsEditor({
   });
 
   const inputColumnCount = Number(showInside) + Number(showOutside) + Number(showTracks) + Number(showScreens);
-  const gridTemplate = { gridTemplateColumns: `minmax(100px, 1.5fr) repeat(${inputColumnCount}, minmax(60px, 1fr)) auto` } as const;
+  const gridTemplate = { gridTemplateColumns: `minmax(50px, 1fr) repeat(${inputColumnCount}, minmax(36px, 1fr)) 32px` } as const;
 
   const Chip = ({
     label,
@@ -4411,15 +4411,15 @@ function WindowsEditor({
       </div>
 
       {/* Levels grid */}
-      <div className="p-4 md:p-5 overflow-x-auto">
-        <div role="table" aria-label="Levels grid" className="w-full min-w-[400px]">
+      <div className="p-3 md:p-5 overflow-x-auto">
+        <div role="table" aria-label="Levels grid" className="w-full min-w-0">
           {/* Column headers */}
-          <div role="row" className="grid gap-3 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 px-4" style={gridTemplate}>
+          <div role="row" className="grid gap-1.5 md:gap-3 text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 md:mb-3 px-2 md:px-4" style={gridTemplate}>
             <div role="columnheader">Level</div>
-            {showInside && <div role="columnheader" className="text-center">Inside</div>}
-            {showOutside && <div role="columnheader" className="text-center">Outside</div>}
-            {showTracks && <div role="columnheader" className="text-center">Tracks</div>}
-            {showScreens && <div role="columnheader" className="text-center">Screens</div>}
+            {showInside && <div role="columnheader" className="text-center">In</div>}
+            {showOutside && <div role="columnheader" className="text-center">Out</div>}
+            {showTracks && <div role="columnheader" className="text-center">Trk</div>}
+            {showScreens && <div role="columnheader" className="text-center">Scr</div>}
             <div role="columnheader" className="text-right" />
           </div>
 
@@ -4432,21 +4432,21 @@ function WindowsEditor({
                   key={`${label}-${sourceIndex}`}
                   role="row"
                   className={cls(
-                    'grid gap-3 items-center rounded-xl p-4 transition-all duration-200',
+                    'grid gap-1.5 md:gap-3 items-center rounded-xl p-2 md:p-4 transition-all duration-200',
                     isTop
                       ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200'
                       : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm'
                   )}
                   style={gridTemplate}
                 >
-                  <div role="cell" className="flex items-center gap-3">
+                  <div role="cell" className="flex items-center gap-1 md:gap-3">
                     <div className={cls(
-                      'w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold',
+                      'w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold shrink-0',
                       isTop ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
                     )}>
                       {isCommercial ? (sourceIndex === 0 ? 'G' : sourceIndex) : (sourceIndex === 0 ? 'G' : sourceIndex === 1 ? '2' : '3')}
                     </div>
-                    <span className={cls('text-sm font-medium', isTop ? 'text-emerald-800' : 'text-slate-700')}>
+                    <span className={cls('text-xs md:text-sm font-medium truncate', isTop ? 'text-emerald-800' : 'text-slate-700')}>
                       {label}
                     </span>
                   </div>
@@ -4461,7 +4461,7 @@ function WindowsEditor({
                         type="number"
                         min={0}
                         inputMode="numeric"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                         aria-label={`Inside panes for ${label}`}
                         value={r.int ? r.int : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'int', e.target.value)}
@@ -4479,7 +4479,7 @@ function WindowsEditor({
                         type="number"
                         min={0}
                         inputMode="numeric"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                         aria-label={`Outside panes for ${label}`}
                         value={r.ext ? r.ext : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'ext', e.target.value)}
@@ -4497,7 +4497,7 @@ function WindowsEditor({
                         type="number"
                         min={0}
                         inputMode="numeric"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                         aria-label={`Tracks for ${label}`}
                         value={r.tracks ? r.tracks : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'tracks', e.target.value)}
@@ -4515,7 +4515,7 @@ function WindowsEditor({
                         type="number"
                         min={0}
                         inputMode="numeric"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                         aria-label={`Screens for ${label}`}
                         value={r.screens ? r.screens : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'screens', e.target.value)}
@@ -5514,7 +5514,7 @@ function winFmtMins(m: number) {
 
           {/* Service tiles */}
           <div className="text-sm text-slate-700 mb-3">Service</div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {SERVICES.map((s) => {
               const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
               const isActive = S.service === s.key && allowed;
@@ -6521,13 +6521,13 @@ const COMM_PRESETS: Record<
                         <span className="font-semibold text-slate-800 tracking-tight uppercase">Adjust details</span>
                         {cleaningHint && <span className="text-slate-500 hidden sm:inline">{cleaningHint}</span>}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-700">
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Bedrooms</span>
+                      <div className="flex flex-wrap gap-1.5 text-[10px] md:text-[11px] text-slate-700">
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Bed</span>
                           <button
                             type="button"
                             aria-label="Decrease bedrooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustBedrooms(-1);
@@ -6535,13 +6535,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.bedrooms ?? sizePreset.bedrooms}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase bedrooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustBedrooms(1);
@@ -6550,12 +6550,12 @@ const COMM_PRESETS: Record<
                             +
                           </button>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Kitchen</span>
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Kit</span>
                           <button
                             type="button"
                             aria-label="Decrease kitchens"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustKitchens(-1);
@@ -6563,13 +6563,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.kitchens ?? sizePreset.kitchens}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase kitchens"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustKitchens(1);
@@ -6578,12 +6578,12 @@ const COMM_PRESETS: Record<
                             +
                           </button>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Laundry</span>
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Lndy</span>
                           <button
                             type="button"
                             aria-label="Decrease laundry"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustLaundry(-1);
@@ -6591,13 +6591,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.laundry ?? sizePreset.laundry}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase laundry"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustLaundry(1);
@@ -6606,12 +6606,12 @@ const COMM_PRESETS: Record<
                             +
                           </button>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Living</span>
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Liv</span>
                           <button
                             type="button"
                             aria-label="Decrease living rooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustLiving(-1);
@@ -6619,13 +6619,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.living ?? sizePreset.living}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase living rooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustLiving(1);
@@ -6634,12 +6634,12 @@ const COMM_PRESETS: Record<
                             +
                           </button>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Bathrooms</span>
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Bath</span>
                           <button
                             type="button"
                             aria-label="Decrease bathrooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustBathrooms(-1);
@@ -6647,13 +6647,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.bathrooms ?? sizePreset.bathrooms}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase bathrooms"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustBathrooms(1);
@@ -6662,12 +6662,12 @@ const COMM_PRESETS: Record<
                             +
                           </button>
                         </div>
-                        <div className="rounded-full border border-black/10 bg-white/80 px-2 py-1 inline-flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-slate-700">Storeys</span>
+                        <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <span className="font-semibold text-slate-700">Flr</span>
                           <button
                             type="button"
                             aria-label="Decrease storeys"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustStoreys(-1);
@@ -6675,13 +6675,13 @@ const COMM_PRESETS: Record<
                           >
                             –
                           </button>
-                          <span className="min-w-[20px] text-center font-semibold text-slate-900">
+                          <span className="min-w-[16px] text-center font-semibold text-slate-900">
                             {S.paramsByService.cleaning?.storeys ?? sizePreset.storeys}
                           </span>
                           <button
                             type="button"
                             aria-label="Increase storeys"
-                            className="px-2 py-0.5 rounded-full border border-black/10"
+                            className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               adjustStoreys(1);
@@ -6691,17 +6691,17 @@ const COMM_PRESETS: Record<
                           </button>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                      <div className="flex flex-wrap gap-1 text-[10px] md:text-[11px]">
                         {[
                           { key: 'light', label: 'Tidy' },
                           { key: 'standard', label: 'Lived in' },
-                          { key: 'heavy', label: 'Needs a reset' },
+                          { key: 'heavy', label: 'Reset' },
                         ].map((c) => (
                           <button
                             key={c.key}
                             type="button"
                             className={cls(
-                              'px-3 py-1 rounded-full border',
+                              'px-2 py-0.5 md:px-3 md:py-1 rounded-full border',
                               messLevel === c.key
                                 ? 'bg-emerald-600 text-white border-emerald-600'
                                 : 'bg-white border-black/10 text-slate-700'
@@ -6715,13 +6715,13 @@ const COMM_PRESETS: Record<
                           </button>
                         ))}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
+                      <div className="flex flex-wrap gap-1 text-[10px] md:text-[11px]">
                         {[
-                          { key: 'oven', label: 'Inside oven' },
-                          { key: 'fridge', label: 'Fridge/freezer' },
+                          { key: 'oven', label: 'Oven' },
+                          { key: 'fridge', label: 'Fridge' },
                           { key: 'windows', label: 'Windows' },
                           { key: 'cupboards', label: 'Cupboards' },
-                          { key: 'walls', label: 'Walls/marks' },
+                          { key: 'walls', label: 'Walls' },
                         ].map((c) => {
                           const active =
                             c.key === 'oven'
@@ -6744,7 +6744,7 @@ const COMM_PRESETS: Record<
                               key={c.key}
                               type="button"
                               className={cls(
-                                'px-3 py-1 rounded-full border',
+                                'px-2 py-0.5 md:px-3 md:py-1 rounded-full border',
                                 active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-black/10'
                               )}
                               onClick={handle}
@@ -6902,6 +6902,7 @@ const COMM_PRESETS: Record<
                 {S.service === 'windows' && isActive && isConfigOpen && (
                   <div
                     data-card-interactive="true"
+                    className="min-w-0 w-full overflow-hidden"
                     onClick={stopCardBubble}
                     onMouseDown={stopCardBubble}
                     onPointerDown={stopCardBubble}
@@ -8825,18 +8826,18 @@ const COMM_PRESETS: Record<
             {/* MAIN: form */}
             <div className="lg:col-span-2 space-y-6">
               {/* Header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-2xl font-semibold text-slate-900">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
                     Request your booking
                   </h3>
                   <p className="text-sm text-slate-600 mt-1">
-                    We’ll confirm times and any changes before work proceeds.
+                    We'll confirm times and any changes before work proceeds.
                   </p>
                 </div>
                 <span
                   className={cls(
-                    'text-[11px] px-2 py-1 rounded-full self-start',
+                    'text-[11px] px-2 py-1 rounded-full flex-shrink-0',
                     estimate.confidence === 'High'
                       ? 'bg-green-100 text-green-900'
                       : estimate.confidence === 'Medium'
@@ -9134,13 +9135,13 @@ const COMM_PRESETS: Record<
 
                 {/* Service Summary */}
                 <div className="mb-4 pb-3 border-b border-black/5">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
                     <div className="text-[11px] uppercase tracking-wide text-slate-500">
                       Service requested
                     </div>
                     <span
                       className={cls(
-                        'text-[10px] px-2 py-0.5 rounded-full',
+                        'text-[10px] px-2 py-0.5 rounded-full flex-shrink-0',
                         S.context === 'commercial'
                           ? 'bg-indigo-100 text-indigo-800'
                           : 'bg-emerald-100 text-emerald-800'
@@ -9212,12 +9213,12 @@ const COMM_PRESETS: Record<
                   })()
                 ) : (
                   <>
-                    <div className="flex items-start justify-between">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
                         <div className="text-[11px] uppercase tracking-wide text-slate-600">
                           Your quote
                         </div>
-                        <div className="text-4xl font-semibold mt-1">
+                        <div className="text-3xl sm:text-4xl font-semibold mt-1">
                           {priceLabel}
                         </div>
                         <div className="text-xs text-slate-600 mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -9232,7 +9233,7 @@ const COMM_PRESETS: Record<
                       </div>
                       <span
                         className={cls(
-                          'text-[11px] px-2 py-1 rounded-full self-start',
+                          'text-[11px] px-2 py-1 rounded-full flex-shrink-0',
                           estimate.confidence === 'High'
                             ? 'bg-green-100 text-green-900'
                             : estimate.confidence === 'Medium'
