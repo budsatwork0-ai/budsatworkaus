@@ -1,7 +1,6 @@
-'use client';
-
 import Link from 'next/link';
 import { brand, cx, glass, glassSoft } from '../../ui/theme';
+import { getSiteSettings } from '@/lib/site-settings';
 
 const iconProps = {
   viewBox: '0 0 24 24',
@@ -182,13 +181,14 @@ const team = [
   { name: 'Silvan', role: 'Field Lead / Community Representative', initials: 'S', color: '#0ea5e9' },
 ];
 
-const stats = [
-  { value: '250+', label: 'Jobs completed' },
-  { value: '4.9/5', label: 'Avg. rating' },
-  { value: '70%+', label: 'Repeat customers' },
-];
+export default async function AboutPage() {
+  const siteStats = await getSiteSettings();
 
-export default function AboutPage() {
+  const stats = [
+    { value: siteStats.jobs_completed, label: 'Jobs completed' },
+    { value: siteStats.avg_rating, label: 'Avg. rating' },
+    { value: siteStats.repeat_customers, label: 'Repeat customers' },
+  ];
   return (
     <div className="relative overflow-hidden">
       {/* Background gradient */}

@@ -4228,8 +4228,8 @@ function WindowsEditor({
     return { row, sourceIndex };
   });
 
-  const columnCount = 1 + Number(showInside) + Number(showOutside) + Number(showTracks) + Number(showScreens) + 1; // +1 for actions
-  const gridTemplate = { gridTemplateColumns: `repeat(${columnCount}, minmax(0,1fr))` } as const;
+  const inputColumnCount = Number(showInside) + Number(showOutside) + Number(showTracks) + Number(showScreens);
+  const gridTemplate = { gridTemplateColumns: `minmax(100px, 1.5fr) repeat(${inputColumnCount}, minmax(60px, 1fr)) auto` } as const;
 
   const Chip = ({
     label,

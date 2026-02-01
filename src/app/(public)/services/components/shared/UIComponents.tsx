@@ -44,7 +44,7 @@ export function Tile({
     <M.button
       onClick={() => !disabled && onClick?.()}
       className={cls(
-        'relative w-full min-w-0 text-left rounded-2xl p-4 transition overflow-hidden',
+        'relative w-full min-w-0 text-left rounded-2xl p-4 transition',
         glass,
         active ? 'ring-2 ring-[var(--accent)]' : 'ring-1 ring-black/10',
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
@@ -63,12 +63,12 @@ export function Tile({
     >
       {active && !disabled && (
         <div
-          className="absolute -top-2 -right-2 grid place-items-center w-7 h-7 rounded-full"
+          className="absolute top-2 right-2 grid place-items-center w-6 h-6 rounded-full"
           style={{ background: 'var(--accent)' }}
         >
           <svg
-            width="14"
-            height="14"
+            width="12"
+            height="12"
             viewBox="0 0 24 24"
             fill="none"
             stroke="white"

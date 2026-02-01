@@ -5,9 +5,10 @@ import type {
   Context,
   ServiceType,
 } from '../../types';
+import { brand } from '@/app/ui/theme';
 
-// Theme and styling
-export const ACCENT = '#14532d';
+// Theme and styling - use centralized brand color for consistency
+export const ACCENT = brand.primary;
 export const glass =
   'bg-white/75 backdrop-blur-2xl border border-black/10 shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 

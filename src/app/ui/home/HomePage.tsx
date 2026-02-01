@@ -250,7 +250,7 @@ export default function HomePage() {
               <Link key={s.key} href={s.href} className="group min-w-0">
                 <div
                   className={cx(
-                    'rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all overflow-hidden',
+                    'rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all',
                     glass,
                     'hover:shadow-lg hover:-translate-y-0.5'
                   )}
