@@ -153,37 +153,52 @@ const values = [
 
 export default function HomePage() {
   return (
-    <div className="relative overflow-hidden">
-      {/* Background gradient */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        aria-hidden
+    <div className="relative">
+      {/* HERO - Full screen with video */}
+      <section
+        className="relative flex items-center justify-center text-center"
         style={{
-          background:
-            'radial-gradient(900px circle at 25% 10%, rgba(20,83,45,0.12) 0, transparent 55%), radial-gradient(1100px circle at 80% 0%, rgba(125,211,252,0.14) 0, transparent 55%), radial-gradient(900px circle at 50% 90%, rgba(191,232,209,0.18) 0, transparent 60%)',
+          height: 'calc(100vh - 2.5rem)',
+          marginLeft: 'calc(-50vw + 50%)',
+          marginRight: 'calc(-50vw + 50%)',
+          marginTop: '-2.5rem',
+          width: '100vw',
         }}
-      />
+      >
+        {/* Video Background - positioned to go behind header */}
+        <div
+          className="absolute z-0"
+          style={{
+            top: '-100px',
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full h-full object-cover"
+          >
+            <source src="/videos/hero.mp4" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
+        </div>
 
-      <div className="mx-auto max-w-5xl space-y-20 pb-12">
-        {/* HERO */}
-        <section className="text-center pt-4">
-          <p className="text-sm font-medium" style={{ color: brand.primary }}>
+        <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
+          <p className="text-sm font-medium text-white/90">
             Serving Logan & South Brisbane
           </p>
 
-          <h1
-            className="mt-4 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]"
-            style={{ color: brand.text }}
-          >
+          <h1 className="mt-4 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white drop-shadow-lg">
             Good people doing
             <br />
-            <span style={{ color: brand.primary }}>honest work.</span>
+            <span className="text-emerald-300">honest work.</span>
           </h1>
 
-          <p
-            className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
-            style={{ color: brand.muted }}
-          >
+          <p className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-white/90">
             We&apos;re Buds at Work — a local crew that handles cleaning, yard care, dump runs,
             and car detailing. Get a real quote in minutes, not a callback next week.
           </p>
@@ -198,15 +213,28 @@ export default function HomePage() {
             </Link>
             <Link
               href="/about"
-              className="rounded-full px-7 py-3.5 text-base font-semibold border-2 hover:bg-white/80 transition-colors"
-              style={{ borderColor: brand.primary, color: brand.primary }}
+              className="rounded-full px-7 py-3.5 text-base font-semibold bg-white/20 backdrop-blur text-white border border-white/30 hover:bg-white/30 transition-colors"
             >
               Meet the team
             </Link>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* SERVICES GRID */}
+      {/* Content sections with background */}
+      <div className="relative">
+        {/* Background gradient */}
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          aria-hidden
+          style={{
+            background:
+              'radial-gradient(900px circle at 25% 10%, rgba(20,83,45,0.12) 0, transparent 55%), radial-gradient(1100px circle at 80% 0%, rgba(125,211,252,0.14) 0, transparent 55%), radial-gradient(900px circle at 50% 90%, rgba(191,232,209,0.18) 0, transparent 60%)',
+          }}
+        />
+
+        <div className="mx-auto max-w-5xl space-y-20 pb-12 pt-16 px-4 sm:px-6 md:px-8">
+          {/* SERVICES GRID */}
         <section>
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
@@ -362,6 +390,7 @@ export default function HomePage() {
             Build your quote
           </Link>
         </section>
+        </div>
       </div>
     </div>
   );

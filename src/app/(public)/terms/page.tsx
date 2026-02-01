@@ -84,9 +84,9 @@ export default function TermsPage() {
             Email us at{' '}
             <a
               className="font-medium text-slate-900 underline decoration-dotted underline-offset-4"
-              href="mailto:hello@budsatwork.com"
+              href="mailto:admin@budsatwork.com"
             >
-              hello@budsatwork.com
+              admin@budsatwork.com
             </a>{' '}
             if anything in these terms needs clarification—happy to talk it through.
           </p>

@@ -22,7 +22,7 @@ const sharingPoints = [
 ];
 
 const choicePoints = [
-  'Review, correct, or request the deletion of your data by emailing hello@budsatwork.com.',
+  'Review, correct, or request the deletion of your data by emailing admin@budsatwork.com.',
   'Opt-out of marketing emails and SMS replies by clicking “unsubscribe” or replying “STOP.”',
   'Ask us to stop sharing your data for optional add-ons once a job, warranty, or legal obligation no longer applies.',
 ];
@@ -80,9 +80,9 @@ export default function PrivacyPolicyPage() {
             Prefer a direct conversation? Email us at{' '}
             <a
               className="font-medium text-slate-900 underline decoration-dotted underline-offset-4"
-              href="mailto:hello@budsatwork.com"
+              href="mailto:admin@budsatwork.com"
             >
-              hello@budsatwork.com
+              admin@budsatwork.com
             </a>
             , and we’ll respond within two business days.
           </p>

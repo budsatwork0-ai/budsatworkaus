@@ -5514,7 +5514,7 @@ function winFmtMins(m: number) {
 
           {/* Service tiles */}
           <div className="text-sm text-slate-700 mb-3">Service</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 overflow-hidden">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {SERVICES.map((s) => {
               const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
               const isActive = S.service === s.key && allowed;

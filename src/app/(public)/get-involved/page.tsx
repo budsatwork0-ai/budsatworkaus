@@ -438,7 +438,7 @@ export default function GetInvolvedPage() {
     }
     const subject = enc('Expression of interest');
     const body = buildBody();
-    window.location.href = `mailto:hello@budsatwork.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:admin@budsatwork.com?subject=${subject}&body=${body}`;
   }
 
   function copyDraft() {
@@ -1190,7 +1190,7 @@ export default function GetInvolvedPage() {
                 {[
                   { step: 1, text: 'Fill in the form above' },
                   { step: 2, text: 'Click to open or copy your email' },
-                  { step: 3, text: 'Send to hello@budsatwork.com' },
+                  { step: 3, text: 'Send to admin@budsatwork.com' },
                 ].map(({ step, text }) => (
                   <li key={step} className="flex items-start gap-3">
                     <span
@@ -1257,8 +1257,8 @@ export default function GetInvolvedPage() {
 
               <p className="mt-4 text-xs text-slate-500">
                 If nothing opens, paste the copied text into an email to{' '}
-                <a href="mailto:hello@budsatwork.com" className="underline underline-offset-2">
-                  hello@budsatwork.com
+                <a href="mailto:admin@budsatwork.com" className="underline underline-offset-2">
+                  admin@budsatwork.com
                 </a>
               </p>
 

@@ -63,7 +63,7 @@ export function Footer() {
           <div>
             <h4 className="font-medium text-slate-900">Contact</h4>
             <ul className="mt-2 space-y-2">
-              <li className="text-sm text-slate-600">hello@budsatwork.com</li>
+              <li className="text-sm text-slate-600">admin@budsatwork.com</li>
             </ul>
           </div>
         </div>

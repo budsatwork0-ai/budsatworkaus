@@ -8,7 +8,7 @@ import { brand } from './theme';
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
 
-function TruckIcon({ className = 'h-5 w-5' }: { className?: string }) {
+function TruckIcon({ className = 'h-6 w-6' }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -54,6 +54,9 @@ export default function Header() {
   const isActive = (href: string) =>
     pathname === href || pathname?.startsWith(href + '/');
 
+  const isHome = pathname === '/';
+  const showLight = isHome && !scrolled;
+
   const linkBase =
     'hover:underline transition-[color,opacity] duration-150';
 
@@ -65,22 +68,22 @@ export default function Header() {
           ? 'bg-white/80 backdrop-blur border-b border-white/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)]'
           : 'bg-transparent border-b border-transparent'
       )}
-      style={{ color: brand.text }}
+      style={{ color: showLight ? '#fff' : brand.text }}
     >
-      <div className="mx-auto max-w-6xl px-6 md:px-8 py-3 flex items-center justify-between">
+      <div className="mx-auto max-w-6xl px-6 md:px-8 py-5 flex items-center justify-between">
         <Link
           href="/"
-          className="font-bold text-xl"
+          className={cx('font-bold text-2xl transition-colors', showLight && 'drop-shadow-md')}
           onClick={() => handleNavClick('/')}
-          style={{ color: brand.primary }}
+          style={{ color: showLight ? '#fff' : brand.primary }}
         >
           Buds at Work
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6" aria-label="Main">
+        <nav className="hidden md:flex items-center gap-8 text-lg font-medium" aria-label="Main">
           <Link
             href="/about"
-            className={linkBase}
+            className={cx(linkBase, showLight && 'drop-shadow-sm')}
             onClick={() => handleNavClick('/about')}
             aria-current={isActive('/about') ? 'page' : undefined}
           >
@@ -88,7 +91,7 @@ export default function Header() {
           </Link>
           <Link
             href="/services"
-            className={linkBase}
+            className={cx(linkBase, showLight && 'drop-shadow-sm')}
             onClick={() => handleNavClick('/services')}
             aria-current={isActive('/services') ? 'page' : undefined}
           >
@@ -96,7 +99,7 @@ export default function Header() {
           </Link>
           <Link
             href="/get-involved"
-            className={linkBase}
+            className={cx(linkBase, showLight && 'drop-shadow-sm')}
             onClick={() => handleNavClick('/get-involved')}
             aria-current={isActive('/get-involved') ? 'page' : undefined}
           >
@@ -104,7 +107,7 @@ export default function Header() {
           </Link>
           <Link
             href="/shop"
-            className={linkBase}
+            className={cx(linkBase, showLight && 'drop-shadow-sm')}
             onClick={() => handleNavClick('/shop')}
             aria-current={isActive('/shop') ? 'page' : undefined}
           >
@@ -116,22 +119,28 @@ export default function Header() {
           <Link
             href="/cart"
             aria-label="Cart"
-            className="p-2 rounded-xl border hover:bg-gray-50 flex"
+            className={cx(
+              'p-2 rounded-xl border flex transition-colors',
+              showLight ? 'border-white/40 hover:bg-white/20' : 'hover:bg-gray-50'
+            )}
             onClick={() => handleNavClick('/cart')}
-            style={{ borderColor: brand.border, color: brand.primary }}
+            style={{ borderColor: showLight ? undefined : brand.border, color: showLight ? '#fff' : brand.primary }}
           >
             <TruckIcon />
           </Link>
           <Link
             href="/account"
             aria-label="Profile"
-            className="p-2 rounded-xl border hover:bg-gray-50"
+            className={cx(
+              'p-2 rounded-xl border transition-colors',
+              showLight ? 'border-white/40 hover:bg-white/20' : 'hover:bg-gray-50'
+            )}
             onClick={() => handleNavClick('/account')}
-            style={{ borderColor: brand.border, color: brand.primary }}
+            style={{ borderColor: showLight ? undefined : brand.border, color: showLight ? '#fff' : brand.primary }}
           >
             <svg xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" className="h-5 w-5"
+              stroke="currentColor" className="h-6 w-6"
             >
               <circle cx="12" cy="8" r="4" strokeWidth={1.8} />
               <path d="M4 20c0-4 4-6 8-6s8 2 8 6" strokeWidth={1.8} />
