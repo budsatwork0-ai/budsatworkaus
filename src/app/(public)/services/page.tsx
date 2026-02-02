@@ -2908,6 +2908,7 @@ function getInitialState(): WizardState {
   carModelZones: [],
   carDirtLevel: 0,
   carModelPriceImpact: 0,
+  carDetectedVehicle: null,
   carDetectedSizeCategory: null,
   carDetectedYear: null,
   sneakerTurnaround: 'standard',
@@ -4663,12 +4664,14 @@ function ServicesPageContent() {
   const mapFrameSrc = '/yard-map-frame';
 
   // Reset handler + mount
-  const hardResetQuote = React.useCallback(() => {
+  const hardResetQuote = React.useCallback((silent = false) => {
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
     dispatch({ type: 'reset' });
-    toast.info('Quote reset.');
+    if (!silent) {
+      toast.info('Quote reset.');
+    }
     const target = iframeRef.current?.contentWindow;
     if (target) {
       target.postMessage({ type: 'YARD_SET_POLYGON', coords: [] }, window.location.origin);
@@ -4676,7 +4679,10 @@ function ServicesPageContent() {
   }, [dispatch]);
 
   useEffect(() => {
-    const handler = () => hardResetQuote();
+    const handler = (e: Event) => {
+      const silent = (e as CustomEvent).detail?.silent ?? false;
+      hardResetQuote(silent);
+    };
     window.addEventListener('svc:reset', handler);
 
     if (RESET_ON_MOUNT) {
@@ -6916,223 +6922,138 @@ const COMM_PRESETS: Record<
                 {S.service === 'auto' && isActive && isConfigOpen && (
                   <div
                     data-card-interactive="true"
-                    className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-3"
+                    className="rounded-2xl bg-slate-900 overflow-hidden"
                     onClick={stopCardBubble}
                     onMouseDown={stopCardBubble}
                     onPointerDown={stopCardBubble}
                     onTouchStart={stopCardBubble}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">3D car selector (optional)</div>
-                        <div className="text-xs text-slate-600">Keeps size/zone selections inside this preset.</div>
-                      </div>
-                    </div>
-                    <RegoLookupAssistant
-                      selectedCategory={carSelector.carType}
-                      onSelectCategory={(category) => carSelector.setCarType(category)}
-                      onVehicleDetected={(_vehicle, classification) => {
-                        if (classification.sizeCategory) {
-                          set('carDetectedSizeCategory', classification.sizeCategory);
-                        }
-                        const year = _vehicle.year;
-                        set('carDetectedYear', typeof year === 'number' ? year : null);
-                      }}
-                    />
-                    <div className="flex items-center gap-2 text-sm">
-                      <label className="text-slate-700">Car type</label>
-                      <select
-                        className="rounded-lg border border-black/10 px-2 py-1 text-sm"
-                        value={carSelector.carType}
-                        onChange={(e) => {
-                          const newType = e.target.value as any;
-                          carSelector.setCarType(newType);
-                          // Auto-sync vehicle_size parameter
+                    {/* Rego Lookup Section */}
+                    <div className="p-4 border-b border-white/10">
+                      <RegoLookupAssistant
+                        selectedCategory={carSelector.carType}
+                        detectedVehicle={S.carDetectedVehicle}
+                        onVehicleChange={(vehicle) => set('carDetectedVehicle', vehicle)}
+                        onSelectCategory={(category) => {
+                          carSelector.setCarType(category);
                           const sizeMap: Record<string, number> = {
-                            hatch: 1,
-                            sedan: 2,
-                            suv: 3,
-                            ute: 4,
-                            van: 5,
-                            '4wd': 6,
-                            luxury: 2,
-                            muscle: 2,
+                            hatch: 1, sedan: 2, suv: 3, ute: 4, van: 5, '4wd': 6, luxury: 2, muscle: 2,
                           };
-                          const size = sizeMap[newType] || 2;
                           set('paramsByService', {
                             ...S.paramsByService,
-                            auto: { ...S.paramsByService.auto, vehicle_size: size },
+                            auto: { ...S.paramsByService.auto, vehicle_size: sizeMap[category] || 2 },
                           });
                         }}
-                      >
-                        {(['hatch', 'sedan', 'suv', 'ute', 'van', '4wd', 'luxury', 'muscle'] as const).map((t) => (
-                          <option key={t} value={t}>
-                            {t.toUpperCase()}
-                          </option>
+                        onVehicleDetected={(_vehicle, classification) => {
+                          if (classification.sizeCategory) {
+                            set('carDetectedSizeCategory', classification.sizeCategory);
+                          }
+                          set('carDetectedYear', typeof _vehicle.year === 'number' ? _vehicle.year : null);
+                        }}
+                      />
+                    </div>
+
+                    {/* Car Type Selection */}
+                    <div className="p-4 border-b border-white/10">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-3">
+                        Select vehicle type
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {(['hatch', 'sedan', 'suv', 'ute', 'van', '4wd', 'luxury', 'muscle'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              carSelector.setCarType(type);
+                              const sizeMap: Record<string, number> = {
+                                hatch: 1, sedan: 2, suv: 3, ute: 4, van: 5, '4wd': 6, luxury: 2, muscle: 2,
+                              };
+                              set('paramsByService', {
+                                ...S.paramsByService,
+                                auto: { ...S.paramsByService.auto, vehicle_size: sizeMap[type] || 2 },
+                              });
+                            }}
+                            className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                              carSelector.carType === type
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                            }`}
+                          >
+                            {type === '4wd' ? '4WD' : type.charAt(0).toUpperCase() + type.slice(1)}
+                          </button>
                         ))}
-                      </select>
-                    </div>
-
-                    {/* Vehicle configuration parameters */}
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-3">
-                      <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Vehicle Details</div>
-
-                      {/* Quick Presets */}
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-xs hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('paramsByService', {
-                              ...S.paramsByService,
-                              auto: { vehicle_size: 2, rows: 2, child_seats: 0 },
-                            });
-                          }}
-                        >
-                          Small Sedan
-                        </button>
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-xs hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('paramsByService', {
-                              ...S.paramsByService,
-                              auto: { vehicle_size: 3, rows: 2, child_seats: 0 },
-                            });
-                          }}
-                        >
-                          SUV
-                        </button>
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-xs hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('paramsByService', {
-                              ...S.paramsByService,
-                              auto: { vehicle_size: 3, rows: 3, child_seats: 2 },
-                            });
-                          }}
-                        >
-                          Family SUV
-                        </button>
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-xs hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('paramsByService', {
-                              ...S.paramsByService,
-                              auto: { vehicle_size: 5, rows: 3, child_seats: 0 },
-                            });
-                          }}
-                        >
-                          Large Van
-                        </button>
-                      </div>
-
-                      {/* Seat Rows Control */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-700">Seat rows</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="px-3 py-1 rounded-md border border-black/10 bg-white text-sm hover:bg-slate-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const current = S.paramsByService.auto?.rows || 0;
-                              if (current > 0) {
-                                set('paramsByService', {
-                                  ...S.paramsByService,
-                                  auto: { ...S.paramsByService.auto, rows: current - 1 },
-                                });
-                              }
-                            }}
-                          >
-                            −
-                          </button>
-                          <span className="min-w-[40px] text-center font-semibold text-slate-900">
-                            {S.paramsByService.auto?.rows || 0}
-                          </span>
-                          <button
-                            type="button"
-                            className="px-3 py-1 rounded-md border border-black/10 bg-white text-sm hover:bg-slate-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const current = S.paramsByService.auto?.rows || 0;
-                              if (current < 3) {
-                                set('paramsByService', {
-                                  ...S.paramsByService,
-                                  auto: { ...S.paramsByService.auto, rows: current + 1 },
-                                });
-                              }
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Child Seats Control */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-700">Child seats</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="px-3 py-1 rounded-md border border-black/10 bg-white text-sm hover:bg-slate-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const current = S.paramsByService.auto?.child_seats || 0;
-                              if (current > 0) {
-                                set('paramsByService', {
-                                  ...S.paramsByService,
-                                  auto: { ...S.paramsByService.auto, child_seats: current - 1 },
-                                });
-                              }
-                            }}
-                          >
-                            −
-                          </button>
-                          <span className="min-w-[40px] text-center font-semibold text-slate-900">
-                            {S.paramsByService.auto?.child_seats || 0}
-                          </span>
-                          <button
-                            type="button"
-                            className="px-3 py-1 rounded-md border border-black/10 bg-white text-sm hover:bg-slate-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const current = S.paramsByService.auto?.child_seats || 0;
-                              if (current < 3) {
-                                set('paramsByService', {
-                                  ...S.paramsByService,
-                                  auto: { ...S.paramsByService.auto, child_seats: current + 1 },
-                                });
-                              }
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Vehicle Size Display */}
-                      <div className="text-xs text-slate-600 border-t border-slate-200 pt-2">
-                        Size category: <span className="font-semibold text-slate-800">
-                          {S.paramsByService.auto?.vehicle_size
-                            ? ['Hatchback', 'Sedan', 'SUV', 'Ute', 'Van', '4WD'][S.paramsByService.auto.vehicle_size - 1] || 'Not set'
-                            : 'Not set'}
-                        </span>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <label className="text-slate-700">Dirt level</label>
-                        <span className="text-xs text-slate-500">
-                          {carSelector.dirtLevel === 0 ? 'Clean' : carSelector.dirtLevel < 0.5 ? 'Light' : carSelector.dirtLevel < 0.8 ? 'Moderate' : 'Heavy'}
-                        </span>
+                    {/* Interior Config */}
+                    <div className="p-4 border-b border-white/10">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-3">
+                        Interior details
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-xs text-slate-400 mb-2">Seat rows</div>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  set('paramsByService', {
+                                    ...S.paramsByService,
+                                    auto: { ...S.paramsByService.auto, rows: n },
+                                  });
+                                }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                                  (S.paramsByService.auto?.rows || 2) === n
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                                }`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-400 mb-2">Child seats</div>
+                          <div className="flex items-center gap-1">
+                            {[0, 1, 2, 3].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  set('paramsByService', {
+                                    ...S.paramsByService,
+                                    auto: { ...S.paramsByService.auto, child_seats: n },
+                                  });
+                                }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                                  (S.paramsByService.auto?.child_seats || 0) === n
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                                }`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Condition */}
+                    <div className="p-4 border-b border-white/10">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                          Current condition
+                        </div>
+                        <div className="text-xs font-medium text-emerald-400">
+                          {carSelector.dirtLevel === 0 ? 'Clean' : carSelector.dirtLevel < 0.4 ? 'Light dirt' : carSelector.dirtLevel < 0.7 ? 'Moderate' : 'Heavy'}
+                        </div>
                       </div>
                       <input
                         type="range"
@@ -7141,49 +7062,57 @@ const COMM_PRESETS: Record<
                         step="0.1"
                         value={carSelector.dirtLevel}
                         onChange={(e) => carSelector.setDirtLevel(parseFloat(e.target.value))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-green-800"
+                        className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-emerald-500"
                       />
+                      <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                        <span>Clean</span>
+                        <span>Heavy</span>
+                      </div>
                     </div>
 
-                    {carSelector.zones.size > 0 && (
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
-                        <div className="text-xs font-semibold text-emerald-800 mb-1">Focus zones selected</div>
-                        <div className="flex flex-wrap gap-1">
-                          {Array.from(carSelector.zones).map((zone) => (
-                            <span
-                              key={zone}
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white"
-                            >
-                              {zone}
-                              <button
-                                type="button"
-                                onClick={() => carSelector.toggleZone(zone)}
-                                className="hover:bg-emerald-700 rounded-full w-3 h-3 flex items-center justify-center"
-                                aria-label={`Remove ${zone}`}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
+                    {/* Focus Zones Selection */}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                          Extra focus areas <span className="text-slate-500">(optional)</span>
                         </div>
-                        <div className="text-[10px] text-emerald-700 mt-1">
-                          +${carSelector.derived.priceImpact} price impact
-                        </div>
+                        {carSelector.zones.size > 0 && (
+                          <div className="text-xs font-semibold text-emerald-400">
+                            +${carSelector.derived.priceImpact}
+                          </div>
+                        )}
                       </div>
-                    )}
-
-                    {isClient ? (
-                      <CarModelViewer
-                        carType={carSelector.carType}
-                        dirtLevel={carSelector.dirtLevel}
-                        glbByType={carGlbByType}
-                        cleanTextureUrl="/textures/clean.jpg"
-                        dirtyTextureUrl="/textures/dirty.jpg"
-                        onZoneSelect={(zone) => carSelector.toggleZone(zone)}
-                      />
-                    ) : (
-                      <div className="text-xs text-slate-600">Preparing 3D viewer…</div>
-                    )}
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { zone: 'hood', label: 'Hood', icon: '🚗' },
+                          { zone: 'roof', label: 'Roof', icon: '☀️' },
+                          { zone: 'boot', label: 'Boot', icon: '📦' },
+                          { zone: 'wheels', label: 'Wheels', icon: '🛞' },
+                          { zone: 'glass', label: 'Glass', icon: '🪟' },
+                          { zone: 'interior', label: 'Interior', icon: '💺' },
+                        ] as const).map(({ zone, label, icon }) => {
+                          const isSelected = carSelector.zones.has(zone);
+                          return (
+                            <button
+                              key={zone}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                carSelector.toggleZone(zone);
+                              }}
+                              className={`flex flex-col items-center gap-1 p-3 rounded-lg text-xs font-medium transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                              }`}
+                            >
+                              <span className="text-lg">{icon}</span>
+                              <span>{label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 

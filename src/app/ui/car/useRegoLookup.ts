@@ -48,12 +48,24 @@ export function useRegoLookup() {
       }
 
       const next = data as VehicleDetails;
-      if (!next?.make || !next?.model || typeof next.bodyStyle !== 'string' || !next.category) {
+      if (!next?.make || !next?.model) {
         throw new Error('Lookup returned incomplete vehicle data.');
       }
 
-      setVehicle(next);
-      return next;
+      // Ensure defaults for optional fields
+      const vehicle: VehicleDetails = {
+        make: next.make,
+        model: next.model,
+        year: next.year ?? null,
+        bodyStyle: next.bodyStyle ?? '',
+        doors: next.doors ?? null,
+        seats: next.seats ?? null,
+        category: next.category ?? 'unknown',
+        sizeCategory: next.sizeCategory ?? null,
+      };
+
+      setVehicle(vehicle);
+      return vehicle;
     } catch (err) {
       if ((err as any)?.name === 'AbortError') return null;
       setVehicle(null);

@@ -37,9 +37,9 @@ export default function Header() {
 
   // Broadcast a reset the Services page can listen for.
   // Trigger when heading to Services (fresh start) or leaving Services to another tab.
-  const broadcastReset = () => {
+  const broadcastReset = (silent = false) => {
     try {
-      window.dispatchEvent(new CustomEvent('svc:reset'));
+      window.dispatchEvent(new CustomEvent('svc:reset', { detail: { silent } }));
     } catch { /* no-op in case of odd runtimes */ }
   };
 
@@ -47,7 +47,9 @@ export default function Header() {
     const onServices = pathname?.startsWith('/services');
     const goingToServices = targetHref === '/services';
     if (goingToServices || onServices) {
-      broadcastReset();
+      // Silent reset when already on services and clicking services again
+      const silent = onServices && goingToServices;
+      broadcastReset(silent);
     }
   };
 

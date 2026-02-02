@@ -270,6 +270,14 @@ export type WizardState = {
   carModelZones: any[]; // CarZone[] from useCarModelSelector
   carDirtLevel: number;
   carModelPriceImpact: number;
+  carDetectedVehicle: {
+    make: string;
+    model: string;
+    year: number | null;
+    bodyStyle: string;
+    doors: number | null;
+    seats: number | null;
+  } | null;
   carDetectedSizeCategory: string | null; // VehicleSizeCategory
   carDetectedYear: number | null;
   sneakerTurnaround: SneakerTurnaround;
