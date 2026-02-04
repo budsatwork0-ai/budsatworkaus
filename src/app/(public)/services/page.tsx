@@ -4558,7 +4558,7 @@ const COMM_PRESETS: Record<
                 <div className="mt-4">
                   <div className="text-xs text-slate-600 mb-2">Verify you&apos;re human</div>
                   <Turnstile
-                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                     onVerify={(token) => setCaptchaToken(token)}
                     onExpire={() => setCaptchaToken(null)}
                     onError={() => setCaptchaToken(null)}
