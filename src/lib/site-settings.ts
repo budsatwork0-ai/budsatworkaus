@@ -26,7 +26,6 @@ export async function getSiteSettings(): Promise<SiteStats> {
       .in('key', ['jobs_completed', 'avg_rating', 'repeat_customers']);
 
     if (error || !data) {
-      console.warn('Failed to fetch site settings, using defaults:', error?.message);
       return DEFAULTS;
     }
 
@@ -40,8 +39,7 @@ export async function getSiteSettings(): Promise<SiteStats> {
       avg_rating: settings.avg_rating || DEFAULTS.avg_rating,
       repeat_customers: settings.repeat_customers || DEFAULTS.repeat_customers,
     };
-  } catch (err) {
-    console.warn('Site settings fetch error, using defaults:', err);
+  } catch {
     return DEFAULTS;
   }
 }

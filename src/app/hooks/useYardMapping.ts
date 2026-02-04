@@ -8,7 +8,7 @@ type YardJob = {
   polygon_geojson?: LatLng[][];
   area_m2: number | null;
   price: number;
-  status: 'draft' | 'ready';
+  status: 'draft' | 'ready' | 'completed';
 };
 
 type YardMeasurementConfig = {
@@ -17,7 +17,8 @@ type YardMeasurementConfig = {
   label: string;
 };
 
-type SetFunction = <K extends keyof any>(key: K, value: any) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SetFunction = (key: any, value: any) => void;
 
 type YardConditionLevel = 'light' | 'standard' | 'heavy';
 

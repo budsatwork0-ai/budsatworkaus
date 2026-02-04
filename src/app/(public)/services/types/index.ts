@@ -177,7 +177,7 @@ export type CommercialCleaningType =
   | 'hospitality'
   | 'education'
   | 'event'
-  | 'retail';
+  | 'accommodation';
 
 export type CommMeta = { title: string; covers: string; avg: string; reason: string };
 

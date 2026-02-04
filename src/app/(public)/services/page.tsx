@@ -1,35 +1,20 @@
 'use client';
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import StableMapSlot from '@/components/StableMapSlot';
 import {
   usePolygonQuote,
   computeAreaFromPath,
   computePerimeterFromPath,
-  LatLng,
-  YardCondition,
-  YardTerrain,
-  YardPricingOptions,
 } from '@/app/ui/yard/usePolygonQuote';
-import { loadGoogleMapsOnce } from '@/map/yardMapLoader';
 import FloorPlanBuilder from '@/app/ui/floor/FloorPlanBuilder';
-import { serializeLayout, deserializeLayout } from '@/app/ui/floor/utils';
-import { computeFloorPricing, FloorPlanPricing } from '@/app/ui/floor/useFloorPricing';
-const CarModelViewer = dynamic(() => import('@/app/ui/car/CarModelViewer'), {
-  ssr: false,
-  loading: () => <div className="text-xs text-slate-600">Loading 3D viewer…</div>,
-});
-import { useCarModelSelector, CarType, CarZone } from '@/app/ui/car/useCarModelSelector';
+import { serializeLayout } from '@/app/ui/floor/utils';
+import { computeFloorPricing } from '@/app/ui/floor/useFloorPricing';
+import { useCarModelSelector } from '@/app/ui/car/useCarModelSelector';
 import RegoLookupAssistant from '@/app/ui/car/RegoLookupAssistant';
 import type { VehicleSizeCategory } from '@/lib/rego/types';
-import { calculatePrice } from '@/lib/rego/pricing';
-import { v4 as uuidv4 } from 'uuid';
 import { useYardMapping } from '@/app/hooks/useYardMapping';
 import Turnstile from '@/components/Turnstile';
 
@@ -39,4521 +24,123 @@ import type {
   ServiceType,
   ScopeKey,
   CommFrequency,
-  NumericParams,
   WizardState,
-  Action,
   SneakerTurnaround,
+  RouteLookupResult,
+  RouteScopeKey,
+  YardJob,
+  CommercialCleaningType,
+  ScopeDef,
+  DumpRunSelection,
+  DeliverySelection,
+  TransportSelection,
+  CleaningWizardChecklistState,
 } from './types';
 
 // Extracted modules - Constants
 import {
   ACCENT,
   glass,
-  GOOGLE_MAPS_API_KEY,
-  QLD_BOUNDS,
   ROUTE_BASE_FEE,
   ROUTE_PER_KM_RATE,
   ROUTE_PER_MIN_RATE,
   ROUTE_MIN_PRICE,
-  ROUTE_AVG_SPEED_KMH,
   ROUTE_SCOPES,
-  WINDOW_PRICES,
-  PRICE_OVERRIDE,
-  POLICY,
   SERVICE_REGIONS,
   ALLOWED_SERVICES_BY_CONTEXT,
   DEFAULT_DUMP_RUN,
   DEFAULT_DUMP_DELIVERY,
   DEFAULT_DUMP_TRANSPORT,
+  AUTO_SIZE_CATEGORIES,
+  SNEAKER_TURNAROUND_META,
 } from './lib/pricing/constants';
 
 // Extracted modules - Utilities
 import {
   cls,
   titleCase,
-  toNumber,
   fmtAUD,
-  roundTo,
   fmtHrMin,
-  fmtHrMinPretty,
-  fmtHrMinCompact,
   canonicalServiceRegion,
 } from './utils/formatting';
 
-// Extracted modules - Icons
-import { WindowIcon, CleanIcon, LawnIcon, TruckIcon, CarIcon, ShoeIcon, IconWrap } from './utils/icons';
-
 // Extracted modules - Motion
-import { MotionContext, WITH_MOTION, M } from './utils/motion';
+import { MotionContext, M } from './utils/motion';
 
 // Extracted modules - Routing
 import {
-  haversineDistanceKm,
   fallbackRoute,
   formatRouteKey,
-  isQueenslandPlace,
   fetchDrivingDistance,
   roundToHalfKm,
 } from './lib/routing';
 
 // Extracted modules - Shared UI Components
-import { Tile, NumCell, QtyChips, PickerCard, Disclaimer, glassCard } from './components/shared/UIComponents';
-
-/* =========================
-   REMAINING CODE
-   ========================= */
-type Selected = Record<string, number>;
-type QuoteParams = {
-  context: Context;
-  currentService: ServiceType;
-  currentScope: ScopeKey;
-  selected: Selected;
-  distanceKm: number;
-  paidParking: boolean;
-  tipFee: number;
-  conditionMult: number;
-  conditionLevel?: 'light' | 'standard' | 'heavy';
-  flags: { petHair: boolean; greaseSoap: boolean; clutterAccess: boolean; secondStorey: boolean };
-  windowsStoreys?: number;
-  commercialUplift: number;
-  sizeAdjust: 'small' | 'standard' | 'large';
-  conditionFlat: number;
-  contractDiscount: number;
-  commercialType: CommercialCleaningType | null;
-  commPreset?: 'essential' | 'standard' | 'intensive';
-  autoCategory?: CarType;
-  autoSizeCategory?: VehicleSizeCategory | null;
-  autoYear?: number | null;
-  sneakerTurnaround?: SneakerTurnaround;
-  afterHours: boolean;
-  bottleCount?: number;
-  dumpRunSelection?: DumpRunSelection;
-  dumpIsNonResident?: boolean;
-  cleaningParams?: NumericParams;
-  yardParams?: NumericParams;
-  windowsMinutesOverride?: number;
-  windowsStoreysOverride?: number;
-  commFrequency?: CommFrequency;
-};
-
-/* =========================
-   PRICING INPUTS
-   ========================= */
-// WindowContextPrice, WINDOW_PRICES, and PRICE_OVERRIDE are imported from './lib/pricing/constants'
-
-const AUTO_SIZE_CATEGORIES: VehicleSizeCategory[] = ['hatch', 'sedan', 'suv', 'ute', 'van', '4wd'];
-const SNEAKER_TURNAROUND: { key: SneakerTurnaround; label: string; multiplier: number }[] = [
-  { key: 'standard', label: 'Standard', multiplier: 1 },
-  { key: 'express', label: 'Express', multiplier: 1 },
-  { key: 'priority', label: 'Priority', multiplier: 1 },
-];
-type SneakerTurnaroundMeta = {
-  key: SneakerTurnaround;
-  label: string;
-  window: string;
-  surcharge: number;
-  queuePriority: number;
-  capacity: number; // per-quote soft cap
-};
-const SNEAKER_TURNAROUND_META: SneakerTurnaroundMeta[] = [
-  { key: 'standard', label: 'Standard', window: '3–5 business days', surcharge: 0, queuePriority: 0, capacity: Infinity },
-  { key: 'express', label: 'Express', window: '1–2 business days', surcharge: 5, queuePriority: 1, capacity: 5 },
-  { key: 'priority', label: 'Priority', window: 'Same week', surcharge: 10, queuePriority: 2, capacity: 2 },
-];
-
-// POLICY, SERVICE_REGIONS, canonicalServiceRegion, toNumber, fmtAUD, roundTo are imported
-
-/* =========================
-   SERVICES
-   ========================= */
-const SERVICES = [
-  { key: 'windows',  label: 'Window Cleaning',      icon: <WindowIcon />, subtitle: 'Panes · tracks' },
-  { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · deep · EoL' },
-  { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · hedge · tidy' },
-  { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · delivery' },
-  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express → full' },
-  { key: 'sneakers', label: 'Sneaker Care',         icon: <ShoeIcon />,   subtitle: 'Basic · full · the lot' },
-] as const;
-
-/* =========================
-   DISCLAIMERS
-   ========================= */
-const TERMS_SNIPPET =
-  'Pricing shown is indicative only. Final pricing may vary based on property size, access, onsite conditions (e.g. parking, height), level of build-up/soiling, scope changes, waste/tip fees, extra time requested, and safety considerations. Any adjustments will be discussed with you before work proceeds.';
-
-const PRICE_SCOPE_DISCLAIMER =
-  'Price reflects the selected scope. Changes are confirmed before work begins.';
-
-const FAIRNESS_PROMISE_COPY =
-  'Found a cheaper local quote for the same scope? Let us know and we’ll do our best to match or improve it.';
-
-// Disclaimer, Tile, NumCell, QtyChips, PickerCard, glassCard are imported from './components/shared/UIComponents'
-
-// Local storage key for persisting wizard state; bump if shape changes.
-const STORAGE_KEY = 'budsatwork.quote.v1';
-// Optional dev helper: flip to true to reset stored session on mount.
-const RESET_ON_MOUNT = false;
-
-// ALLOWED_SERVICES_BY_CONTEXT is imported from './lib/pricing/constants'
-
-/* =========================
-   SCOPES
-   ========================= */
-type ScopeDef = { key: ScopeKey; label: string; inclusions: string[]; desc?: string; helper?: boolean };
-
-/** Cleaning scopes (aligned to pricing/selection logic: clean_std / clean_deep / clean_move) */
-const CLEAN_SCOPES: ScopeDef[] = [
-  {
-    key: 'clean_std',
-    label: 'Standard Clean',
-    inclusions: [
-      'Dust all surfaces (furniture, shelves, sills)',
-      'Vacuum carpets & rugs',
-      'Sweep & mop hard floors',
-      'Kitchen counters, sink & appliance exteriors',
-      'Bathroom surfaces (sinks, counters, toilets, mirrors)',
-      'Empty trash & replace liners',
-      'Make beds / change linens (if provided)',
-      'Wipe cabinets & doorknobs',
-      'Clean mirrors & glass',
-      'Tidy & straighten (light organizing)',
-    ],
-    desc: 'Regular maintenance clean for homes or light commercial.',
-  },
-  {
-    key: 'clean_deep',
-    label: 'Deep Clean',
-    inclusions: [
-      'Inside refrigerator',
-      'Inside oven',
-      'Inside microwave',
-      'Stove hood & filters',
-      'Cabinet exteriors & interiors',
-      'Backsplash, counters, sink (polish)',
-      '— Bathrooms —',
-      'Tiles & grout (scrub)',
-      'Toilet (inside/outside)',
-      'Inside cabinets & drawers',
-      'Fixtures & drains (descale)',
-      'Mirrors & exhaust fan',
-      '— Living areas —',
-      'Baseboards & door frames',
-      'Ceiling fans & light fixtures',
-      'Under beds & furniture',
-      'Interior windows, tracks, sills',
-      'Blinds or curtains',
-      'Air vents',
-      '— Floors —',
-      'Deep vacuum carpets',
-      'Scrub hard floors & grout',
-      'Stair railings',
-      '— Final —',
-      'Doors & knobs',
-      'Light switches & outlets',
-      'Trash cans (clean & reline)',
-      'Spot-clean walls',
-    ],
-    desc: 'One-off intensive clean before guests or seasonal reset.',
-  },
-  {
-    key: 'clean_move',
-    label: 'Move-in/out',
-    inclusions: [
-      'Inside refrigerator (shelves, drawers, seals, defrost)',
-      'Inside freezer (remove ice)',
-      'Inside oven (racks, door, walls, broiler)',
-      'Stove hood, filters & vent (degrease)',
-      'Inside cabinets, drawers & shelves',
-      'Dishwasher interior (filter, seal, racks)',
-      'Sink, faucet, drain & disposal (polish)',
-      'Countertops, backsplash & kickplates',
-      '— Bathrooms —',
-      'Tiles, grout & caulking (deep scrub)',
-      'Toilet (tank, base, bowl, lid)',
-      'Inside vanity, medicine cabinet & drawers',
-      'Showerhead, faucet & drains (descale)',
-      'Fixtures & mirrors (polish)',
-      'Exhaust fan cover',
-      'Floors & baseboards (sanitize)',
-      '— Living areas —',
-      'Baseboards, crown molding, trim',
-      'Ceiling fans & light fixtures',
-      'Interior windows, tracks, sills, blinds',
-      'Air vents & returns',
-      'Closet shelves, rods & floors',
-      'Doors, frames & knobs',
-      'Light switches, outlets & walls (spot-wash)',
-      'Under movable furniture (vacuum/sweep)',
-      '— Floors —',
-      'Deep vacuum carpets (edges)',
-      'Scrub/steam hard floors (grout)',
-      'Stair railings & balusters',
-      'Floor vents & grates',
-      '— Final —',
-      'Trash cans (empty, clean, reline)',
-      'Laundry room (appliances, sink, cabinets)',
-      'Entryway & mudroom',
-      'Patio door glass & track',
-      'Final walk-through & touch-ups',
-    ],
-    desc: 'Bond-style clean for empty or near-empty properties.',
-  },
-];
-
-/* ===== Cleaning impact dots + micro-presets ===== */
-
-type ImpactLevel = 'light' | 'medium' | 'heavy' | 'detail' | 'organising';
-
-// Very lightweight rules to colour the little impact dot per task line
-const CLEANING_IMPACTS: { match: RegExp; impact: ImpactLevel }[] = [
-  // Light
-  { match: /dust|wipe|tidy|straighten|mirrors|glass|visible surfaces/i, impact: 'light' },
-  { match: /benches|sills|frames|doorknobs|handles/i, impact: 'light' },
-
-  // Medium
-  { match: /vacuum|mop|floors|baseboards|door frames|skirting/i, impact: 'medium' },
-  { match: /inside cabinets|drawers|cupboards|fridge/i, impact: 'medium' },
-
-  // Heavy
-  { match: /grout|deep scrub|stove|oven|rangehood|hood|filters|defrost/i, impact: 'heavy' },
-  { match: /steam|descale|caulking|balusters/i, impact: 'heavy' },
-
-  // Detail
-  { match: /polish|tracks|sills|crown molding|vents|returns|touch-ups/i, impact: 'detail' },
-
-  // Organising / misc
-  { match: /laundry room|entryway|mudroom|final walk-through/i, impact: 'organising' },
-];
-
-function impactForCleaningItem(label: string): ImpactLevel {
-  for (const rule of CLEANING_IMPACTS) {
-    if (rule.match.test(label)) return rule.impact;
-  }
-  return 'light';
-}
-
-function impactDotClass(impact: ImpactLevel): string {
-  switch (impact) {
-    case 'light':
-      return 'bg-emerald-400';
-    case 'medium':
-      return 'bg-amber-400';
-    case 'heavy':
-      return 'bg-rose-500';
-    case 'detail':
-      return 'bg-sky-400';
-    case 'organising':
-      return 'bg-violet-400';
-    default:
-      return 'bg-slate-400';
-  }
-}
-
-// Micro-presets used to quickly select groups of tasks
-type MicroPreset = {
-  id: string;
-  label: string;
-  description: string;
-  matchers: RegExp[]; // we match against inclusion labels
-};
-
-const CLEANING_MICRO_PRESETS: MicroPreset[] = [
-  {
-    id: 'bathroom_reset',
-    label: 'Bathroom reset',
-    description: 'Tiles, toilet, mirrors, fixtures refreshed',
-    matchers: [/bathroom/i, /tile/i, /grout/i, /toilet/i, /shower/i, /vanity/i, /fixtures/i],
-  },
-  {
-    id: 'kitchen_detail',
-    label: 'Kitchen detail',
-    description: 'Benches, sink, appliances & oven/microwave',
-    matchers: [/kitchen/i, /stove|oven|rangehood|hood/i, /microwave/i, /backsplash/i, /sink/i, /appliance/i],
-  },
-  {
-    id: 'floors_polish',
-    label: 'Floors polish',
-    description: 'Deep vacuum & mop including edges',
-    matchers: [/vacuum/i, /mop/i, /floors?/i, /edges?/i],
-  },
-  {
-    id: 'dusting_pass',
-    label: 'Dusting pass',
-    description: 'Surfaces, skirtings, frames, fans & lights',
-    matchers: [/dust/i, /skirting|baseboards?/i, /door frames?/i, /ceiling fans?/i, /light fixtures?/i],
-  },
-  {
-    id: 'linen_refresh',
-    label: 'Linen refresh',
-    description: 'Beds made and linen changed (if provided)',
-    matchers: [/make beds?/i, /linens?/i],
-  },
-];
-
-function itemsForPreset(all: string[], preset: MicroPreset): string[] {
-  return all.filter((label) => preset.matchers.some((rx) => rx.test(label)));
-}
-
-/* =========================
-   TASKS
-   ========================= */
-const TASKS: Task[] = [
-  // ===== WINDOWS =====
-  // Time per pane/track/screen is only used to compare against labour-floor.
-  // Actual per-pane dollar pricing still comes from WINDOW_PRICES.
-  {
-    code: 'window.full',
-    service: 'windows',
-    name: 'Inside & outside pane',
-    unit: 'pane',
-    minutes: 5,
-  },
-  {
-    code: 'window.pane_int_solo',
-    service: 'windows',
-    name: 'Interior-only pane',
-    unit: 'pane',
-    minutes: 3,
-  },
-  {
-    code: 'window.pane_ext_solo',
-    service: 'windows',
-    name: 'Exterior-only pane',
-    unit: 'pane',
-    minutes: 4,
-  },
-  {
-    code: 'window.track',
-    service: 'windows',
-    name: 'Window track',
-    unit: 'track',
-    minutes: 3,
-  },
-  {
-    code: 'window.screen',
-    service: 'windows',
-    name: 'Flyscreen',
-    unit: 'screen',
-    minutes: 2,
-  },
-
-  // ===== CLEANING =====
-  // Synthetic "SS" buckets – the V2 formulas already give us minutes, so
-  // each unit here *is one minute* of work.
-  {
-    code: 'clean.ss.weekly',
-    service: 'cleaning',
-    name: 'Weekly / maintenance',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.general',
-    service: 'cleaning',
-    name: 'Standard / general clean',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.inspection',
-    service: 'cleaning',
-    name: 'Inspection / tidy-up',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.deep',
-    service: 'cleaning',
-    name: 'Deep / spring clean',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.endoflease',
-    service: 'cleaning',
-    name: 'Move-in / bond clean',
-    unit: 'min',
-    minutes: 1,
-  },
-  // Commercial niches (office, medical, gym, etc.)
-  {
-    code: 'clean.ss.office',
-    service: 'cleaning',
-    name: 'Office / workspace',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.medical',
-    service: 'cleaning',
-    name: 'Clinic / medical',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.fitness',
-    service: 'cleaning',
-    name: 'Gym / fitness',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.hospitality',
-    service: 'cleaning',
-    name: 'Hospitality / venue',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.education',
-    service: 'cleaning',
-    name: 'Education',
-    unit: 'min',
-    minutes: 1,
-  },
-  {
-    code: 'clean.ss.event',
-    service: 'cleaning',
-    name: 'Event / function',
-    unit: 'min',
-    minutes: 1,
-  },
-  // Directed hourly cleaning (used when you pick "hours" instead of formula)
-  {
-    code: 'clean.hourly',
-    service: 'cleaning',
-    name: 'Directed cleaning hour',
-    unit: 'hr',
-    minutes: 60,
-  },
-
-  // ===== YARD CARE =====
-  // Medians tuned so small jobs beat the min-block, so each sub-service
-  // shows its own “from” instead of collapsing to the same callout.
-  {
-    code: 'lawn.mow',
-    service: 'yard',
-    name: 'Lawn mow / edging block (~50–75 m²)',
-    unit: 'block',
-    minutes: 35,
-    p10: 130,
-    median: 145,
-    p90: 180,
-  },
-  {
-    code: 'lawn.edge',
-    service: 'yard',
-    name: 'Edging (per 5 m)',
-    unit: '5m',
-    minutes: 10,
-    p10: 30,
-    median: 40,
-    p90: 60,
-  },
-  {
-    code: 'hedge.trim',
-    service: 'yard',
-    name: 'Hedge shaping & trim time block',
-    unit: 'effort block',
-    minutes: 18,
-    p10: 140,
-    median: 150,
-    p90: 190,
-  },
-  {
-    code: 'garden.blow',
-    service: 'yard',
-    name: 'Garden reset / wash effort block',
-    unit: 'zone',
-    minutes: 18,
-    p10: 110,
-    median: 125,
-    p90: 160,
-  },
-  {
-    code: 'gutter_clean',
-    service: 'yard',
-    name: 'Gutter clean access & safety block',
-    unit: 'access block',
-    minutes: 20,
-    p10: 150,
-    median: 165,
-    p90: 210,
-  },
-
-  // ===== RUBBISH & BIN CARE =====
-  {
-    code: 'dump.pack',
-    service: 'dump',
-    name: 'Packed load (ute / small trailer)',
-    unit: 'load',
-    minutes: 30,
-    p10: 120,
-    median: 135,
-    p90: 180,
-  },
-  {
-    code: 'dump.drive',
-    service: 'dump',
-    name: 'Extra pickup stop',
-    unit: 'stop',
-    minutes: 20,
-    p10: 40,
-    median: 55,
-    p90: 90,
-  },
-  {
-    code: 'dump.load',
-    service: 'dump',
-    name: 'Bulky item',
-    unit: 'item',
-    minutes: 8,
-    p10: 15,
-    median: 25,
-    p90: 45,
-  },
-  {
-    code: 'dump.sweep',
-    service: 'dump',
-    name: 'Sweep & tidy area',
-    unit: 'area',
-    minutes: 10,
-    p10: 25,
-    median: 35,
-    p90: 55,
-  },
-  {
-    code: 'dump.bin',
-    service: 'dump',
-    name: 'Wheelie bin clean',
-    unit: 'bin',
-    minutes: 8,
-    // $40/bin handled via PRICE_OVERRIDE, minutes drive time estimate only
-  },
-
-  // ===== CAR DETAILING =====
-  {
-    code: 'auto.wash',
-    service: 'auto',
-    name: 'Express Detail',
-    unit: 'vehicle',
-    minutes: 120,
-    p10: 160,
-    median: 160,
-    p90: 160,
-  },
-  {
-    code: 'auto.interior',
-    service: 'auto',
-    name: 'Interior Reset Detail',
-    unit: 'vehicle',
-    minutes: 120,
-    p10: 170,
-    median: 170,
-    p90: 170,
-  },
-  {
-    code: 'auto.full',
-    service: 'auto',
-    name: 'Signature Full Detail',
-    unit: 'vehicle',
-    minutes: 240,
-    p10: 290,
-    median: 290,
-    p90: 290,
-  },
-
-  // ===== SNEAKER CARE =====
-  // Dollar amounts come from PRICE_OVERRIDE; minutes here just drive time/estimate.
-  {
-    code: 'sneaker.basic',
-    service: 'sneakers',
-    name: 'Refresh Clean (per pair)',
-    unit: 'pair',
-    minutes: 0,
-  },
-  {
-    code: 'sneaker.full',
-    service: 'sneakers',
-    name: 'Deep Restore (per pair)',
-    unit: 'pair',
-    minutes: 0,
-  },
-  {
-    code: 'sneaker.lot',
-    service: 'sneakers',
-    name: 'Multi-Pair Care (3–5 pairs)',
-    unit: 'lot',
-    minutes: 0,
-  },
-];
-
-const TASK_MAP = new Map(TASKS.map((t) => [t.code, t]));
-
-/* =========================
-   SCOPES BY SERVICE
-   ========================= */
-const SCOPES_BY_SERVICE: Record<ServiceType, ScopeDef[]> = {
-  windows: [
-    {
-      key: 'windows_full',
-      label: 'Full window clean',
-      inclusions: ['Inside & outside panes', 'Tracks', 'Screens'],
-      desc: 'Complete inside and outside window cleaning.',
-    },
-    {
-      key: 'windows_interior',
-      label: 'Interior only',
-      inclusions: ['Interior panes', 'Frames & sills'],
-      desc: 'Interior panes, frames and sills only.',
-    },
-    {
-      key: 'windows_exterior',
-      label: 'Exterior only',
-      inclusions: ['Exterior panes', 'Screens'],
-      desc: 'Exterior panes and screens only.',
-    },
-    {
-      key: 'windows_tracks',
-      label: 'Tracks only',
-      inclusions: ['Tracks vacuum & wipe'],
-      desc: 'Track cleaning and light detail.',
-    },
-  ],
-  cleaning: CLEAN_SCOPES,
-  yard: [
-    {
-      key: 'yard_mow',
-      label: 'Lawn mow',
-      inclusions: [
-        'Lawn mowed to an even height',
-        'Edges trimmed for a clean finish',
-        'Clippings collected or mulched',
-        'Hard surfaces blown clean',
-      ],
-      desc: 'Mow and tidy grass areas.',
-    },
-    {
-      key: 'yard_hedge',
-      label: 'Hedge trim',
-      inclusions: [
-        'Hedges trimmed and shaped',
-        'Height/length checked for safe access',
-        'Cuttings collected with time to tidy',
-        'Garden areas left tidy',
-      ],
-      desc: 'Priced on hedge length, height, and trimming effort — longer or taller hedges simply need more shaping time, access, and cleanup.',
-    },
-    {
-      key: 'yard_leaves',
-      label: 'Garden Services',
-      inclusions: [
-        'Lawn edges trimmed',
-        'Weeds removed based on density',
-        'Plants & shrubs lightly pruned',
-        'Leaves and green waste collected, paths blown clean',
-      ],
-      desc: 'Priced on time and effort to restore the area — heavily overgrown or dense weeds take longer, and pricing adjusts to match the effort.',
-    },
-    {
-      key: 'blast_and_shine',
-      label: 'Pressure wash',
-      inclusions: [
-        'Surface assessed for material and runoff',
-        'Built-up dirt, mould, and grime removed',
-        'Paths, driveways, or patios washed',
-        'Setup and rinse-down time included',
-      ],
-      desc: 'Priced based on surface type, condition, and cleaning time — stubborn grime and larger areas take longer, with setup and rinse included.',
-    },
-    {
-      key: 'gutter_clean',
-      label: 'Gutter clean',
-      inclusions: [
-        'Gutters cleared of leaves and debris',
-        'Downpipes checked for blockages',
-        'Ladder moves and debris handling included',
-        'Flow visually checked',
-      ],
-      desc: 'Priced on roof size, height, and access — larger or multi-storey homes take more time, covering ladder moves, debris volume, and safety.',
-    },
-  ],
-  dump: [
-    {
-      key: 'dump_runs',
-      label: 'Dump runs',
-      inclusions: ['Pickup & dispose', 'Load assistance'],
-      desc: 'Pickup runs to disposal facility.',
-    },
-    {
-      key: 'bin_cleans',
-      label: 'Bin cleans',
-      inclusions: ['Wash & deodorise bins'],
-      desc: 'Bin cleaning and deodorising.',
-    },
-    {
-      key: 'dump_delivery',
-      label: 'Delivery services',
-      inclusions: ['Pickup items', 'Deliver to location', 'Load/unload help'],
-      desc: 'Small deliveries or drop-offs with load assistance.',
-    },
-    {
-      key: 'dump_transport',
-      label: 'Transport / move assistance',
-      inclusions: ['Move goods between sites', 'Load / unload help', 'Protect items in transit'],
-      desc: 'Helping transport or move items from A to B.',
-    },
-  ],
-  auto: [
-    {
-      key: 'auto_express',
-      label: 'Express Detail',
-      inclusions: [
-        'Exterior hand wash',
-        'Tyre shine',
-        'Quick spray wax',
-        'Vacuum seats, mats & boot',
-        'Interior plastics wiped',
-        'Windows inside/out',
-        'Door jambs cleaned',
-      ],
-      desc: 'Quick polish, vacuum, and windows with stain spot removal included.',
-    },
-    {
-      key: 'auto_interior',
-      label: 'Interior Reset Detail',
-      inclusions: [
-        'Full interior vacuum (mats + seats + boot)',
-        'Interior plastics deep clean',
-        'Dashboard rejuvenation',
-        'Stain spot removal (1–3 areas)',
-        'Carpet & fabric deodorising',
-        'Door jambs cleaned',
-        'Windows inside',
-        'Light pet hair removal (included)',
-      ],
-      desc: 'Deep interior reset with deodorise and light pet hair included.',
-    },
-    {
-      key: 'auto_full',
-      label: 'Signature Full Detail',
-      inclusions: [
-        'Full exterior wash',
-        'Clay bar (quick clay)',
-        'Hand polish',
-        'Tyre shine',
-        'Spray sealant / wax',
-        'Complete vacuum',
-        'Interior plastics deep clean',
-        'Stain removal (multiple areas)',
-        'Interior deodorising',
-        'Windows inside/out',
-        'Door jambs',
-        'Light pet hair removal',
-      ],
-      desc: 'Full inside/out transformation with clay bar and hand polish.',
-    },
-  ],
-  sneakers: [
-    {
-      key: 'sneaker_basic',
-      label: 'Refresh Clean',
-      inclusions: ['Exterior clean', 'Midsole/outsole scrub', 'Lace clean', 'Odour neutralise'],
-      desc: 'Routine uplift for lightly worn pairs; cosmetic refresh only.',
-    },
-    {
-      key: 'sneaker_full',
-      label: 'Deep Restore',
-      inclusions: ['Full hand clean', 'Material-safe treatment', 'Insole & lace wash', 'Protective finish'],
-      desc: 'Revival for noticeably dirty or heavily worn pairs.',
-    },
-    {
-      key: 'sneaker_lot',
-      label: 'Multi-Pair Care',
-      inclusions: ['Batch-friendly', 'Mixed care levels allowed', 'Tiered per-pair pricing'],
-      desc: 'For households, collections, or teams; consolidated turnaround.',
-    },
-  ],
-};
-
-type YardMeasurementMode = 'area' | 'perimeter';
-type YardMeasurementConfig = {
-  mode: YardMeasurementMode;
-  field: string;
-  label: string;
-};
-
-const YARD_SCOPE_MEASUREMENTS: Record<ScopeKey, YardMeasurementConfig> = {
-  yard_mow: { mode: 'area', field: 'lawn_m2', label: 'Area' },
-  yard_hedge: { mode: 'perimeter', field: 'hedge_m', label: 'Perimeter' },
-  yard_leaves: { mode: 'area', field: 'leaves_area', label: 'Area' },
-  blast_and_shine: { mode: 'area', field: 'blast_m2', label: 'Area' },
-  gutter_clean: { mode: 'perimeter', field: 'gutter_m', label: 'Perimeter' },
-};
-
-const DEFAULT_YARD_MEASUREMENT: YardMeasurementConfig = {
-  mode: 'area',
-  field: 'lawn_m2',
-  label: 'Area',
-};
-
-const YARD_MEASUREMENT_UNITS: Record<YardMeasurementMode, string> = {
-  area: 'm²',
-  perimeter: 'm',
-};
-
-const getYardMeasurementConfig = (scope: ScopeKey): YardMeasurementConfig =>
-  YARD_SCOPE_MEASUREMENTS[scope] ?? DEFAULT_YARD_MEASUREMENT;
-
-/* =========================
-   PARAM CONTROLS
-   ========================= */
-type ParamDef = {
-  key: string;
-  label: string;
-  min?: number;
-  max?: number;
-  step?: number;
-  defaultValue: number;
-  suffix?: string;
-};
-type ParamTable = Record<ServiceType, ParamDef[]>;
-
-const PARAMS_FULL: ParamTable = {
-  cleaning: [
-    { key: 'bedrooms', label: 'Bedrooms', min: 1, max: 8, defaultValue: 1 },
-    { key: 'bathrooms', label: 'Bathrooms', min: 1, max: 6, defaultValue: 1 },
-    { key: 'kitchens', label: 'Kitchens', min: 1, max: 2, defaultValue: 1 },
-    { key: 'living', label: 'Living rooms', min: 0, max: 4, defaultValue: 1 },
-    { key: 'laundry', label: 'Laundry rooms', min: 0, max: 2, defaultValue: 0 },
-    { key: 'storeys', label: 'Storeys (max 5+)', min: 1, max: 5, defaultValue: 1 },
-    { key: 'hours', label: 'Hours (directed)', min: 3, max: 24, step: 1, defaultValue: 3 },
-  ],
-  windows: [
-    { key: 'panes_int', label: 'Interior panes', min: 0, max: 120, step: 1, defaultValue: 12 },
-    { key: 'panes_ext', label: 'Exterior panes', min: 0, max: 120, step: 1, defaultValue: 12 },
-    { key: 'tracks', label: 'Tracks (qty)', min: 0, max: 120, step: 1, defaultValue: 12 },
-    { key: 'screens', label: 'Screens (qty)', min: 0, max: 120, step: 1, defaultValue: 12 },
-    { key: 'storeys', label: 'Storeys (max 5+)', min: 1, max: 5, step: 1, defaultValue: 1 },
-  ],
-  yard: [
-    // Lawn Glow-Up
-    { key: 'lawn_m2', label: 'Lawn area', min: 0, max: 1500, step: 50, defaultValue: 250, suffix: 'm²' },
-
-    // Hedge Hero
-    { key: 'hedge_m', label: 'Hedge length & height (estimate)', min: 0, max: 200, step: 5, defaultValue: 20 },
-
-    // Leaf Vanish
-    {
-      key: 'leaves_area',
-      label: 'Garden reset size (estimate)',
-      min: 0,
-      max: 2000,
-      step: 25,
-      defaultValue: 150,
-    },
-
-    // Blast & Shine (pressure wash)
-    { key: 'blast_m2', label: 'Pressure-wash surfaces (estimate)', min: 0, max: 500, step: 10, defaultValue: 80 },
-
-    // Gutter Guard
-    {
-      key: 'gutter_m',
-      label: 'Roof size & access (estimate)',
-      min: 0,
-      max: 400,
-      step: 10,
-      defaultValue: 120,
-    },
-  ],
-  dump: [
-    { key: 'items', label: 'Items / bulky pieces', min: 0, max: 40, defaultValue: 0 },
-    { key: 'stops', label: 'Pickup stops', min: 0, max: 3, defaultValue: 0 },
-    // Bin Cleans parameters
-    { key: 'redBins', label: 'General waste bins (red)', min: 0, max: 10, defaultValue: 0 },
-    { key: 'redBinFreq', label: 'Red bin frequency', min: 0, max: 2, defaultValue: 0 }, // 0=oneoff, 1=weekly, 2=fortnightly
-    { key: 'yellowBins', label: 'Recycling bins (yellow)', min: 0, max: 10, defaultValue: 0 },
-    { key: 'yellowBinFreq', label: 'Yellow bin frequency', min: 0, max: 1, defaultValue: 0 }, // 0=oneoff, 1=fortnightly (no weekly)
-    { key: 'greenBins', label: 'Green waste bins', min: 0, max: 10, defaultValue: 0 },
-    { key: 'greenBinFreq', label: 'Green bin frequency', min: 0, max: 1, defaultValue: 0 }, // 0=oneoff, 1=monthly
-    { key: 'kitchenBins', label: 'Kitchen bins / caddies', min: 0, max: 5, defaultValue: 0 },
-    { key: 'binPlan', label: 'Subscription plan', min: 0, max: 2, defaultValue: 0 }, // 0=none, 1=household, 2=lite
-  ],
-  auto: [
-    { key: 'vehicle_size', label: 'Car size', min: 0, max: 5, defaultValue: 0 },
-    { key: 'rows', label: 'Seats / rows', min: 0, max: 3, defaultValue: 0 },
-    { key: 'child_seats', label: 'Child seats', min: 0, max: 3, defaultValue: 0 },
-  ],
-  sneakers: [], // no sliders, just tiers
-};
-
-// Per-niche ParamDef sets. Keys MUST be one of: sqm, workstations, restrooms, break_rooms, floors, high_traffic.
-type CommParamDef = {
-  key: 'sqm' | 'workstations' | 'restrooms' | 'break_rooms' | 'floors' | 'high_traffic';
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  defaultValue: number;
-  suffix?: string;
-};
-
-// Descriptive labels for commercial cleaning niches (used by Step 2 cards)
-type CommercialCleaningType =
-  | 'office'
-  | 'medical'
-  | 'fitness'
-  | 'hospitality'
-  | 'education'
-  | 'event'
-  | 'accommodation';
-
-const COMM_PARAM_DEFS: Record<CommercialCleaningType, CommParamDef[]> = {
-  office: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Office Space',
-      min: 0,
-      max: 10000,
-      step: 50,
-      defaultValue: 600,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Workstations – Desks', min: 0, max: 500, step: 5, defaultValue: 20 },
-    { key: 'restrooms', label: 'Restrooms – Toilet Blocks', min: 0, max: 50, step: 1, defaultValue: 2 },
-    { key: 'break_rooms', label: 'Break Rooms – Tea Rooms', min: 0, max: 20, step: 1, defaultValue: 1 },
-    { key: 'floors', label: 'Floors – Levels', min: 1, max: 10, step: 1, defaultValue: 1 },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Handles/Phones',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 3,
-    },
-  ],
-  medical: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Clinic Space',
-      min: 0,
-      max: 10000,
-      step: 50,
-      defaultValue: 350,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Consult Rooms – Treatment', min: 0, max: 100, step: 1, defaultValue: 6 },
-    {
-      key: 'restrooms',
-      label: 'Restrooms – Patient Toilets',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 2,
-    },
-    {
-      key: 'break_rooms',
-      label: 'Waiting Area – Seats',
-      min: 0,
-      max: 500,
-      step: 5,
-      defaultValue: 10,
-    },
-    { key: 'floors', label: 'Floors – Levels', min: 1, max: 10, step: 1, defaultValue: 1 },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Medical Handles',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 5,
-    },
-  ],
-  fitness: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Gym Floor',
-      min: 0,
-      max: 15000,
-      step: 50,
-      defaultValue: 450,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Machines – Equipment', min: 0, max: 500, step: 5, defaultValue: 20 },
-    {
-      key: 'restrooms',
-      label: 'Locker Rooms – Change',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 2,
-    },
-    {
-      key: 'break_rooms',
-      label: 'Showers – Shower Blocks',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 3,
-    },
-    {
-      key: 'floors',
-      label: 'Mats – Floor Mats (zones)',
-      min: 0,
-      max: 1000,
-      step: 50,
-      defaultValue: 100,
-    },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Handles/Mirrors',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 6,
-    },
-  ],
-  hospitality: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Dining/Bar',
-      min: 0,
-      max: 10000,
-      step: 50,
-      defaultValue: 550,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Tables – Dining Tables', min: 0, max: 500, step: 5, defaultValue: 15 },
-    {
-      key: 'restrooms',
-      label: 'Restrooms – Customer',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 2,
-    },
-    {
-      key: 'break_rooms',
-      label: 'Kitchen – Prep Areas',
-      min: 0,
-      max: 10,
-      step: 1,
-      defaultValue: 1,
-    },
-    {
-      key: 'floors',
-      label: 'Bar Area – Serving Stations',
-      min: 0,
-      max: 10,
-      step: 1,
-      defaultValue: 1,
-    },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Door Handles',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 4,
-    },
-  ],
-  education: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Classroom Space',
-      min: 0,
-      max: 15000,
-      step: 50,
-      defaultValue: 550,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Classrooms – Learning Rooms', min: 0, max: 100, step: 1, defaultValue: 4 },
-    {
-      key: 'restrooms',
-      label: 'Restrooms – Child Toilets',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 3,
-    },
-    {
-      key: 'break_rooms',
-      label: 'Play Areas – Activity Zones',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 2,
-    },
-    {
-      key: 'floors',
-      label: 'Kitchen – Staff Room',
-      min: 0,
-      max: 10,
-      step: 1,
-      defaultValue: 1,
-    },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Toy Handles',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 5,
-    },
-  ],
-  event: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Venue Space',
-      min: 0,
-      max: 20000,
-      step: 50,
-      defaultValue: 700,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Tables – Dining Tables', min: 0, max: 1000, step: 5, defaultValue: 20 },
-    {
-      key: 'restrooms',
-      label: 'Restrooms – Event Toilets',
-      min: 0,
-      max: 100,
-      step: 1,
-      defaultValue: 4,
-    },
-    {
-      key: 'break_rooms',
-      label: 'Chairs – Seating',
-      min: 0,
-      max: 5000,
-      step: 10,
-      defaultValue: 50,
-    },
-    {
-      key: 'floors',
-      label: 'Stage Area – Performance Zone',
-      min: 0,
-      max: 10,
-      step: 1,
-      defaultValue: 1,
-    },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Door/Bar Handles',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 6,
-    },
-  ],
-  accommodation: [
-    {
-      key: 'sqm',
-      label: 'Area (sqm) – Rooms & common',
-      min: 0,
-      max: 20000,
-      step: 50,
-      defaultValue: 700,
-      suffix: 'sqm',
-    },
-    { key: 'workstations', label: 'Rooms/Units', min: 0, max: 500, step: 5, defaultValue: 40 },
-    { key: 'restrooms', label: 'Restrooms/Blocks', min: 0, max: 50, step: 1, defaultValue: 6 },
-    { key: 'break_rooms', label: 'Kitchens/Tea Rooms', min: 0, max: 20, step: 1, defaultValue: 3 },
-    { key: 'floors', label: 'Floors – Levels', min: 1, max: 20, step: 1, defaultValue: 4 },
-    {
-      key: 'high_traffic',
-      label: 'High-Touch – Lifts/Handrails',
-      min: 0,
-      max: 50,
-      step: 1,
-      defaultValue: 8,
-    },
-  ],
-};
-
-// Descriptive labels for commercial cleaning niches (used by Step 2 cards)
-type CommMeta = { title: string; covers: string; avg: string; reason: string };
-
-const COMM_LABELS: Record<CommercialCleaningType, CommMeta> = {
-  office: {
-    title: 'Office & Corporate',
-    covers: 'Offices · Co-Working · Banks · Call Centres',
-    avg: '$120 / 2h · $60/hr',
-    reason: '80% of market – weekly repeat',
-  },
-  medical: {
-    title: 'Medical & Hygiene',
-    covers: 'Clinics · Dentists · Physios · Vets',
-    avg: '$140 / 2h · $70/hr',
-    reason: 'Higher rate, compliance-driven',
-  },
-  fitness: {
-    title: 'Fitness & Leisure',
-    covers: 'Gyms · Yoga · Pools · Sports Clubs',
-    avg: '$140 / 2h · $70/hr',
-    reason: 'Equipment & mats attention',
-  },
-  hospitality: {
-    title: 'Hospitality',
-    covers: 'Cafés · Restaurants · Bars · Venues',
-    avg: '$140 / 2h · $70/hr',
-    reason: 'Grease & spill intensive',
-  },
-  education: {
-    title: 'Education & Care',
-    covers: 'Schools · Childcare · Tutoring · OSHC',
-    avg: '$140 / 2h · $70/hr',
-    reason: 'Child-safe, high-touch focus',
-  },
-  event: {
-    title: 'Event & Venue',
-    covers: 'Conferences · Stadiums · Halls',
-    avg: '$120 / 2h · $60/hr',
-    reason: 'Pre/post-event turnaround',
-  },
-  accommodation: {
-    title: 'Accommodation',
-    covers: 'Hotels · Airbnb · Strata · Serviced Apartments',
-    avg: '$120 / 2h · $60/hr',
-    reason: 'Room turnover + common areas',
-  },
-};
-
-function getCleaningParamDefs(ctx: Context, kind?: CommercialCleaningType | null): ParamDef[] {
-  if (ctx === 'commercial') {
-    const t = kind ?? 'office';
-    return COMM_PARAM_DEFS[t];
-  }
-  return PARAMS_FULL.cleaning;
-}
-
-const num = (v: any, fallback = 0) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
-const clamp = (v: number, min = 0, max = Infinity) => Math.max(min, Math.min(max, v));
-const clampParam = (def: ParamDef, v: number) => clamp(v, def.min ?? 0, def.max ?? Number.POSITIVE_INFINITY);
-const fromDefs = (defs: ParamDef[]): Record<string, number> =>
-  Object.fromEntries(defs.map((p) => [p.key, p.defaultValue])) as Record<string, number>;
-
-const defaultParamsByService = () => ({
-  cleaning: fromDefs(PARAMS_FULL.cleaning),
-  windows: fromDefs(PARAMS_FULL.windows),
-  yard: fromDefs(PARAMS_FULL.yard),
-  dump: fromDefs(PARAMS_FULL.dump),
-  auto: fromDefs(PARAMS_FULL.auto),
-  sneakers: {}, // sneakers use tiers only
-});
-
-/* =========================
-   WINDOWS HELPERS
-   ========================= */
-const WINDOWS_BASE_PER_STOREY_MIN = 150; // ~12 windows/storey ≈ 2.5h
-type StoreyRow = { int: number; ext: number; tracks: number; screens: number; label?: string };
-
-const HOUSE_SNAPS: { name: string; rows: StoreyRow[] }[] = [
-  { name: 'Unit (1)', rows: [{ int: 12, ext: 12, tracks: 12, screens: 12, label: 'Level' }] },
-  { name: 'Small home', rows: [{ int: 10, ext: 10, tracks: 10, screens: 10, label: 'Level' }] },
-  { name: 'Large home', rows: [{ int: 16, ext: 16, tracks: 16, screens: 16, label: 'Level' }] },
-];
-
-// =========================
-// Windows time calculator (shared)
-// =========================
-const WIN_RULES = {
-  WEIGHT: { INT: 4, EXT: 5, TRACK: 5, SCREEN: 5 } as const,
-  TARGETS: {
-    windows_full: 240,
-    windows_interior: 120,
-    windows_exterior: 120,
-    windows_tracks: 90,
-  },
-} as const;
-
-function getScopeFlags(scope: ScopeKey) {
-  const isIntOnly = scope === 'windows_interior';
-  const isExtOnly = scope === 'windows_exterior';
-  const isTracksOnly = scope === 'windows_tracks';
-  const isFull = scope === 'windows_full' || (!isIntOnly && !isExtOnly && !isTracksOnly);
-  return { isIntOnly, isExtOnly, isTracksOnly, isFull };
-}
-
-function toSafeInt(n: unknown): number {
-  const v = Number.isFinite(n as number) ? (n as number) : 0;
-  return Math.max(0, Math.floor(v));
-}
-
-function computeWindowsMinutes(
-  scope: ScopeKey,
-  rows: WizardState['winRows'],
-  context: Context,
-  paramsWindows?: Record<string, unknown>
-): number {
-  const { isIntOnly, isExtOnly, isTracksOnly, isFull } = getScopeFlags(scope);
-  const seg = {
-    int: isFull || isIntOnly,
-    ext: isFull || isExtOnly,
-    tracks: isFull || isTracksOnly,
-  };
-
-  const totals = rows.reduce(
-    (a, r) => {
-      a.int += toSafeInt(r.int);
-      a.ext += toSafeInt(r.ext);
-      a.tracks += toSafeInt(r.tracks);
-      a.screens += context === 'commercial' ? 0 : toSafeInt(r.screens);
-      return a;
-    },
-    { int: 0, ext: 0, tracks: 0, screens: 0 }
-  );
-
-  const W = WIN_RULES.WEIGHT;
-  let minutes =
-    (seg.int ? totals.int * W.INT : 0) +
-    (seg.ext ? totals.ext * W.EXT : 0) +
-    (seg.tracks ? totals.tracks * W.TRACK : 0) +
-    (seg.ext ? totals.screens * W.SCREEN : 0);
-
-  const round15 = (n: number) => Math.round(n / 15) * 15;
-  minutes = round15(minutes);
-
-  const minTarget = (WIN_RULES.TARGETS as Record<string, number>)[scope] || 0;
-  if (minTarget > 0 && minutes < minTarget) minutes = minTarget;
-
-  return Math.max(0, minutes);
-}
-
-/* =========================
-   PRESETS FROM SCOPES → PARAMS
-   ========================= */
-function scopePresetFor(
-  service: ServiceType,
-  scope: ScopeKey,
-  ctx?: Context
-): Partial<Record<string, number>> {
-  const zero = fromDefs(PARAMS_FULL[service]);
-  Object.keys(zero).forEach((k) => (zero[k] = 0));
-
-  if (service === 'windows') {
-    const isCommercial = ctx === 'commercial';
-    if (scope === 'windows_full')
-      return { ...zero, panes_int: 12, panes_ext: 12, tracks: 12, screens: isCommercial ? 0 : 12, storeys: 1 };
-    if (scope === 'windows_interior')
-      return { ...zero, panes_int: 12, tracks: 12, screens: 0, storeys: 1 };
-    if (scope === 'windows_exterior')
-      return { ...zero, panes_ext: 12, tracks: 0, screens: 12, storeys: 1 };
-    if (scope === 'windows_tracks') return { ...zero, tracks: 12, screens: 0, storeys: 1 };
-  }
-
-  if (service === 'cleaning') {
-    const std = { bedrooms: 4, bathrooms: 2, kitchens: 1, laundry: 1, living: 2, storeys: 1 } as any;
-    const weekly = { bedrooms: 4, bathrooms: 2, kitchens: 1, laundry: 1, living: 1, storeys: 1 } as any;
-    const deep = { bedrooms: 4, bathrooms: 3, kitchens: 1, laundry: 1, living: 2, storeys: 1 } as any;
-    const move = { bedrooms: 4, bathrooms: 3, kitchens: 1, laundry: 1, living: 2, storeys: 1 } as any;
-    if (scope === 'weekly') return { ...weekly };
-    if (scope === 'general') return { ...std };
-    if (scope === 'deep') return { ...deep };
-    if (scope === 'endoflease') return { ...move };
-    return scope === 'hourly' ? { ...std, hours: 3 } : { ...std };
-  }
-
-  if (service === 'yard') {
-    if (scope === 'yard_mow') return { ...zero, lawn_m2: 300 };
-    if (scope === 'yard_hedge') return { ...zero, hedge_m: 30 };
-    if (scope === 'yard_leaves') return { ...zero, leaves_area: 150 };
-    if (scope === 'blast_and_shine') return { ...zero, blast_m2: 80 };
-    if (scope === 'gutter_clean') return { ...zero, gutter_m: 120 };
-  }
-
-  if (service === 'dump') {
-    if (scope === 'dump_runs') return { ...zero, items: 4, stops: 1, bins: 0 };
-    if (scope === 'bin_cleans') return { ...zero, redBins: 1, yellowBins: 1, greenBins: 0, kitchenBins: 0, items: 0, stops: 0 };
-    if (scope === 'dump_delivery') return { ...zero, items: 2, stops: 2, bins: 0 };
-    if (scope === 'dump_transport') return { ...zero, items: 3, stops: 2, bins: 0 };
-  }
-
-  if (service === 'auto') {
-    if (scope === 'auto_express') return { ...zero, vehicle_size: 2, rows: 0, child_seats: 0 };
-    if (scope === 'auto_interior') return { ...zero, vehicle_size: 2, rows: 2, child_seats: 0 };
-    if (scope === 'auto_full') return { ...zero, vehicle_size: 2, rows: 2, child_seats: 0 };
-  }
-
-  return zero;
-}
-
-/* =========================
-   CLEANING CHECKLIST (wizard-driven)
-   ========================= */
-const CLEANING_TASK_LIBRARY = {
-  base: [
-    'Surfaces dusted & wiped',
-    'Floors vacuumed and mopped',
-    'Bathrooms cleaned (toilets, showers, vanities)',
-    'Kitchen benches & stove wipe',
-    'Bins emptied',
-    'Mirrors and glass spot-clean',
-  ],
-  mess: {
-    tidy: ['Light clutter tidy and reset'],
-    'lived-in': ['Extra wipe-down of kitchen & bathrooms', 'High-touch points refreshed'],
-    reset: ['Detail skirting/frames & fronts', 'Degrease heavier kitchen/bath areas'],
-  },
-  addOns: {
-    oven: ['Oven interior cleaned'],
-    fridge: ['Fridge interior wipe/clean'],
-    windows: ['Windows/Glass quick pass (inside)'],
-    cupboards: ['Inside cupboards (shelves wiped)'],
-    walls: ['Spot clean walls/marks'],
-  },
-  deep: ['Detail kitchen & bathrooms', 'Edge vacuum & dusting in corners'],
-  move: ['Inside appliances included', 'Inside cupboards/drawers wiped', 'Detail skirting/frames'],
-  bathrooms: ['Additional bathroom focus for multiple bathrooms'],
-  size: {
-    '5+': ['Larger-home pass to keep pacing on-track'],
-  },
-};
-
-function buildCleaningChecklistFromWizard(state: CleaningWizardChecklistState): string[] {
-  const tasks: string[] = [];
-  const push = (xs?: string[]) => {
-    if (!xs) return;
-    for (const t of xs) tasks.push(t);
-  };
-
-  push(CLEANING_TASK_LIBRARY.base);
-
-  if (state.messLevel === 'tidy') push(CLEANING_TASK_LIBRARY.mess.tidy);
-  if (state.messLevel === 'lived-in') push(CLEANING_TASK_LIBRARY.mess['lived-in']);
-  if (state.messLevel === 'reset') push(CLEANING_TASK_LIBRARY.mess.reset);
-
-  if (state.bathrooms >= 2) push(CLEANING_TASK_LIBRARY.bathrooms);
-  if (state.propertySize === '5+') push(CLEANING_TASK_LIBRARY.size['5+']);
-
-  if (state.scope === 'deep') push(CLEANING_TASK_LIBRARY.deep);
-  if (state.scope === 'endoflease') push(CLEANING_TASK_LIBRARY.move);
-
-  if (state.addOns.oven) push(CLEANING_TASK_LIBRARY.addOns.oven);
-  if (state.addOns.fridge) push(CLEANING_TASK_LIBRARY.addOns.fridge);
-  if (state.addOns.windows) push(CLEANING_TASK_LIBRARY.addOns.windows);
-  if (state.addOns.cupboards) push(CLEANING_TASK_LIBRARY.addOns.cupboards);
-  if (state.addOns.walls) push(CLEANING_TASK_LIBRARY.addOns.walls);
-
-  // Deduplicate while preserving order
-  const seen = new Set<string>();
-  return tasks.filter((t) => {
-    if (seen.has(t)) return false;
-    seen.add(t);
-    return true;
-  });
-}
-
-/* =========================
-   SIMPLY SPOTLESS–STYLE (HOME ONLY) @ $60/hr (legacy)
-   ========================= */
-type SSKind = 'general' | 'deep' | 'endoflease';
-
-const SS_BASE: Record<SSKind, number> = {
-  general: Math.round(2.4 * 60),
-  deep: Math.round(3.38 * 60),
-  endoflease: Math.round(5.43 * 60),
-};
-const SS_BEDROOMS: Record<SSKind, number[]> = {
-  general: [9, 16, 24, 32, 40, 40, 40],
-  deep: [12, 20, 28, 36, 44, 52, 60],
-  endoflease: [37, 65, 93, 120, 146, 146, 146],
-};
-const SS_STOREY: Record<SSKind, number> = { general: 31, deep: 32, endoflease: 32 };
-const SS_BATHROOM: Record<SSKind, number> = { general: 22, deep: 23, endoflease: 23 };
-const SS_LAUNDRY: Record<SSKind, number> = { general: 26, deep: 27, endoflease: 27 };
-
-function ssMinutes(kind: SSKind, bedrooms: number, storeys: number, bathrooms: number, laundry: number): number {
-  let minutes = SS_BASE[kind];
-  const extras = Math.max(0, Math.round(bedrooms) - 1);
-  for (let i = 0; i < extras; i++) {
-    const inc =
-      SS_BEDROOMS[kind][i] ?? SS_BEDROOMS[kind][SS_BEDROOMS[kind].length - 1];
-    minutes += inc;
-  }
-  minutes += Math.max(0, Math.round(storeys) - 1) * SS_STOREY[kind];
-  minutes += Math.max(0, Math.round(bathrooms) - 1) * SS_BATHROOM[kind];
-  minutes += Math.max(0, Math.round(laundry) - 0) * SS_LAUNDRY[kind];
-  return Math.max(0, Math.round(minutes));
-}
-
-/* ===== Commercial Cleaning (formula-based) ===== */
-
-const COMM_CLEAN_MULTIPLIER: Record<CommercialCleaningType, number> = {
-  office: 1.0,
-  medical: 1.5,
-  fitness: 1.3,
-  hospitality: 1.4,
-  education: 1.2,
-  event: 1.1,
-  accommodation: 1.2,
-};
-
-const COMM_CLEAN_MIN_HOURS: Record<CommercialCleaningType, number> = {
-  office: 2.0,
-  medical: 2.0,
-  fitness: 2.0,
-  hospitality: 2.0,
-  education: 2.0,
-  event: 2.0,
-  accommodation: 2.0,
-};
-
-const COMM_CLEAN_RATES: Record<CommercialCleaningType, number> = {
-  office: 60,
-  medical: 70,
-  fitness: 70,
-  hospitality: 70,
-  education: 70,
-  event: 60,
-  accommodation: 60,
-};
-
-const COMM_PRESET_PRICING: Record<
-  CommercialCleaningType,
-  Record<'essential' | 'standard' | 'intensive', { hours: number; price: number; sqm: number }>
-> = {
-  office: {
-    essential: { hours: 2, price: 120, sqm: 600 },
-    standard: { hours: 3, price: 180, sqm: 900 },
-    intensive: { hours: 6, price: 360, sqm: 1800 },
-  },
-  medical: {
-    essential: { hours: 2, price: 140, sqm: 350 },
-    standard: { hours: 3, price: 210, sqm: 550 },
-    intensive: { hours: 6, price: 420, sqm: 1200 },
-  },
-  fitness: {
-    essential: { hours: 2, price: 140, sqm: 450 },
-    standard: { hours: 3, price: 210, sqm: 750 },
-    intensive: { hours: 6, price: 420, sqm: 1600 },
-  },
-  hospitality: {
-    essential: { hours: 2, price: 140, sqm: 550 },
-    standard: { hours: 3, price: 210, sqm: 850 },
-    intensive: { hours: 6, price: 420, sqm: 1800 },
-  },
-  education: {
-    essential: { hours: 2, price: 140, sqm: 550 },
-    standard: { hours: 3, price: 210, sqm: 850 },
-    intensive: { hours: 6, price: 420, sqm: 1700 },
-  },
-  event: {
-    essential: { hours: 2, price: 120, sqm: 700 },
-    standard: { hours: 3, price: 180, sqm: 1200 },
-    intensive: { hours: 6, price: 360, sqm: 2800 },
-  },
-  accommodation: {
-    essential: { hours: 2, price: 120, sqm: 700 },
-    standard: { hours: 3, price: 180, sqm: 1100 },
-    intensive: { hours: 6, price: 360, sqm: 2400 },
-  },
-};
-
-// Round to nearest half-hour (e.g., 6.24h -> 6.5h)
-function roundToHalfHour(hours: number) {
-  return Math.round(hours * 2) / 2;
-}
-
-function cleaningCommercialMinutes(kind: CommercialCleaningType, p: any): number {
-  // Fixed 4-hour baseline for all commercial cleaning niches
-  return 240;
-}
-
-/* ===== Home Cleaning – legacy V1 (kept for future use) ===== */
-type CleanScopeKind = 'weekly' | 'general' | 'inspection' | 'deep' | 'endoflease' | 'hourly';
-
-const CLEANING_HOME_MULTIPLIER: Record<CleanScopeKind, number> = {
-  weekly: 1.0,
-  general: 1.15,
-  inspection: 1.4,
-  deep: 1.6,
-  endoflease: 1.85,
-  hourly: 1.0,
-};
-
-const CLEANING_HOME_MIN_HOURS: Record<CleanScopeKind, number> = {
-  weekly: 2.0,
-  general: 2.5,
-  inspection: 3.0,
-  deep: 3.5,
-  endoflease: 4.5,
-  hourly: 1.0,
-};
-
-const CLEANING_HOME_RATES: Record<CleanScopeKind, number> = {
-  weekly: 55,
-  general: 60,
-  inspection: 60,
-  deep: 65,
-  endoflease: 90,
-  hourly: 60,
-};
-
-function cleaningHomeMinutes(kind: CleanScopeKind, p: any): number {
-  const bedrooms = p.bedrooms ?? 1;
-  const bathrooms = p.bathrooms ?? 1;
-  const kitchens = p.kitchens ?? 1;
-  const living = p.living ?? 1;
-  const laundry = p.laundry ?? 0;
-  const storeys = p.storeys ?? 1;
-
-  const baseHours =
-    bedrooms * 0.15 +
-    bathrooms * 0.45 +
-    kitchens * 0.6 +
-    living * 0.25 +
-    laundry * 0.2 +
-    storeys * 0.1;
-
-  const hours = baseHours * (CLEANING_HOME_MULTIPLIER[kind] ?? 1);
-  const minHours = CLEANING_HOME_MIN_HOURS[kind] ?? 0;
-  const finalHours = Math.max(hours, minHours);
-
-  return Math.round(finalHours * 60);
-}
-
-/* ===== Home Cleaning – Calibrated V2 (Brisbane) ===== */
-
-type CleanScopeKindV2 = CleanScopeKind;
-
-const CLEANING_HOME_RATES_V2: Record<CleanScopeKindV2, number> = {
-  weekly: 55,      // discounted from base
-  general: 60,     // base rate
-  inspection: 60,
-  deep: 65,
-  endoflease: 90,
-  hourly: 60,
-};
-
-// 2025 Brisbane home cleaning matrix (GST incl.)
-// format: pricing[bedrooms][bathrooms][storeys] = { standard: [low, high], deep: [low, high], move: [low, high] }
-const CLEANING_HOME_BRISBANE_2025: Record<
-  string,
-  Record<string, Record<string, { standard: [number, number]; deep: [number, number]; move: [number, number] }>>
-> = {
-  '1': { '1': { '1': { standard: [165, 190], deep: [250, 290], move: [320, 380] } } },
-  '2': {
-    '1': { '1': { standard: [190, 230], deep: [290, 350], move: [380, 480] } },
-    '2': { '1': { standard: [220, 270], deep: [340, 400], move: [450, 550] } },
-  },
-  '3': {
-    '1': { '1': { standard: [250, 300], deep: [380, 460], move: [500, 620] } },
-    '2': {
-      '1': { standard: [290, 350], deep: [440, 520], move: [580, 720] },
-      '2': { standard: [340, 410], deep: [500, 600], move: [680, 850] },
-    },
-  },
-  '4': {
-    '2': {
-      '1': { standard: [350, 420], deep: [520, 620], move: [720, 900] },
-      '2': { standard: [410, 490], deep: [600, 720], move: [850, 1100] },
-    },
-    '3': { '2': { standard: [460, 550], deep: [680, 820], move: [950, 1250] } },
-  },
-  // 5+ bedrooms or 3+ storeys -> custom quote
-};
-
-const CLEANING_HOME_RECURRING_DISCOUNT: Record<string, number> = {
-  weekly: 0.2,
-  fortnightly: 0.1,
-};
-
-// Home cleaning presets (base counts) and incremental rules for extras
-const HOME_CLEAN_PRESETS: Record<
-  CleanScopeKindV2,
-  { bedrooms: number; bathrooms: number; kitchens: number; laundry: number; living: number; storeys: number }
-> = {
-  weekly: { bedrooms: 4, bathrooms: 2, kitchens: 1, laundry: 1, living: 1, storeys: 1 },
-  general: { bedrooms: 4, bathrooms: 2, kitchens: 1, laundry: 1, living: 2, storeys: 1 }, // standard
-  inspection: { bedrooms: 1, bathrooms: 1, kitchens: 1, laundry: 0, living: 1, storeys: 1 }, // unused for extras
-  deep: { bedrooms: 4, bathrooms: 3, kitchens: 1, laundry: 1, living: 2, storeys: 1 },
-  endoflease: { bedrooms: 4, bathrooms: 3, kitchens: 1, laundry: 1, living: 2, storeys: 1 },
-  hourly: { bedrooms: 0, bathrooms: 0, kitchens: 0, laundry: 0, living: 0, storeys: 1 },
-};
-
-type ExtraRule = { minutes: number; cost: number };
-type ExtraRules = Partial<Record<'bedrooms' | 'bathrooms' | 'kitchens' | 'laundry' | 'living' | 'storeys', ExtraRule>>;
-
-const HOME_EXTRA_RULES: Record<CleanScopeKindV2, ExtraRules> = {
-  weekly: {
-    bedrooms: { minutes: 30, cost: 15 },
-    bathrooms: { minutes: 45, cost: 25 },
-    kitchens: { minutes: 60, cost: 30 },
-    laundry: { minutes: 25, cost: 15 },
-    living: { minutes: 35, cost: 20 },
-    storeys: { minutes: 20, cost: 10 },
-  },
-  general: {
-    bedrooms: { minutes: 30, cost: 30 },
-    bathrooms: { minutes: 45, cost: 45 },
-    kitchens: { minutes: 60, cost: 60 },
-    laundry: { minutes: 30, cost: 30 },
-    living: { minutes: 40, cost: 40 },
-    storeys: { minutes: 25, cost: 20 },
-  },
-  inspection: {}, // no extras defined
-  deep: {
-    bedrooms: { minutes: 40, cost: 40 },
-    bathrooms: { minutes: 60, cost: 60 },
-    kitchens: { minutes: 90, cost: 80 },
-    laundry: { minutes: 40, cost: 60 },
-    living: { minutes: 55, cost: 55 },
-    storeys: { minutes: 30, cost: 25 },
-  },
-  endoflease: {
-    bedrooms: { minutes: 45, cost: 60 },
-    bathrooms: { minutes: 70, cost: 90 },
-    kitchens: { minutes: 90, cost: 120 },
-    laundry: { minutes: 45, cost: 60 },
-    living: { minutes: 60, cost: 80 },
-    storeys: { minutes: 45, cost: 40 },
-  },
-  hourly: {},
-};
-
-function computeCleaningAddons(scope: ScopeKey, params: NumericParams) {
-  // Only for home cleaning
-  const hasFridge = !!(params as any).addon_fridge;
-  const hasOven = !!(params as any).addon_oven;
-  const hasWindows = !!(params as any).addon_windows;
-
-  let minutes = 0;
-  let cost = 0;
-
-  // Fridge/Oven bundle: $70, 45 + 60 minutes; heavy carbon adds $20 (not captured here)
-  if (hasFridge && hasOven) {
-    minutes += 45 + 60;
-    cost += 70; // bundle saves $10
-  } else {
-    if (hasFridge) {
-      minutes += 45;
-      cost += 40;
-    }
-    if (hasOven) {
-      minutes += 60;
-      cost += 60;
-    }
-  }
-
-  if (hasWindows) {
-    minutes += 45; // first 10 windows
-    cost += 50;
-    // If you later add counts, every extra 5 windows: +20 mins, +$20
-    const extraWindows = Math.max(0, Math.floor(((params as any).addon_windows_extra || 0) / 5));
-    if (extraWindows > 0) {
-      minutes += extraWindows * 20;
-      cost += extraWindows * 20;
-    }
-  }
-
-  return { minutes, cost };
-}
-
-function computeHomeExtras(scope: ScopeKey, params: NumericParams) {
-  const map: Partial<Record<ScopeKey, CleanScopeKindV2>> = {
-    weekly: 'weekly',
-    general: 'general',
-    deep: 'deep',
-    endoflease: 'endoflease',
-    inspection: 'inspection',
-    hourly: 'hourly',
-  };
-  const kind = map[scope] ?? null;
-  if (!kind || kind === 'hourly' || kind === 'inspection') return { baseMinutes: 0, extraMinutes: 0, extraCost: 0 };
-
-  const preset = HOME_CLEAN_PRESETS[kind];
-  const rules = HOME_EXTRA_RULES[kind] || {};
-
-  const diff = (key: keyof typeof preset) => Math.max(0, (params[key] ?? preset[key]) - preset[key]);
-
-  const extras: Array<{ key: keyof typeof preset; count: number; rule?: ExtraRule }> = [
-    { key: 'bedrooms', count: diff('bedrooms'), rule: rules.bedrooms },
-    { key: 'bathrooms', count: diff('bathrooms'), rule: rules.bathrooms },
-    { key: 'kitchens', count: diff('kitchens'), rule: rules.kitchens },
-    { key: 'laundry', count: diff('laundry'), rule: rules.laundry },
-    { key: 'living', count: diff('living'), rule: rules.living },
-    { key: 'storeys', count: diff('storeys'), rule: rules.storeys },
-  ];
-
-  let extraMinutes = 0;
-  let extraCost = 0;
-  for (const e of extras) {
-    if (!e.rule || e.count <= 0) continue;
-    extraMinutes += e.rule.minutes * e.count;
-    extraCost += e.rule.cost * e.count;
-  }
-
-  const baseMinutes = (CLEANING_HOME_MIN_HOURS_V2[kind] ?? 0) * 60;
-  return { baseMinutes, extraMinutes, extraCost };
-}
-
-// Yard care overrides (flat + increments)
-type YardQuoteOptions = {
-  scope?: ScopeKey;
-  isTwoStoreyGutter?: boolean;
-  conditionMultiplier?: number;
-  accessTight?: boolean;
-  conditionLevel?: 'light' | 'standard' | 'heavy';
-  context?: Context;
-};
-
-const YARD_HOURLY_RATE = 60;
-const YARD_ACCESS_EXTRA_HOURS = 0.5;
-const YARD_GUTTER_TWO_STOREY_MULT = 1.6;
-const YARD_MIN_CONDITION_MULT = 0.7;
-const YARD_MAX_CONDITION_MULT = 1.6;
-
-const YARD_SCOPE_KEYS = ['yard_mow', 'yard_hedge', 'yard_leaves', 'blast_and_shine', 'gutter_clean'] as const;
-type YardScopeKey = (typeof YARD_SCOPE_KEYS)[number];
-const YARD_SCOPE_SET = new Set<YardScopeKey>(YARD_SCOPE_KEYS);
-
-const YARD_SERVICE_RULES: Record<
-  YardScopeKey,
-  { denominator: number; minHours: number; maxHours: number }
-> = {
-  yard_mow: { denominator: 500, minHours: 1, maxHours: 7 },
-  yard_hedge: { denominator: 35, minHours: 1, maxHours: 7 },
-  yard_leaves: { denominator: 300, minHours: 1, maxHours: 7 },
-  blast_and_shine: { denominator: 140, minHours: 1, maxHours: 6 },
-  gutter_clean: { denominator: 30, minHours: 1, maxHours: 6 },
-};
-
-const resolveYardScope = (scope?: ScopeKey): YardScopeKey =>
-  scope && YARD_SCOPE_SET.has(scope as YardScopeKey) ? (scope as YardScopeKey) : 'yard_mow';
-
-function computeYardQuote(params: NumericParams, opts: YardQuoteOptions = {}) {
-  const scope = resolveYardScope(opts.scope);
-  const areaOverride = toNumber((params as any).yard_area ?? (params as any).area_m2, 0);
-
-  const areaBuckets: Record<'lawn' | 'garden' | 'blast', number> = {
-    lawn: toNumber(params.lawn_m2 ?? 0, 0),
-    garden: toNumber(params.leaves_area ?? 0, 0),
-    blast: toNumber(params.blast_m2 ?? 0, 0),
-  };
-
-  const areaScopeMap: Partial<Record<YardScopeKey, keyof typeof areaBuckets>> = {
-    yard_mow: 'lawn',
-    yard_leaves: 'garden',
-    blast_and_shine: 'blast',
-  };
-
-  const primaryAreaKey = areaScopeMap[scope];
-  if (primaryAreaKey) {
-    const overrideValue = areaOverride > 0 ? areaOverride : areaBuckets[primaryAreaKey];
-    (Object.keys(areaBuckets) as (keyof typeof areaBuckets)[]).forEach((key) => {
-      areaBuckets[key] = key === primaryAreaKey ? overrideValue : 0;
-    });
-  } else {
-    const nonZeroAreaKeys = (Object.entries(areaBuckets) as [keyof typeof areaBuckets, number][])
-      .filter(([, value]) => value > 0)
-      .map(([key]) => key);
-    if (nonZeroAreaKeys.length > 1) {
-      const keepKey = nonZeroAreaKeys[0];
-      (Object.keys(areaBuckets) as (keyof typeof areaBuckets)[]).forEach((key) => {
-        if (key !== keepKey) areaBuckets[key] = 0;
-      });
-    }
-  }
-
-  const measurementValues: Record<YardScopeKey, number> = {
-    yard_mow: areaBuckets.lawn,
-    yard_hedge: toNumber(params.hedge_m ?? 0, 0),
-    yard_leaves: areaBuckets.garden,
-    blast_and_shine: areaBuckets.blast,
-    gutter_clean: toNumber(params.gutter_m ?? 0, 0),
-  };
-
-  const serviceRule = YARD_SERVICE_RULES[scope];
-  const rawUnits = Math.max(0, measurementValues[scope] ?? 0);
-  const rawHours = rawUnits / serviceRule.denominator;
-
-  const conditionMult = clamp(
-    opts.conditionMultiplier ?? 1,
-    YARD_MIN_CONDITION_MULT,
-    YARD_MAX_CONDITION_MULT
-  );
-
-  let adjustedHours = rawHours * conditionMult;
-  if (opts.accessTight) {
-    adjustedHours += YARD_ACCESS_EXTRA_HOURS;
-  }
-  if (scope === 'gutter_clean' && opts.isTwoStoreyGutter) {
-    adjustedHours *= YARD_GUTTER_TWO_STOREY_MULT;
-  }
-
-  const clampedHours = clamp(adjustedHours, serviceRule.minHours, serviceRule.maxHours);
-  const minutes = Math.round(clampedHours * 60);
-  const price = Math.round(clampedHours * YARD_HOURLY_RATE);
-
-  return {
-    hours: clampedHours,
-    minutes,
-    cost: price,
-    labourFloor: price,
-  };
-}
-
-function roundTo5(n: number) {
-  return Math.round(n / 5) * 5;
-}
-
-function computeHomeMatrixPrice({
-  bedrooms,
-  bathrooms,
-  storeys,
-  scope,
-}: {
-  bedrooms: number;
-  bathrooms: number;
-  storeys: number;
-  scope: ScopeKey;
-}):
-  | { kind: 'custom' }
-  | { kind: 'range'; low: number; high: number }
-  | { kind: 'exact'; value: number } {
-  if (bedrooms >= 5 || storeys >= 3) return { kind: 'custom' };
-
-  const svc =
-    scope === 'deep'
-      ? 'deep'
-      : scope === 'endoflease'
-      ? 'move'
-      : 'standard';
-
-  const matrix =
-    CLEANING_HOME_BRISBANE_2025[String(bedrooms)]?.[String(bathrooms)]?.[
-      String(storeys)
-    ];
-  if (!matrix || !matrix[svc]) return { kind: 'custom' };
-
-  let [low, high] = matrix[svc];
-
-  // Apply recurring discount only for standard weekly/fortnightly
-  const recurKey =
-    scope === 'weekly' ? 'weekly' : scope === 'inspection' ? 'fortnightly' : null;
-  const disc = svc === 'standard' && recurKey ? CLEANING_HOME_RECURRING_DISCOUNT[recurKey] || 0 : 0;
-  if (disc > 0) {
-    low *= 1 - disc;
-    high *= 1 - disc;
-  }
-
-  low = roundTo5(low);
-  high = roundTo5(high);
-
-  if (low === high) return { kind: 'exact', value: low };
-  return { kind: 'range', low, high };
-}
-
-const CLEANING_HOME_MULTIPLIER_V2: Record<CleanScopeKindV2, number> = {
-  weekly: 1.2,
-  general: 1.2,
-  inspection: 1.6,
-  deep: 2.4,
-  endoflease: 2.8,
-  hourly: 1.0,
-};
-
-const CLEANING_HOME_MIN_HOURS_V2: Record<CleanScopeKindV2, number> = {
-  weekly: 2.0,       // weekly clean preset
-  general: 4.0,      // standard clean preset
-  inspection: 3.0,
-  deep: 5.0,         // deep clean preset
-  endoflease: 6.0,   // move in/out preset
-  hourly: 3.0,       // directed clean preset
-};
-
-function cleaningHomeMinutesV2(kind: CleanScopeKindV2, p: any): number {
-  const bedrooms = p.bedrooms ?? 1;
-  const bathrooms = p.bathrooms ?? 1;
-  const kitchens = p.kitchens ?? 1;
-  const living = p.living ?? 1;
-  const laundry = p.laundry ?? 0;
-  const storeys = p.storeys ?? 1;
-
-  const baseHours =
-    bedrooms * 0.15 +
-    bathrooms * 0.45 +
-    kitchens * 0.6 +
-    living * 0.25 +
-    laundry * 0.2 +
-    storeys * 0.1;
-
-  const hours = baseHours * (CLEANING_HOME_MULTIPLIER_V2[kind] ?? 1);
-  const minHours = CLEANING_HOME_MIN_HOURS_V2[kind] ?? 0;
-  const finalHours = Math.max(hours, minHours);
-
-  return Math.round(finalHours * 60);
-}
-
-/* =========================
-   SELECTION (params → line items)
-   ========================= */
-function selectedFromParams(
-  service: ServiceType,
-  scope: ScopeKey,
-  p: NumericParams,
-  _flags: { secondStorey: boolean },
-  overrideWindows?: { panes_int: number; panes_ext: number; tracks: number; screens: number },
-  ctx?: Context,
-  commercialType?: CommercialCleaningType
-) {
-  const sel: Selected = {};
-
-  if (service === 'cleaning') {
-    const bedrooms = p.bedrooms ?? 1;
-    const bathrooms = p.bathrooms ?? 1;
-    const laundry = p.laundry ?? 0;
-
-    // Hourly preset → special hourly unit (kept)
-    if (scope === 'hourly') {
-      const hours = Math.max(3, Math.round(p.hours ?? 3)); // min 3h
-      sel['clean.hourly'] = hours;
-      return sel;
-    }
-
-    // COMMERCIAL cleaning: use formula → minutes bucket
-    if (ctx === 'commercial') {
-      const kind: CommercialCleaningType = commercialType ?? 'office';
-      const mins = cleaningCommercialMinutes(kind, p);
-      sel[`clean.ss.${kind}`] = mins;
-      return sel;
-    }
-
-    // HOME context V2
-    if (ctx === 'home') {
-      const map: Partial<Record<ScopeKey, CleanScopeKindV2>> = {
-        weekly: 'weekly',
-        general: 'general',
-        inspection: 'inspection',
-        deep: 'deep',
-        endoflease: 'endoflease',
-      };
-      const kind = map[scope];
-      if (kind) {
-        const mins = cleaningHomeMinutesV2(kind, p);
-        sel[`clean.ss.${kind}`] = mins;
-        return sel;
-      }
-    }
-
-    // Fallback (atomised cleaning) – rarely used
-    const floorRooms = Math.max(0, (bedrooms || 0) + (p.living || 0) + (laundry || 0));
-    if (floorRooms > 0) {
-      sel['clean.vac'] = floorRooms;
-      sel['clean.mop'] = floorRooms;
-    }
-    if ((bathrooms || 0) > 0) sel['clean.bath'] = bathrooms || 0;
-    if ((p.kitchens || 0) > 0) sel['clean.kit'] = p.kitchens || 0;
-  }
-
-  if (service === 'windows') {
-    const inP = overrideWindows ? overrideWindows.panes_int : p.panes_int || 0;
-    const exP = overrideWindows ? overrideWindows.panes_ext : p.panes_ext || 0;
-    const tracks = overrideWindows ? overrideWindows.tracks : p.tracks || 0;
-    const screens = overrideWindows ? overrideWindows.screens : p.screens || 0;
-
-    if (scope === 'windows_full') {
-      if (inP > 0) sel['window.pane_int_solo'] = inP;
-      if (exP > 0) sel['window.pane_ext_solo'] = exP;
-      if (tracks > 0) sel['window.track'] = tracks;
-      if (screens > 0) sel['window.screen'] = screens;
-    } else if (scope === 'windows_interior') {
-      if (inP > 0) sel['window.pane_int_solo'] = inP;
-      if (tracks > 0) sel['window.track'] = tracks;
-    } else if (scope === 'windows_exterior') {
-      if (exP > 0) sel['window.pane_ext_solo'] = exP;
-      if (tracks > 0) sel['window.track'] = tracks;
-      if (screens > 0) sel['window.screen'] = screens;
-    } else if (scope === 'windows_tracks') {
-      if (tracks > 0) sel['window.track'] = tracks;
-    }
-  }
-
-  if (service === 'yard') {
-    const yardArea = toNumber((p as any).yard_area ?? (p as any).area_m2, 0);
-    const lawn =
-      scope === 'yard_mow' && yardArea > 0 ? yardArea : toNumber(p.lawn_m2 ?? 0, 0);
-    const hedge = toNumber(p.hedge_m ?? 0, 0);
-    const leaves =
-      scope === 'yard_leaves' && yardArea > 0 ? yardArea : toNumber(p.leaves_area ?? 0, 0);
-    const blast =
-      scope === 'blast_and_shine' && yardArea > 0 ? yardArea : toNumber(p.blast_m2 ?? 0, 0);
-    const gutter =
-      scope === 'gutter_clean' && yardArea > 0 ? yardArea : toNumber(p.gutter_m ?? 0, 0);
-
-    // Lawn: per 100 m² block
-    if (lawn > 0) {
-      const blocks = Math.max(1, Math.ceil(lawn / 100));
-      sel['lawn.mow'] = blocks;
-    }
-    // Hedge trim (per 10m)
-    if (hedge > 0) {
-      const units = Math.max(1, Math.ceil(hedge / 10));
-      sel['hedge.trim'] = units;
-    }
-    // Garden tidy (per ~80 m²)
-    if (leaves > 0) {
-      const units = Math.max(1, Math.ceil(leaves / 80));
-      sel['garden.blow'] = units;
-    }
-    // Pressure wash (50 m² chunks)
-    if (blast > 0) {
-      const units = Math.max(1, Math.ceil(blast / 50));
-      sel['garden.blow'] = (sel['garden.blow'] || 0) + units;
-    }
-    // Gutter clean (per ~25 m² roof)
-    if (gutter > 0) {
-      const units = Math.max(1, Math.ceil(gutter / 25));
-      sel['gutter_clean'] = units;
-    }
-  }
-
-  if (service === 'dump') {
-    const items = p.items || 0;
-    const stops = p.stops || 0;
-    const bins = p.bins || 0;
-    const packs = items > 0 ? Math.ceil(items / 4) : 0;
-
-    if (scope === 'dump_runs' || scope === 'dump_delivery' || scope === 'dump_transport') {
-      if (packs > 0) sel['dump.pack'] = packs;
-      if (stops > 1) sel['dump.drive'] = stops - 1;
-      if (items > 0) sel['dump.load'] = Math.max(0, items - Math.min(items, packs * 4));
-      if (items > 0) sel['dump.sweep'] = Math.max(1, Math.ceil(items / 6));
-    }
-    if (scope === 'bin_cleans') {
-      // Bin cleans uses flat per-bin pricing calculated in calculateEstimatedPrice
-      // The selection map just tracks total bins for task generation
-      const totalBins = (p.redBins || 0) + (p.yellowBins || 0) + (p.greenBins || 0) + (p.kitchenBins || 0);
-      if (totalBins > 0) sel['dump.bin'] = totalBins;
-    }
-  }
-
-  if (service === 'auto') {
-    const size = p.vehicle_size || 0;
-    const rows = p.rows || 0;
-    const child = p.child_seats || 0;
-
-    if (scope === 'auto_express' && size > 0) {
-      // More granular pricing: hatch(1), sedan(1.2), suv(1.4), ute(1.6), van(1.8), 4wd(2)
-      const multipliers = [1, 1.2, 1.4, 1.6, 1.8, 2];
-      sel['auto.wash'] = multipliers[size - 1] || 1;
-    }
-    if (scope === 'auto_interior' && rows > 0) {
-      // Increased child seat value from 0.5 to 0.75 per seat
-      sel['auto.interior'] = 1 + Math.max(0, rows - 2) + (child * 0.75);
-    }
-    if (scope === 'auto_full' && rows > 0) {
-      // Added vehicle size multiplier for consistency
-      const sizeMultipliers = [1, 1.1, 1.2, 1.3, 1.4, 1.5];
-      const sizeMultiplier = size > 0 ? (sizeMultipliers[size - 1] || 1) : 1;
-      sel['auto.full'] = (1 + Math.max(0, rows - 2)) * sizeMultiplier;
-    }
-  }
-
-  if (service === 'sneakers') {
-    if (scope === 'sneaker_basic') sel['sneaker.basic'] = 1;
-    if (scope === 'sneaker_full') sel['sneaker.full'] = 1;
-    if (scope === 'sneaker_lot') sel['sneaker.lot'] = 1;
-    return sel;
-  }
-
-  return sel;
-}
-
-/* =========================
-   PRICING ENGINE
-   ========================= */
-function clampUnitPrice(
-  t: Task,
-  context: Context,
-  opts?: { autoCategory?: CarType; autoSizeCategory?: VehicleSizeCategory | null; autoYear?: number | null }
-): number {
-  if (t.service === 'windows') {
-    const wp = context === 'commercial' ? WINDOW_PRICES.commercial : WINDOW_PRICES.home;
-    if (t.code === 'window.track') return wp.track;
-    if (t.code === 'window.screen') return wp.screen ?? 0;
-    return wp.pane;
-  }
-
-  if (t.service === 'auto') {
-    const base = PRICE_OVERRIDE[t.code] != null ? PRICE_OVERRIDE[t.code] : t.median || 0;
-    const category = opts?.autoCategory ?? 'sedan';
-    const sizeCategory =
-      opts?.autoSizeCategory ??
-      (AUTO_SIZE_CATEGORIES.includes(category as VehicleSizeCategory)
-        ? (category as VehicleSizeCategory)
-        : null);
-    return calculatePrice(base, category, sizeCategory, opts?.autoYear);
-  }
-
-  if (PRICE_OVERRIDE[t.code] != null) return PRICE_OVERRIDE[t.code];
-
-  if (!t.median) return 0;
-  const target = 1.1 * (t.median || 0);
-  return t.p90 != null ? Math.min(target, t.p90) : target;
-}
-
-function storeyMinutesMult(extraStoreys: number) {
-  return 1 + Math.max(0, extraStoreys) * 0.08;
-}
-function halfExteriorBlend(mult: number) {
-  return 1 + (mult - 1) * 0.5;
-}
-function taskConditionMult(code: string, flags: { petHair: boolean; greaseSoap: boolean; secondStorey: boolean }) {
-  let m = 1;
-  if (flags.petHair && (code === 'clean.vac' || code === 'auto.interior')) m *= 1.12;
-  if (flags.greaseSoap && (code === 'clean.bath' || code === 'clean.kit' || code === 'window.track')) m *= 1.18;
-  if (flags.secondStorey && code === 'window.pane_ext_solo') m *= 1.05;
-  return m;
-}
-
-function hourlyRate(
-  context: Context,
-  service: ServiceType,
-  scope?: ScopeKey,
-  commercialType?: CommercialCleaningType | null
-) {
-  if (service === 'cleaning') {
-    if (context === 'home') {
-      const map: Partial<Record<ScopeKey, number>> = {
-        weekly: CLEANING_HOME_RATES_V2.weekly,
-        general: CLEANING_HOME_RATES_V2.general,
-        inspection: CLEANING_HOME_RATES_V2.inspection,
-        deep: CLEANING_HOME_RATES_V2.deep,
-        endoflease: CLEANING_HOME_RATES_V2.endoflease,
-        hourly: CLEANING_HOME_RATES_V2.hourly,
-      };
-      return map[scope as ScopeKey] ?? CLEANING_HOME_RATES_V2.general;
-    }
-    const kind = commercialType ?? 'office';
-    return COMM_CLEAN_RATES[kind] ?? COMM_CLEAN_RATES.office;
-  }
-
-  return context === 'commercial'
-    ? POLICY.labourRate.commercial
-    : POLICY.labourRate.home;
-}
-
-function sneakerTurnaroundMeta(speed: SneakerTurnaround): SneakerTurnaroundMeta {
-  return (
-    SNEAKER_TURNAROUND_META.find((m) => m.key === speed) || SNEAKER_TURNAROUND_META[0]
-  );
-}
-
-function sneakerPairsForTask(code: string): number {
-  if (code === 'sneaker.lot') return 4; // average pairs per lot
-  return 1;
-}
-
-function sneakerSurchargePerTask(code: string, speed: SneakerTurnaround): number {
-  const meta = sneakerTurnaroundMeta(speed);
-  const pairs = sneakerPairsForTask(code);
-  return meta.surcharge * pairs;
-}
-
-function sneakerTurnaroundMultiplier(speed: SneakerTurnaround) {
-  const found = SNEAKER_TURNAROUND.find((t) => t.key === speed);
-  return found ? found.multiplier : 1;
-}
-
-type DumpTier = 'small' | 'medium' | 'large';
-
-const DUMP_LOAD_META: Record<NonNullable<DumpRunSelection['loadType']>, { tier: DumpTier; volume: number }> = {
-  ute: { tier: 'small', volume: 1.5 },
-  trailer: { tier: 'medium', volume: 2.5 },
-  bulky: { tier: 'large', volume: 2.0 },
-};
-
-const DUMP_DISPOSAL_FEES: Record<DumpTier, number> = {
-  small: 15,
-  medium: 34,
-  large: 55,
-};
-
-const DUMP_WEIGHT_PRICING = {
-  resident: { perTonne: 166, minimum: 55 },
-  nonResident: { perTonne: 312, minimum: 197 },
-} as const;
-
-// Thresholds to fall back to weight-based pricing when the volume is clearly beyond typical loads.
-const DUMP_WEIGHT_VOLUME_THRESHOLD_M3 = 6;
-const DUMP_WEIGHT_LOAD_THRESHOLD = 4;
-// Rough density assumption to convert cubic metres into tonnes for mixed household waste.
-const DUMP_WEIGHT_DENSITY_T_PER_M3 = 0.18;
-
-function computeDumpDisposalFee(
-  selection?: DumpRunSelection | null,
-  opts?: { nonResident?: boolean }
-) {
-  if (!selection) return { fee: 0, volume: 0, basis: 'tier' as const };
-  const loads = clamp(Math.round(selection.loads ?? 1), 1, 20);
-  const meta = selection.loadType ? DUMP_LOAD_META[selection.loadType] : null;
-  const tier: DumpTier = meta?.tier ?? 'small';
-  const perLoad = DUMP_DISPOSAL_FEES[tier];
-  const volumePerLoad = meta?.volume ?? 1.5;
-  const totalVolume = loads * volumePerLoad;
-
-  const shouldUseWeight =
-    totalVolume >= DUMP_WEIGHT_VOLUME_THRESHOLD_M3 || loads >= DUMP_WEIGHT_LOAD_THRESHOLD;
-
-  if (!shouldUseWeight) {
-    return { fee: perLoad * loads, volume: totalVolume, basis: 'tier' as const };
-  }
-
-  const rate = opts?.nonResident ? DUMP_WEIGHT_PRICING.nonResident : DUMP_WEIGHT_PRICING.resident;
-  const estTonnes = totalVolume * DUMP_WEIGHT_DENSITY_T_PER_M3;
-  const weightFee = Math.max(rate.minimum * loads, estTonnes * rate.perTonne);
-  return { fee: weightFee, volume: totalVolume, basis: 'weight' as const };
-}
-
-function priceQuote(params: QuoteParams) {
-  const {
-    context,
-    currentService,
-    currentScope,
-  selected,
-  distanceKm,
-  paidParking,
-  tipFee,
-  conditionMult,
-  conditionLevel = 'standard',
-  flags,
-  windowsStoreys = 1,
-  windowsStoreysOverride,
-  commercialUplift,
-  sizeAdjust,
-  conditionFlat,
-  contractDiscount,
-  commercialType,
-  autoCategory,
-  autoSizeCategory,
-  autoYear,
-  sneakerTurnaround = 'standard',
-  afterHours,
-  bottleCount = 0,
-  dumpRunSelection,
-  dumpIsNonResident,
-  cleaningParams,
-  yardParams,
-  windowsMinutesOverride,
-  commFrequency,
-  commPreset = 'essential',
-} = params;
-
-  const isDumpRunScope = currentService === 'dump' && currentScope === 'dump_runs';
-  const disposalMeta = isDumpRunScope
-    ? computeDumpDisposalFee(dumpRunSelection, { nonResident: dumpIsNonResident })
-    : { fee: 0, volume: 0, basis: 'tier' as const };
-  const disposalFee = Math.round(disposalMeta.fee || 0);
-
-  const totalQty = Object.values(selected).reduce((a, b) => a + (b || 0), 0);
-  if (totalQty === 0 && disposalFee === 0) {
-    return {
-      total: 0,
-      minutes: 0,
-      billableMinutes: 0,
-      unitSum: 0,
-      labourFloor: 0,
-      travel: 0,
-      parking: 0,
-      tip: 0,
-      hourlyUsed: 0,
-      billingMode: 'Per-unit' as const,
-      confidence: 'High' as const,
-      baseBeforeFees: 0,
-      disposalFee: 0,
-    };
-  }
-
-  const SETUP_OVERHEAD = currentService === 'sneakers' ? 0 : 15;
-  const WINDOW_DISCOUNT_1 = { qty: 40, mult: 0.95 };
-  const WINDOW_DISCOUNT_2 = { qty: 80, mult: 0.92 };
-
-  let minutes = windowsMinutesOverride != null ? windowsMinutesOverride : SETUP_OVERHEAD;
-  let unitSum = 0;
-  let windowUnitSum = 0;
-  let labourFloor = 0;
-  let extraCost = 0;
-  let addonMinutes = 0;
-  let addonCost = 0;
-
-  const allCodes = Object.keys(selected).filter((k) => (selected[k] || 0) > 0);
-  const isWindowsOnly = allCodes.every((k) => TASK_MAP.get(k)?.service === 'windows');
-  const isBinCleansOnly = allCodes.every((k) => k === 'dump.bin');
-  const isAutoOnly = allCodes.every((k) => TASK_MAP.get(k)?.service === 'auto');
-  const hourlyQty = selected['clean.hourly'] || 0;
-
-  // Hard override for commercial cleaning: fixed preset block (hours/price) with optional frequency
-  if (currentService === 'cleaning' && context === 'commercial') {
-    const niche: CommercialCleaningType = commercialType ?? 'office';
-    const preset =
-      COMM_PRESET_PRICING[niche]?.[commPreset] ??
-      COMM_PRESET_PRICING[niche]?.essential ??
-      { hours: 2, price: 120, sqm: 0 };
-    const minutesFixed = Math.round(preset.hours * 60);
-    const baseFixed = preset.price;
-    const sqm = Number(cleaningParams?.sqm ?? preset.sqm ?? 0);
-    const extraSqm = Math.max(0, sqm - (preset.sqm ?? 0));
-    const per100 =
-      niche === 'office' || niche === 'accommodation' || niche === 'event'
-        ? 18
-        : 22;
-    const extraBlocks = Math.ceil(extraSqm / 100);
-    const areaSurcharge = extraBlocks > 0 ? extraBlocks * per100 : 0;
-    const freqDisc: Record<string, number> = {
-      daily: 0.28,
-      '3x_weekly': 0.18,
-      weekly: 0.12,
-      fortnightly: 0,
-      none: 0,
-    };
-    const discount = freqDisc[commFrequency || 'none'] ?? 0;
-    const baseAfterDisc = (baseFixed + areaSurcharge) * (1 - discount);
-    const baseWithDisposal = baseAfterDisc + disposalFee;
-
-    const travel = Math.max(0, distanceKm - POLICY.travelBaseKm) * POLICY.travelPerKm;
-    const parking = paidParking ? POLICY.parkingMin : 0;
-    const totalFixed = baseWithDisposal + travel + parking + (tipFee || 0);
-    return {
-      total: Math.round(totalFixed),
-      minutes: minutesFixed,
-      billableMinutes: minutesFixed,
-      unitSum: Math.round(baseAfterDisc),
-      labourFloor: 0,
-      travel: Math.round(travel),
-      parking,
-      tip: tipFee || 0,
-      hourlyUsed: Math.round(baseFixed / (preset.hours || 1)),
-      confidence: 'High',
-      baseBeforeFees: Math.round(baseWithDisposal),
-      bottleCredit: 0,
-      disposalFee: Math.round(disposalFee),
-      displayPrice: fmtAUD(totalFixed),
-    };
-  }
-
-  // Auto detailing: keep time purely package-based (no generic setup overhead)
-  if (currentService === 'auto' && windowsMinutesOverride == null) {
-    minutes = 0;
-  }
-
-  // Synthetic SS minutes (home/commercial cleaning)
-  const ssMinutes = allCodes
-    .filter((c) => c.startsWith('clean.ss.'))
-    .reduce((acc, c) => acc + (selected[c] || 0), 0);
-  minutes += ssMinutes;
-
-  const winStoreys = windowsStoreysOverride ?? windowsStoreys ?? 1;
-  const extraStoreys = Math.max(0, winStoreys - 1);
-  const heightMult = storeyMinutesMult(extraStoreys);
-
-  for (const [code, qty] of Object.entries(selected)) {
-    if (!qty || qty <= 0) continue;
-    if (code.startsWith('clean.ss.')) continue;
-    // When a windows override is supplied, skip adding per-task window minutes so we don't double count.
-    const task = TASK_MAP.get(code);
-    if (!task) continue;
-    const isWindowTask = task.service === 'windows';
-    if (windowsMinutesOverride != null && isWindowTask) {
-      // still allow pricing for windows tasks
-    } else {
-      let perMin = task.minutes * taskConditionMult(code, flags);
-      if (code === 'window.pane_ext_solo') perMin *= heightMult;
-      if (code === 'window.full') perMin *= halfExteriorBlend(heightMult);
-
-      minutes += perMin * qty;
-    }
-
-    let pricePer = clampUnitPrice(task, context, { autoCategory, autoSizeCategory, autoYear });
-    if (task.service === 'sneakers') {
-      const surcharge = sneakerSurchargePerTask(code, params.sneakerTurnaround ?? 'standard');
-      pricePer += surcharge;
-    }
-    unitSum += pricePer * qty;
-    if (task.service === 'windows') windowUnitSum += pricePer * qty;
-  }
-
-  // Window discount when NOT pure windows
-  if (!isWindowsOnly && windowUnitSum > 0) {
-    const totalWindowQty =
-      (selected['window.full'] || 0) +
-      (selected['window.pane_int_solo'] || 0) +
-      (selected['window.pane_ext_solo'] || 0) +
-      (selected['window.screen'] || 0) +
-      (selected['window.track'] || 0);
-
-    let mult = 1;
-    if (totalWindowQty >= WINDOW_DISCOUNT_2.qty) mult = WINDOW_DISCOUNT_2.mult;
-    else if (totalWindowQty >= WINDOW_DISCOUNT_1.qty) mult = WINDOW_DISCOUNT_1.mult;
-
-    if (mult !== 1) {
-      const nonWindow = unitSum - windowUnitSum;
-      unitSum = nonWindow + Math.round(windowUnitSum * mult);
-    }
-  }
-
-  const paceMult =
-    currentService === 'auto'
-      ? 1
-      : currentService === 'cleaning' && context === 'commercial'
-      ? 1
-      : POLICY.paceFactor *
-        (context === 'commercial' ? commercialUplift : 1) *
-        (context === 'commercial' ? 1.1 : 1) *
-        conditionMult;
-  minutes *= paceMult;
-
-  let billable = minutes;
-  let base = 0;
-  let hourlyUsed = 0;
-
-  if (currentService === 'yard' && yardParams) {
-    const yard = computeYardQuote(yardParams, {
-      scope: currentScope,
-      isTwoStoreyGutter: flags.secondStorey,
-      conditionMultiplier: conditionMult,
-      accessTight: flags.clutterAccess,
-      conditionLevel,
-      context,
-    });
-    minutes = yard.minutes;
-    billable = yard.minutes;
-    labourFloor = Math.round(yard.labourFloor);
-    base = yard.cost;
-    unitSum = 0;
-    windowUnitSum = 0;
-  } else if (currentService === 'sneakers') {
-    // Sneakers: outcome-based; no labour/time billing. Use unitSum only.
-    minutes = 0;
-    billable = 0;
-    labourFloor = 0;
-    base = unitSum;
-  } else if (hourlyQty > 0 && currentService === 'cleaning') {
-    hourlyUsed = hourlyRate(context, currentService, currentScope, commercialType);
-    minutes = hourlyQty * 60;
-    billable = minutes;
-    base = hourlyQty * hourlyUsed;
-  } else if (isWindowsOnly || isBinCleansOnly) {
-    base = unitSum;
-  } else if (isAutoOnly) {
-    billable = minutes;
-    base = unitSum;
-    labourFloor = 0;
-  } else if (currentService === 'cleaning' && context === 'commercial') {
-    // Fixed 4h block for commercial cleaning cards
-    minutes = 240;
-    billable = 240;
-    const hrRate = hourlyRate(context, currentService, currentScope, commercialType);
-    base = (billable / 60) * hrRate;
-    unitSum = base;
-    labourFloor = 0;
-  } else if (currentService === 'cleaning' && context === 'home') {
-    // Home cleaning: use preset base minutes and extras (time for display, cost from base + extras cost only)
-    let minBlock: number = POLICY.minBlock[context];
-    const kindMap: Partial<Record<ScopeKey, CleanScopeKindV2>> = {
-      weekly: 'weekly',
-      general: 'general',
-      inspection: 'inspection',
-      deep: 'deep',
-      endoflease: 'endoflease',
-      hourly: 'hourly',
-    };
-    const kind = kindMap[currentScope];
-    if (kind) minBlock = Math.round(CLEANING_HOME_MIN_HOURS_V2[kind] * 60);
-
-    const extras = computeHomeExtras(currentScope, cleaningParams || {});
-    extraCost = extras.extraCost;
-    const addOns = computeCleaningAddons(currentScope, cleaningParams || {});
-    addonMinutes = addOns.minutes;
-    addonCost = addOns.cost;
-    // display minutes include extras + add-ons
-    minutes = extras.baseMinutes + extras.extraMinutes + addonMinutes;
-    // billable minutes for labour based on base preset only (respect minBlock)
-    const baseMinutes = Math.max(minBlock, extras.baseMinutes);
-    billable = Math.max(minBlock, roundToHalfHour(baseMinutes / 60) * 60);
-
-    const hrRate = hourlyRate(context, currentService, currentScope, commercialType);
-    labourFloor = (billable / 60) * hrRate;
-    base = labourFloor + extraCost + addonCost;
-  } else {
-    // Other services / commercial cleaning
-    const minBlock = POLICY.minBlock[context];
-    billable = Math.max(minutes, minBlock);
-
-    // Round to nearest half hour
-    const rounded = roundToHalfHour(billable / 60) * 60;
-    billable = Math.max(minBlock, rounded);
-
-    const hrRate =
-      hourlyRate(context, currentService, currentScope, commercialType) *
-      (currentService === 'cleaning'
-        ? 1
-        : context === 'commercial'
-        ? commercialUplift
-        : 1);
-
-    labourFloor = (billable / 60) * hrRate * POLICY.guard;
-    base = Math.max(unitSum, labourFloor);
-  }
-
-  // After-hours commercial cleaning uplift
-  if (currentService === 'cleaning' && context === 'commercial' && afterHours) {
-    base *= 1.15;
-  }
-
-  let sizeMult = sizeAdjust === 'small' ? 0.8 : sizeAdjust === 'large' ? 1.5 : 1;
-  let flatAdjust = conditionFlat;
-  let discount = contractDiscount;
-  let materials =
-    currentService === 'cleaning' ? (context === 'commercial' ? 12 : 8) : 0;
-
-  // Home cleaning: keep totals aligned to base hours/rate without size/condition/contract tweaks
-  if (currentService === 'cleaning' && context === 'home') {
-    sizeMult = 1;
-    flatAdjust = 0;
-    discount = 0;
-    materials = 0;
-  }
-  const afterSize = base * sizeMult + flatAdjust;
-  const afterDiscount = Math.max(0, afterSize * (1 - discount));
-  const afterDisposal = afterDiscount + disposalFee;
-
-  const travel = Math.max(0, distanceKm - POLICY.travelBaseKm) * POLICY.travelPerKm;
-  const parking = paidParking ? POLICY.parkingMin : 0;
-
-  // Bottle credit deprecated - recycling bins now have lower base price instead
-  const bottleCredit = 0;
-  const baseAfterCredit = Math.max(0, afterDisposal - bottleCredit);
-
-  let total = baseAfterCredit + travel + parking + (tipFee || 0) + materials;
-  if (currentService === 'auto') {
-    total = roundTo(total, 5);
-  } else if (
-    !(
-      isWindowsOnly ||
-      isBinCleansOnly ||
-      isAutoOnly ||
-      (hourlyQty > 0 && currentService === 'cleaning')
-    )
-  ) {
-    total = roundTo(total, POLICY.roundingTo);
-  }
-
-  // Display minutes snapped to nearest 0.5h so UI always shows clean blocks
-  let displayMinutes = minutes;
-  if (
-    !isWindowsOnly &&
-    !isBinCleansOnly &&
-    !isAutoOnly &&
-    !(hourlyQty > 0 && currentService === 'cleaning')
-  ) {
-    displayMinutes = billable;
-  }
-  if (isAutoOnly) {
-    displayMinutes = Math.round(displayMinutes);
-  } else {
-    const displayHours = roundToHalfHour(displayMinutes / 60);
-    displayMinutes = Math.round(displayHours * 60);
-  }
-
-  // Force commercial cleaning to display the fixed 4h block and flat price
-  if (currentService === 'cleaning' && context === 'commercial') {
-    const hrRate = hourlyRate(context, currentService, currentScope, commercialType);
-    const baseFixed = 4 * hrRate;
-    const baseFixedWithDisposal = baseFixed + disposalFee;
-    const totalFixed = baseFixedWithDisposal + travel + parking + (tipFee || 0);
-    return {
-      total: Math.round(totalFixed),
-      minutes: 240,
-      billableMinutes: 240,
-      unitSum: Math.round(baseFixed),
-      labourFloor: 0,
-      travel: Math.round(travel),
-      parking,
-      tip: tipFee || 0,
-      hourlyUsed: Math.round(hrRate),
-      confidence: 'High',
-      baseBeforeFees: Math.round(baseFixedWithDisposal),
-      bottleCredit: Math.round(bottleCredit),
-      disposalFee: Math.round(disposalFee),
-      displayPrice: fmtAUD(totalFixed),
-    };
-  }
-
-  return {
-    total,
-    minutes: displayMinutes,
-    billableMinutes: Math.round(billable),
-    unitSum: Math.round(unitSum),
-    labourFloor: Math.round(
-      isWindowsOnly ||
-      isBinCleansOnly ||
-      isAutoOnly ||
-      (hourlyQty > 0 && currentService === 'cleaning')
-        ? 0
-        : labourFloor
-    ),
-    travel: Math.round(travel),
-    parking,
-    tip: tipFee || 0,
-    hourlyUsed: Math.round(hourlyUsed),
-    confidence: 'High',
-    baseBeforeFees: Math.round(baseAfterCredit),
-    disposalFee: Math.round(disposalFee),
-    bottleCredit: Math.round(bottleCredit),
-    displayPrice: fmtAUD(total),
-  };
-}
-
-/* =========================
-   STATE / REDUCER
-   ========================= */
-
-// WizardState type is imported from './types'
-
-type CleaningWizardChecklistState = {
-  propertySize: 'studio' | '1-2' | '3-4' | '5+';
-  bathrooms: 1 | 2 | 3;
-  messLevel: 'tidy' | 'lived-in' | 'reset';
-  addOns: { oven: boolean; fridge: boolean; windows: boolean; cupboards: boolean; walls: boolean };
-  scope: ScopeKey;
-};
-
-function createYardJob(): YardJob {
-  return {
-    job_id: uuidv4(),
-    address: '',
-    area_m2: null,
-    polygon_geojson: [],
-    condition: 'maintained',
-    terrain: 'flat',
-    price: 0,
-    status: 'draft',
-    created_at: new Date().toISOString(),
-  };
-}
-
-// Action type is imported from './types'
-
-function getInitialState(): WizardState {
-  return {
-    step: 1,
-    context: 'home',
-    service: 'windows',
-    scope: 'windows_full',
-    paramsByService: defaultParamsByService(),
-    cleaningAddons: {},
-    distanceKm: 0,
-    paidParking: false,
-    tipFee: 0,
-    dumpRun: { ...DEFAULT_DUMP_RUN },
-    dumpDelivery: { ...DEFAULT_DUMP_DELIVERY },
-    dumpTransport: { ...DEFAULT_DUMP_TRANSPORT },
-    dumpRoutePickupQuery: '',
-    dumpRouteDropoffQuery: '',
-    dumpRoutePickup: null,
-    dumpRouteDropoff: null,
-    conditionLevel: 'standard',
-    afterHours: false,
-
-    sizeAdjust: 'standard',
-    conditionFlat: 0,
-    contractDiscount: 0,
-
-    petHair: false,
-    greaseSoap: false,
-    clutterAccess: false,
-    secondStorey: false,
-    photosOK: false,
-  yardMeasureRequested: false,
-  commSecurityInduction: false,
-  commClientConsumables: false,
-  commPriorityNotes: '',
-  commFrequency: 'none',
-  commPriorityZones: [],
-  commAccessNotes: '',
-  commPreset: 'essential',
-
-  selectedInclusions: {},
-
-  winStoreys: 1,
-  winRows: [{ int: 12, ext: 12, tracks: 12, screens: 12, label: 'Ground' }],
-  winSessionSeg: null,
-
-  commercialUplift: 1,
-  commercialCleaningType: null,
-
-  fullName: '',
-  email: '',
-  phone: '',
-  region: '',
-  companyName: '',
-  abn: '',
-  isBusinessExpense: false,
-  notes: '',
-
-  // Yard polygon estimate
-  yardPolygon: [],
-  yardArea: null,
-  yardPerimeter: null,
-  yardJobs: [createYardJob()],
-  yardActiveJobId: null,
-
-  // Floor plan (home cleaning)
-  floorPlanLayout: '',
-  floorPlanEstimate: null,
-
-  // Car detailing 3D selector
-  carModelType: 'sedan',
-  carModelZones: [],
-  carDirtLevel: 0,
-  carModelPriceImpact: 0,
-  carDetectedVehicle: null,
-  carDetectedSizeCategory: null,
-  carDetectedYear: null,
-  sneakerTurnaround: 'standard',
-};
-}
-
-function wizardReducer(state: WizardState, action: Action): WizardState {
-  switch (action.type) {
-    case 'set':
-      return { ...state, [action.key]: action.value } as WizardState;
-    case 'merge':
-      return { ...state, ...action.value };
-    case 'reset':
-      return getInitialState();
-    default:
-      return state;
-  }
-}
-
-function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T, any>, init: () => T) {
-  const [state, dispatch] = React.useReducer(reducer, undefined as any, init);
-  useEffect(() => {
-    if (RESET_ON_MOUNT) {
-      try {
-        localStorage.removeItem(key);
-      } catch {}
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) dispatch({ type: 'merge', value: JSON.parse(raw) });
-    } catch {}
-  }, [key]);
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    const id = window.setTimeout(() => {
-      try {
-        localStorage.setItem(key, JSON.stringify(state));
-      } catch {}
-    }, 200);
-    return () => clearTimeout(id);
-  }, [state, key]);
-  return [state, dispatch] as const;
-}
-
-/* =========================
-   HELPERS
-   ========================= */
-
-// ---- math / format ----
-const sumSelected = (...bags: Selected[]) => {
-  const out: Selected = {};
-  for (const bag of bags)
-    for (const [k, v] of Object.entries(bag)) out[k] = (out[k] || 0) + (v as number);
-  return out;
-};
-
-// fmtHrMin, fmtHrMinPretty, fmtHrMinCompact are imported from './utils/formatting'
-
-const ESTIMATE_DISCLAIMER = 'Final timing and cost are confirmed before work begins.';
-const BASE_CALLOUT_PRICE = 79;
-const EFFORT_BLOCK_RANGE = { min: 20, max: 35, minutes: 20 };
-const PHYSICAL_BLOCK_RANGE = { min: 25, max: 50 };
-type TravelBand = DeliverySelection['distance'];
-const TRAVEL_RANGES: Record<TravelBand, { min: number; max: number }> = {
-  same_suburb: { min: 0, max: 0 },
-  drive_30: { min: 30, max: 45 },
-  drive_60: { min: 50, max: 70 },
-  long: { min: 70, max: 110 },
-};
-
-type ServiceEstimate = {
-  estimatedPrice: { min: number; max: number };
-  estimatedTime: string;
-  disclaimer: string;
-};
-
-function travelRange(key?: TravelBand | null, km?: number) {
-  if (key && TRAVEL_RANGES[key]) return TRAVEL_RANGES[key];
-  if (typeof km === 'number' && Number.isFinite(km)) {
-    if (km <= 10) return TRAVEL_RANGES.same_suburb;
-    if (km <= 30) return TRAVEL_RANGES.drive_30;
-    if (km <= 60) return TRAVEL_RANGES.drive_60;
-    return TRAVEL_RANGES.long;
-  }
-  return TRAVEL_RANGES.same_suburb;
-}
-
-function combinePricing(effortBlocks: number, physicalBlocks: number, travel: { min: number; max: number }) {
-  const min =
-    BASE_CALLOUT_PRICE +
-    effortBlocks * EFFORT_BLOCK_RANGE.min +
-    physicalBlocks * PHYSICAL_BLOCK_RANGE.min +
-    travel.min;
-  const max =
-    BASE_CALLOUT_PRICE +
-    effortBlocks * EFFORT_BLOCK_RANGE.max +
-    physicalBlocks * PHYSICAL_BLOCK_RANGE.max +
-    travel.max;
-  const safeMin = Math.max(0, Math.round(min));
-  const safeMax = Math.max(safeMin, Math.round(max));
-  return { min: safeMin, max: safeMax };
-}
-
-function calculateEstimatedPrice(serviceId: ScopeKey | string, wizardState: WizardState) {
-  const scope = (serviceId || wizardState.scope) as ScopeKey;
-  if (scope === 'dump_delivery') {
-    const delivery = wizardState.dumpDelivery || DEFAULT_DUMP_DELIVERY;
-    const effortMap: Record<NonNullable<DeliverySelection['itemType']>, number> = {
-      parcel: 0,
-      household: 1,
-      mattress: 2,
-      groceries: 1,
-      tools: 1,
-    };
-    const effortBlocks = effortMap[delivery.itemType || 'parcel'] ?? 0;
-    const physicalBlocks = delivery.assist === 'need_help' ? 1 : 0;
-    const travel = travelRange(delivery.distance, wizardState.distanceKm);
-    return combinePricing(effortBlocks, physicalBlocks, travel);
-  }
-
-  if (scope === 'dump_transport') {
-    const transport = wizardState.dumpTransport || DEFAULT_DUMP_TRANSPORT;
-    const sizeEffort: Record<TransportSelection['loadSize'], number> = {
-      bags: 1,
-      boot: 2,
-      small_load: 3,
-      full_move: 4,
-    };
-    const effortBlocks = sizeEffort[transport.loadSize] ?? 1;
-    const physicalBlocks =
-      transport.stairs === 'one'
-        ? 1
-        : transport.stairs === 'multi' || transport.stairs === 'no_lift'
-        ? 2
-        : 0;
-    const travel = travelRange(null, wizardState.distanceKm);
-    return combinePricing(effortBlocks, physicalBlocks, travel);
-  }
-
-  if (scope === 'dump_runs') {
-    const dump = wizardState.dumpRun || DEFAULT_DUMP_RUN;
-    const loads = clamp(Number.isFinite(dump.loads) ? dump.loads : 1, 1, 20);
-    let effortBlocks = loads * 1.5;
-    if (dump.loadType === 'trailer') effortBlocks += 1;
-    const physicalBlocks = dump.loadType === 'bulky' ? 1 : 0;
-    const travel = travelRange(null, wizardState.distanceKm);
-    return combinePricing(effortBlocks, physicalBlocks, travel);
-  }
-
-  if (scope === 'bin_cleans') {
-    const dumpParams = wizardState.paramsByService?.dump || {};
-
-    // Bin counts
-    const redBins = clamp(Math.round(dumpParams.redBins || 0), 0, 10);
-    const yellowBins = clamp(Math.round(dumpParams.yellowBins || 0), 0, 10);
-    const greenBins = clamp(Math.round(dumpParams.greenBins || 0), 0, 10);
-    const kitchenBins = clamp(Math.round(dumpParams.kitchenBins || 0), 0, 5);
-
-    // Frequencies: 0=oneoff, 1=weekly(red only), 2=fortnightly(red), 1=fortnightly(yellow/green monthly)
-    const redFreq = clamp(Math.round(dumpParams.redBinFreq || 0), 0, 2);
-    const yellowFreq = clamp(Math.round(dumpParams.yellowBinFreq || 0), 0, 1); // No weekly for yellow
-    const greenFreq = clamp(Math.round(dumpParams.greenBinFreq || 0), 0, 1);
-
-    // Subscription plan: 0=none, 1=household ($35, 4 bins), 2=lite ($29, 3 bins)
-    const binPlan = clamp(Math.round(dumpParams.binPlan || 0), 0, 2);
-
-    const totalWheelies = redBins + yellowBins + greenBins;
-    if (totalWheelies === 0 && kitchenBins === 0) return { min: 0, max: 0 };
-
-    // Kitchen bins require at least one wheelie bin
-    const validKitchenBins = totalWheelies > 0 ? kitchenBins : 0;
-
-    // If using a subscription plan
-    if (binPlan > 0) {
-      const planPrice = binPlan === 1 ? 35 : 29; // Household $35, Lite $29
-      const includedBins = binPlan === 1 ? 4 : 3;
-      const extraBins = Math.max(0, totalWheelies - includedBins);
-      const extraBinCost = extraBins * 6; // +$6 per extra bin
-      const kitchenCost = validKitchenBins * 7.5;
-      const total = planPrice + extraBinCost + kitchenCost;
-      return { min: Math.round(total), max: Math.round(total) };
-    }
-
-    // Per-bin pricing (no plan)
-    // Red bins: $25 oneoff, $18 weekly, $20 fortnightly
-    const redPricePerBin = redFreq === 0 ? 25 : redFreq === 1 ? 18 : 20;
-    const redCost = redBins * redPricePerBin;
-
-    // Yellow bins: $20 oneoff, $15 fortnightly (no weekly option)
-    const yellowPricePerBin = yellowFreq === 0 ? 20 : 15;
-    const yellowCost = yellowBins * yellowPricePerBin;
-
-    // Green bins: $22 oneoff, $17 monthly
-    const greenPricePerBin = greenFreq === 0 ? 22 : 17;
-    const greenCost = greenBins * greenPricePerBin;
-
-    // Kitchen bins: $7.50 each (add-on only)
-    const kitchenCost = validKitchenBins * 7.5;
-
-    const total = redCost + yellowCost + greenCost + kitchenCost;
-    return { min: Math.round(total), max: Math.round(total) };
-  }
-
-  return null;
-}
-
-function calculateEstimatedTime(serviceId: ScopeKey | string, wizardState: WizardState): string | null {
-  const scope = (serviceId || wizardState.scope) as ScopeKey;
-  if (scope === 'dump_delivery') return '~1–1.5 hrs';
-  if (scope === 'dump_transport') {
-    const transport = wizardState.dumpTransport || DEFAULT_DUMP_TRANSPORT;
-    if (transport.loadSize === 'full_move') return '~1–2 hrs (multiple loads likely)';
-    return '~1.5 hrs';
-  }
-  if (scope === 'dump_runs') return '~40–80 mins onsite';
-  if (scope === 'bin_cleans') {
-    const dumpParams = wizardState.paramsByService?.dump || {};
-    const redBins = dumpParams.redBins ?? 0;
-    const yellowBins = dumpParams.yellowBins ?? 0;
-    const greenBins = dumpParams.greenBins ?? 0;
-    const kitchenBins = dumpParams.kitchenBins ?? 0;
-    const totalBins = redBins + yellowBins + greenBins + kitchenBins;
-    if (totalBins <= 2) return '~15–25 mins';
-    if (totalBins <= 4) return '~25–40 mins';
-    if (totalBins <= 6) return '~35–50 mins';
-    return '~45–60 mins';
-  }
-  return null;
-}
-
-function buildServiceEstimate(serviceId: ScopeKey | string, wizardState: WizardState): ServiceEstimate | null {
-  const estimatedPrice = calculateEstimatedPrice(serviceId, wizardState);
-  const estimatedTime = calculateEstimatedTime(serviceId, wizardState);
-  if (!estimatedPrice || !estimatedTime) return null;
-  return { estimatedPrice, estimatedTime, disclaimer: ESTIMATE_DISCLAIMER };
-}
-
-// ---- badge-based time adjustments ----
-const INCLUSION_MINUTES: Record<string, number> = {
-  'Inside & Outside Windows': 0,
-  'Inside Windows Only': 0,
-  'Outside Windows Only': 0,
-  'Tracks Vacuum & Wipe': 10,
-  'Frames & Sills Wipe': 6,
-  'Fly Screens': 8,
-  'Mirrors / Glass Doors': 8,
-  'High Access (ladder/safety)': 15,
-  'Hard Water Spot Treatment': 15,
-  'Sticker/Residue Removal': 10,
-  'Detail Edges / Silicone': 6,
-};
-
-type SelMap = Record<string, string[]>;
-
-function badgeMinutesForScope(S: WizardState, scopeKey: string): number {
-  const selected = (S as any).selectedInclusions as SelMap | undefined;
-  const picked = selected?.[scopeKey] ?? [];
-  return picked.reduce((sum, label) => sum + (INCLUSION_MINUTES[label] ?? 0), 0);
-}
-
-/**
- * Internal helper: build a full priceQuote for a given service/scope
- * using the *current wizard state*.
- *
- * - For the active card (S.service + S.scope) we use the live sliders
- *   from S.paramsByService.
- * - For other cards we fall back to the scope preset so they still show
- *   a sensible "typical" time.
- */
-function estimateForScope(
-  S: WizardState,
-  service: ServiceType,
-  scopeKey: ScopeKey
-): ReturnType<typeof priceQuote> | null {
-  const context = S.context;
-
-  // Base params for this service from state
-  const paramsFromState = (S.paramsByService as any)[service] ?? {};
-
-  // When this card is the active selection, use real sliders;
-  // otherwise seed from default+scope preset so it still has a value.
-  let params: Record<string, number>;
-  if (service === 'windows') {
-    // Keep window cards stable by always using their presets here
-    const defaults = defaultParamsByService() as any;
-    const base = defaults[service] ?? {};
-    const preset = scopePresetFor(service, scopeKey, context) || {};
-    params = { ...base, ...preset };
-  } else if (service === S.service && scopeKey === S.scope) {
-    params = { ...paramsFromState };
-  } else {
-    const defaults = defaultParamsByService() as any;
-    const base = defaults[service] ?? {};
-    const preset = scopePresetFor(service, scopeKey, context) || {};
-    params = { ...base, ...preset };
-  }
-
-  // Selected line items for this scope
-  let windowsOverrideTotals: { panes_int: number; panes_ext: number; tracks: number; screens: number } | undefined;
-  let windowsStoreys = 1;
-  let windowsRowsForScope: WizardState['winRows'] | undefined;
-
-  if (service === 'windows') {
-    // Always use live rows so cards, editor, and totals share the same inputs
-    windowsRowsForScope = S.winRows;
-
-    const totals = (windowsRowsForScope || []).reduce(
-      (acc, r) => {
-        acc.panes_int += Math.max(0, r.int || 0);
-        acc.panes_ext += Math.max(0, r.ext || 0);
-        acc.tracks += Math.max(0, r.tracks || 0);
-        acc.screens += context === 'commercial' ? 0 : Math.max(0, r.screens || 0);
-        return acc;
-      },
-      { panes_int: 0, panes_ext: 0, tracks: 0, screens: 0 }
-    );
-    windowsOverrideTotals = totals;
-    windowsStoreys = windowsRowsForScope?.length || 1;
-  }
-
-  if (service === 'yard') {
-    params = { ...params, yard_area: S.yardArea ?? (params as any).yard_area };
-  }
-
-  const mergedParams =
-    service === 'cleaning'
-      ? { ...params, ...(S.cleaningAddons[scopeKey] || {}) }
-      : params;
-
-  const selected = selectedFromParams(
-    service,
-    scopeKey,
-    mergedParams,
-    { secondStorey: S.secondStorey },
-    windowsOverrideTotals,
-    context,
-    S.commercialCleaningType ?? undefined
-  );
-
-  const hasSelected = Object.values(selected).some((v) => (v || 0) > 0);
-  const allowDumpDisposalOnly = service === 'dump' && scopeKey === 'dump_runs';
-  if (!hasSelected && !allowDumpDisposalOnly) return null;
-
-  // Windows storeys – prefer live state if present
-  const windowsStoreysParam = service === 'windows' ? windowsStoreys : 1;
-
-  // Condition multiplier from S.conditionLevel
-  const conditionMult =
-    S.conditionLevel === 'light' ? 0.9 : S.conditionLevel === 'heavy' ? 1.18 : 1;
-
-  const autoSizeCategory =
-    AUTO_SIZE_CATEGORIES.includes(S.carModelType as VehicleSizeCategory)
-      ? (S.carModelType as VehicleSizeCategory)
-      : S.carDetectedSizeCategory ?? null;
-
-  const estimate = priceQuote({
-    context,
-    currentService: service,
-    currentScope: scopeKey,
-    selected,
-    distanceKm: S.distanceKm,
-    paidParking: S.paidParking,
-    tipFee: S.tipFee,
-    conditionMult,
-    conditionLevel: S.conditionLevel,
-    flags: {
-      petHair: S.petHair,
-      greaseSoap: S.greaseSoap,
-      clutterAccess: S.clutterAccess,
-      secondStorey: S.secondStorey,
-    },
-    windowsStoreys: windowsStoreysParam,
-    commercialUplift: S.commercialUplift,
-    sizeAdjust: S.sizeAdjust,
-    conditionFlat: S.conditionFlat,
-    contractDiscount: S.contractDiscount,
-    commercialType: S.commercialCleaningType ?? null,
-    commPreset: S.commPreset,
-    commFrequency: S.commFrequency,
-    afterHours: S.afterHours,
-    bottleCount: 0, // Deprecated: now handled via recycling bin pricing
-    dumpRunSelection: service === 'dump' ? S.dumpRun : undefined,
-    cleaningParams:
-      service === 'cleaning'
-        ? { ...params, ...(S.cleaningAddons[scopeKey] || {}) }
-        : undefined,
-    yardParams: service === 'yard' ? params : undefined,
-    windowsMinutesOverride:
-      service === 'windows' && windowsRowsForScope
-        ? computeWindowsMinutes(scopeKey, windowsRowsForScope, context, S.paramsByService.windows)
-        : undefined,
-    windowsStoreysOverride: service === 'windows' ? windowsStoreysParam : undefined,
-    autoCategory: S.carModelType,
-    autoSizeCategory,
-    autoYear: S.carDetectedYear,
-    sneakerTurnaround: S.sneakerTurnaround,
-  } as QuoteParams);
-
-  return estimate;
-}
-
-function findServiceForScope(scopeKey: ScopeKey): ServiceType | null {
-  for (const [svc, scopes] of Object.entries(SCOPES_BY_SERVICE) as [ServiceType, ScopeDef[]][]) {
-    if (scopes.some((s) => s.key === scopeKey)) return svc;
-  }
-  return null;
-}
-
-function calculateServicePrice(serviceId: ScopeKey | string, wizardState: WizardState) {
-  const scopeKey = (serviceId || wizardState.scope) as ScopeKey;
-  const targetService = (findServiceForScope(scopeKey) ?? wizardState.service) as ServiceType;
-
-  // Bin cleans uses flat per-bin pricing from calculateEstimatedPrice
-  if (scopeKey === 'bin_cleans') {
-    const binPrice = calculateEstimatedPrice(scopeKey, wizardState);
-    const price = binPrice ? Math.max(0, Math.round(binPrice.min || 0)) : 0;
-    return {
-      price,
-      disclaimer: PRICE_SCOPE_DISCLAIMER,
-    };
-  }
-
-  const estimate = estimateForScope(wizardState, targetService, scopeKey);
-  const price = estimate ? Math.max(0, Math.round(estimate.total || 0)) : 0;
-  return {
-    price,
-    disclaimer: PRICE_SCOPE_DISCLAIMER,
-  };
-}
-
-function computeScopeMinutes(S: WizardState, service: ServiceType, scopeKey: ScopeKey): number {
-  // Windows: always use live rows
-  if (service === 'windows') {
-    return computeWindowsMinutes(scopeKey, S.winRows, S.context, S.paramsByService.windows);
-  }
-  if (service === 'sneakers') return 0;
-
-  // Cleaning – commercial
-  if (service === 'cleaning' && S.context === 'commercial') {
-    const kind = S.commercialCleaningType ?? 'office';
-    return Math.round((COMM_CLEAN_MIN_HOURS[kind] ?? 1) * 60);
-  }
-
-  // Cleaning – home
-  if (service === 'cleaning' && S.context === 'home') {
-    if (scopeKey === 'hourly') {
-      const params =
-        scopeKey === S.scope
-          ? { ...(S.paramsByService.cleaning || {}), ...(S.cleaningAddons[S.scope] || {}) }
-          : { ...(defaultParamsByService().cleaning || {}), ...(scopePresetFor('cleaning', scopeKey, S.context) || {}), ...(S.cleaningAddons[scopeKey] || {}) };
-      return (params.hours || 3) * 60;
-    }
-    const params =
-      scopeKey === S.scope
-        ? { ...(S.paramsByService.cleaning || {}), ...(S.cleaningAddons[S.scope] || {}) }
-        : { ...(defaultParamsByService().cleaning || {}), ...(scopePresetFor('cleaning', scopeKey, S.context) || {}), ...(S.cleaningAddons[scopeKey] || {}) };
-    const extras = computeHomeExtras(scopeKey, params);
-    const addOns = computeCleaningAddons(scopeKey, params);
-    return extras.baseMinutes + extras.extraMinutes + addOns.minutes;
-  }
-
-  // Yard
-  if (service === 'yard') {
-    const params =
-      scopeKey === S.scope
-        ? S.paramsByService.yard || {}
-        : {
-            ...(defaultParamsByService().yard || {}),
-            ...(scopePresetFor('yard', scopeKey, S.context) || {}),
-          };
-    const paramsWithArea = {
-      ...params,
-      yard_area: S.yardArea ?? (params as any).yard_area,
-    };
-    const yardCondMap: Record<'light' | 'standard' | 'heavy', number> = {
-      light: 0.9,
-      standard: 1,
-      heavy: 1.18,
-    };
-    const yard = computeYardQuote(paramsWithArea, {
-      scope: scopeKey,
-      isTwoStoreyGutter: S.secondStorey,
-      conditionMultiplier: yardCondMap[S.conditionLevel] ?? 1,
-      accessTight: S.clutterAccess,
-      conditionLevel: S.conditionLevel,
-    });
-    return yard.minutes;
-  }
-
-  // Auto (home): fixed package minutes
-  if (service === 'auto') {
-    const map: Record<ScopeKey, number> = {
-      auto_express: 120,
-      auto_interior: 120,
-      auto_full: 240,
-    };
-    if (map[scopeKey] != null) return map[scopeKey];
-  }
-
-  // Fallback: use estimateForScope minutes
-  const est = estimateForScope(S, service, scopeKey);
-  return est ? est.minutes || 0 : 0;
-}
-
-/**
- * "Typical minutes" for a service/scope, driven by the same engine that
- * powers the bottom estimate card and Step 3.
- *
- * This is what you should use for the "Typical: 1 hr 30 mins" chip on
- * each card.
- */
-function scopeTypicalMinutes(
-  S: WizardState,
-  service: ServiceType,
-  scopeKey: ScopeKey
-): number {
-  return computeScopeMinutes(S, service, scopeKey);
-}
-
-function adjustedTypicalMinutes(
-  S: WizardState,
-  svc: ServiceType,
-  scopeKey: string
-): number {
-  const base = scopeTypicalMinutes(S, svc, scopeKey as ScopeKey);
-  const delta = badgeMinutesForScope(S, scopeKey);
-  return Math.max(0, base + delta);
-}
-
-function extraMinutesFromBadges(S: WizardState): number {
-  if (!S.scope) return 0;
-  return badgeMinutesForScope(S, S.scope);
-}
-
-// ---- window timing ----
-function typicalMinutesForWindowsRows(rows: StoreyRow[]) {
-  const totalPanes = rows.reduce((a, r) => a + r.int + r.ext, 0);
-  const storeys = rows.length || 1;
-  if (totalPanes === 0) return 0;
-  const refPanes = storeys * 24;
-  const mins = (totalPanes / refPanes) * (storeys * WINDOWS_BASE_PER_STOREY_MIN);
-  return Math.round(mins);
-}
-
-// ---- feedback toasts ----
-const notifyDelta = (prevMin: number, nextMin: number) => {
-  const diff = Math.round(nextMin - prevMin);
-  if (!diff) return;
-  const word = diff > 0 ? 'more' : 'fewer';
-  const abs = Math.abs(diff);
-  const label = abs === 1 ? 'minute' : 'minutes';
-  toast.message(`~${abs} ${word} ${label}`);
-};
-
-// ---- quote summary / email ----
-function buildQuoteSummary(
-  S: WizardState,
-  estimate: ReturnType<typeof priceQuote>,
-  scopedPrice?: { price: number; disclaimer: string }
-) {
-  const ctxLabel = S.context[0].toUpperCase() + S.context.slice(1);
-  const svc = SERVICES.find((x) => x.key === S.service)?.label ?? S.service;
-  const scope = SCOPES_BY_SERVICE[S.service].find((s) => s.key === S.scope)?.label ?? S.scope;
-  const parts: string[] = [];
-
-  parts.push(`Digital Quote — ${new Date().toLocaleDateString('en-AU')}`);
-  parts.push(`Context: ${ctxLabel}`);
-  parts.push(`Service: ${svc}`);
-  if (S.context === 'commercial' && S.service === 'cleaning' && S.commercialCleaningType)
-    parts.push(`Commercial cleaning type: ${S.commercialCleaningType}`);
-  else parts.push(`Scope: ${scope}`);
-  parts.push('');
-  const estimateLine = `${fmtAUD(scopedPrice?.price ?? estimate.total)} (${fmtHrMin(estimate.minutes)})`;
-  parts.push(`Estimate: ${estimateLine}`);
-  if (estimate.hourlyUsed) parts.push(`Hourly rate used: ${fmtAUD(estimate.hourlyUsed)}/hr`);
-  if (estimate.labourFloor) parts.push(`Labour floor: ${fmtAUD(estimate.labourFloor)}`);
-  parts.push(`Per-item subtotal: ${fmtAUD(estimate.unitSum)}`);
-  parts.push(`After size/condition/contract: ${fmtAUD(estimate.baseBeforeFees)}`);
-  if (estimate.travel || estimate.parking || estimate.tip)
-    parts.push(
-      `Travel/Parking/Tip: ${fmtAUD(estimate.travel + estimate.parking + estimate.tip)}`
-    );
-  parts.push(`Confidence: ${estimate.confidence}`);
-  const params = S.paramsByService[S.service] || {};
-  const paramLine = Object.entries(params)
-    .filter(([, v]) => Number(v) > 0)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(', ');
-  if (paramLine) parts.push('Details: ' + paramLine);
-  parts.push('');
-  parts.push(
-    `Customer: ${S.fullName || '—'}${S.companyName ? ` · ${S.companyName}` : ''}${
-      S.abn ? ` (ABN ${S.abn})` : ''
-    }`
-  );
-  parts.push(`Contact: ${S.email || '—'} · ${S.phone || '—'}`);
-  parts.push(`Region: ${S.region || '—'}`);
-  if (S.notes) parts.push(`Notes: ${S.notes}`);
-  if (S.yardMeasureRequested) parts.push(`Measurement requested for yard/area.`);
-  parts.push('');
-  if (scopedPrice) parts.push('Price note: ' + scopedPrice.disclaimer);
-  parts.push('Disclaimer: ' + TERMS_SNIPPET);
-  parts.push('Fairness: ' + FAIRNESS_PROMISE_COPY);
-  parts.push('This quote can be used for reimbursement/business expense purposes.');
-  return parts.join('\n');
-}
-
-function emailHrefForContext(S: WizardState, body: string) {
-  const subject = encodeURIComponent(`Quote request – ${S.context} / ${S.service}`);
-  return `mailto:budsatwork@malucare.org?subject=${subject}&body=${encodeURIComponent(body)}`;
-}
-
-// ---- a11y / keyboard helper ----
-const asButtonProps = (onActivate: () => void, ariaLabel: string) => ({
-  role: 'button' as const,
-  tabIndex: 0,
-  'aria-label': ariaLabel,
-  onClick: onActivate,
-  onKeyDown: (e: React.KeyboardEvent) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      onActivate();
-    }
-  },
-});
-
-// ---- glass primitives ----
-const GlassCard = ({ className = '', children }: { className?: string; children: React.ReactNode }) => (
-  <div
-    className={cls(
-      'rounded-2xl p-5 border border-white/40 bg-white/60 backdrop-blur-2xl shadow-[0_10px_30px_rgba(2,6,23,0.10)]',
-      className
-    )}
-  >
-    {children}
-  </div>
-);
-
-const KPI = ({ label, value, foot }: { label: string; value: string; foot?: string }) => (
-  <div className="rounded-xl border border-white/50 bg-white/70 px-4 py-3 text-slate-900">
-    <div className="text-[11px] uppercase tracking-wide text-slate-600">{label}</div>
-    <div className="text-xl font-semibold mt-0.5">{value}</div>
-    {foot ? <div className="text-[11px] text-slate-600 mt-0.5">{foot}</div> : null}
-  </div>
-);
-
-const Chip = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-white/70 border border-white/50 text-slate-800">
-    {children}
-  </span>
-);
-
-const Row = ({ k, v, bold }: { k: string; v: string; bold?: boolean }) => (
-  <div className="flex items-center justify-between">
-    <div className={cls('text-sm', bold ? 'font-medium text-slate-900' : 'text-slate-600')}>{k}</div>
-    <div className={cls('text-sm', bold ? 'font-semibold text-slate-900' : 'text-slate-800')}>{v}</div>
-  </div>
-);
-
-const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-sm font-medium text-slate-900">{children}</div>
-);
-
-const Caret = ({ open }: { open: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" className="opacity-70">
-    <path
-      d={open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}
-      stroke="currentColor"
-      strokeWidth="2"
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-/* ===== Minimal S3_* components (Step 3 sidebar/form) ===== */
-const S3_Card = ({ className = '', children }: { className?: string; children: React.ReactNode }) => (
-  <div className={cls('rounded-2xl p-4 border border-black/10 bg-white/80', className)}>{children}</div>
-);
-
-const S3_Title = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-sm font-medium text-slate-900">{children}</div>
-);
-
-const S3_Row = ({ k, v, bold }: { k: string; v: string; bold?: boolean }) => (
-  <div className="flex items-center justify-between py-1">
-    <div className={cls('text-sm', bold ? 'font-medium text-slate-900' : 'text-slate-600')}>{k}</div>
-    <div className={cls('text-sm', bold ? 'font-semibold text-slate-900' : 'text-slate-800')}>{v}</div>
-  </div>
-);
-
-const S3_Chip = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] bg-white/80 border border-white/40 text-slate-800">
-    {children}
-  </span>
-);
-
-/* ===== Frequency labels for display ===== */
-const FREQ_LABELS: Record<CommFrequency, string> = {
-  none: 'One-off',
-  daily: 'Daily',
-  '3x_weekly': '3× Weekly',
-  weekly: 'Weekly',
-  fortnightly: 'Fortnightly',
-};
-
-const getFrequencyLabel = (freq: CommFrequency | undefined): string => {
-  if (!freq || freq === 'none') return 'One-off';
-  return FREQ_LABELS[freq] ?? 'One-off';
-};
-
-type DistanceConfiguratorProps = {
-  S: WizardState;
-  set: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void;
-  routeLookup: RouteLookupResult | null;
-  routeLookupLoading: boolean;
-  routeLookupMessage: string | null;
-  routeDistanceLabel: string | null;
-  onFocusChange?: (focused: boolean) => void;
-  onPlaceSelected?: () => void;
-};
-
-const DistanceRouteConfigurator = React.memo(function DistanceRouteConfigurator({
-  S,
-  set,
-  routeLookup,
-  routeLookupLoading,
-  routeLookupMessage,
-  routeDistanceLabel,
-  onFocusChange,
-  onPlaceSelected,
-}: DistanceConfiguratorProps) {
-  const pickupInputRef = React.useRef<HTMLInputElement | null>(null);
-  const dropoffInputRef = React.useRef<HTMLInputElement | null>(null);
-  const pickupAutocompleteRef = React.useRef<google.maps.places.Autocomplete | null>(null);
-  const dropoffAutocompleteRef = React.useRef<google.maps.places.Autocomplete | null>(null);
-  const pickupListenerRef = React.useRef<google.maps.MapsEventListener | null>(null);
-  const dropoffListenerRef = React.useRef<google.maps.MapsEventListener | null>(null);
-  const [mapsReady, setMapsReady] = React.useState(false);
-  const [mapsError, setMapsError] = React.useState<string | null>(null);
-  const [pickupError, setPickupError] = React.useState<string | null>(null);
-  const [dropoffError, setDropoffError] = React.useState<string | null>(null);
-  const [inputs, setInputs] = React.useState({
-    pickup: S.dumpRoutePickupQuery,
-    dropoff: S.dumpRouteDropoffQuery,
-  });
-  const focusChangeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const triggerFocusChange = React.useCallback(
-    (focused: boolean, delay = 0) => {
-      if (!onFocusChange || typeof window === 'undefined') return;
-      if (focusChangeTimerRef.current) {
-        clearTimeout(focusChangeTimerRef.current);
-      }
-      focusChangeTimerRef.current = window.setTimeout(() => {
-        onFocusChange(focused);
-        focusChangeTimerRef.current = null;
-      }, delay);
-    },
-    [onFocusChange]
-  );
-
-  React.useEffect(
-    () => () => {
-      if (focusChangeTimerRef.current) {
-        clearTimeout(focusChangeTimerRef.current);
-      }
-    },
-    []
-  );
-
-  // Inject styles for Google Places autocomplete dropdown
-  React.useEffect(() => {
-    const styleId = 'pac-container-styles';
-    if (document.getElementById(styleId)) return;
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .pac-container {
-        z-index: 10000 !important;
-        background-color: white !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
-        margin-top: 4px !important;
-        border: 1px solid rgba(0,0,0,0.1) !important;
-        font-family: inherit !important;
-      }
-      .pac-item {
-        padding: 10px 14px !important;
-        cursor: pointer !important;
-        border-top: 1px solid rgba(0,0,0,0.05) !important;
-      }
-      .pac-item:first-child {
-        border-top: none !important;
-      }
-      .pac-item:hover {
-        background-color: #f3f4f6 !important;
-      }
-      .pac-item-selected,
-      .pac-item-selected:hover {
-        background-color: #ecfdf5 !important;
-      }
-      .pac-icon {
-        margin-right: 10px !important;
-      }
-      .pac-item-query {
-        font-size: 14px !important;
-        color: #1f2937 !important;
-      }
-      .pac-matched {
-        font-weight: 600 !important;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => {
-      // Don't remove - other instances might need it
-    };
-  }, []);
-
-  React.useEffect(() => {
-    setInputs((prev) => ({ ...prev, pickup: S.dumpRoutePickupQuery }));
-  }, [S.dumpRoutePickupQuery]);
-
-  React.useEffect(() => {
-    setInputs((prev) => ({ ...prev, dropoff: S.dumpRouteDropoffQuery }));
-  }, [S.dumpRouteDropoffQuery]);
-
-  const handleInputChange = React.useCallback((target: 'pickup' | 'dropoff', value: string) => {
-    setInputs((prev) => ({ ...prev, [target]: value }));
-    if (target === 'pickup') setPickupError(null);
-    else setDropoffError(null);
-  }, []);
-
-  const handlePlaceSelection = React.useCallback(
-    (target: 'pickup' | 'dropoff') => {
-      const autocomplete =
-        target === 'pickup' ? pickupAutocompleteRef.current : dropoffAutocompleteRef.current;
-      if (!autocomplete) return;
-      const place = autocomplete.getPlace();
-      const formatted = place?.formatted_address?.trim();
-      const location = place?.geometry?.location;
-      if (!formatted || !location) return;
-      if (!isQueenslandPlace(place)) {
-        const message = 'Choose an address within Queensland.';
-        if (target === 'pickup') {
-          setPickupError(message);
-        } else {
-          setDropoffError(message);
-        }
-        return;
-      }
-      const nextLocation: RouteLocation = {
-        address: formatted,
-        lat: location.lat(),
-        lng: location.lng(),
-        placeId: place.place_id ?? undefined,
-      };
-      const queryKey: 'dumpRoutePickupQuery' | 'dumpRouteDropoffQuery' =
-        target === 'pickup' ? 'dumpRoutePickupQuery' : 'dumpRouteDropoffQuery';
-      const locationKey: 'dumpRoutePickup' | 'dumpRouteDropoff' =
-        target === 'pickup' ? 'dumpRoutePickup' : 'dumpRouteDropoff';
-      set(locationKey, nextLocation);
-      set(queryKey, formatted);
-      setInputs((prev) => ({ ...prev, [target]: formatted }));
-      if (target === 'pickup') setPickupError(null);
-      else setDropoffError(null);
-      onPlaceSelected?.();
-      triggerFocusChange(false, 100);
-    },
-    [set, onPlaceSelected, triggerFocusChange]
-  );
-
-  React.useEffect(() => {
-    if (!GOOGLE_MAPS_API_KEY) {
-      setMapsError('Autocomplete disabled until a Google Maps key is configured.');
-      return;
-    }
-    let cancelled = false;
-    loadGoogleMapsOnce({ apiKey: GOOGLE_MAPS_API_KEY, libraries: ['places'] })
-      .then(() => {
-        if (!cancelled) {
-          setMapsReady(true);
-          setMapsError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.warn('Delivery autocomplete failed to load', err);
-          setMapsError('Address suggestions unavailable right now.');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (!mapsReady) return;
-    if (typeof window === 'undefined') return;
-    const googleLib = window.google;
-    if (!googleLib?.maps?.places) {
-      setMapsError('Address suggestions unavailable.');
-      return;
-    }
-    const bounds = new googleLib.maps.LatLngBounds(
-      new googleLib.maps.LatLng(QLD_BOUNDS.south, QLD_BOUNDS.west),
-      new googleLib.maps.LatLng(QLD_BOUNDS.north, QLD_BOUNDS.east)
-    );
-
-    const attachAutocomplete = (
-      target: 'pickup' | 'dropoff',
-      inputRef: React.MutableRefObject<HTMLInputElement | null>,
-      listenerRef: React.MutableRefObject<google.maps.MapsEventListener | null>,
-      autocompleteRef: React.MutableRefObject<google.maps.places.Autocomplete | null>
-    ) => {
-      if (!inputRef.current) return;
-      const autocomplete = new googleLib.maps.places.Autocomplete(inputRef.current, {
-        fields: ['formatted_address', 'geometry', 'address_components', 'place_id'],
-        types: ['geocode'],
-        componentRestrictions: { country: ['au'] },
-        bounds,
-        strictBounds: false,
-      });
-      autocompleteRef.current = autocomplete;
-      listenerRef.current?.remove();
-      listenerRef.current = autocomplete.addListener('place_changed', () => {
-        handlePlaceSelection(target);
-      });
-    };
-
-    attachAutocomplete('pickup', pickupInputRef, pickupListenerRef, pickupAutocompleteRef);
-    attachAutocomplete('dropoff', dropoffInputRef, dropoffListenerRef, dropoffAutocompleteRef);
-
-    return () => {
-      pickupListenerRef.current?.remove();
-      dropoffListenerRef.current?.remove();
-      pickupAutocompleteRef.current = null;
-      dropoffAutocompleteRef.current = null;
-    };
-  }, [mapsReady, handlePlaceSelection]);
-
-  const summaryText = routeLookupLoading
-    ? 'Calculating travel time…'
-    : routeDistanceLabel ?? 'Add both addresses to see travel info.';
-
-  const hasPickup = !!S.dumpRoutePickup;
-  const hasDropoff = !!S.dumpRouteDropoff;
-  const isComplete = hasPickup && hasDropoff && S.distanceKm > 0;
-
-  return (
-    <div
-      className="rounded-xl border border-black/5 bg-white/90 p-4 shadow-sm space-y-4"
-      style={{ overflow: 'visible' }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="font-semibold text-slate-900 flex items-center gap-2">
-            <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            Route Calculator
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Enter addresses for accurate distance-based pricing</div>
-        </div>
-        {isComplete && (
-          <div className="flex items-center gap-2 text-emerald-600">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-medium">{Math.round(S.distanceKm)} km</span>
-          </div>
-        )}
-      </div>
-
-      {/* Address inputs */}
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-2">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px]">A</span>
-            Pickup location
-            {hasPickup && (
-              <svg className="w-4 h-4 text-emerald-500 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </label>
-          <input
-            ref={pickupInputRef}
-            type="text"
-            value={inputs.pickup}
-            placeholder="Start address (Queensland only)"
-            onChange={(e) => handleInputChange('pickup', e.target.value)}
-            onFocus={() => triggerFocusChange(true)}
-            onBlur={() => triggerFocusChange(false, 300)}
-            className={cls(
-              'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none',
-              hasPickup ? 'border-emerald-300 bg-emerald-50/30' : 'border-black/10 bg-white'
-            )}
-          />
-          {pickupError && <div className="text-[11px] text-rose-500">{pickupError}</div>}
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-2">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px]">B</span>
-            Drop-off location
-            {hasDropoff && (
-              <svg className="w-4 h-4 text-blue-500 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </label>
-          <input
-            ref={dropoffInputRef}
-            type="text"
-            value={inputs.dropoff}
-            placeholder="Drop-off address (Queensland only)"
-            onChange={(e) => handleInputChange('dropoff', e.target.value)}
-            onFocus={() => triggerFocusChange(true)}
-            onBlur={() => triggerFocusChange(false, 300)}
-            className={cls(
-              'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
-              hasDropoff ? 'border-blue-300 bg-blue-50/30' : 'border-black/10 bg-white'
-            )}
-          />
-          {dropoffError && <div className="text-[11px] text-rose-500">{dropoffError}</div>}
-        </div>
-      </div>
-
-      {/* Route summary */}
-      <div
-        className={cls(
-          'p-3 rounded-lg border text-xs transition-all',
-          isComplete
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : routeLookupLoading
-            ? 'border-amber-200 bg-amber-50 text-amber-800'
-            : 'border-dashed border-slate-200 bg-slate-50 text-slate-600'
-        )}
-        aria-live="polite"
-      >
-        <div className="flex items-center gap-2">
-          {routeLookupLoading ? (
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-          ) : isComplete ? (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          )}
-          <span className="font-medium">{summaryText}</span>
-        </div>
-        {isComplete && (
-          <div className="mt-2 flex items-center gap-4 text-[11px]">
-            <span>Distance travel fee: ~{fmtAUD(Math.round(S.distanceKm * ROUTE_PER_KM_RATE))}</span>
-          </div>
-        )}
-      </div>
-
-      {routeLookupMessage && (
-        <div className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          {routeLookupMessage}
-        </div>
-      )}
-      {mapsError && (
-        <div className="flex items-center gap-2 text-[11px] text-rose-600 bg-rose-50 rounded-lg px-3 py-2">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {mapsError}
-        </div>
-      )}
-    </div>
-  );
-});
-
-/* =========================
-   MAIN PAGE/* =========================
-   MAIN PAGE (opens here; make sure it closes at EOF)
-   ========================= */
-
-/**
- * Minimal LiveOrdersStrip placeholder used in multiple steps.
- * Keeps the UI informative and prevents "Cannot find name" errors.
- */
-const LIVE_ORDER_ITEMS = [
-  { label: 'Window clean', price: '$120', detail: '12 windows washed', icon: <WindowIcon />, timeAgo: '2 min ago', location: 'Brisbane' },
-  { label: 'Deep clean', price: '$380', detail: 'Tidy 2 bed · 2 bath', icon: <CleanIcon />, timeAgo: '5 min ago', location: 'Gold Coast' },
-  { label: 'Mow & edge', price: '$140', detail: 'Mow + tidy edges', icon: <LawnIcon />, timeAgo: '8 min ago', location: 'Sunshine Coast' },
-  { label: 'Bin clean', price: '$80', detail: '2 bins scrubbed', icon: <TruckIcon />, timeAgo: '12 min ago', location: 'Ipswich' },
-] as const;
-
-function LiveOrdersStrip({ className = '' }: { className?: string }) {
-  return (
-    <div className={cls('relative', className)}>
-      {/* Section header */}
-      <div className="flex items-center justify-center gap-3 mb-6">
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300/60 to-transparent" />
-        <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/60 backdrop-blur-xl border border-white/80 shadow-sm">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          <span className="text-xs font-medium text-slate-700 tracking-wide uppercase">Live orders</span>
-        </div>
-        <div className="h-px flex-1 bg-gradient-to-l from-transparent via-slate-300/60 to-transparent" />
-      </div>
-
-      {/* Main container */}
-      <div className="p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
-            <div>
-              <h3 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight">
-                What others are ordering
-              </h3>
-              <p className="text-sm text-slate-500 mt-1">
-                Popular services booked by customers near you
-              </p>
-            </div>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Updated in real-time</span>
-            </div>
-          </div>
-
-          {/* Cards grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Recently ordered services">
-            {LIVE_ORDER_ITEMS.map((item, idx) => (
-              <M.div
-                key={item.label}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-50px' }}
-                transition={{ delay: idx * 0.1, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="group relative rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 p-4 shadow-[0_4px_20px_rgba(15,23,42,0.06)] hover:shadow-[0_8px_30px_rgba(15,23,42,0.1)] transition-all duration-300 hover:-translate-y-0.5"
-              >
-                {/* Top row: icon + service info */}
-                <div className="flex items-start gap-3 mb-3">
-                  <span
-                    aria-hidden
-                    className="shrink-0 text-slate-700 grid place-items-center h-11 w-11 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/60 shadow-sm group-hover:scale-105 transition-transform duration-300"
-                  >
-                    {item.icon}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{item.label}</div>
-                    <div className="text-xs text-slate-500 truncate mt-0.5">{item.detail}</div>
-                  </div>
-                </div>
-
-                {/* Bottom row: price + meta */}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                  <div
-                    className="text-base font-bold tracking-tight"
-                    style={{ color: ACCENT }}
-                  >
-                    {item.price}
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>{item.location}</span>
-                    <span className="mx-1">·</span>
-                    <span>{item.timeAgo}</span>
-                  </div>
-                </div>
-              </M.div>
-            ))}
-          </div>
-      </div>
-    </div>
-  );
-}
-
-/* ==========================================================
-   WindowsEditor — FIXED + NO CONFLICT + LOCKED PRESETS
-   ========================================================== */
-function WindowsEditor({
-  S,
-  set,
+import { Tile, glassCard } from './components/shared/UIComponents';
+
+// Extracted modules - Service data & helpers
+import {
+  SERVICES,
+  TERMS_SNIPPET,
+  PRICE_SCOPE_DISCLAIMER,
+  FAIRNESS_PROMISE_COPY,
+  STORAGE_KEY,
+  CLEAN_SCOPES,
+  SCOPES_BY_SERVICE,
+  YARD_MEASUREMENT_UNITS,
+  getYardMeasurementConfig,
+  COMM_PARAM_DEFS,
+  COMM_LABELS,
+} from './lib/service-data';
+import {
+  defaultParamsByService,
+  computeWindowsMinutes,
+  scopePresetFor,
+  buildCleaningChecklistFromWizard,
+  createYardJob,
+} from './lib/service-helpers';
+
+// Extracted modules - Pricing engine
+import {
+  COMM_PRESET_PRICING,
+  computeCleaningAddons,
+  computeHomeExtras,
+  selectedFromParams,
+  hourlyRate,
+  sneakerTurnaroundMeta,
+  computeYardQuote,
+  priceQuote,
+} from './lib/pricing/engine';
+
+// Extracted modules - Wizard state
+import { getInitialState, wizardReducer, useLocalStorageReducer } from './lib/wizard-state';
+
+// Extracted modules - Estimation
+import {
+  sumSelected,
+  BASE_CALLOUT_PRICE,
+  PHYSICAL_BLOCK_RANGE,
+  calculateEstimatedPrice,
+  calculateServicePrice,
+  adjustedTypicalMinutes,
   notifyDelta,
-}: {
-  S: WizardState;
-  set: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void;
-  notifyDelta: (prevMin: number, nextMin: number) => void;
-}) {
-  const isCommercial = S.context === 'commercial';
-  const announceId = React.useId();
+  buildQuoteSummary,
+  emailHrefForContext,
+} from './lib/estimation';
 
-  type Mode = 'both' | 'inside' | 'outside' | 'tracks';
+// Extracted modules - Glass UI
+import {
+  S3_Card,
+  S3_Title,
+  S3_Row,
+  S3_Chip,
+  getFrequencyLabel,
+} from './components/shared/GlassUI';
 
-  const currentMode: Mode = React.useMemo(() => {
-    if (S.scope === 'windows_interior') return 'inside';
-    if (S.scope === 'windows_exterior') return 'outside';
-    if (S.scope === 'windows_tracks') return 'tracks';
-    return 'both';
-  }, [S.scope]);
-
-  const scopeFromMode: Record<Mode, ScopeKey> = {
-    both: 'windows_full',
-    inside: 'windows_interior',
-    outside: 'windows_exterior',
-    tracks: 'windows_tracks',
-  };
-
-  const presetRowForMode = (mode: Mode, index = 0): WizardState['winRows'][number] => {
-    const base = {
-      both: { int: 12, ext: 12, tracks: 12, screens: isCommercial ? 0 : 12 },
-      inside: { int: 12, ext: 0, tracks: 12, screens: 0 },
-      outside: { int: 0, ext: 12, tracks: 0, screens: isCommercial ? 0 : 12 },
-      tracks: { int: 0, ext: 0, tracks: 12, screens: isCommercial ? 0 : 12 },
-    }[mode];
-    const label = isCommercial
-      ? index === 0
-        ? 'Ground'
-        : `Level ${index}`
-      : index === 0
-      ? 'Ground floor'
-      : index === 1
-      ? 'Second floor'
-      : 'Third floor';
-    return { ...base, label };
-  };
-
-  const segmentForMode = (mode: Mode) => {
-    switch (mode) {
-      case 'inside':
-        return { int: true, ext: false, tracks: true };
-      case 'outside':
-        return { int: false, ext: true, tracks: false };
-      case 'tracks':
-        return { int: false, ext: false, tracks: true };
-      default:
-        return { int: true, ext: true, tracks: true };
-    }
-  };
-
-  const toCount = (v: string | number) => Math.max(0, Math.floor(Number(v) || 0));
-  const rows = S.winRows;
-
-  const minutes = React.useMemo(
-    () => computeWindowsMinutes(S.scope, rows, S.context, S.paramsByService.windows),
-    [rows, S.context, S.scope, S.paramsByService.windows]
-  );
-
-  const replaceRows = (nextRows: WizardState['winRows'], nextScope?: ScopeKey, nextSeg?: { int: boolean; ext: boolean; tracks: boolean }) => {
-    const trimmedRows = isCommercial ? nextRows : nextRows.slice(0, 3);
-    const before = computeWindowsMinutes(S.scope, rows, S.context, S.paramsByService.windows);
-    const after = computeWindowsMinutes(
-      nextScope ?? S.scope,
-      trimmedRows,
-      S.context,
-      S.paramsByService.windows
-    );
-
-    if (nextScope) set('scope', nextScope);
-    if (nextSeg) set('winSessionSeg', nextSeg);
-    set('winRows', trimmedRows);
-    set('winStoreys', trimmedRows.length);
-    notifyDelta(before, after);
-  };
-
-  const applyMode = (mode: Mode) => {
-    const seg = segmentForMode(mode);
-    const nextRows = [presetRowForMode(mode, 0)];
-    replaceRows(nextRows, scopeFromMode[mode], seg);
-  };
-
-  const addLevel = () => {
-    const next = [...rows, presetRowForMode(currentMode, rows.length)];
-    replaceRows(next);
-  };
-
-  const removeLevel = () => {
-    if (rows.length <= 1) return;
-    replaceRows(rows.slice(0, -1));
-  };
-
-  const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
-    const next = rows.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r));
-    replaceRows(next);
-  };
-
-  const showInside = currentMode === 'both' || currentMode === 'inside';
-  const showOutside = currentMode === 'both' || currentMode === 'outside';
-  const showTracks = currentMode !== 'outside';
-  const showScreens = !isCommercial && (currentMode === 'both' || currentMode === 'outside');
-
-  const labelForRow = (rowIndex: number) => {
-    if (isCommercial) return rowIndex === 0 ? 'Ground' : `Level ${rowIndex}`;
-    if (rowIndex === 0) return 'Ground Floor';
-    if (rowIndex === 1) return 'Second Floor';
-    return 'Third Floor';
-  };
-
-  const displayRows = (isCommercial ? rows : [...rows].reverse()).map((row, index) => {
-    const sourceIndex = isCommercial ? index : rows.length - 1 - index;
-    return { row, sourceIndex };
-  });
-
-  const inputColumnCount = Number(showInside) + Number(showOutside) + Number(showTracks) + Number(showScreens);
-  const gridTemplate = { gridTemplateColumns: `minmax(50px, 1fr) repeat(${inputColumnCount}, minmax(36px, 1fr)) 32px` } as const;
-
-  const Chip = ({
-    label,
-    pressed,
-    onClick,
-  }: {
-    label: string;
-    pressed: boolean;
-    onClick: () => void;
-  }) => (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={
-        'px-2.5 py-1 rounded-lg border text-xs ' +
-        (pressed
-          ? 'bg-white border-emerald-600 text-emerald-700'
-          : 'bg-white/70 border-slate-300 text-slate-700 hover:bg-white')
-      }
-    >
-      {label}
-    </button>
-  );
-
-  const allowedModes: Mode[] = React.useMemo(() => {
-    switch (S.scope) {
-      case 'windows_interior':
-        return ['inside'];
-      case 'windows_exterior':
-        return ['outside'];
-      case 'windows_tracks':
-        return ['tracks'];
-      case 'windows_full':
-        return ['both'];
-      default:
-        return ['both', 'inside', 'outside', 'tracks'];
-    }
-  }, [S.scope]);
-
-  return (
-    <section aria-label="Windows editor" className="rounded-2xl overflow-hidden bg-gradient-to-br from-slate-50 to-white border border-slate-200 shadow-sm">
-      <div id={announceId} className="sr-only" aria-live="polite">
-        {rows.length} levels. {fmtHrMin(minutes)}.
-      </div>
-
-      {/* Header with title and time estimate */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-white font-semibold text-lg">Window Details</h3>
-              <p className="text-emerald-100 text-sm">Customize panes per level</p>
-            </div>
-          </div>
-          <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-            <span className="text-emerald-100 text-xs uppercase tracking-wide">Est. Time</span>
-            <p className="text-white font-bold text-lg" style={{ fontVariantNumeric: 'tabular-nums' }} aria-describedby={announceId}>
-              {fmtHrMin(minutes)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls bar */}
-      <div className="px-4 md:px-5 py-3 md:py-4 bg-white border-b border-slate-100">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-          {/* Mode toggle */}
-          <div role="group" aria-label="Mode" className="inline-flex rounded-xl bg-slate-100 p-1 overflow-x-auto">
-            {allowedModes.includes('both') && (
-              <button
-                type="button"
-                aria-pressed={currentMode === 'both'}
-                onClick={() => applyMode('both')}
-                className={cls(
-                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
-                  currentMode === 'both'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                All Sides
-              </button>
-            )}
-            {allowedModes.includes('inside') && (
-              <button
-                type="button"
-                aria-pressed={currentMode === 'inside'}
-                onClick={() => applyMode('inside')}
-                className={cls(
-                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
-                  currentMode === 'inside'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                Inside
-              </button>
-            )}
-            {allowedModes.includes('outside') && (
-              <button
-                type="button"
-                aria-pressed={currentMode === 'outside'}
-                onClick={() => applyMode('outside')}
-                className={cls(
-                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
-                  currentMode === 'outside'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                Outside
-              </button>
-            )}
-            {allowedModes.includes('tracks') && (
-              <button
-                type="button"
-                aria-pressed={currentMode === 'tracks'}
-                onClick={() => applyMode('tracks')}
-                className={cls(
-                  'px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap',
-                  currentMode === 'tracks'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-              >
-                Tracks Only
-              </button>
-            )}
-          </div>
-
-          {/* Level controls and reset */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1" aria-label="Levels">
-              <button
-                type="button"
-                className={cls(
-                  'w-8 h-8 rounded-lg flex items-center justify-center text-lg font-medium transition-all',
-                  rows.length <= 1
-                    ? 'text-slate-300 cursor-not-allowed'
-                    : 'text-slate-600 hover:bg-white hover:shadow-sm'
-                )}
-                onClick={removeLevel}
-                aria-label="Remove level"
-                disabled={rows.length <= 1}
-              >
-                −
-              </button>
-              <span className="w-10 text-center text-sm font-semibold text-slate-700">{rows.length} {rows.length === 1 ? 'lvl' : 'lvls'}</span>
-              <button
-                type="button"
-                className={cls(
-                  'w-8 h-8 rounded-lg flex items-center justify-center text-lg font-medium transition-all',
-                  (!isCommercial && rows.length >= 3) || (isCommercial && rows.length >= 12)
-                    ? 'text-slate-300 cursor-not-allowed'
-                    : 'text-slate-600 hover:bg-white hover:shadow-sm'
-                )}
-                onClick={addLevel}
-                aria-label="Add level"
-                disabled={isCommercial ? rows.length >= 12 : rows.length >= 3}
-              >
-                +
-              </button>
-            </div>
-            <button
-              type="button"
-              className="px-3 py-2 rounded-xl text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
-              onClick={() => replaceRows([presetRowForMode(currentMode, 0)])}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Levels grid */}
-      <div className="p-3 md:p-5 overflow-x-auto">
-        <div role="table" aria-label="Levels grid" className="w-full min-w-0">
-          {/* Column headers */}
-          <div role="row" className="grid gap-1.5 md:gap-3 text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 md:mb-3 px-2 md:px-4" style={gridTemplate}>
-            <div role="columnheader">Level</div>
-            {showInside && <div role="columnheader" className="text-center">In</div>}
-            {showOutside && <div role="columnheader" className="text-center">Out</div>}
-            {showTracks && <div role="columnheader" className="text-center">Trk</div>}
-            {showScreens && <div role="columnheader" className="text-center">Scr</div>}
-            <div role="columnheader" className="text-right" />
-          </div>
-
-          <ul className="space-y-2">
-            {displayRows.map(({ row: r, sourceIndex }, displayIndex) => {
-              const label = labelForRow(sourceIndex);
-              const isTop = displayIndex === 0 && rows.length > 1;
-              return (
-                <li
-                  key={`${label}-${sourceIndex}`}
-                  role="row"
-                  className={cls(
-                    'grid gap-1.5 md:gap-3 items-center rounded-xl p-2 md:p-4 transition-all duration-200',
-                    isTop
-                      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200'
-                      : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                  )}
-                  style={gridTemplate}
-                >
-                  <div role="cell" className="flex items-center gap-1 md:gap-3">
-                    <div className={cls(
-                      'w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs md:text-sm font-bold shrink-0',
-                      isTop ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
-                    )}>
-                      {isCommercial ? (sourceIndex === 0 ? 'G' : sourceIndex) : (sourceIndex === 0 ? 'G' : sourceIndex === 1 ? '2' : '3')}
-                    </div>
-                    <span className={cls('text-xs md:text-sm font-medium truncate', isTop ? 'text-emerald-800' : 'text-slate-700')}>
-                      {label}
-                    </span>
-                  </div>
-
-                  {showInside && (
-                    <div role="cell">
-                      <label className="sr-only" htmlFor={`int-${displayIndex}`}>
-                        Inside panes
-                      </label>
-                      <input
-                        id={`int-${displayIndex}`}
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                        aria-label={`Inside panes for ${label}`}
-                        value={r.int ? r.int : ''}
-                        onChange={(e) => updateRowValue(sourceIndex, 'int', e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {showOutside && (
-                    <div role="cell">
-                      <label className="sr-only" htmlFor={`ext-${displayIndex}`}>
-                        Outside panes
-                      </label>
-                      <input
-                        id={`ext-${displayIndex}`}
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                        aria-label={`Outside panes for ${label}`}
-                        value={r.ext ? r.ext : ''}
-                        onChange={(e) => updateRowValue(sourceIndex, 'ext', e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {showTracks && (
-                    <div role="cell">
-                      <label className="sr-only" htmlFor={`trk-${displayIndex}`}>
-                        Tracks
-                      </label>
-                      <input
-                        id={`trk-${displayIndex}`}
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                        aria-label={`Tracks for ${label}`}
-                        value={r.tracks ? r.tracks : ''}
-                        onChange={(e) => updateRowValue(sourceIndex, 'tracks', e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  {showScreens && (
-                    <div role="cell">
-                      <label className="sr-only" htmlFor={`scr-${displayIndex}`}>
-                        Screens
-                      </label>
-                      <input
-                        id={`scr-${displayIndex}`}
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="w-full px-1.5 py-1 md:px-3 md:py-2 rounded-lg border border-slate-200 bg-white text-xs md:text-sm text-center font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                        aria-label={`Screens for ${label}`}
-                        value={r.screens ? r.screens : ''}
-                        onChange={(e) => updateRowValue(sourceIndex, 'screens', e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  <div role="cell" className="text-right">
-                    {sourceIndex > 0 && (
-                      <button
-                        type="button"
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                        aria-label={`Remove ${label}`}
-                        onClick={() => replaceRows(rows.filter((_, i) => i !== sourceIndex))}
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {/* Add level hint for residential */}
-        {!isCommercial && rows.length < 3 && (
-          <p className="mt-4 text-center text-xs text-slate-500">
-            Click <span className="font-semibold">+</span> to add another level (up to 3 for residential)
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
+// Extracted modules - Standalone components
+import { LiveOrdersStrip } from './components/shared/LiveOrdersStrip';
+import { WindowsEditor } from './components/windows/WindowsEditor';
+import { DistanceRouteConfigurator } from './components/dump/DistanceRouteConfigurator';
 
 function ServicesPageContent() {
   const searchParams = useSearchParams();
@@ -4567,21 +154,8 @@ function ServicesPageContent() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
   const [urlServiceHandled, setUrlServiceHandled] = useState(false);
-  const { computeQuote, saveQuote, updateAdminRevision } = usePolygonQuote();
+  usePolygonQuote();
   const carSelector = useCarModelSelector();
-  const carGlbByType = useMemo(
-    () => ({
-      hatch: '/models/hatch.glb',
-      sedan: '/models/sedan.glb',
-      suv: '/models/suv.glb',
-      ute: '/models/ute.glb',
-      van: '/models/van.glb',
-      '4wd': '/models/4WD.glb',
-      luxury: '/models/luxury.glb',
-      muscle: '/models/muscle.glb',
-    }),
-    []
-  );
   const [isClient, setIsClient] = useState(false);
   const routeCacheRef = useRef<Map<string, RouteLookupResult>>(new Map());
   const [routeLookup, setRouteLookup] = useState<RouteLookupResult | null>(null);
@@ -4676,6 +250,7 @@ function ServicesPageContent() {
     if (target) {
       target.postMessage({ type: 'YARD_SET_POLYGON', coords: [] }, window.location.origin);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
   useEffect(() => {
@@ -4685,14 +260,14 @@ function ServicesPageContent() {
     };
     window.addEventListener('svc:reset', handler);
 
-    if (RESET_ON_MOUNT) {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {}
-      dispatch({ type: 'reset' });
-    }
+    // Always reset on mount (covers page refresh & direct navigation)
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    dispatch({ type: 'reset' });
 
     return () => window.removeEventListener('svc:reset', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardResetQuote]);
 
 
@@ -4779,6 +354,7 @@ function ServicesPageContent() {
     if (JSON.stringify(S.carModelZones) !== JSON.stringify(d.zones)) set('carModelZones', d.zones);
     if (S.carDirtLevel !== d.dirtLevel) set('carDirtLevel', d.dirtLevel);
     if (S.carModelPriceImpact !== d.priceImpact) set('carModelPriceImpact', d.priceImpact);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carSelector.derived.carType, carSelector.derived.zones.length, carSelector.derived.dirtLevel, carSelector.derived.priceImpact]);
 
   useEffect(() => {
@@ -4788,6 +364,7 @@ function ServicesPageContent() {
         set('carDetectedSizeCategory', nextSize);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.carModelType, S.carDetectedSizeCategory]);
 
   // -------------------------
@@ -4931,6 +508,7 @@ function ServicesPageContent() {
       ...S.paramsByService,
       cleaning: { ...(S.paramsByService.cleaning || {}), ...seeded },
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.commercialCleaningType]);
 
   // Enforce context rules (service availability, windows screens)
@@ -4943,6 +521,7 @@ function ServicesPageContent() {
       const rs = S.winRows.map((r) => ({ ...r, screens: 0 }));
       set('winRows', rs);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.context]);
 
   // Handle URL service parameter - navigate directly to step 2 with the selected service
@@ -4964,6 +543,7 @@ function ServicesPageContent() {
       selectService(serviceParam as ServiceType);
       set('step', 2);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, urlServiceHandled]);
 
   // -------------------------
@@ -5066,10 +646,44 @@ function ServicesPageContent() {
     setIsClient(true);
   }, []);
 
+  useEffect(() => {
+    if (!isClient) return;
+
+    if (typeof performance === 'undefined') return;
+
+    let navType: string | undefined;
+    if (typeof performance.getEntriesByType === 'function') {
+      const entries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+      navType = entries?.[0]?.type;
+    }
+
+    if (!navType) {
+      const { navigation } = performance as Performance & { navigation?: PerformanceNavigation };
+      switch (navigation?.type) {
+        case 1:
+          navType = 'reload';
+          break;
+        case 2:
+          navType = 'back_forward';
+          break;
+        case 0:
+          navType = 'navigate';
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (navType === 'reload') {
+      hardResetQuote(true);
+    }
+  }, [hardResetQuote, isClient]);
+
   // Ensure at least one yard job exists
   useEffect(() => {
     if (S.yardJobs && S.yardJobs.length > 0) return;
     set('yardJobs', [createYardJob()]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.yardJobs]);
 
   React.useEffect(() => {
@@ -5204,6 +818,7 @@ function ServicesPageContent() {
         autoYear,
         sneakerTurnaround: S.sneakerTurnaround,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       S.context,
       S.service,
@@ -5247,16 +862,6 @@ function ServicesPageContent() {
 
   const servicedRegion = canonicalServiceRegion(S.region);
 
-  const travelSummary = useMemo(() => {
-    if (!hasWork) return 'Add tasks to enable travel & fees';
-    const over = Math.max(0, S.distanceKm - POLICY.travelBaseKm);
-    const parts = [
-      over > 0 ? `+${over}km` : 'Travel included',
-      S.paidParking ? `Parking +${fmtAUD(POLICY.parkingMin)}` : 'Parking off',
-      S.tipFee ? `Tip ${fmtAUD(S.tipFee)}` : 'Tip $0',
-    ];
-    return parts.join(' · ');
-  }, [S.distanceKm, S.paidParking, S.tipFee, hasWork]);
 
   // React wrapper
   const windowsSessionMinutes = React.useCallback(
@@ -5267,46 +872,6 @@ function ServicesPageContent() {
 
 const routeDurationOverride =
   usesRoutePricing && routeLookup ? Math.max(1, routeLookup.durationMinutes) : null;
-// Display-only typical minutes (Step 2)
-const displayMinutes = useMemo(() => {
-  if (S.service === "windows") {
-    return windowsSessionMinutes(S.winRows);
-  }
-  if (S.service === "cleaning") {
-    if (S.context === "commercial") {
-      const kind = S.commercialCleaningType ?? "office";
-      const preset =
-        COMM_PRESET_PRICING[kind]?.[S.commPreset ?? "essential"] ||
-        COMM_PRESET_PRICING[kind]?.essential;
-      return Math.round(((preset?.hours ?? 2) as number) * 60);
-    }
-    if (S.scope === "hourly") {
-      return (S.paramsByService.cleaning?.hours || 1) * 60;
-    }
-    const mergedCleaning = {
-      ...(S.paramsByService.cleaning || {}),
-      ...(S.cleaningAddons[S.scope] || {}),
-    };
-    const extras = computeHomeExtras(S.scope, mergedCleaning);
-    const addOns = computeCleaningAddons(S.scope, mergedCleaning);
-    return extras.baseMinutes + extras.extraMinutes + addOns.minutes;
-  }
-  return routeDurationOverride ?? estimate.minutes;
-}, [
-  S.service,
-  S.scope,
-  S.context,
-  S.winRows,
-  S.paramsByService.cleaning,
-  S.cleaningAddons,
-  S.paramsByService.yard,
-  estimate.minutes,
-  windowsSessionMinutes,
-  S.commercialCleaningType,
-  S.commPreset,
-  routeDurationOverride,
-]);
-
 // Step 3 card override
 const estMinutes = useMemo(() => {
   if (S.service === "windows") return windowsSessionMinutes(S.winRows);
@@ -5330,6 +895,7 @@ const estMinutes = useMemo(() => {
     return extras.baseMinutes + extras.extraMinutes + addOns.minutes;
   }
   return routeDurationOverride ?? estimate.minutes;
+// eslint-disable-next-line react-hooks/exhaustive-deps
 }, [
   S.service,
   S.context,
@@ -5356,6 +922,7 @@ const routePriceOverride = useMemo<number | null>(() => {
 const routeDistanceLabel = routeLookup
   ? `${routeLookup.distanceKm.toFixed(1)} km · ${Math.round(routeLookup.durationMinutes)} mins travel`
   : null;
+// eslint-disable-next-line react-hooks/exhaustive-deps
 const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   S,
   S.scope,
@@ -5381,24 +948,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 
   const timeLabel = useMemo(() => `~${fmtHrMin(estMinutes)}`, [estMinutes]);
 
-// Compatibility shims
-function winSessionSegments(S: WizardState) {
-  const { isIntOnly, isExtOnly, isTracksOnly, isFull } = getScopeFlags(S.scope);
-  return {
-    int: isFull || isIntOnly,
-    ext: isFull || isExtOnly,
-    tracks: isFull || isTracksOnly,
-  };
-}
 function winSessionMinutes(S: WizardState) {
   return computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
-}
-function winFmtMins(m: number) {
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  if (h <= 0) return `${mm}m`;
-  if (mm === 0) return `${h}h`;
-  return `${h}h ${mm}m`;
 }
 
 /* =========================
@@ -5567,44 +1118,6 @@ function winFmtMins(m: number) {
           sneakers: ['sneaker_full'],
         };
 
-        // Local, simplified commercial sliders – shared across niches
-        const COMM_SIMPLE = [
-          {
-            key: 'sqm',
-            label: 'Approx. area (sqm)',
-            min: 50,
-            max: 3000,
-            step: 50,
-            defaultValue: 300,
-            suffix: 'sqm',
-          },
-          {
-            key: 'high_traffic',
-            label: 'High-touch points',
-            min: 0,
-            max: 50,
-            step: 1,
-            defaultValue: 6,
-          },
-        ] as const;
-
-        // For non-commercial sliders: which param is the "main" one per service
-        const PRIMARY_PARAM_KEY: Partial<Record<ServiceType, string>> = {
-          cleaning: 'bedrooms',
-          windows: 'storeys',
-          yard: 'lawn_m2',
-          dump: 'items',
-          auto: 'vehicle_size',
-        };
-
-        const SERVICE_LABEL: Record<string, string> = {
-          windows: 'Window cleaning',
-          cleaning: 'Home cleaning',
-          yard: 'Lawn & garden care',
-          auto: 'Car cleaning & detailing',
-          dump: 'Dump runs & bin cleaning',
-          sneakers: 'Sneaker care',
-        };
 
 const COMM_FEATURES: Record<CommercialCleaningType, string[]> = {
   office: ['Desks & bins', 'Kitchens/tea rooms', 'Restrooms', 'High-touch points'],
@@ -5687,9 +1200,6 @@ const COMM_PRESETS: Record<
 
         // ---------- small utilities (pure, no hooks) ----------
         const isRec = (svc: string, key: string) => !!RECOMMENDED[svc]?.includes(key);
-
-        const commercialDefaults = (t: CommercialCleaningType) =>
-          Object.fromEntries(COMM_PARAM_DEFS[t].map((d) => [d.key, d.defaultValue]));
 
         const cleaningAddonsForScope = (scopeKey: ScopeKey) =>
           (S.cleaningAddons && S.cleaningAddons[scopeKey]) || {};
@@ -5813,17 +1323,6 @@ const COMM_PRESETS: Record<
           ];
         }
 
-        // Auto-pick a sensible default scope if the customer hits "Not sure"
-        function autoScopeKeyFor(Slocal: WizardState): ScopeKey | null {
-          if (Slocal.service === 'cleaning') return 'general';
-          if (Slocal.service === 'windows') return 'windows_full';
-          if (Slocal.service === 'yard') return 'yard_mow';
-          if (Slocal.service === 'dump') return 'dump_runs';
-          if (Slocal.service === 'auto') return 'auto_express';
-          if (Slocal.service === 'sneakers') return 'sneaker_basic';
-          return null;
-        }
-
         // ---------- card component (simple presets) ----------
         const ScopeCard = function ScopeCard({
           S,
@@ -5852,7 +1351,6 @@ const COMM_PRESETS: Record<
           const dumpLoadType = dumpRunState.loadType;
           const dumpLoads = Math.max(1, Math.round(dumpRunState.loads || 1));
           const deliveryType = deliveryState.itemType;
-          const deliveryDistance = deliveryState.distance;
           const deliveryAssist = deliveryState.assist;
           const transportType = transportState.moveType;
           const transportStairs = transportState.stairs;
@@ -5876,7 +1374,7 @@ const COMM_PRESETS: Record<
           const [multiPairs, setMultiPairs] = React.useState(1);
           const [multiMixed, setMultiMixed] = React.useState<'yes' | 'no'>('no');
           const showSheet = !!openChecklists[sc.key];
-          const popoverId = React.useId();
+          const _popoverId = React.useId(); // eslint-disable-line @typescript-eslint/no-unused-vars
           const minutes = computeMins(S, S.service as ServiceType, sc.key as ScopeKey);
           const recommended = isRec(S.service as string, sc.key as string);
           const hourlyRateDisplay =
@@ -5893,21 +1391,12 @@ const COMM_PRESETS: Record<
           const isCommercialNicheCard = isCommercialCleaning && commercialNicheKeys.includes(sc.key as CommercialCleaningType);
           const isHourlyCard = isHomeCleaning && sc.key === 'hourly';
           const isCleaningWizardCard = isHomeCleaning && !isHourlyCard;
-          const floorPlanSummary =
-            isHourlyCard && S.floorPlanEstimate
-              ? `${S.floorPlanEstimate.counts.bedrooms} bed · ${S.floorPlanEstimate.counts.bathrooms} bath · ${S.floorPlanEstimate.counts.totalRooms} rooms · ~${S.floorPlanEstimate.billableHours}h bill`
-              : null;
-          const basis =
-            isHomeCleaning && isActive
-              ? `${S.paramsByService.cleaning?.bedrooms ?? 1} bed · ${S.paramsByService.cleaning?.bathrooms ?? 1} bath · ${S.paramsByService.cleaning?.storeys ?? 1} storey`
-              : null;
           const addonsQuick: { key: string; label: string }[] = [];
           const addonsState = cleaningAddonsForScope(sc.key);
           const labelId = `sc-${sc.key}-label`;
           const hookId = `sc-${sc.key}-desc`;
           const isCarCleaning = S.service === 'auto';
           const isCleaning = S.service === 'cleaning';
-          const isYard = S.service === 'yard';
           const isDumpRunsCard = S.service === 'dump' && sc.key === 'dump_runs';
           const isDeliveryCard = S.service === 'dump' && sc.key === 'dump_delivery';
           const isTransportCard = S.service === 'dump' && sc.key === 'dump_transport';
@@ -6079,21 +1568,23 @@ const COMM_PRESETS: Record<
           const setGreenBins = (n: number) => updateDumpParam('greenBins', Math.max(0, Math.min(10, Math.round(n))));
           const setGreenBinFreq = (n: number) => updateDumpParam('greenBinFreq', Math.max(0, Math.min(1, n)));
           const setKitchenBins = (n: number) => updateDumpParam('kitchenBins', Math.max(0, Math.min(5, Math.round(n))));
-          const setBinPlan = (n: number) => updateDumpParam('binPlan', Math.max(0, Math.min(2, n)));
-
-          // Calculate bin cleans price for summary display
-          const calcBinCleansPrice = () => {
-            if (binPlan > 0) {
-              const planPrice = binPlan === 1 ? 35 : 29;
-              const includedBins = binPlan === 1 ? 4 : 3;
-              const extraBins = Math.max(0, totalWheelies - includedBins);
-              return planPrice + (extraBins * 6) + (validKitchenBins * 7.5);
-            }
-            const redPrice = redBins * (redBinFreq === 0 ? 25 : redBinFreq === 1 ? 18 : 20);
-            const yellowPrice = yellowBins * (yellowBinFreq === 0 ? 20 : 15);
-            const greenPrice = greenBins * (greenBinFreq === 0 ? 22 : 17);
-            const kitchenPrice = validKitchenBins * 7.5;
-            return redPrice + yellowPrice + greenPrice + kitchenPrice;
+          const setBinPlan = (n: number) => {
+            const next = Math.max(0, Math.min(2, n));
+            // Reset all bin selections when switching plans so the form feels fresh
+            set('paramsByService', {
+              ...S.paramsByService,
+              dump: {
+                ...(S.paramsByService.dump || {}),
+                binPlan: next,
+                redBins: 0,
+                redBinFreq: 0,
+                yellowBins: 0,
+                yellowBinFreq: 0,
+                greenBins: 0,
+                greenBinFreq: 0,
+                kitchenBins: 0,
+              },
+            });
           };
 
           const cleaningHint = (() => {
@@ -6127,72 +1618,6 @@ const COMM_PRESETS: Record<
               line2: `Most jobs like this take around ${Math.max(30, minsLow)}–${minsHigh} minutes onsite.`,
               line3: techs,
             };
-          })();
-
-          const deliveryHints = (() => {
-            if (!(isConfigOpen && isDeliveryCard)) return null;
-            const typeHint =
-              deliveryType === 'parcel'
-                ? 'Parcels usually travel in a standard vehicle.'
-                : deliveryType === 'household'
-                ? 'Single household items usually fit in a standard vehicle.'
-                : deliveryType === 'mattress'
-                ? 'Mattresses often need weather protection — we’ll bring covers.'
-                : deliveryType === 'groceries'
-                ? 'Consumables stay shaded; we keep handling minimal.'
-                : deliveryType === 'tools'
-                ? 'Tools/equipment get secured for transport.'
-                : 'We’ll match the vehicle to the item.';
-
-            const distanceHint =
-              deliveryDistance === 'same_suburb'
-                ? 'Local runs are typically quick to schedule.'
-                : deliveryDistance === 'drive_30'
-                ? 'This range typically takes 30–90 minutes end-to-end.'
-                : deliveryDistance === 'drive_60'
-                ? 'Plan for 45–120 minutes depending on traffic.'
-                : 'Longer runs are routed carefully for timing.';
-
-            const assistHint =
-              deliveryAssist === 'need_help'
-                ? 'We’ll bring an extra pair of hands for lifting.'
-                : 'Noted — no lifting help needed.';
-
-            return [typeHint, distanceHint, assistHint];
-          })();
-
-          const transportHints = (() => {
-            if (!(isConfigOpen && isTransportCard)) return null;
-            const typeHint =
-              transportType === 'house'
-                ? 'Full moves often take multiple loads — we’ll map this out with you.'
-                : transportType === 'bedroom'
-                ? 'Bedroom moves usually need 1–2 techs and a vehicle.'
-                : transportType === 'student'
-                ? 'Student moves are usually completed in one trip.'
-                : transportType === 'office'
-                ? 'Office moves are planned to protect equipment and furniture.'
-                : 'Event pack-ups are staged to keep gear organised.';
-
-            const stairsHint =
-              transportStairs === 'none'
-                ? 'Ground access noted.'
-                : transportStairs === 'one'
-                ? 'One flight of stairs can add a little loading time.'
-                : transportStairs === 'multi'
-                ? 'Multiple flights noted — we’ll pace the load safely.'
-                : 'No lift access noted — we’ll plan team sizing accordingly.';
-
-            const sizeHint =
-              transportSize === 'bags'
-                ? 'A few bags/small items are usually one quick trip.'
-                : transportSize === 'boot'
-                ? 'A boot-full is often a single load.'
-                : transportSize === 'small_load'
-                ? 'Small loads are usually completed in one trip.'
-                : 'Full moves can take multiple loads — we’ll plan this with you.';
-
-            return [typeHint, stairsHint, sizeHint];
           })();
 
           const refreshHints = (() => {
@@ -6296,9 +1721,7 @@ const COMM_PRESETS: Record<
           const visibleInclusions = isHourlyCard ? [] : inclusions.slice(0, 4);
           const hiddenInclusions = isHourlyCard ? [] : inclusions.slice(4);
           const moreCount = isHourlyCard ? 0 : Math.max(0, inclusions.length - visibleInclusions.length);
-          const addonsSelected =
-            addonsQuick.length > 0 &&
-            addonsQuick.some((a) => Boolean((addonsState as any)[`addon_${a.key}`]));
+
 
           const shouldShowHidden = hiddenInclusions.length > 0 && showSheet;
           const formatInc = (inc: string) => {
@@ -7705,344 +3128,245 @@ const COMM_PRESETS: Record<
 
                     <div className="space-y-3 text-xs">
                       {/* Subscription Plans */}
-                      <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-                        <div className="text-[11px] font-semibold text-slate-700 mb-2">Monthly Plans (optional)</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <div className="text-[11px] font-semibold text-slate-800">Choose your plan</div>
+                          <div className="flex-1 h-px bg-slate-200" />
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                          {/* Pay per clean option */}
                           <button
                             type="button"
                             className={cls(
-                              'p-2.5 rounded-lg border text-left transition-all',
-                              binPlan === 0 ? 'border-slate-300 bg-white ring-1 ring-slate-300' : 'border-black/10 bg-white/60 hover:bg-white'
+                              'w-full p-3 rounded-xl border-2 text-left transition-all',
+                              binPlan === 0
+                                ? 'border-slate-400 bg-white shadow-sm'
+                                : 'border-transparent bg-slate-50 hover:bg-slate-100'
                             )}
                             onClick={(e) => { e.stopPropagation(); setBinPlan(0); }}
                             aria-label="No subscription plan"
                           >
-                            <div className="text-[11px] font-medium text-slate-700">Pay per clean</div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">One-off or subscriptions</div>
+                            <div className="flex items-center gap-2.5">
+                              <div className={cls(
+                                'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                                binPlan === 0 ? 'border-slate-600' : 'border-slate-300'
+                              )}>
+                                {binPlan === 0 && <div className="w-2 h-2 rounded-full bg-slate-600" />}
+                              </div>
+                              <div>
+                                <div className="text-[12px] font-medium text-slate-800">Pay per clean</div>
+                                <div className="text-[10px] text-slate-500">No commitment &mdash; book when you need it</div>
+                              </div>
+                            </div>
                           </button>
+
+                          {/* Household Plan */}
                           <button
                             type="button"
                             className={cls(
-                              'p-2.5 rounded-lg border text-left transition-all',
-                              binPlan === 1 ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-400' : 'border-black/10 bg-white/60 hover:bg-white'
+                              'w-full p-3 rounded-xl border-2 text-left transition-all relative overflow-hidden',
+                              binPlan === 1
+                                ? 'border-emerald-500 bg-emerald-50/60 shadow-sm'
+                                : 'border-transparent bg-slate-50 hover:bg-slate-100'
                             )}
                             onClick={(e) => { e.stopPropagation(); setBinPlan(1); }}
                             aria-label="Household Bin Care Plan"
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="text-[11px] font-medium text-slate-700">Household Plan</div>
-                              <div className="text-[11px] font-semibold text-emerald-600">$35/mo</div>
+                            <div className="flex items-start gap-2.5">
+                              <div className={cls(
+                                'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5',
+                                binPlan === 1 ? 'border-emerald-600' : 'border-slate-300'
+                              )}>
+                                {binPlan === 1 && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-[12px] font-medium text-slate-800">Household Plan</div>
+                                  <div className={cls(
+                                    'text-[12px] font-bold tabular-nums',
+                                    binPlan === 1 ? 'text-emerald-700' : 'text-slate-600'
+                                  )}>$35<span className="text-[10px] font-normal text-slate-500">/mo</span></div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">Up to 5 bins, cleaned monthly</div>
+                                <div className="text-[9px] text-slate-400 mt-0.5">+$6 per extra bin</div>
+                              </div>
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">Up to 4 bins, monthly clean</div>
-                            <div className="text-[9px] text-slate-400 mt-0.5">+$6 per extra bin</div>
+                            {binPlan === 1 && <div className="absolute top-0 left-0 w-full h-0.5 bg-emerald-500" />}
                           </button>
+
+                          {/* Bin Care Lite */}
                           <button
                             type="button"
                             className={cls(
-                              'p-2.5 rounded-lg border text-left transition-all',
-                              binPlan === 2 ? 'border-sky-400 bg-sky-50 ring-1 ring-sky-400' : 'border-black/10 bg-white/60 hover:bg-white'
+                              'w-full p-3 rounded-xl border-2 text-left transition-all relative overflow-hidden',
+                              binPlan === 2
+                                ? 'border-sky-500 bg-sky-50/60 shadow-sm'
+                                : 'border-transparent bg-slate-50 hover:bg-slate-100'
                             )}
                             onClick={(e) => { e.stopPropagation(); setBinPlan(2); }}
                             aria-label="Bin Care Lite plan"
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="text-[11px] font-medium text-slate-700">Bin Care Lite</div>
-                              <div className="text-[11px] font-semibold text-sky-600">$29/mo</div>
+                            <div className="flex items-start gap-2.5">
+                              <div className={cls(
+                                'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5',
+                                binPlan === 2 ? 'border-sky-600' : 'border-slate-300'
+                              )}>
+                                {binPlan === 2 && <div className="w-2 h-2 rounded-full bg-sky-600" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-[12px] font-medium text-slate-800">Bin Care Lite</div>
+                                  <div className={cls(
+                                    'text-[12px] font-bold tabular-nums',
+                                    binPlan === 2 ? 'text-sky-700' : 'text-slate-600'
+                                  )}>$29<span className="text-[10px] font-normal text-slate-500">/mo</span></div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">Up to 3 bins, cleaned monthly</div>
+                              </div>
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">Up to 3 bins, monthly clean</div>
+                            {binPlan === 2 && <div className="absolute top-0 left-0 w-full h-0.5 bg-sky-500" />}
                           </button>
                         </div>
                       </div>
 
-                      {/* Red Bin - General Waste */}
-                      <div className={cls(
-                        'rounded-lg border p-3',
-                        redBins > 0 ? 'border-red-200 bg-red-50/30' : 'border-black/10 bg-white/80'
-                      )}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-red-500" aria-hidden="true" />
-                            <div className="text-[11px] font-semibold text-slate-700">General Waste (Red Bin)</div>
-                          </div>
-                          {binPlan === 0 && (
-                            <div className="text-[10px] text-slate-500">
-                              {redBinFreq === 0 ? '$25' : redBinFreq === 1 ? '$18' : '$20'}/bin
+                      {/* Bin selection — compact rows */}
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <div className="text-[11px] font-semibold text-slate-700">
+                              {binPlan > 0 ? 'Which bins do you have?' : 'Select your bins'}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <div className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2 py-1">
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Decrease red bins"
-                              onClick={(e) => { e.stopPropagation(); setRedBins(redBins - 1); }}
-                            >–</button>
-                            <span className="min-w-[20px] text-center font-semibold text-sm">{redBins}</span>
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Increase red bins"
-                              onClick={(e) => { e.stopPropagation(); setRedBins(redBins + 1); }}
-                            >+</button>
-                          </div>
-                          {redBins > 0 && binPlan === 0 && (
-                            <div className="flex gap-1">
-                              {[
-                                { val: 0, label: 'One-off', price: '$25' },
-                                { val: 1, label: 'Weekly', price: '$18' },
-                                { val: 2, label: 'Fortnightly', price: '$20' },
-                              ].map((opt) => (
-                                <button
-                                  key={opt.val}
-                                  type="button"
-                                  className={cls(
-                                    'px-2 py-1 rounded-full border text-[10px]',
-                                    redBinFreq === opt.val ? 'bg-red-500 text-white border-red-500' : 'bg-white border-black/10 hover:bg-slate-50'
-                                  )}
-                                  onClick={(e) => { e.stopPropagation(); setRedBinFreq(opt.val); }}
-                                  aria-label={`${opt.label} frequency for red bins`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {redBins > 0 && binPlan === 0 && (
-                          <div className="text-[10px] text-slate-500">
-                            {redBinFreq === 1 ? 'Cleaned every week' : redBinFreq === 2 ? 'Cleaned every 2 weeks' : 'Book when you need it'}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Yellow Bin - Recycling */}
-                      <div className={cls(
-                        'rounded-lg border p-3',
-                        yellowBins > 0 ? 'border-yellow-300 bg-yellow-50/30' : 'border-black/10 bg-white/80'
-                      )}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-yellow-400" aria-hidden="true" />
-                            <div className="text-[11px] font-semibold text-slate-700">Recycling (Yellow Bin)</div>
-                          </div>
-                          {binPlan === 0 && (
-                            <div className="text-[10px] text-slate-500">
-                              {yellowBinFreq === 0 ? '$20' : '$15'}/bin
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <div className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2 py-1">
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Decrease yellow bins"
-                              onClick={(e) => { e.stopPropagation(); setYellowBins(yellowBins - 1); }}
-                            >–</button>
-                            <span className="min-w-[20px] text-center font-semibold text-sm">{yellowBins}</span>
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Increase yellow bins"
-                              onClick={(e) => { e.stopPropagation(); setYellowBins(yellowBins + 1); }}
-                            >+</button>
-                          </div>
-                          {yellowBins > 0 && binPlan === 0 && (
-                            <div className="flex gap-1">
-                              {[
-                                { val: 0, label: 'One-off', price: '$20' },
-                                { val: 1, label: 'Fortnightly', price: '$15' },
-                              ].map((opt) => (
-                                <button
-                                  key={opt.val}
-                                  type="button"
-                                  className={cls(
-                                    'px-2 py-1 rounded-full border text-[10px]',
-                                    yellowBinFreq === opt.val ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-white border-black/10 hover:bg-slate-50'
-                                  )}
-                                  onClick={(e) => { e.stopPropagation(); setYellowBinFreq(opt.val); }}
-                                  aria-label={`${opt.label} frequency for yellow bins`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="rounded-md bg-emerald-50 border border-emerald-100 p-2">
-                          <div className="text-[10px] text-emerald-700 leading-relaxed">
-                            <span className="font-medium">Lower price:</span> Recycling bins are cheaper because we retain recyclable bottles and cardboard, reducing contamination and creating value.
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Green Bin - Green Waste */}
-                      <div className={cls(
-                        'rounded-lg border p-3',
-                        greenBins > 0 ? 'border-green-300 bg-green-50/30' : 'border-black/10 bg-white/80'
-                      )}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-green-600" aria-hidden="true" />
-                            <div className="text-[11px] font-semibold text-slate-700">Green Waste (Green Bin)</div>
-                          </div>
-                          {binPlan === 0 && (
-                            <div className="text-[10px] text-slate-500">
-                              {greenBinFreq === 0 ? '$22' : '$17'}/bin
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <div className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2 py-1">
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Decrease green bins"
-                              onClick={(e) => { e.stopPropagation(); setGreenBins(greenBins - 1); }}
-                            >–</button>
-                            <span className="min-w-[20px] text-center font-semibold text-sm">{greenBins}</span>
-                            <button
-                              type="button"
-                              className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                              aria-label="Increase green bins"
-                              onClick={(e) => { e.stopPropagation(); setGreenBins(greenBins + 1); }}
-                            >+</button>
-                          </div>
-                          {greenBins > 0 && binPlan === 0 && (
-                            <div className="flex gap-1">
-                              {[
-                                { val: 0, label: 'One-off', price: '$22' },
-                                { val: 1, label: 'Monthly', price: '$17' },
-                              ].map((opt) => (
-                                <button
-                                  key={opt.val}
-                                  type="button"
-                                  className={cls(
-                                    'px-2 py-1 rounded-full border text-[10px]',
-                                    greenBinFreq === opt.val ? 'bg-green-600 text-white border-green-600' : 'bg-white border-black/10 hover:bg-slate-50'
-                                  )}
-                                  onClick={(e) => { e.stopPropagation(); setGreenBinFreq(opt.val); }}
-                                  aria-label={`${opt.label} frequency for green bins`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {greenBins > 0 && binPlan === 0 && (
-                          <div className="text-[10px] text-slate-500">
-                            {greenBinFreq === 1 ? 'Cleaned once per month' : 'Book when you need it'}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Kitchen Bin Add-on */}
-                      <div className={cls(
-                        'rounded-lg border p-3',
-                        totalWheelies === 0 ? 'opacity-50' : '',
-                        validKitchenBins > 0 ? 'border-amber-200 bg-amber-50/30' : 'border-black/10 bg-white/80'
-                      )}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-amber-600" aria-hidden="true" />
-                            <div className="text-[11px] font-semibold text-slate-700">Kitchen Bin / Caddy</div>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">Add-on</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500">$7.50/bin</div>
-                        </div>
-                        {totalWheelies === 0 ? (
-                          <div className="text-[10px] text-slate-500">
-                            Select at least one wheelie bin above to add kitchen bins.
-                          </div>
-                        ) : (
-                          <>
-                            <div className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2 py-1">
-                              <button
-                                type="button"
-                                className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                                aria-label="Decrease kitchen bins"
-                                onClick={(e) => { e.stopPropagation(); setKitchenBins(kitchenBins - 1); }}
-                              >–</button>
-                              <span className="min-w-[20px] text-center font-semibold text-sm">{kitchenBins}</span>
-                              <button
-                                type="button"
-                                className="w-6 h-6 flex items-center justify-center rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                                aria-label="Increase kitchen bins"
-                                onClick={(e) => { e.stopPropagation(); setKitchenBins(kitchenBins + 1); }}
-                              >+</button>
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-2">
-                              Indoor bins cleaned on the same visit as your wheelie bins.
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Price Summary */}
-                      {(totalWheelies > 0 || validKitchenBins > 0) && (
-                        <div className="rounded-lg border border-slate-300 bg-white p-3">
-                          <div className="text-[11px] font-semibold text-slate-700 mb-2">Summary</div>
-                          <div className="space-y-1 text-[11px] text-slate-600">
-                            {binPlan > 0 ? (
-                              <>
-                                <div className="flex justify-between">
-                                  <span>{binPlan === 1 ? 'Household Bin Care Plan' : 'Bin Care Lite'}</span>
-                                  <span className="font-medium">${binPlan === 1 ? 35 : 29}/mo</span>
-                                </div>
-                                {totalWheelies > (binPlan === 1 ? 4 : 3) && (
-                                  <div className="flex justify-between text-slate-500">
-                                    <span>{totalWheelies - (binPlan === 1 ? 4 : 3)} extra bin{totalWheelies - (binPlan === 1 ? 4 : 3) > 1 ? 's' : ''} × $6</span>
-                                    <span>${(totalWheelies - (binPlan === 1 ? 4 : 3)) * 6}</span>
-                                  </div>
-                                )}
-                                {validKitchenBins > 0 && (
-                                  <div className="flex justify-between text-slate-500">
-                                    <span>{validKitchenBins} kitchen bin{validKitchenBins > 1 ? 's' : ''} × $7.50</span>
-                                    <span>${(validKitchenBins * 7.5).toFixed(2)}</span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {redBins > 0 && (
-                                  <div className="flex justify-between">
-                                    <span>{redBins} red bin{redBins > 1 ? 's' : ''} ({redBinFreq === 0 ? 'one-off' : redBinFreq === 1 ? 'weekly' : 'fortnightly'})</span>
-                                    <span className="font-medium">${redBins * (redBinFreq === 0 ? 25 : redBinFreq === 1 ? 18 : 20)}</span>
-                                  </div>
-                                )}
-                                {yellowBins > 0 && (
-                                  <div className="flex justify-between">
-                                    <span>{yellowBins} yellow bin{yellowBins > 1 ? 's' : ''} ({yellowBinFreq === 0 ? 'one-off' : 'fortnightly'})</span>
-                                    <span className="font-medium">${yellowBins * (yellowBinFreq === 0 ? 20 : 15)}</span>
-                                  </div>
-                                )}
-                                {greenBins > 0 && (
-                                  <div className="flex justify-between">
-                                    <span>{greenBins} green bin{greenBins > 1 ? 's' : ''} ({greenBinFreq === 0 ? 'one-off' : 'monthly'})</span>
-                                    <span className="font-medium">${greenBins * (greenBinFreq === 0 ? 22 : 17)}</span>
-                                  </div>
-                                )}
-                                {validKitchenBins > 0 && (
-                                  <div className="flex justify-between">
-                                    <span>{validKitchenBins} kitchen bin{validKitchenBins > 1 ? 's' : ''}</span>
-                                    <span className="font-medium">${(validKitchenBins * 7.5).toFixed(2)}</span>
-                                  </div>
-                                )}
-                              </>
+                            {binPlan > 0 && (
+                              <div className="text-[10px] text-slate-500">All cleaned monthly</div>
                             )}
-                            <div className="border-t border-slate-200 pt-1.5 mt-1.5 flex justify-between font-semibold text-slate-800">
-                              <span>{binPlan > 0 ? 'Monthly total' : 'Per clean'}</span>
-                              <span>${calcBinCleansPrice().toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-slate-100">
+                          {/* Red — General Waste */}
+                          <div className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-medium text-slate-800">General waste</div>
+                                <div className="text-[10px] text-slate-500">Red lid</div>
+                              </div>
+                              <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5">
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Decrease red bins" onClick={(e) => { e.stopPropagation(); setRedBins(redBins - 1); }}>–</button>
+                                <span className="min-w-[18px] text-center font-semibold text-[12px]">{redBins}</span>
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Increase red bins" onClick={(e) => { e.stopPropagation(); setRedBins(redBins + 1); }}>+</button>
+                              </div>
+                              {binPlan === 0 && redBins > 0 && (
+                                <div className="text-[10px] text-slate-500 tabular-nums w-10 text-right">${redBinFreq === 0 ? 25 : redBinFreq === 1 ? 18 : 20}<span className="text-slate-400">/ea</span></div>
+                              )}
+                            </div>
+                            {redBins > 0 && binPlan === 0 && (
+                              <div className="flex gap-1 mt-2 ml-6">
+                                {[
+                                  { val: 0, label: 'One-off' },
+                                  { val: 1, label: 'Weekly' },
+                                  { val: 2, label: 'Fortnightly' },
+                                ].map((opt) => (
+                                  <button key={opt.val} type="button" className={cls('px-2 py-0.5 rounded-full border text-[10px] transition-colors', redBinFreq === opt.val ? 'bg-red-500 text-white border-red-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')} onClick={(e) => { e.stopPropagation(); setRedBinFreq(opt.val); }} aria-label={`${opt.label} frequency for red bins`}>{opt.label}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Yellow — Recycling */}
+                          <div className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-yellow-400 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-medium text-slate-800">Recycling</div>
+                                <div className="text-[10px] text-slate-500">Yellow lid</div>
+                              </div>
+                              <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5">
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Decrease yellow bins" onClick={(e) => { e.stopPropagation(); setYellowBins(yellowBins - 1); }}>–</button>
+                                <span className="min-w-[18px] text-center font-semibold text-[12px]">{yellowBins}</span>
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Increase yellow bins" onClick={(e) => { e.stopPropagation(); setYellowBins(yellowBins + 1); }}>+</button>
+                              </div>
+                              {binPlan === 0 && yellowBins > 0 && (
+                                <div className="text-[10px] text-slate-500 tabular-nums w-10 text-right">${yellowBinFreq === 0 ? 20 : 15}<span className="text-slate-400">/ea</span></div>
+                              )}
+                            </div>
+                            {yellowBins > 0 && binPlan === 0 && (
+                              <div className="flex gap-1 mt-2 ml-6">
+                                {[
+                                  { val: 0, label: 'One-off' },
+                                  { val: 1, label: 'Fortnightly' },
+                                ].map((opt) => (
+                                  <button key={opt.val} type="button" className={cls('px-2 py-0.5 rounded-full border text-[10px] transition-colors', yellowBinFreq === opt.val ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')} onClick={(e) => { e.stopPropagation(); setYellowBinFreq(opt.val); }} aria-label={`${opt.label} frequency for yellow bins`}>{opt.label}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Green — Garden */}
+                          <div className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-medium text-slate-800">Garden waste</div>
+                                <div className="text-[10px] text-slate-500">Green lid</div>
+                              </div>
+                              <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5">
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Decrease green bins" onClick={(e) => { e.stopPropagation(); setGreenBins(greenBins - 1); }}>–</button>
+                                <span className="min-w-[18px] text-center font-semibold text-[12px]">{greenBins}</span>
+                                <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Increase green bins" onClick={(e) => { e.stopPropagation(); setGreenBins(greenBins + 1); }}>+</button>
+                              </div>
+                              {binPlan === 0 && greenBins > 0 && (
+                                <div className="text-[10px] text-slate-500 tabular-nums w-10 text-right">${greenBinFreq === 0 ? 22 : 17}<span className="text-slate-400">/ea</span></div>
+                              )}
+                            </div>
+                            {greenBins > 0 && binPlan === 0 && (
+                              <div className="flex gap-1 mt-2 ml-6">
+                                {[
+                                  { val: 0, label: 'One-off' },
+                                  { val: 1, label: 'Monthly' },
+                                ].map((opt) => (
+                                  <button key={opt.val} type="button" className={cls('px-2 py-0.5 rounded-full border text-[10px] transition-colors', greenBinFreq === opt.val ? 'bg-green-600 text-white border-green-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')} onClick={(e) => { e.stopPropagation(); setGreenBinFreq(opt.val); }} aria-label={`${opt.label} frequency for green bins`}>{opt.label}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Kitchen — Add-on */}
+                          <div className={cls('px-3 py-2.5', totalWheelies === 0 && 'opacity-40')}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="text-[11px] font-medium text-slate-800">Kitchen caddy</div>
+                                  <span className="text-[8px] px-1 py-px rounded bg-slate-200 text-slate-500 uppercase tracking-wide">Add-on</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500">{totalWheelies === 0 ? 'Add a wheelie bin first' : '$7.50/ea — cleaned same visit'}</div>
+                              </div>
+                              {totalWheelies > 0 && (
+                                <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5">
+                                  <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Decrease kitchen bins" onClick={(e) => { e.stopPropagation(); setKitchenBins(kitchenBins - 1); }}>–</button>
+                                  <span className="min-w-[18px] text-center font-semibold text-[12px]">{kitchenBins}</span>
+                                  <button type="button" className="w-5 h-5 flex items-center justify-center rounded-full text-[11px] hover:bg-white" aria-label="Increase kitchen bins" onClick={(e) => { e.stopPropagation(); setKitchenBins(kitchenBins + 1); }}>+</button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      )}
+
+                        {/* Bin count note for plans */}
+                        {binPlan > 0 && totalWheelies > 0 && (
+                          <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500">
+                            {totalWheelies} of {binPlan === 1 ? 5 : 3} included bins used{totalWheelies > (binPlan === 1 ? 5 : 3) ? ` — ${totalWheelies - (binPlan === 1 ? 5 : 3)} extra at $6/ea` : ''}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Info footer */}
                       <div className="text-[10px] text-slate-500 leading-relaxed">
-                        <span className="font-medium">Fair pricing:</span> We charge flat rates per bin with no hidden fees. Subscriptions lock in lower rates and guarantee your spot on our schedule.
+                        Flat rates per bin, no hidden fees. Subscriptions lock in lower rates and guarantee your spot.
+                        {(totalWheelies > 0 || validKitchenBins > 0) && (
+                          <span className="text-slate-400"> Price updates in the bar below.</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -8461,7 +3785,7 @@ const COMM_PRESETS: Record<
                           <div className="mt-4">
                             <FloorPlanBuilder
                               key={`fp-${floorPlanResetKey}`}
-                              onChange={({ items, layout, metrics: _metrics }) => {
+                              onChange={({ items, layout }) => {
                                 set('floorPlanLayout', serializeLayout(items));
                                 const pricing = computeFloorPricing(layout);
                                 set('floorPlanEstimate', pricing);
@@ -8762,7 +4086,7 @@ const COMM_PRESETS: Record<
                     Request your booking
                   </h3>
                   <p className="text-sm text-slate-600 mt-1">
-                    We'll confirm times and any changes before work proceeds.
+                    We&apos;ll confirm times and any changes before work proceeds.
                   </p>
                 </div>
                 <span
