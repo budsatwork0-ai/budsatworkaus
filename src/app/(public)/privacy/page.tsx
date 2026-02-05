@@ -1,5 +1,15 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { brand } from '../../ui/theme';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description: 'Buds at Work privacy policy: how we collect, use, and protect your personal information when you use our home and property services.',
+  openGraph: {
+    title: 'Privacy Policy | Buds at Work',
+    description: 'Learn how Buds at Work keeps your details safe and never sells them to third parties.',
+  },
+};
 
 const infoPoints = [
   'Contact details (name, email, phone, address) when you request a quote or schedule a visit.',

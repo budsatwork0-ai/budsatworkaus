@@ -1,5 +1,15 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { brand } from '../../ui/theme';
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description: 'Buds at Work terms of service: bookings, quotes, payments, cancellations, and service expectations for home and property services.',
+  openGraph: {
+    title: 'Terms of Service | Buds at Work',
+    description: 'Terms and conditions for Buds at Work services including bookings, payments, and cancellations.',
+  },
+};
 
 const termsSections = [
   {

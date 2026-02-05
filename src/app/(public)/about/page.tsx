@@ -1,6 +1,16 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { brand, cx, glass, glassSoft } from '../../ui/theme';
 import { getSiteSettings } from '@/lib/site-settings';
+
+export const metadata: Metadata = {
+  title: 'About Us',
+  description: 'Meet the Buds at Work team — local mates from Logan delivering reliable home cleaning, window cleaning, yard care, dump runs, and car detailing services.',
+  openGraph: {
+    title: 'About Buds at Work | Your Local Service Team',
+    description: 'A small team from Logan building a simple promise: show up on time, do the job properly, and treat people like neighbours.',
+  },
+};
 
 const iconProps = {
   viewBox: '0 0 24 24',

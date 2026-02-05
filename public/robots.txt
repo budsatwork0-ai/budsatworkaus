@@ -1,0 +1,11 @@
+# Buds at Work - robots.txt
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://budsatwork.com/sitemap.xml
+
+# Disallow admin/app routes
+Disallow: /dashboard
+Disallow: /account
+Disallow: /cart

@@ -1,4 +1,15 @@
+import type { Metadata } from 'next';
 import { brand } from '../../ui/theme';
+
+export const metadata: Metadata = {
+  title: 'Shop',
+  description: 'Shop cleaning supplies, gift cards, and service bundles from Buds at Work. Coming soon to Logan & South Brisbane.',
+  openGraph: {
+    title: 'Shop | Buds at Work',
+    description: 'Shop cleaning supplies, gift cards, and service bundles. Coming soon.',
+  },
+};
+
 export default function ShopPage() {
   return (
     <main className="relative overflow-hidden">
