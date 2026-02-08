@@ -33,7 +33,7 @@ export const defaultParamsByService = () => ({
   yard: fromDefs(PARAMS_FULL.yard),
   dump: fromDefs(PARAMS_FULL.dump),
   auto: fromDefs(PARAMS_FULL.auto),
-  sneakers: {}, // sneakers use tiers only
+  laundry_sneakers: {}, // laundry & sneakers use tiers only
 });
 
 /* =========================

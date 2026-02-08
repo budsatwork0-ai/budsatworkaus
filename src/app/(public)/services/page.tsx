@@ -91,6 +91,7 @@ import {
   getYardMeasurementConfig,
   COMM_PARAM_DEFS,
   COMM_LABELS,
+  TURNSTILE_SITE_KEY,
 } from './lib/service-data';
 import {
   defaultParamsByService,
@@ -470,8 +471,8 @@ function ServicesPageContent() {
             ? 'yard_mow'
             : svc === 'auto'
             ? 'auto_express'
-            : svc === 'sneakers'
-            ? 'sneaker_full'
+            : svc === 'laundry_sneakers'
+            ? 'laundry'
             : 'general',
       },
     });
@@ -530,7 +531,7 @@ function ServicesPageContent() {
     const serviceParam = searchParams?.get('service');
     if (!serviceParam) return;
 
-    const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'sneakers'];
+    const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'];
     if (validServices.includes(serviceParam as ServiceType)) {
       setUrlServiceHandled(true);
       // Clear URL parameter to prevent re-triggering
@@ -593,12 +594,19 @@ function ServicesPageContent() {
             ...(S.paramsByService[S.service] || {}),
             yard_area: S.yardArea ?? (S.paramsByService[S.service] as any)?.yard_area,
           }
+        : S.service === 'laundry_sneakers'
+        ? {
+            ...(S.paramsByService[S.service] || {}),
+            laundryTier: S.laundryTier,
+            laundryLoads: S.laundryLoads,
+            sneakerTier: S.sneakerTier,
+          }
         : S.paramsByService[S.service] || {};
 
     return selectedFromParams(
       S.service,
       S.scope,
-      mergedCleaning,
+      mergedCleaning as any,
       { secondStorey: S.secondStorey },
       undefined,
       S.context
@@ -610,6 +618,9 @@ function ServicesPageContent() {
     S.cleaningAddons,
     S.secondStorey,
     S.yardArea,
+    S.laundryTier,
+    S.laundryLoads,
+    S.sneakerTier,
     winTotals,
     winTotalsSession,
     S.context,
@@ -857,6 +868,9 @@ function ServicesPageContent() {
       autoSizeCategory,
       autoYear,
       S.sneakerTurnaround,
+      S.laundryTier,
+      S.laundryLoads,
+      S.sneakerTier,
     ]
   );
 
@@ -937,7 +951,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 ]);
 
   const effectivePrice = routePriceOverride ?? scopedPricing.price;
-  const isSneakerLot = S.service === 'sneakers' && S.scope === 'sneaker_lot';
+  const isSneakerLot = S.service === 'laundry_sneakers' && (S.scope === 'sneaker_lot' || (S.scope === 'sneaker_care' && S.sneakerTier === 'multi'));
   const priceLabel = useMemo(() => {
     if (isSneakerLot) {
       const perPairPrice = Math.round(effectivePrice / 4);
@@ -1115,7 +1129,7 @@ function winSessionMinutes(S: WizardState) {
           yard: ['yard_mow', 'yard_leaves'],
           auto: ['auto_express'],
           dump: ['dump_runs'],
-          sneakers: ['sneaker_full'],
+          laundry_sneakers: ['laundry'],
         };
 
 
@@ -1401,9 +1415,13 @@ const COMM_PRESETS: Record<
           const isDeliveryCard = S.service === 'dump' && sc.key === 'dump_delivery';
           const isTransportCard = S.service === 'dump' && sc.key === 'dump_transport';
           const isRouteCard = isDeliveryCard || isTransportCard;
-          const isSneakerRefresh = S.service === 'sneakers' && sc.key === 'sneaker_basic';
-          const isSneakerDeep = S.service === 'sneakers' && sc.key === 'sneaker_full';
-          const isSneakerMulti = S.service === 'sneakers' && sc.key === 'sneaker_lot';
+          // Laundry & Sneaker Care card detection
+          const isLaundryCard = S.service === 'laundry_sneakers' && sc.key === 'laundry';
+          const isSneakerCareCard = S.service === 'laundry_sneakers' && sc.key === 'sneaker_care';
+          // Legacy sneaker card detection (for backward compatibility)
+          const isSneakerRefresh = S.service === 'laundry_sneakers' && (sc.key === 'sneaker_basic' || (sc.key === 'sneaker_care' && S.sneakerTier === 'refresh'));
+          const isSneakerDeep = S.service === 'laundry_sneakers' && (sc.key === 'sneaker_full' || (sc.key === 'sneaker_care' && S.sneakerTier === 'deep'));
+          const isSneakerMulti = S.service === 'laundry_sneakers' && (sc.key === 'sneaker_lot' || (sc.key === 'sneaker_care' && S.sneakerTier === 'multi'));
           const cleaningSizePresets = {
             studio: { bedrooms: 1, bathrooms: 1, kitchens: 1, living: 0, laundry: 0, storeys: 1 },
             small: { bedrooms: 2, bathrooms: 1, kitchens: 1, living: 1, laundry: 0, storeys: 1 },
@@ -1730,7 +1748,7 @@ const COMM_PRESETS: Record<
             const text = trimmed.replace(/^—\s*|\s*—$/g, '').trim();
             return { isHeader, text: text || inc };
           };
-          const inclusionMinClass = ['windows', 'yard', 'dump', 'sneakers'].includes(
+          const inclusionMinClass = ['windows', 'yard', 'dump', 'laundry_sneakers'].includes(
             S.service as any
           )
             ? 'min-h-[52px]'
@@ -2539,7 +2557,126 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {S.service === 'sneakers' && isActive && isConfigOpen && (
+                {/* Laundry Card - Tier Selector & Load Counter */}
+                {S.service === 'laundry_sneakers' && isLaundryCard && isActive && isConfigOpen && (
+                  <div
+                    data-card-interactive="true"
+                    className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-3"
+                    onClick={stopCardBubble}
+                    onMouseDown={stopCardBubble}
+                    onPointerDown={stopCardBubble}
+                    onTouchStart={stopCardBubble}
+                  >
+                    <div className="text-sm font-semibold text-slate-900">Service type</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { key: 'wash_fold', label: 'Wash & Fold', price: 30 },
+                        { key: 'wash_iron', label: 'Wash & Iron', price: 45 },
+                      ].map((tier) => (
+                        <button
+                          key={tier.key}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            set('laundryTier', tier.key as any);
+                          }}
+                          className={cls(
+                            'rounded-full border px-3 py-1.5 text-sm flex items-center gap-2',
+                            S.laundryTier === tier.key
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white border-black/10 hover:border-emerald-300'
+                          )}
+                        >
+                          <span>{tier.label}</span>
+                          <span className={cls('text-xs', S.laundryTier === tier.key ? 'text-emerald-100' : 'text-slate-500')}>
+                            ${tier.price}/load
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-700">How many loads? <span className="text-xs text-slate-500">(~5kg each)</span></span>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1">
+                        <button
+                          type="button"
+                          className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            set('laundryLoads', Math.max(1, (S.laundryLoads || 1) - 1));
+                          }}
+                          aria-label="Decrease loads"
+                        >
+                          –
+                        </button>
+                        <span className="min-w-[24px] text-center font-semibold">{S.laundryLoads || 1}</span>
+                        <button
+                          type="button"
+                          className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            set('laundryLoads', Math.min(20, (S.laundryLoads || 1) + 1));
+                          }}
+                          aria-label="Increase loads"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-600 space-y-0.5">
+                      <div>✓ Pickup & delivery included</div>
+                      <div>✓ 24-48hr turnaround</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sneaker Care Card - Tier Selector */}
+                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && isConfigOpen && (
+                  <div
+                    data-card-interactive="true"
+                    className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-2"
+                    onClick={stopCardBubble}
+                    onMouseDown={stopCardBubble}
+                    onPointerDown={stopCardBubble}
+                    onTouchStart={stopCardBubble}
+                  >
+                    <div className="text-sm font-semibold text-slate-900">Care level</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { key: 'refresh', label: 'Refresh Clean', price: '$40' },
+                        { key: 'deep', label: 'Deep Restore', price: '$40' },
+                        { key: 'multi', label: 'Multi-Pair', price: '~$30/pair' },
+                      ].map((tier) => (
+                        <button
+                          key={tier.key}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            set('sneakerTier', tier.key as any);
+                          }}
+                          className={cls(
+                            'rounded-full border px-3 py-1.5 text-sm flex items-center gap-2',
+                            S.sneakerTier === tier.key
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white border-black/10 hover:border-emerald-300'
+                          )}
+                        >
+                          <span>{tier.label}</span>
+                          <span className={cls('text-xs', S.sneakerTier === tier.key ? 'text-emerald-100' : 'text-slate-500')}>
+                            {tier.price}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[11px] text-slate-600">
+                      {S.sneakerTier === 'refresh' && 'Quick cosmetic refresh for lightly worn pairs.'}
+                      {S.sneakerTier === 'deep' && 'Full restoration for noticeably dirty or worn pairs.'}
+                      {S.sneakerTier === 'multi' && 'Batch-friendly pricing for 3+ pairs.'}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sneaker Care Card - Turnaround Selector */}
+                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && isConfigOpen && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-2"
@@ -3372,7 +3509,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'sneakers' && isSneakerRefresh && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerRefresh && isConfigOpen && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -3448,7 +3585,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'sneakers' && isSneakerDeep && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerDeep && isConfigOpen && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -3526,7 +3663,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'sneakers' && isSneakerMulti && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerMulti && isConfigOpen && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -4557,14 +4694,23 @@ const COMM_PRESETS: Record<
                 {/* CAPTCHA verification */}
                 <div className="mt-4">
                   <div className="text-xs text-slate-600 mb-2">Verify you&apos;re human</div>
-                  <Turnstile
-                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                    onVerify={(token) => setCaptchaToken(token)}
-                    onExpire={() => setCaptchaToken(null)}
-                    onError={() => setCaptchaToken(null)}
-                    theme="light"
-                  />
-                  {!captchaToken && (
+                  {TURNSTILE_SITE_KEY ? (
+                    <Turnstile
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onVerify={(token) => setCaptchaToken(token)}
+                      onExpire={() => setCaptchaToken(null)}
+                      onError={() => setCaptchaToken(null)}
+                      theme="light"
+                    />
+                  ) : (
+                    <div
+                      role="status"
+                      className="text-[11px] text-amber-600 mt-1"
+                    >
+                      Turnstile site key missing. Set <code>NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> so the CAPTCHA can render.
+                    </div>
+                  )}
+                  {!captchaToken && TURNSTILE_SITE_KEY && (
                     <div className="text-[11px] text-amber-600 mt-1">
                       Please complete the verification above to submit your quote.
                     </div>

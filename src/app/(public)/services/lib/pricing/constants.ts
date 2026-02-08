@@ -33,6 +33,9 @@ export const WINDOW_PRICES: Record<'home' | 'commercial', WindowContextPrice> = 
 // Price overrides
 export const PRICE_OVERRIDE: Record<string, number> = {
   'dump.bin': 20,
+  // Laundry pricing (per load ~5kg, pickup & delivery included)
+  'laundry.fold': 30,  // Wash & Fold $30/load
+  'laundry.iron': 45,  // Wash & Iron $45/load
   // Sneaker care pricing (turnaround surcharges: Express +$5/pair, Priority +$10/pair)
   // Refresh Clean / Deep Restore: $40/pair (Standard), $45 (Express), $50 (Priority)
   // Multi-Pair Care: $30/pair (Standard), $35 (Express), $40 (Priority) × ~4 pairs per lot
@@ -93,8 +96,8 @@ export const SERVICE_REGIONS = [
 
 // Allowed services by context
 export const ALLOWED_SERVICES_BY_CONTEXT: Record<Context, ServiceType[]> = {
-  home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'sneakers'],
-  commercial: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'sneakers'],
+  home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
+  commercial: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
 };
 
 // Default selections

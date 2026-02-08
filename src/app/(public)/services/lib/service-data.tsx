@@ -18,7 +18,7 @@ export const SERVICES = [
   { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · hedge · tidy' },
   { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · delivery' },
   { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express → full' },
-  { key: 'sneakers', label: 'Sneaker Care',         icon: <ShoeIcon />,   subtitle: 'Basic · full · the lot' },
+  { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · fold · sneakers' },
 ] as const;
 
 /* =========================
@@ -32,6 +32,8 @@ export const PRICE_SCOPE_DISCLAIMER =
 
 export const FAIRNESS_PROMISE_COPY =
   'Found a cheaper local quote for the same scope? Let us know and we\'ll do our best to match or improve it.';
+
+export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 // Local storage key for persisting wizard state; bump if shape changes.
 export const STORAGE_KEY = 'budsatwork.quote.v1';
@@ -302,10 +304,12 @@ export const TASKS: Task[] = [
   { code: 'auto.interior', service: 'auto', name: 'Interior Reset Detail', unit: 'vehicle', minutes: 120, p10: 170, median: 170, p90: 170 },
   { code: 'auto.full', service: 'auto', name: 'Signature Full Detail', unit: 'vehicle', minutes: 240, p10: 290, median: 290, p90: 290 },
 
-  // ===== SNEAKER CARE =====
-  { code: 'sneaker.basic', service: 'sneakers', name: 'Refresh Clean (per pair)', unit: 'pair', minutes: 0 },
-  { code: 'sneaker.full', service: 'sneakers', name: 'Deep Restore (per pair)', unit: 'pair', minutes: 0 },
-  { code: 'sneaker.lot', service: 'sneakers', name: 'Multi-Pair Care (3–5 pairs)', unit: 'lot', minutes: 0 },
+  // ===== LAUNDRY & SNEAKER CARE =====
+  { code: 'laundry.fold', service: 'laundry_sneakers', name: 'Wash & Fold (per load)', unit: 'load', minutes: 0 },
+  { code: 'laundry.iron', service: 'laundry_sneakers', name: 'Wash & Iron (per load)', unit: 'load', minutes: 0 },
+  { code: 'sneaker.basic', service: 'laundry_sneakers', name: 'Refresh Clean (per pair)', unit: 'pair', minutes: 0 },
+  { code: 'sneaker.full', service: 'laundry_sneakers', name: 'Deep Restore (per pair)', unit: 'pair', minutes: 0 },
+  { code: 'sneaker.lot', service: 'laundry_sneakers', name: 'Multi-Pair Care (3–5 pairs)', unit: 'lot', minutes: 0 },
 ];
 
 export const TASK_MAP = new Map(TASKS.map((t) => [t.code, t]));
@@ -371,10 +375,19 @@ export const SCOPES_BY_SERVICE: Record<ServiceType, ScopeDef[]> = {
       desc: 'Full inside/out transformation with clay bar and hand polish.',
     },
   ],
-  sneakers: [
-    { key: 'sneaker_basic', label: 'Refresh Clean', inclusions: ['Exterior clean', 'Midsole/outsole scrub', 'Lace clean', 'Odour neutralise'], desc: 'Routine uplift for lightly worn pairs; cosmetic refresh only.' },
-    { key: 'sneaker_full', label: 'Deep Restore', inclusions: ['Full hand clean', 'Material-safe treatment', 'Insole & lace wash', 'Protective finish'], desc: 'Revival for noticeably dirty or heavily worn pairs.' },
-    { key: 'sneaker_lot', label: 'Multi-Pair Care', inclusions: ['Batch-friendly', 'Mixed care levels allowed', 'Tiered per-pair pricing'], desc: 'For households, collections, or teams; consolidated turnaround.' },
+  laundry_sneakers: [
+    {
+      key: 'laundry',
+      label: 'Laundry',
+      inclusions: ['Wash, dry & fold', 'Wash & iron available', 'Pickup & delivery included', '24-48hr turnaround'],
+      desc: 'Fresh laundry returned clean and ready to wear.',
+    },
+    {
+      key: 'sneaker_care',
+      label: 'Sneaker Care',
+      inclusions: ['Refresh Clean ($40)', 'Deep Restore ($40)', 'Multi-Pair Care (~$30/pair)'],
+      desc: 'Professional sneaker cleaning with turnaround options.',
+    },
   ],
 };
 
@@ -444,7 +457,7 @@ export const PARAMS_FULL: ParamTable = {
     { key: 'rows', label: 'Seats / rows', min: 0, max: 3, defaultValue: 0 },
     { key: 'child_seats', label: 'Child seats', min: 0, max: 3, defaultValue: 0 },
   ],
-  sneakers: [],
+  laundry_sneakers: [],
 };
 
 // Per-niche ParamDef sets for commercial cleaning

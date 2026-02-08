@@ -330,6 +330,16 @@ export function estimateForScope(
     params = { ...params, yard_area: S.yardArea ?? (params as any).yard_area };
   }
 
+  // Add laundry/sneaker tier values for laundry_sneakers service
+  if (service === 'laundry_sneakers') {
+    params = {
+      ...params,
+      laundryTier: S.laundryTier,
+      laundryLoads: S.laundryLoads,
+      sneakerTier: S.sneakerTier,
+    };
+  }
+
   const mergedParams =
     service === 'cleaning'
       ? { ...params, ...(S.cleaningAddons[scopeKey] || {}) }
@@ -445,7 +455,7 @@ export function computeScopeMinutes(S: WizardState, service: ServiceType, scopeK
   if (service === 'windows') {
     return computeWindowsMinutes(scopeKey, S.winRows, S.context, S.paramsByService.windows);
   }
-  if (service === 'sneakers') return 0;
+  if (service === 'laundry_sneakers') return 0;
 
   // Cleaning – commercial
   if (service === 'cleaning' && S.context === 'commercial') {

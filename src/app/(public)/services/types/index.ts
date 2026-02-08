@@ -1,7 +1,11 @@
 // Core service types
 export type Context = 'home' | 'commercial';
-export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'sneakers';
+export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'laundry_sneakers';
 export type ScopeKey = string;
+
+// Laundry & Sneaker Care types
+export type LaundryTier = 'wash_fold' | 'wash_iron';
+export type SneakerTier = 'refresh' | 'deep' | 'multi';
 
 // Frequency and selections
 export type CommFrequency = 'none' | 'daily' | '3x_weekly' | 'weekly' | 'fortnightly';
@@ -281,6 +285,10 @@ export type WizardState = {
   carDetectedSizeCategory: string | null; // VehicleSizeCategory
   carDetectedYear: number | null;
   sneakerTurnaround: SneakerTurnaround;
+  // Laundry & Sneaker Care
+  laundryTier: LaundryTier;
+  laundryLoads: number;
+  sneakerTier: SneakerTier;
 };
 
 export type CleaningWizardChecklistState = {

@@ -34,7 +34,7 @@ const serviceTypeOptions: Array<ServiceType | 'all'> = [
   'yard',
   'dump',
   'auto',
-  'sneakers',
+  'laundry_sneakers',
 ];
 
 const frequencyOptions: Array<SubscriptionFrequency | 'all'> = [

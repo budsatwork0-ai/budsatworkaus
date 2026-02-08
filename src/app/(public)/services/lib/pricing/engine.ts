@@ -20,6 +20,8 @@ import type {
   SneakerTurnaround,
   SneakerTurnaroundMeta,
   CommFrequency,
+  LaundryTier,
+  SneakerTier,
 } from '../../types';
 
 import { toNumber, clamp, fmtAUD, roundTo, roundToHalfHour, roundTo5 } from '../../utils/formatting';
@@ -726,7 +728,27 @@ export function selectedFromParams(
     }
   }
 
-  if (service === 'sneakers') {
+  if (service === 'laundry_sneakers') {
+    // Laundry scope
+    if (scope === 'laundry') {
+      const tier = (p as any).laundryTier || 'wash_fold';
+      const loads = Math.max(1, (p as any).laundryLoads || 1);
+      if (tier === 'wash_iron') {
+        sel['laundry.iron'] = loads;
+      } else {
+        sel['laundry.fold'] = loads;
+      }
+      return sel;
+    }
+    // Sneaker care scope (unified card with tier selector)
+    if (scope === 'sneaker_care') {
+      const tier: SneakerTier = (p as any).sneakerTier || 'deep';
+      if (tier === 'refresh') sel['sneaker.basic'] = 1;
+      else if (tier === 'multi') sel['sneaker.lot'] = 1;
+      else sel['sneaker.full'] = 1; // default to deep
+      return sel;
+    }
+    // Legacy scope support (backward compatibility)
     if (scope === 'sneaker_basic') sel['sneaker.basic'] = 1;
     if (scope === 'sneaker_full') sel['sneaker.full'] = 1;
     if (scope === 'sneaker_lot') sel['sneaker.lot'] = 1;
@@ -830,6 +852,24 @@ export function sneakerSurchargePerTask(code: string, speed: SneakerTurnaround):
 export function sneakerTurnaroundMultiplier(speed: SneakerTurnaround) {
   const found = SNEAKER_TURNAROUND.find((t) => t.key === speed);
   return found ? found.multiplier : 1;
+}
+
+/* ===== Laundry pricing ===== */
+
+export function laundryPriceForTier(tier: LaundryTier, loads: number): number {
+  const pricePerLoad = tier === 'wash_iron' ? PRICE_OVERRIDE['laundry.iron'] : PRICE_OVERRIDE['laundry.fold'];
+  return (pricePerLoad || 30) * Math.max(1, loads);
+}
+
+export function sneakerPriceForTier(tier: SneakerTier, turnaround: SneakerTurnaround, multiPairs?: number): number {
+  const meta = sneakerTurnaroundMeta(turnaround);
+  if (tier === 'multi') {
+    const pairs = multiPairs ?? 4;
+    const basePer = PRICE_OVERRIDE['sneaker.lot'] / 4; // ~$30/pair
+    return (basePer + meta.surcharge) * pairs;
+  }
+  const base = tier === 'refresh' ? PRICE_OVERRIDE['sneaker.basic'] : PRICE_OVERRIDE['sneaker.full'];
+  return (base || 40) + meta.surcharge;
 }
 
 /* ===== Dump disposal ===== */
@@ -944,7 +984,7 @@ export function priceQuote(params: QuoteParams) {
     };
   }
 
-  const SETUP_OVERHEAD = currentService === 'sneakers' ? 0 : 15;
+  const SETUP_OVERHEAD = currentService === 'laundry_sneakers' ? 0 : 15;
   const WINDOW_DISCOUNT_1 = { qty: 40, mult: 0.95 };
   const WINDOW_DISCOUNT_2 = { qty: 80, mult: 0.92 };
 
@@ -1044,7 +1084,8 @@ export function priceQuote(params: QuoteParams) {
     }
 
     let pricePer = clampUnitPrice(task, context, { autoCategory, autoSizeCategory, autoYear });
-    if (task.service === 'sneakers') {
+    // Add sneaker turnaround surcharge for sneaker tasks
+    if (task.service === 'laundry_sneakers' && code.startsWith('sneaker.')) {
       const surcharge = sneakerSurchargePerTask(code, params.sneakerTurnaround ?? 'standard');
       pricePer += surcharge;
     }
@@ -1101,8 +1142,8 @@ export function priceQuote(params: QuoteParams) {
     base = yard.cost;
     unitSum = 0;
     windowUnitSum = 0;
-  } else if (currentService === 'sneakers') {
-    // Sneakers: outcome-based; no labour/time billing. Use unitSum only.
+  } else if (currentService === 'laundry_sneakers') {
+    // Laundry & Sneakers: outcome-based; no labour/time billing. Use unitSum only.
     minutes = 0;
     billable = 0;
     labourFloor = 0;

@@ -1,6 +1,6 @@
 // Order Types for Buds at Work
 
-export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'sneakers';
+export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'laundry_sneakers';
 export type Context = 'home' | 'commercial';
 export type Frequency = 'none' | 'daily' | '3x_weekly' | 'weekly' | 'fortnightly' | 'monthly';
 
@@ -98,7 +98,7 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   yard: 'Yard',
   dump: 'Dump',
   auto: 'Auto',
-  sneakers: 'Sneakers',
+  laundry_sneakers: 'Laundry & Sneaker Care',
 };
 
 export const FREQUENCY_LABELS: Record<Frequency, string> = {

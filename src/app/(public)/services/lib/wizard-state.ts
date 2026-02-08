@@ -84,6 +84,10 @@ export function getInitialState(): WizardState {
     carDetectedSizeCategory: null,
     carDetectedYear: null,
     sneakerTurnaround: 'standard',
+    // Laundry & Sneaker Care
+    laundryTier: 'wash_fold',
+    laundryLoads: 1,
+    sneakerTier: 'deep',
   };
 }
 
@@ -100,6 +104,32 @@ export function wizardReducer(state: WizardState, action: Action): WizardState {
   }
 }
 
+// Migrate old localStorage data to new schema
+function migrateState(stored: any): any {
+  if (!stored) return stored;
+
+  // Migrate 'sneakers' service to 'laundry_sneakers'
+  if (stored.service === 'sneakers') {
+    stored.service = 'laundry_sneakers';
+    // Map old sneaker scopes to new unified scope
+    if (stored.scope === 'sneaker_basic' || stored.scope === 'sneaker_full' || stored.scope === 'sneaker_lot') {
+      stored.scope = 'sneaker_care';
+      // Set sneakerTier based on old scope
+      if (stored.scope === 'sneaker_basic') stored.sneakerTier = 'refresh';
+      else if (stored.scope === 'sneaker_lot') stored.sneakerTier = 'multi';
+      else stored.sneakerTier = 'deep';
+    }
+  }
+
+  // Migrate paramsByService if it has old 'sneakers' key
+  if (stored.paramsByService?.sneakers) {
+    stored.paramsByService.laundry_sneakers = stored.paramsByService.sneakers;
+    delete stored.paramsByService.sneakers;
+  }
+
+  return stored;
+}
+
 export function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T, any>, init: () => T) {
   const [state, dispatch] = React.useReducer(reducer, undefined as any, init);
   useEffect(() => {
@@ -111,7 +141,11 @@ export function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T,
     }
     try {
       const raw = localStorage.getItem(key);
-      if (raw) dispatch({ type: 'merge', value: JSON.parse(raw) });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const migrated = migrateState(parsed);
+        dispatch({ type: 'merge', value: migrated });
+      }
     } catch {}
   }, [key]);
   const first = useRef(true);

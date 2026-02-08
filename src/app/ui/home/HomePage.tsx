@@ -123,7 +123,7 @@ const services = [
   { key: 'yard', title: 'Yard & garden', icon: <LeafIcon />, href: '/services?service=yard' },
   { key: 'dump', title: 'Dump runs', icon: <TruckIcon />, href: '/services?service=dump' },
   { key: 'auto', title: 'Car detailing', icon: <CarIcon />, href: '/services?service=auto' },
-  { key: 'sneakers', title: 'Sneaker care', icon: <ShoeIcon />, href: '/services?service=sneakers' },
+  { key: 'laundry_sneakers', title: 'Laundry & Sneaker Care', icon: <ShoeIcon />, href: '/services?service=laundry_sneakers' },
 ];
 
 const tools = [
