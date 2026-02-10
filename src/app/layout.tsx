@@ -3,6 +3,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Footer } from "@/components/Footer";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -62,12 +63,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+
   return (
     <html lang="en">
       <head>
         <LocalBusinessSchema />
         <WebsiteSchema />
       </head>
+      {gaId && <GoogleAnalytics gaId={gaId} />}
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
         {publishableKey ? (
           <ClerkProvider publishableKey={publishableKey}>

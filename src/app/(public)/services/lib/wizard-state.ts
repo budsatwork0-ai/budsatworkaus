@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import React, { useEffect, useRef } from 'react';
 import type { WizardState, Action } from '../types';
 import { defaultParamsByService, createYardJob } from './service-helpers';

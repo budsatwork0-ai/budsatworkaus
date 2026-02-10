@@ -1,10 +1,9 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
-  ServiceType, ScopeKey, Context, ParamDef,
+  ServiceType, ScopeKey, Context,
   CommercialCleaningType, CleaningWizardChecklistState,
   WizardState, YardJob,
 } from '../types';
+import type { ParamDef } from '../types';
 import { clamp, toSafeInt } from '../utils/formatting';
 import { WIN_RULES } from './pricing/constants';
 import { PARAMS_FULL, COMM_PARAM_DEFS } from './service-data';
@@ -52,7 +51,7 @@ export function computeWindowsMinutes(
   scope: ScopeKey,
   rows: WizardState['winRows'],
   context: Context,
-  paramsWindows?: Record<string, unknown>
+  _paramsWindows?: Record<string, unknown>
 ): number {
   const { isIntOnly, isExtOnly, isTracksOnly, isFull } = getScopeFlags(scope);
   const seg = {

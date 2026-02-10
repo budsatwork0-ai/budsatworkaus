@@ -1,20 +1,12 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { toast } from 'sonner';
 import type {
-  Context,
   ServiceType,
   ScopeKey,
-  NumericParams,
   Selected,
   QuoteParams,
   WizardState,
-  CommercialCleaningType,
-  CleanScopeKindV2,
   ScopeDef,
   StoreyRow,
-  DumpRunSelection,
   DeliverySelection,
   TransportSelection,
   TravelBand,
@@ -22,7 +14,6 @@ import type {
 } from '../types';
 import { clamp, fmtAUD, fmtHrMin } from '../utils/formatting';
 import {
-  POLICY,
   DEFAULT_DUMP_RUN,
   DEFAULT_DUMP_DELIVERY,
   DEFAULT_DUMP_TRANSPORT,
@@ -31,13 +22,11 @@ import {
 } from './pricing/constants';
 import {
   COMM_CLEAN_MIN_HOURS,
-  CLEANING_HOME_MIN_HOURS_V2,
   computeHomeExtras,
   computeCleaningAddons,
   computeYardQuote,
   selectedFromParams,
   priceQuote,
-  hourlyRate,
 } from './pricing/engine';
 import {
   SERVICES,
@@ -332,12 +321,9 @@ export function estimateForScope(
 
   // Add laundry/sneaker tier values for laundry_sneakers service
   if (service === 'laundry_sneakers') {
-    params = {
-      ...params,
-      laundryTier: S.laundryTier,
-      laundryLoads: S.laundryLoads,
-      sneakerTier: S.sneakerTier,
-    };
+    (params as Record<string, unknown>).laundryTier = S.laundryTier;
+    (params as Record<string, unknown>).laundryLoads = S.laundryLoads;
+    (params as Record<string, unknown>).sneakerTier = S.sneakerTier;
   }
 
   const mergedParams =

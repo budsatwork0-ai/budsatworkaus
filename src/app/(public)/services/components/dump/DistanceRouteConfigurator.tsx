@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import React from 'react';
 import type { WizardState, RouteLocation, RouteLookupResult } from '../../types';
 import { cls, fmtAUD } from '../../utils/formatting';
@@ -22,7 +19,7 @@ type DistanceConfiguratorProps = {
 export const DistanceRouteConfigurator = React.memo(function DistanceRouteConfigurator({
   S,
   set,
-  routeLookup,
+  routeLookup: _routeLookup,
   routeLookupLoading,
   routeLookupMessage,
   routeDistanceLabel,
@@ -43,7 +40,7 @@ export const DistanceRouteConfigurator = React.memo(function DistanceRouteConfig
     pickup: S.dumpRoutePickupQuery,
     dropoff: S.dumpRouteDropoffQuery,
   });
-  const focusChangeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusChangeTimerRef = React.useRef<number | null>(null);
 
   const triggerFocusChange = React.useCallback(
     (focused: boolean, delay = 0) => {

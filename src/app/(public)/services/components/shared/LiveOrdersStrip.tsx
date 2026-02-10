@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import React from 'react';
 import { cls } from '../../utils/formatting';
 import { ACCENT } from '../../lib/pricing/constants';

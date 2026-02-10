@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import type {
   Context,
   ServiceType,
@@ -19,7 +16,6 @@ import type {
   DumpRunSelection,
   SneakerTurnaround,
   SneakerTurnaroundMeta,
-  CommFrequency,
   LaundryTier,
   SneakerTier,
 } from '../../types';
@@ -141,7 +137,7 @@ export const COMM_PRESET_PRICING: Record<
   },
 };
 
-export function cleaningCommercialMinutes(kind: CommercialCleaningType, p: any): number {
+export function cleaningCommercialMinutes(_kind: CommercialCleaningType, _p: unknown): number {
   // Fixed 4-hour baseline for all commercial cleaning niches
   return 240;
 }
@@ -689,7 +685,7 @@ export function selectedFromParams(
   if (service === 'dump') {
     const items = p.items || 0;
     const stops = p.stops || 0;
-    const bins = p.bins || 0;
+    const _bins = p.bins || 0;
     const packs = items > 0 ? Math.ceil(items / 4) : 0;
 
     if (scope === 'dump_runs' || scope === 'dump_delivery' || scope === 'dump_transport') {
@@ -947,9 +943,9 @@ export function priceQuote(params: QuoteParams) {
   autoCategory,
   autoSizeCategory,
   autoYear,
-  sneakerTurnaround = 'standard',
+  sneakerTurnaround: _sneakerTurnaround = 'standard',
   afterHours,
-  bottleCount = 0,
+  bottleCount: _bottleCount = 0,
   dumpRunSelection,
   dumpIsNonResident,
   cleaningParams,
@@ -1083,7 +1079,7 @@ export function priceQuote(params: QuoteParams) {
       minutes += perMin * qty;
     }
 
-    let pricePer = clampUnitPrice(task, context, { autoCategory, autoSizeCategory, autoYear });
+    let pricePer = clampUnitPrice(task, context, { autoCategory: autoCategory as CarType | undefined, autoSizeCategory: autoSizeCategory as VehicleSizeCategory | null | undefined, autoYear });
     // Add sneaker turnaround surcharge for sneaker tasks
     if (task.service === 'laundry_sneakers' && code.startsWith('sneaker.')) {
       const surcharge = sneakerSurchargePerTask(code, params.sneakerTurnaround ?? 'standard');

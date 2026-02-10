@@ -1,5 +1,5 @@
 import type { RouteLocation, RouteLookupResult } from '../../types';
-import { GOOGLE_MAPS_API_KEY, ROUTE_AVG_SPEED_KMH, QLD_BOUNDS } from '../pricing/constants';
+import { GOOGLE_MAPS_API_KEY, ROUTE_AVG_SPEED_KMH } from '../pricing/constants';
 
 // Math utilities
 export const roundToHalfKm = (value: number) => Math.round(value * 2) / 2;

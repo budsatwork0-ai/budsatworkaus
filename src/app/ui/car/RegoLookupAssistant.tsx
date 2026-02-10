@@ -114,7 +114,7 @@ export default function RegoLookupAssistant({
       if (inferred) {
         onSelectCategory(inferred);
       }
-    } catch (err) {
+    } catch {
       setError('Network error');
       onVehicleChange(null);
     } finally {

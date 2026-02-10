@@ -1,10 +1,8 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import type {
   ServiceType, ScopeKey, ScopeDef, ImpactLevel, MicroPreset,
   Task, CommercialCleaningType, CommMeta, CommParamDef,
-  ParamDef, ParamTable, YardMeasurementConfig, YardMeasurementMode,
+  ParamTable, YardMeasurementConfig, YardMeasurementMode,
   StoreyRow,
 } from '../types';
 import { WindowIcon, CleanIcon, LawnIcon, TruckIcon, CarIcon, ShoeIcon } from '../utils/icons';

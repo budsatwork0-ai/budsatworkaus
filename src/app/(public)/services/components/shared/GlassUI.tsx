@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import React from 'react';
 import type { CommFrequency } from '../../types';
 import { cls } from '../../utils/formatting';

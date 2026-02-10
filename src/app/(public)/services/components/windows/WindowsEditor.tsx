@@ -1,6 +1,3 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import React from 'react';
 import type { WizardState, ScopeKey } from '../../types';
 import { cls, fmtHrMin } from '../../utils/formatting';
@@ -131,30 +128,6 @@ export function WindowsEditor({
 
   const inputColumnCount = Number(showInside) + Number(showOutside) + Number(showTracks) + Number(showScreens);
   const gridTemplate = { gridTemplateColumns: `minmax(50px, 1fr) repeat(${inputColumnCount}, minmax(36px, 1fr)) 32px` } as const;
-
-  const Chip = ({
-    label,
-    pressed,
-    onClick,
-  }: {
-    label: string;
-    pressed: boolean;
-    onClick: () => void;
-  }) => (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={
-        'px-2.5 py-1 rounded-lg border text-xs ' +
-        (pressed
-          ? 'bg-white border-emerald-600 text-emerald-700'
-          : 'bg-white/70 border-slate-300 text-slate-700 hover:bg-white')
-      }
-    >
-      {label}
-    </button>
-  );
 
   const allowedModes: Mode[] = React.useMemo(() => {
     switch (S.scope) {
