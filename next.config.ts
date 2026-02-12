@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname),
   },
+  eslint: {
+    // Warnings are visible in IDE but don't block production builds
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

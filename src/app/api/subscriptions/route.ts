@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { CreateSubscriptionInput, SubscriptionStatus, SubscriptionFrequency } from '@/types/subscriptions';
 import type { ServiceType } from '@/types/orders';
 
-// Safe client creation with fallback
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
-
 // GET /api/subscriptions - List subscriptions with optional filters
 export async function GET(req: NextRequest) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -58,7 +49,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/subscriptions - Create a new subscription
 export async function POST(req: NextRequest) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -96,7 +87,8 @@ export async function POST(req: NextRequest) {
     notes: body.notes || null,
   };
 
-  const { data, error } = await client.from('subscriptions').insert([subscriptionData]).select().single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any).from('subscriptions').insert([subscriptionData]).select().single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

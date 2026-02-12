@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-
-// Safe client creation with fallback
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
+import { createServiceClientSafe } from '@/lib/supabase/server';
 
 // GET /api/site-settings - Get all site settings
 export async function GET() {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  const { data, error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
     .from('site_settings')
     .select('key, value, updated_at')
     .order('key');
@@ -37,7 +29,7 @@ export async function GET() {
 
 // POST /api/site-settings - Update site settings
 export async function POST(req: NextRequest) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -60,7 +52,8 @@ export async function POST(req: NextRequest) {
     updated_at: new Date().toISOString(),
   }));
 
-  const { error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (client as any)
     .from('site_settings')
     .upsert(updates, { onConflict: 'key' });
 

@@ -1,4 +1,4 @@
-import { createServiceClient } from './supabase/server';
+import { createServiceClientSafe } from './supabase/server';
 
 export type SiteStats = {
   jobs_completed: string;
@@ -13,14 +13,19 @@ const DEFAULTS: SiteStats = {
   repeat_customers: '70%+',
 };
 
+type SettingsRow = { key: string; value: string };
+
 /**
  * Fetch site settings from Supabase.
  * Returns defaults if database is unavailable.
  */
 export async function getSiteSettings(): Promise<SiteStats> {
   try {
-    const client = createServiceClient();
-    const { data, error } = await client
+    const client = createServiceClientSafe();
+    if (!client) return DEFAULTS;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (client as any)
       .from('site_settings')
       .select('key, value')
       .in('key', ['jobs_completed', 'avg_rating', 'repeat_customers']);
@@ -30,7 +35,7 @@ export async function getSiteSettings(): Promise<SiteStats> {
     }
 
     const settings: Record<string, string> = {};
-    for (const row of data) {
+    for (const row of data as SettingsRow[]) {
       settings[row.key] = row.value;
     }
 
@@ -49,8 +54,11 @@ export async function getSiteSettings(): Promise<SiteStats> {
  */
 export async function getAllSiteSettings(): Promise<Record<string, string>> {
   try {
-    const client = createServiceClient();
-    const { data, error } = await client
+    const client = createServiceClientSafe();
+    if (!client) return {};
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (client as any)
       .from('site_settings')
       .select('key, value')
       .order('key');
@@ -60,7 +68,7 @@ export async function getAllSiteSettings(): Promise<Record<string, string>> {
     }
 
     const settings: Record<string, string> = {};
-    for (const row of data) {
+    for (const row of data as SettingsRow[]) {
       settings[row.key] = row.value;
     }
     return settings;

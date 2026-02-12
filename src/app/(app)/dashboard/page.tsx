@@ -2,35 +2,15 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { brand } from '@/app/ui/theme';
+import {
+  useDashboardData,
+  useFormattedMetrics,
+  type ReceivableRecord,
+  type PayableRecord,
+} from './hooks/useDashboardData';
 
 type ReceivableStatus = 'Draft' | 'Sent' | 'Part-paid' | 'Paid' | 'Overdue';
 type PayableStatus = 'Upcoming' | 'Paid' | 'Overdue';
-
-type ReceivableRecord = {
-  id: string;
-  jobId: string;
-  customer: string;
-  service: string;
-  invoiceDate: string;
-  dueDate: string;
-  amount: number;
-  paid: number;
-  balance: number;
-  status: ReceivableStatus;
-  notes: string;
-};
-
-type PayableRecord = {
-  id: string;
-  supplier: string;
-  category: string;
-  billDate: string;
-  dueDate: string;
-  amount: number;
-  status: PayableStatus;
-  paymentMethod: string;
-  notes: string;
-};
 
 type RecordDetail =
   | { type: 'receivable'; record: ReceivableRecord }
@@ -41,6 +21,16 @@ type TabKey = 'overview' | 'receivables' | 'payables' | 'reports';
 type CsvColumn<T> = {
   label: string;
   getValue: (row: T) => string | number | boolean | null | undefined;
+};
+
+// Type-erased export config for mixed report types
+type ReportExportConfig = {
+  key: string;
+  label: string;
+  description: string;
+  filename: string;
+  exportFn: () => void;
+  columnLabels: string[];
 };
 
 type ReceivableFilters = {
@@ -58,205 +48,46 @@ type PayableFilters = {
 };
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
+  new Intl.NumberFormat('en-AU', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'AUD',
     maximumFractionDigits: 0,
   }).format(value);
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('en-US', {
+const formatDate = (value: string) => {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString('en-AU', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
-
-const summaryCards = [
-  {
-    label: 'Cash / bank balance',
-    value: '$92,400',
-    hint: 'As of today',
-    viewLabel: 'account',
-  },
-  {
-    label: 'Outstanding receivables',
-    value: '$48,600',
-    hint: '31 invoices due',
-    viewLabel: 'receivables',
-  },
-  {
-    label: 'Upcoming payables (next 30 days)',
-    value: '$12,400',
-    hint: '9 bills scheduled',
-    viewLabel: 'payables',
-  },
-  {
-    label: 'Net profit (month-to-date)',
-    value: '$27,100',
-    hint: '16.2% margin',
-    viewLabel: 'P&L',
-  },
-];
-
-const revenueByService = [
-  { service: 'Commercial cleaning', amount: 14800 },
-  { service: 'Facilities maintenance', amount: 8600 },
-  { service: 'Landscape + grounds', amount: 5400 },
-  { service: 'Sanitation & safety', amount: 3200 },
-];
-
-const expensesByCategory = [
-  { category: 'Labour', amount: 5800, percent: 38 },
-  { category: 'Materials', amount: 2400, percent: 16 },
-  { category: 'Subcontractors', amount: 1900, percent: 12 },
-  { category: 'Travel', amount: 1600, percent: 10 },
-  { category: 'Overheads', amount: 2100, percent: 14 },
-];
-
-const alertsData = {
-  overdueCount: 3,
-  overdueAmount: 17400,
-  dueCount: 4,
-  dueAmount: 5200,
 };
 
-const operationsSnapshot = {
-  jobsCompleted: 42,
-  averageJobValue: 3210,
-  labourPercent: 38,
-  grossMargin: 32,
-  fixedVsVariable: '60 / 40',
+const statusStyles: Record<ReceivableStatus | PayableStatus, { bg: string; text: string }> = {
+  Draft: { bg: 'bg-slate-100', text: 'text-slate-600' },
+  Sent: { bg: 'bg-sky-100', text: 'text-slate-700' },
+  'Part-paid': { bg: 'bg-amber-100', text: 'text-amber-700' },
+  Paid: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  Overdue: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  Upcoming: { bg: 'bg-slate-100', text: 'text-slate-600' },
 };
 
-const warningMessages = [
-  'Missing categories on 2 expenses',
-  '3 uncategorised expenses awaiting review',
+const receivableStatusOptions: Array<'all' | ReceivableStatus> = [
+  'all',
+  'Draft',
+  'Sent',
+  'Part-paid',
+  'Paid',
+  'Overdue',
 ];
 
-const receivablesData: ReceivableRecord[] = [
-  {
-    id: 'INV-2071',
-    jobId: 'Job 291',
-    customer: 'Harbor Collective',
-    service: 'Facility maintenance',
-    invoiceDate: '2024-10-02',
-    dueDate: '2024-10-16',
-    amount: 4200,
-    paid: 0,
-    balance: 4200,
-    status: 'Sent',
-    notes: 'Scheduled monthly roof inspection with team Bravo.',
-  },
-  {
-    id: 'INV-2064',
-    jobId: 'Job 282',
-    customer: 'Northbank Events',
-    service: 'Event setup',
-    invoiceDate: '2024-09-18',
-    dueDate: '2024-10-02',
-    amount: 8700,
-    paid: 4400,
-    balance: 4300,
-    status: 'Part-paid',
-    notes: 'Second instalment on corporate gardens.',
-  },
-  {
-    id: 'INV-2052',
-    jobId: 'Job 269',
-    customer: 'Central Library',
-    service: 'Grounds + facilities',
-    invoiceDate: '2024-08-30',
-    dueDate: '2024-09-13',
-    amount: 6100,
-    paid: 6100,
-    balance: 0,
-    status: 'Paid',
-    notes: 'Cleared via EFT on 12 Sep.',
-  },
-  {
-    id: 'INV-2080',
-    jobId: 'Job 305',
-    customer: 'Watt Medical Suites',
-    service: 'Sanitation',
-    invoiceDate: '2024-10-05',
-    dueDate: '2024-10-19',
-    amount: 5400,
-    paid: 0,
-    balance: 5400,
-    status: 'Draft',
-    notes: 'Awaiting final approval from the facilities manager.',
-  },
-  {
-    id: 'INV-2047',
-    jobId: 'Job 256',
-    customer: 'Riverstone Towers',
-    service: 'High-rise maintenance',
-    invoiceDate: '2024-08-12',
-    dueDate: '2024-08-26',
-    amount: 6800,
-    paid: 0,
-    balance: 6800,
-    status: 'Overdue',
-    notes: 'Follow-up on overdue notice #2.',
-  },
-];
+const payableStatusOptions: Array<'all' | PayableStatus> = ['all', 'Upcoming', 'Paid', 'Overdue'];
 
-const payablesData: PayableRecord[] = [
-  {
-    id: 'BILL-459',
-    supplier: 'Greenline Supplies',
-    category: 'Materials',
-    billDate: '2024-10-18',
-    dueDate: '2024-11-01',
-    amount: 1800,
-    status: 'Upcoming',
-    paymentMethod: 'EFT',
-    notes: 'Staging supplies for November rollouts.',
-  },
-  {
-    id: 'BILL-448',
-    supplier: 'Metro Labour',
-    category: 'Subcontractor',
-    billDate: '2024-09-28',
-    dueDate: '2024-10-05',
-    amount: 5200,
-    status: 'Paid',
-    paymentMethod: 'Direct deposit',
-    notes: 'October patch team payment.',
-  },
-  {
-    id: 'BILL-441',
-    supplier: 'Atlas Logistics',
-    category: 'Transport',
-    billDate: '2024-09-12',
-    dueDate: '2024-09-26',
-    amount: 3100,
-    status: 'Overdue',
-    paymentMethod: 'Pending EFT',
-    notes: 'Overdue fuel reimbursement.',
-  },
-  {
-    id: 'BILL-465',
-    supplier: 'Apex Plumbing',
-    category: 'Contractor',
-    billDate: '2024-10-03',
-    dueDate: '2024-10-17',
-    amount: 2100,
-    status: 'Upcoming',
-    paymentMethod: 'Credit card',
-    notes: 'Drainage work on Riverstone site.',
-  },
-  {
-    id: 'BILL-472',
-    supplier: 'District Electric',
-    category: 'Contractor',
-    billDate: '2024-09-24',
-    dueDate: '2024-10-08',
-    amount: 2550,
-    status: 'Paid',
-    paymentMethod: 'EFT',
-    notes: 'Emergency repair on lighting.',
-  },
+const tabs: { key: TabKey; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'receivables', label: 'Receivables' },
+  { key: 'payables', label: 'Payables' },
+  { key: 'reports', label: 'Reports & Exports' },
 ];
 
 const receivableCsvColumns: CsvColumn<ReceivableRecord>[] = [
@@ -282,85 +113,26 @@ const payableCsvColumns: CsvColumn<PayableRecord>[] = [
   { label: 'Payment method', getValue: (row) => row.paymentMethod },
 ];
 
-const monthlySummaryRecords = [
-  { label: 'Revenue (MTD)', value: 128400 },
-  { label: 'Expenses (MTD)', value: 101300 },
-  { label: 'Net profit (MTD)', value: 27100 },
-];
-
-const monthlySummaryColumns: CsvColumn<typeof monthlySummaryRecords[number]>[] = [
-  { label: 'Line item', getValue: (row) => row.label },
-  { label: 'Amount', getValue: (row) => formatCurrency(row.value) },
-];
-
-const reportExports = [
-  {
-    key: 'receivables',
-    label: 'Export Receivables (CSV)',
-    description: 'Invoice-level detail including status and balances.',
-    columns: receivableCsvColumns,
-    data: receivablesData,
-    filename: 'receivables.csv',
-  },
-  {
-    key: 'payables',
-    label: 'Export Payables (CSV)',
-    description: 'Bill log with supplier, category, and payment method.',
-    columns: payableCsvColumns,
-    data: payablesData,
-    filename: 'payables.csv',
-  },
-  {
-    key: 'summary',
-    label: 'Export Monthly Summary (CSV)',
-    description: 'Totals for revenue, expenses, and net profit.',
-    columns: monthlySummaryColumns,
-    data: monthlySummaryRecords,
-    filename: 'monthly-summary.csv',
-  },
-];
-
-const tabs: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'receivables', label: 'Receivables' },
-  { key: 'payables', label: 'Payables' },
-  { key: 'reports', label: 'Reports & Exports' },
-];
-
-const statusStyles: Record<ReceivableStatus | PayableStatus, { bg: string; text: string }> = {
-  Draft: { bg: 'bg-slate-100', text: 'text-slate-600' },
-  Sent: { bg: 'bg-sky-100', text: 'text-slate-700' },
-  'Part-paid': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  Paid: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  Overdue: { bg: 'bg-amber-100', text: 'text-amber-700' },
-  Upcoming: { bg: 'bg-slate-100', text: 'text-slate-600' },
-};
-
-const receivableStatusOptions: Array<'all' | ReceivableStatus> = [
-  'all',
-  'Draft',
-  'Sent',
-  'Part-paid',
-  'Paid',
-  'Overdue',
-];
-
-const payableStatusOptions: Array<'all' | PayableStatus> = ['all', 'Upcoming', 'Paid', 'Overdue'];
-
 const SummaryCard = ({
   label,
   value,
   hint,
   viewLabel,
+  isLoading,
 }: {
   label: string;
   value: string;
   hint?: string;
   viewLabel: string;
+  isLoading?: boolean;
 }) => (
   <div className="rounded-2xl border border-black/5 bg-white/90 px-3 sm:px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.08)] overflow-hidden">
     <div className="text-[10px] sm:text-[11px] uppercase tracking-wide text-slate-500 truncate">{label}</div>
-    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{value}</div>
+    {isLoading ? (
+      <div className="h-8 w-24 mt-1 bg-slate-100 rounded animate-pulse" />
+    ) : (
+      <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{value}</div>
+    )}
     {hint && <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">{hint}</div>}
     <button
       type="button"
@@ -472,14 +244,39 @@ const ExportButton = <T,>({
   );
 };
 
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center py-12">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+  </div>
+);
+
+const ErrorMessage = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+  <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center">
+    <p className="text-sm text-red-600 mb-4">{message}</p>
+    <button
+      onClick={onRetry}
+      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+    >
+      Try again
+    </button>
+  </div>
+);
+
 const DetailDrawer = ({
   detail,
   onClose,
   accountantView,
+  operationsSnapshot,
 }: {
   detail: RecordDetail | null;
   onClose: () => void;
   accountantView: boolean;
+  operationsSnapshot: {
+    jobsCompleted: number;
+    averageJobValue: number;
+    labourPercent: number;
+    grossMargin: number;
+  };
 }) => {
   if (!detail) return null;
   const isReceivable = detail.type === 'receivable';
@@ -553,10 +350,6 @@ const DetailDrawer = ({
                 <span>Labour %</span>
                 <span className="font-semibold text-slate-900">{operationsSnapshot.labourPercent}%</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Fixed vs variable costs</span>
-                <span className="font-semibold text-slate-900">{operationsSnapshot.fixedVsVariable}</span>
-              </div>
             </div>
           )}
         </div>
@@ -566,6 +359,9 @@ const DetailDrawer = ({
 };
 
 export default function DashboardHome() {
+  const { metrics, receivables, payables, isLoading, error, refetch } = useDashboardData();
+  const formattedMetrics = useFormattedMetrics(metrics);
+
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [accountantView, setAccountantView] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<RecordDetail | null>(null);
@@ -597,7 +393,7 @@ export default function DashboardHome() {
 
   const filteredReceivables = useMemo(() => {
     const searchTerm = receivableFilters.search.trim().toLowerCase();
-    return receivablesData.filter((record) => {
+    return receivables.filter((record) => {
       if (receivableFilters.status !== 'all' && record.status !== receivableFilters.status) {
         return false;
       }
@@ -613,11 +409,11 @@ export default function DashboardHome() {
       }
       return true;
     });
-  }, [receivableFilters]);
+  }, [receivableFilters, receivables]);
 
   const filteredPayables = useMemo(() => {
     const searchTerm = payableFilters.search.trim().toLowerCase();
-    return payablesData.filter((record) => {
+    return payables.filter((record) => {
       if (payableFilters.status !== 'all' && record.status !== payableFilters.status) {
         return false;
       }
@@ -633,84 +429,182 @@ export default function DashboardHome() {
       }
       return true;
     });
-  }, [payableFilters]);
+  }, [payableFilters, payables]);
+
+  const summaryCards = useMemo(() => [
+    {
+      label: 'Cash / bank balance',
+      value: formattedMetrics.cashBalance,
+      hint: 'As of today',
+      viewLabel: 'account',
+    },
+    {
+      label: 'Outstanding receivables',
+      value: formattedMetrics.outstandingReceivables,
+      hint: formattedMetrics.outstandingReceivablesHint,
+      viewLabel: 'receivables',
+    },
+    {
+      label: 'Upcoming payables (next 30 days)',
+      value: formattedMetrics.upcomingPayables,
+      hint: formattedMetrics.upcomingPayablesHint,
+      viewLabel: 'payables',
+    },
+    {
+      label: 'Net profit (month-to-date)',
+      value: formattedMetrics.netProfit,
+      hint: formattedMetrics.netProfitHint,
+      viewLabel: 'P&L',
+    },
+  ], [formattedMetrics]);
+
+  const monthlySummaryRecords = useMemo(() => {
+    const totalRevenue = metrics?.revenueByService.reduce((sum, s) => sum + s.amount, 0) ?? 0;
+    const totalExpenses = metrics?.expensesByCategory.reduce((sum, e) => sum + e.amount, 0) ?? 0;
+    return [
+      { label: 'Revenue (MTD)', value: totalRevenue },
+      { label: 'Expenses (MTD)', value: totalExpenses },
+      { label: 'Net profit (MTD)', value: metrics?.netProfit.amount ?? 0 },
+    ];
+  }, [metrics]);
+
+  const monthlySummaryColumns: CsvColumn<typeof monthlySummaryRecords[number]>[] = [
+    { label: 'Line item', getValue: (row) => row.label },
+    { label: 'Amount', getValue: (row) => formatCurrency(row.value) },
+  ];
+
+  const reportExports: ReportExportConfig[] = useMemo(() => [
+    {
+      key: 'receivables',
+      label: 'Export Receivables (CSV)',
+      description: 'Invoice-level detail including status and balances.',
+      filename: 'receivables.csv',
+      exportFn: () => exportCsv({ data: receivables, columns: receivableCsvColumns, filename: 'receivables.csv' }),
+      columnLabels: receivableCsvColumns.map(c => c.label),
+    },
+    {
+      key: 'payables',
+      label: 'Export Payables (CSV)',
+      description: 'Bill log with supplier, category, and payment method.',
+      filename: 'payables.csv',
+      exportFn: () => exportCsv({ data: payables, columns: payableCsvColumns, filename: 'payables.csv' }),
+      columnLabels: payableCsvColumns.map(c => c.label),
+    },
+    {
+      key: 'summary',
+      label: 'Export Monthly Summary (CSV)',
+      description: 'Totals for revenue, expenses, and net profit.',
+      filename: 'monthly-summary.csv',
+      exportFn: () => exportCsv({ data: monthlySummaryRecords, columns: monthlySummaryColumns, filename: 'monthly-summary.csv' }),
+      columnLabels: monthlySummaryColumns.map(c => c.label),
+    },
+  ], [receivables, payables, monthlySummaryRecords, monthlySummaryColumns]);
 
   const handleRowClick = (detail: RecordDetail) => {
     setSelectedDetail(detail);
   };
 
+  if (error) {
+    return (
+      <div className="grid gap-6 sm:gap-10 w-full px-3 sm:px-4 md:px-10 lg:px-12 pb-14">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>
+            Dashboard
+          </h1>
+        </div>
+        <ErrorMessage message={error} onRetry={refetch} />
+      </div>
+    );
+  }
+
   const renderOverview = () => (
     <div className="grid gap-4 lg:grid-cols-[1fr_0.92fr]">
       <div className="space-y-4">
         <Panel title="Revenue by service" subtitle="Month-to-date">
-          <div className="space-y-3 text-sm text-slate-700">
-            {revenueByService.map((item) => (
-              <div key={item.service} className="flex items-center justify-between">
-                <span>{item.service}</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
-              </div>
-            ))}
-          </div>
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : metrics?.revenueByService.length === 0 ? (
+            <p className="text-sm text-slate-500 py-4">No revenue data yet.</p>
+          ) : (
+            <div className="space-y-3 text-sm text-slate-700">
+              {metrics?.revenueByService.map((item) => (
+                <div key={item.service} className="flex items-center justify-between">
+                  <span>{item.service}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
         <Panel title="Expenses by category" subtitle="Percentage of spend">
-          <div className="space-y-3 text-sm text-slate-700">
-            {expensesByCategory.map((item) => (
-              <div key={item.category} className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-slate-800">{item.category}</div>
-                  <div className="text-[11px] text-slate-500">{item.percent}% of spend</div>
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : metrics?.expensesByCategory.length === 0 ? (
+            <p className="text-sm text-slate-500 py-4">No expense data yet.</p>
+          ) : (
+            <div className="space-y-3 text-sm text-slate-700">
+              {metrics?.expensesByCategory.map((item) => (
+                <div key={item.category} className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800">{item.category}</div>
+                    <div className="text-[11px] text-slate-500">{item.percent}% of spend</div>
+                  </div>
+                  <span className="font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
                 </div>
-                <span className="font-semibold text-slate-900">{formatCurrency(item.amount)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Panel>
       </div>
       <div className="space-y-4">
         <Panel title="Alerts" subtitle="Calm visibility">
-          <div className="space-y-3 text-sm text-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-slate-500">Overdue invoices</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {alertsData.overdueCount} · {formatCurrency(alertsData.overdueAmount)}
-                </p>
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="space-y-3 text-sm text-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-slate-500">Overdue invoices</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {metrics?.alerts.overdueCount ?? 0} · {formatCurrency(metrics?.alerts.overdueAmount ?? 0)}
+                  </p>
+                </div>
+                <StatusChip status="Overdue" />
               </div>
-              <StatusChip status="Overdue" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-slate-500">Bills due this week</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {alertsData.dueCount} · {formatCurrency(alertsData.dueAmount)}
-                </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-slate-500">Due this week</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {metrics?.alerts.dueSoonCount ?? 0} · {formatCurrency(metrics?.alerts.dueSoonAmount ?? 0)}
+                  </p>
+                </div>
+                <StatusChip status="Upcoming" />
               </div>
-              <StatusChip status="Upcoming" />
             </div>
-          </div>
+          )}
         </Panel>
         <Panel title="Operations snapshot" subtitle="Jobs + labour">
-          <div className="space-y-3">
-            <StatRow label="Jobs completed (MTD)" value={`${operationsSnapshot.jobsCompleted}`} />
-            <StatRow label="Average job value" value={formatCurrency(operationsSnapshot.averageJobValue)} />
-            <StatRow label="Labour % of revenue" value={`${operationsSnapshot.labourPercent}%`} />
-            {accountantView && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span>Gross margin</span>
-                  <span className="font-semibold text-slate-900">{operationsSnapshot.grossMargin}%</span>
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="space-y-3">
+              <StatRow label="Jobs completed (MTD)" value={`${metrics?.operationsSnapshot.jobsCompleted ?? 0}`} />
+              <StatRow label="Average job value" value={formatCurrency(metrics?.operationsSnapshot.averageJobValue ?? 0)} />
+              <StatRow label="Labour % of revenue" value={`${metrics?.operationsSnapshot.labourPercent ?? 0}%`} />
+              {accountantView && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-xs text-slate-600 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span>Gross margin</span>
+                    <span className="font-semibold text-slate-900">{metrics?.operationsSnapshot.grossMargin ?? 0}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Labour % (detail)</span>
+                    <span className="font-semibold text-slate-900">{metrics?.operationsSnapshot.labourPercent ?? 0}%</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Labour % (detail)</span>
-                  <span className="font-semibold text-slate-900">{operationsSnapshot.labourPercent}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Fixed vs variable costs</span>
-                  <span className="font-semibold text-slate-900">{operationsSnapshot.fixedVsVariable}</span>
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </Panel>
       </div>
     </div>
@@ -796,34 +690,41 @@ export default function DashboardHome() {
               </tr>
             </thead>
             <tbody>
-              {filteredReceivables.map((record) => (
-                <tr
-                  key={record.id}
-                  onClick={() => handleRowClick({ type: 'receivable', record })}
-                  className="cursor-pointer border-b border-slate-100 text-sm transition-colors hover:bg-slate-50"
-                >
-                  <td className="px-3 py-2 text-slate-900">
-                    <div className="text-sm font-semibold">{record.id}</div>
-                    <div className="text-[11px] text-slate-500">{record.jobId}</div>
-                  </td>
-                  <td className="px-3 py-2">{record.customer}</td>
-                  <td className="px-3 py-2">{record.service}</td>
-                  <td className="px-3 py-2">{formatDate(record.invoiceDate)}</td>
-                  <td className="px-3 py-2">{formatDate(record.dueDate)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(record.amount)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(record.paid)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(record.balance)}</td>
-                  <td className="px-3 py-2">
-                    <StatusChip status={record.status} />
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="px-3 py-6">
+                    <LoadingSpinner />
                   </td>
                 </tr>
-              ))}
-              {filteredReceivables.length === 0 && (
+              ) : filteredReceivables.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-3 py-6 text-center text-sm text-slate-500">
                     No receivables match the filters yet.
                   </td>
                 </tr>
+              ) : (
+                filteredReceivables.map((record) => (
+                  <tr
+                    key={record.id}
+                    onClick={() => handleRowClick({ type: 'receivable', record })}
+                    className="cursor-pointer border-b border-slate-100 text-sm transition-colors hover:bg-slate-50"
+                  >
+                    <td className="px-3 py-2 text-slate-900">
+                      <div className="text-sm font-semibold">{record.id}</div>
+                      <div className="text-[11px] text-slate-500">{record.jobId}</div>
+                    </td>
+                    <td className="px-3 py-2">{record.customer}</td>
+                    <td className="px-3 py-2">{record.service}</td>
+                    <td className="px-3 py-2">{formatDate(record.invoiceDate)}</td>
+                    <td className="px-3 py-2">{formatDate(record.dueDate)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(record.amount)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(record.paid)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(record.balance)}</td>
+                    <td className="px-3 py-2">
+                      <StatusChip status={record.status} />
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -911,32 +812,39 @@ export default function DashboardHome() {
               </tr>
             </thead>
             <tbody>
-              {filteredPayables.map((record) => (
-                <tr
-                  key={record.id}
-                  onClick={() => handleRowClick({ type: 'payable', record })}
-                  className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50"
-                >
-                  <td className="px-3 py-2 text-slate-900">
-                    <div className="text-sm font-semibold">{record.id}</div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="px-3 py-6">
+                    <LoadingSpinner />
                   </td>
-                  <td className="px-3 py-2">{record.supplier}</td>
-                  <td className="px-3 py-2">{record.category}</td>
-                  <td className="px-3 py-2">{formatDate(record.billDate)}</td>
-                  <td className="px-3 py-2">{formatDate(record.dueDate)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(record.amount)}</td>
-                  <td className="px-3 py-2">
-                    <StatusChip status={record.status} />
-                  </td>
-                  <td className="px-3 py-2 text-right">{record.paymentMethod}</td>
                 </tr>
-              ))}
-              {filteredPayables.length === 0 && (
+              ) : filteredPayables.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">
                     No payables match the filters yet.
                   </td>
                 </tr>
+              ) : (
+                filteredPayables.map((record) => (
+                  <tr
+                    key={record.id}
+                    onClick={() => handleRowClick({ type: 'payable', record })}
+                    className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50"
+                  >
+                    <td className="px-3 py-2 text-slate-900">
+                      <div className="text-sm font-semibold">{record.id}</div>
+                    </td>
+                    <td className="px-3 py-2">{record.supplier}</td>
+                    <td className="px-3 py-2">{record.category}</td>
+                    <td className="px-3 py-2">{formatDate(record.billDate)}</td>
+                    <td className="px-3 py-2">{formatDate(record.dueDate)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(record.amount)}</td>
+                    <td className="px-3 py-2">
+                      <StatusChip status={record.status} />
+                    </td>
+                    <td className="px-3 py-2 text-right">{record.paymentMethod}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -960,16 +868,16 @@ export default function DashboardHome() {
                   <div className="text-sm font-semibold text-slate-900">{report.label}</div>
                   <p className="text-[11px] text-slate-500">{report.description}</p>
                 </div>
-                <ExportButton
-                  label="Download"
-                  data={report.data as any}
-                  columns={report.columns as any}
-                  filename={report.filename}
-                  className="text-xs"
-                />
+                <button
+                  type="button"
+                  onClick={report.exportFn}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline decoration-slate-200"
+                >
+                  Download
+                </button>
               </div>
               <div className="mt-2 text-[11px] text-slate-500">
-                Includes: {report.columns.map((column) => column.label).join(', ')}
+                Includes: {report.columnLabels.join(', ')}
               </div>
             </div>
           ))}
@@ -1037,7 +945,7 @@ export default function DashboardHome() {
 
       <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-4 gap-3">
         {summaryCards.map((card) => (
-          <SummaryCard key={card.label} {...card} />
+          <SummaryCard key={card.label} {...card} isLoading={isLoading} />
         ))}
       </div>
 
@@ -1063,18 +971,21 @@ export default function DashboardHome() {
 
       {accountantView && (
         <div className="flex flex-wrap gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-2 text-xs text-amber-700">
-          {warningMessages.map((warning) => (
-            <span key={warning} className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              {warning}
-            </span>
-          ))}
+          <span className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            Review data in Supabase for complete accuracy
+          </span>
         </div>
       )}
 
       {renderTabContent()}
 
-      <DetailDrawer detail={selectedDetail} onClose={() => setSelectedDetail(null)} accountantView={accountantView} />
+      <DetailDrawer
+        detail={selectedDetail}
+        onClose={() => setSelectedDetail(null)}
+        accountantView={accountantView}
+        operationsSnapshot={metrics?.operationsSnapshot ?? { jobsCompleted: 0, averageJobValue: 0, labourPercent: 0, grossMargin: 0 }}
+      />
     </div>
   );
 }

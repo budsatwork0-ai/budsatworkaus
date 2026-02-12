@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { RegoState, VehicleDetails } from '@/lib/rego/types';
 import { classifyVehicle } from '@/lib/rego/classify';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,14 +17,6 @@ function isDev() {
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
-
 const normalizeKey = (value: string) => value.trim().toUpperCase();
 const normalizeMatch = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -32,10 +24,11 @@ async function fetchCache(
   rego: string,
   state: RegoState
 ): Promise<VehicleDetails | null> {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) return null;
   try {
-    const { data, error } = await client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (client as any)
       .from('rego_cache')
       .select('vehicle_data, expires_at')
       .eq('rego', normalizeKey(rego))
@@ -55,10 +48,11 @@ async function fetchCache(
 }
 
 async function writeCache(rego: string, state: RegoState, vehicle: VehicleDetails) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) return;
   try {
-    await client.from('rego_cache').upsert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client as any).from('rego_cache').upsert({
       rego: normalizeKey(rego),
       state: normalizeKey(state),
       vehicle_data: vehicle,
@@ -99,7 +93,7 @@ function matchesPattern(model: string, pattern: string | null | undefined) {
 async function applyOverrides(
   vehicle: VehicleDetails
 ): Promise<{ vehicle: VehicleDetails; source: 'override' | 'rules' }> {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client)
     return {
       vehicle: { ...vehicle, categorySource: 'rules', source: 'rules' },
@@ -108,7 +102,8 @@ async function applyOverrides(
 
   const makeNorm = vehicle.make.trim();
   try {
-    const { data, error } = await client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (client as any)
       .from('vehicle_overrides')
       .select('category, model_pattern, priority')
       .ilike('make', makeNorm)

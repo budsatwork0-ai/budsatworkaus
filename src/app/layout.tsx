@@ -2,6 +2,7 @@
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Footer } from "@/components/Footer";
+import { SkipLinks } from "@/components/SkipLinks";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata } from "next";
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     description: 'Quote-first local services: home cleaning, window cleaning, yard care, dump runs, car detailing. NDIS-friendly. Logan & South Brisbane.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.svg',
         width: 1200,
         height: 630,
         alt: 'Buds at Work - Your local mates for home and property services',
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Buds at Work | Local Home & Property Services',
     description: 'Quote-first local services: cleaning, windows, yard care, dump runs, car detailing. Logan & South Brisbane.',
-    images: ['/og-image.png'],
+    images: ['/og-image.svg'],
   },
   robots: {
     index: true,
@@ -73,14 +74,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       {gaId && <GoogleAnalytics gaId={gaId} />}
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
+        <SkipLinks />
         {publishableKey ? (
           <ClerkProvider publishableKey={publishableKey}>
-            <main className="flex-1">{children}</main>
+            <main id="main-content" className="flex-1">{children}</main>
             <Footer />
           </ClerkProvider>
         ) : (
           <>
-            <main className="flex-1">{children}</main>
+            <main id="main-content" className="flex-1">{children}</main>
             <Footer />
           </>
         )}

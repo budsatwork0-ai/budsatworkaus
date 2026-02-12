@@ -8,7 +8,11 @@
     "build": "next build",
     "build:turbopack": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.37.1",
@@ -37,7 +41,7 @@
     "@types/react-dom": "^19.2.2",
     "eslint": "^9",
     "eslint-config-next": "^15.5.11",
-    "playwright": "^1.57.0",
+    "@playwright/test": "^1.57.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { CreateOrderInput, OrderStatus, ServiceType } from '@/types/orders';
-
-// Safe client creation with fallback
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
 
 // GET /api/orders - List orders with optional filters
 export async function GET(req: NextRequest) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -61,7 +52,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/orders - Create a new order
 export async function POST(req: NextRequest) {
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -100,7 +91,8 @@ export async function POST(req: NextRequest) {
     notes: body.notes || null,
   };
 
-  const { data, error } = await client.from('orders').insert([orderData]).select().single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any).from('orders').insert([orderData]).select().single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

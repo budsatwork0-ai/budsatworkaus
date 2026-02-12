@@ -32,7 +32,10 @@ export default function SettingsPage() {
   async function fetchSettings() {
     try {
       const res = await fetch('/api/site-settings');
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setStats({
         jobs_completed: data.settings?.jobs_completed || '250+',
@@ -60,11 +63,15 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: stats }),
       });
-      if (!res.ok) throw new Error('Failed to save');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
       toast.success('Site content updated');
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Failed to save settings');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to save: ${message}`);
     } finally {
       setSaving(false);
     }

@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { UpdateOrderInput } from '@/types/orders';
-
-// Safe client creation with fallback
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
+import type { OrderUpdate } from '@/types/database';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 // GET /api/orders/[id] - Get a single order
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -36,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 // PATCH /api/orders/[id] - Update an order
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -49,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   // Build update object with only provided fields
-  const updateData: Record<string, unknown> = {};
+  const updateData: OrderUpdate = {};
   if (body.customer_name !== undefined) updateData.customer_name = body.customer_name;
   if (body.customer_email !== undefined) updateData.customer_email = body.customer_email;
   if (body.customer_phone !== undefined) updateData.customer_phone = body.customer_phone;
@@ -69,7 +61,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  const { data, error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
     .from('orders')
     .update(updateData)
     .eq('id', id)
@@ -89,13 +82,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 // DELETE /api/orders/[id] - Cancel/delete an order
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
   // Soft delete by setting status to cancelled
-  const { data, error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
     .from('orders')
     .update({ status: 'cancelled' })
     .eq('id', id)

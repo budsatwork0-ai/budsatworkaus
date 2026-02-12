@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { UpdateSubscriptionInput } from '@/types/subscriptions';
-
-// Safe client creation with fallback
-function supabaseSafe() {
-  try {
-    return createServiceClient();
-  } catch {
-    return null;
-  }
-}
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 // GET /api/subscriptions/[id] - Get a single subscription
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -36,7 +27,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 // PATCH /api/subscriptions/[id] - Update a subscription
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -72,7 +63,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  const { data, error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
     .from('subscriptions')
     .update(updateData)
     .eq('id', id)
@@ -92,13 +84,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 // DELETE /api/subscriptions/[id] - Cancel a subscription
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const client = supabaseSafe();
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
   // Soft delete by setting status to cancelled and end_date
-  const { data, error } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any)
     .from('subscriptions')
     .update({
       status: 'cancelled',
