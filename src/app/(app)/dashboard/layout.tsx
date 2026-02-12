@@ -1,16 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { Toaster, toast } from 'sonner';
+import { useClerk } from '@clerk/nextjs';
+import { Toaster } from 'sonner';
 import { brand } from '@/app/ui/theme';
 import SideNavItem from './_components/SideNavItem';
+import CommandPalette from '@/components/CommandPalette';
+import CreateOrderModal from '@/components/CreateOrderModal';
+import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
+  const { signOut } = useClerk();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false);
+
+  // Keyboard shortcut for command palette
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setCommandPaletteOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div
@@ -82,16 +103,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="mt-2 grid gap-2">
               <button
-                onClick={() => toast.success('New job created!')}
-                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm"
+                onClick={() => setCreateOrderOpen(true)}
+                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
               >
                 New Job
               </button>
               <button
-                onClick={() => toast.info('Payable added!')}
-                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm"
+                onClick={() => setCreateSubscriptionOpen(true)}
+                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
               >
-                Add Payable
+                New Subscription
               </button>
             </div>
           </motion.div>
@@ -161,6 +182,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <SideNavItem href="/dashboard/alerts" label="Alerts" />
               <SideNavItem href="/dashboard/reports" label="Reports" />
               <SideNavItem href="/dashboard/settings" label="Settings" />
+
+              <div className="mt-auto p-3 rounded-2xl border border-black/5 bg-white/80">
+                <div className="text-sm font-semibold" style={{ color: brand.primary }}>
+                  Quick Create
+                </div>
+                <div className="mt-2 grid gap-2">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setCreateOrderOpen(true);
+                    }}
+                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                  >
+                    New Job
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setCreateSubscriptionOpen(true);
+                    }}
+                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                  >
+                    New Subscription
+                  </button>
+                </div>
+              </div>
             </motion.aside>
           </>
         )}
@@ -197,30 +244,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </h1>
 
             <div className="ml-auto flex items-center gap-2">
-              {/* Expanding Search */}
-              <motion.div
-                className="hidden md:flex items-center gap-2 rounded-xl border border-black/10 bg-white overflow-hidden"
-                initial={{ width: 100 }}
-                whileHover={{ width: 220 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              {/* Search Button */}
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="hidden md:flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
               >
-                <span className="text-xs text-slate-500 pl-3">⌘K</span>
-                <input
-                  placeholder="Search…"
-                  className="outline-none text-sm placeholder:text-slate-400 px-1 py-2 flex-1 bg-transparent"
-                />
-              </motion.div>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className="text-xs">Search...</span>
+                <kbd className="px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded">⌘K</kbd>
+              </button>
 
-              {/* + New */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => toast('Create something new!')}
-                className="px-3 py-2 text-sm rounded-xl text-white"
-                style={{ background: brand.primary }}
-              >
-                + New
-              </motion.button>
+              {/* + New Dropdown */}
+              <div className="relative group">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-3 py-2 text-sm rounded-xl text-white"
+                  style={{ background: brand.primary }}
+                >
+                  + New
+                </motion.button>
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button
+                    onClick={() => setCreateOrderOpen(true)}
+                    className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="font-medium text-slate-900">New Order</div>
+                    <div className="text-xs text-slate-500">One-time service</div>
+                  </button>
+                  <button
+                    onClick={() => setCreateSubscriptionOpen(true)}
+                    className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors border-t border-slate-100"
+                  >
+                    <div className="font-medium text-slate-900">New Subscription</div>
+                    <div className="text-xs text-slate-500">Recurring service</div>
+                  </button>
+                </div>
+              </div>
 
               {/* User dropdown simplified */}
               <motion.div whileHover={{ scale: 1.05 }}>
@@ -243,7 +305,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50">
                       Settings
                     </button>
-                    <button className="block w-full text-left text-sm px-4 py-2 text-red-500 hover:bg-red-50">
+                    <button
+                      onClick={() => signOut({ redirectUrl: '/' })}
+                      className="block w-full text-left text-sm px-4 py-2 text-red-500 hover:bg-red-50"
+                    >
                       Sign out
                     </button>
                   </motion.div>
@@ -268,6 +333,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onCreateOrder={() => {
+          setCommandPaletteOpen(false);
+          setCreateOrderOpen(true);
+        }}
+        onCreateSubscription={() => {
+          setCommandPaletteOpen(false);
+          setCreateSubscriptionOpen(true);
+        }}
+      />
+
+      {/* Create Modals */}
+      <CreateOrderModal
+        isOpen={createOrderOpen}
+        onClose={() => setCreateOrderOpen(false)}
+      />
+      <CreateSubscriptionModal
+        isOpen={createSubscriptionOpen}
+        onClose={() => setCreateSubscriptionOpen(false)}
+      />
     </div>
   );
 }
