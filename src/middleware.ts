@@ -3,11 +3,14 @@ import { NextResponse } from 'next/server';
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
+const isWebhookRoute = createRouteMatcher(['/api/webhooks(.*)']);
 
 const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
 
 const middleware = hasClerkKeys
   ? clerkMiddleware((auth, req) => {
+      // Webhook routes use their own signature verification — skip Clerk auth
+      if (isWebhookRoute(req)) return;
       if (isProtectedRoute(req)) auth.protect();
     })
   : () => {

@@ -17,6 +17,9 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   mapTypeId: "hybrid",
   disableDefaultUI: true,
   clickableIcons: false,
+  // "cooperative" normally: scroll page on single-touch, require two fingers to pan map.
+  // We switch to "greedy" when drawing is active so mobile taps go to the drawing manager
+  // instead of being swallowed by the "use two fingers" overlay.
   gestureHandling: "cooperative",
   streetViewControl: false,
   mapTypeControl: false,
@@ -324,7 +327,14 @@ export default function YardMap({
   const applyDrawingMode = React.useCallback((enabled: boolean) => {
     const drawingManager = drawingManagerRef.current;
     const googleLib = googleRef.current;
+    const map = mapRef.current;
     if (!drawingManager || !googleLib) return;
+    // On mobile, "cooperative" swallows the first touch with a "use two fingers" overlay,
+    // which prevents the drawing manager from receiving tap events.
+    // Switch to "greedy" while drawing so every touch goes straight to the drawing manager.
+    if (map) {
+      map.setOptions({ gestureHandling: enabled ? "greedy" : "cooperative" });
+    }
     drawingManager.setDrawingMode(
       enabled ? googleLib.maps.drawing.OverlayType.POLYGON : null
     );
@@ -513,7 +523,29 @@ export default function YardMap({
             textAlign: "center",
           }}
         >
-          Search and confirm an address to enable outlining.
+          Search your address above, then tap &ldquo;Draw or edit&rdquo; to outline your area.
+        </div>
+      )}
+      {drawingEnabled && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: 16,
+            right: 16,
+            padding: "10px 16px",
+            borderRadius: 12,
+            background: "rgba(15,81,50,0.92)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 500,
+            boxShadow: "0 10px 30px rgba(15,23,42,0.18)",
+            textAlign: "center",
+            backdropFilter: "blur(4px)",
+            lineHeight: 1.5,
+          }}
+        >
+          Tap to place points &mdash; tap the <strong>first point</strong> again to close the shape
         </div>
       )}
     </div>

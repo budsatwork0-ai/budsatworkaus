@@ -9,11 +9,12 @@ import {
   computeAreaFromPath,
   computePerimeterFromPath,
 } from '@/app/ui/yard/usePolygonQuote';
-import FloorPlanBuilder from '@/app/ui/floor/FloorPlanBuilder';
+import dynamic from 'next/dynamic';
 import { serializeLayout } from '@/app/ui/floor/utils';
 import { computeFloorPricing } from '@/app/ui/floor/useFloorPricing';
 import { useCarModelSelector } from '@/app/ui/car/useCarModelSelector';
-import RegoLookupAssistant from '@/app/ui/car/RegoLookupAssistant';
+const FloorPlanBuilder = dynamic(() => import('@/app/ui/floor/FloorPlanBuilder'), { ssr: false });
+const RegoLookupAssistant = dynamic(() => import('@/app/ui/car/RegoLookupAssistant'), { ssr: false });
 import type { VehicleSizeCategory } from '@/lib/rego/types';
 import { useYardMapping } from '@/app/hooks/useYardMapping';
 import Turnstile from '@/components/Turnstile';
@@ -143,6 +144,48 @@ import { LiveOrdersStrip } from './components/shared/LiveOrdersStrip';
 import { WindowsEditor } from './components/windows/WindowsEditor';
 import { DistanceRouteConfigurator } from './components/dump/DistanceRouteConfigurator';
 
+// Isolated slider component so dragging doesn't re-render the entire ServicesPageContent.
+// Keeps a local display-value and only propagates the final value on pointer/touch release.
+type CommSqmSliderProps = { value: number; onChange: (v: number) => void };
+function CommSqmSlider({ value, onChange }: CommSqmSliderProps) {
+  const [local, setLocal] = React.useState(value);
+  // Keep in sync when the parent changes the value externally (e.g. preset button click).
+  React.useEffect(() => { setLocal(value); }, [value]);
+  const commit = React.useCallback(() => onChange(local), [local, onChange]);
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-semibold text-slate-700">Approx. area</div>
+        <div className="text-[11px] text-slate-600">{local} sqm</div>
+      </div>
+      <input
+        type="range"
+        min={50}
+        max={3000}
+        step={50}
+        value={local}
+        onChange={(e) => setLocal(Number(e.target.value))}
+        onMouseUp={commit}
+        onTouchEnd={commit}
+        onClick={stop}
+        onPointerDown={stop}
+        onTouchStart={stop}
+        onTouchMove={stop}
+        className="w-full accent-emerald-600"
+        // pan-y lets the browser handle vertical scroll but gives horizontal drag to the slider
+        style={{ touchAction: 'pan-y' }}
+        aria-label="Square metres slider"
+      />
+      <div className="flex justify-between text-[10px] text-slate-500">
+        <span>50</span>
+        <span>1500</span>
+        <span>3000</span>
+      </div>
+    </div>
+  );
+}
+
 function ServicesPageContent() {
   const searchParams = useSearchParams();
   const [S, dispatch] = useLocalStorageReducer<WizardState>(
@@ -170,6 +213,7 @@ function ServicesPageContent() {
   );
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   const handleDistanceInputFocusChange = useCallback((focused: boolean) => {
     setIsDistanceInputFocused(focused);
@@ -2206,6 +2250,7 @@ const COMM_PRESETS: Record<
                   )}
                   {isActive && isCommercialNicheCard && isConfigOpen && (
                     <div
+                      data-card-interactive="true"
                       className="mt-3 space-y-3 border-t border-slate-200/80 pt-3"
                     >
                       <div className="flex items-center justify-between text-[11px] text-slate-600">
@@ -2280,38 +2325,14 @@ const COMM_PRESETS: Record<
                           ))}
                         </div>
                       </div>
-                      {/* Square metres slider */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="text-[11px] font-semibold text-slate-700">Approx. area</div>
-                          <div className="text-[11px] text-slate-600">{S.paramsByService.cleaning?.sqm ?? COMM_PRESETS[sc.key as CommercialCleaningType]?.[0]?.params?.sqm ?? 300} sqm</div>
-                        </div>
-                        <input
-                          type="range"
-                          min={50}
-                          max={3000}
-                          step={50}
-                          value={S.paramsByService.cleaning?.sqm ?? COMM_PRESETS[sc.key as CommercialCleaningType]?.[0]?.params?.sqm ?? 300}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            set('paramsByService', {
-                              ...S.paramsByService,
-                              cleaning: {
-                                ...(S.paramsByService.cleaning || {}),
-                                sqm: Number(e.target.value),
-                              },
-                            });
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full accent-emerald-600"
-                          aria-label="Square metres slider"
-                        />
-                        <div className="flex justify-between text-[10px] text-slate-500">
-                          <span>50</span>
-                          <span>1500</span>
-                          <span>3000</span>
-                        </div>
-                      </div>
+                      {/* Square metres slider — isolated component prevents full-page re-render on drag */}
+                      <CommSqmSlider
+                        value={S.paramsByService.cleaning?.sqm ?? COMM_PRESETS[sc.key as CommercialCleaningType]?.[0]?.params?.sqm ?? 300}
+                        onChange={(sqm) => set('paramsByService', {
+                          ...S.paramsByService,
+                          cleaning: { ...(S.paramsByService.cleaning || {}), sqm },
+                        })}
+                      />
                       {/* Features covered */}
                       <div className="space-y-1">
                         <div className="text-[11px] font-semibold text-slate-700">Included</div>
@@ -4110,7 +4131,7 @@ const COMM_PRESETS: Record<
                         );
                       })()}
                       <div className="text-xs text-slate-500 px-1">
-                        Search address, then draw your area. Drag points to adjust.
+                        Search your address, then tap <strong>Draw or edit</strong> to outline your area. On mobile, tap the first point again to close the shape.
                       </div>
                       <div className="rounded-xl border border-black/5 bg-gradient-to-br from-white/80 to-slate-50/50 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2 px-1">Your sites</div>
@@ -4731,10 +4752,11 @@ const COMM_PRESETS: Record<
                   <M.button
                     className={cls(
                       "px-4 py-2 rounded-2xl text-sm text-white flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(20,83,45,0.25)]",
-                      !captchaToken && "opacity-60 cursor-not-allowed"
+                      (!captchaToken || isCheckoutLoading) && "opacity-60 cursor-not-allowed"
                     )}
                     style={{ background: 'var(--accent)' }}
-                    onClick={() => {
+                    disabled={isCheckoutLoading}
+                    onClick={async () => {
                       if (!captchaToken) {
                         toast.error('Please complete the verification to submit.');
                         return;
@@ -4753,72 +4775,85 @@ const COMM_PRESETS: Record<
                         return;
                       }
 
-                      const body = buildQuoteSummary(S, estimate, scopedPricing);
-                      const href = emailHrefForContext(S, body);
-                      window.location.href = href;
+                      const effectiveTotal = scopedPricing?.price ?? estimate.total;
+                      if (!effectiveTotal || effectiveTotal <= 0) {
+                        toast.error('Unable to calculate a price. Please adjust your selections.');
+                        return;
+                      }
 
-                      setTimeout(() => {
-                        const ok = confirm(
-                          'Did your email send successfully? This helps show real examples to others.'
-                        );
-                        if (ok) {
-                          toast.success(
-                            'Thanks! Added your example (time, cost, and location).'
-                          );
-                        } else {
-                          toast.message('No worries. We didn’t add it.');
+                      setIsCheckoutLoading(true);
+
+                      try {
+                        const res = await fetch('/api/checkout', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            customer_name: S.fullName.trim(),
+                            customer_email: S.email.trim(),
+                            customer_phone: S.phone.trim(),
+                            service_type: S.service,
+                            context: S.context,
+                            scope: S.scope,
+                            frequency: (S as any).commFrequency || 'none',
+                            base_price: estimate.total,
+                            discount_percent: (S.contractDiscount || 0) * 100,
+                            final_price: effectiveTotal,
+                            notes: S.notes || '',
+                            region: S.region,
+                          }),
+                        });
+
+                        if (!res.ok) {
+                          const errData = await res.json().catch(() => ({}));
+                          throw new Error(errData.error || `Error ${res.status}`);
                         }
-                      }, 600);
+
+                        const { url } = await res.json();
+
+                        if (url) {
+                          window.location.href = url;
+                        } else {
+                          throw new Error('No checkout URL returned');
+                        }
+                      } catch (err) {
+                        console.error('Checkout error:', err);
+                        toast.error(
+                          err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+                        );
+                        setIsCheckoutLoading(false);
+                      }
                     }}
-                    aria-label="Request booking via email"
+                    aria-label="Proceed to payment"
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      className="opacity-90"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M20 6L9 17l-5-5"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Request booking
+                    {isCheckoutLoading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" />
+                        </svg>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          className="opacity-90"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M20 6L9 17l-5-5"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Request booking
+                      </>
+                    )}
                   </M.button>
-
-                  <div className="text-xs text-slate-600 text-center">
-                    Or{' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
-                        const body = buildQuoteSummary(S, estimate, scopedPricing);
-                        const href = emailHrefForContext(S, body);
-                        window.location.href = href;
-
-                        setTimeout(() => {
-                          const ok = confirm(
-                            'Did your email send successfully? This helps show real examples to others.'
-                          );
-                          if (ok) {
-                            toast.success(
-                              'Thanks! Added your example (time, cost, and location).'
-                            );
-                          } else {
-                            toast.message('No worries. We didn’t add it.');
-                          }
-                        }, 600);
-                      }}
-                      aria-label="Email this quote"
-                    >
-                      email this quote
-                    </button>
-                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 mt-1">

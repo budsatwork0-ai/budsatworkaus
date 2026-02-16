@@ -78,6 +78,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
           completed_at: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
         };
         Insert: {
           id?: string;
@@ -100,6 +102,8 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
         };
         Update: {
           id?: string;
@@ -122,6 +126,8 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
         };
       };
       subscriptions: {
@@ -358,6 +364,50 @@ export interface Database {
           updated_at?: string;
         };
       };
+      payments: {
+        Row: {
+          id: string;
+          order_id: string | null;
+          subscription_id: string | null;
+          customer_id: string | null;
+          amount: number;
+          payment_method: string;
+          payment_reference: string | null;
+          status: string;
+          paid_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id?: string | null;
+          subscription_id?: string | null;
+          customer_id?: string | null;
+          amount: number;
+          payment_method: string;
+          payment_reference?: string | null;
+          status?: string;
+          paid_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string | null;
+          subscription_id?: string | null;
+          customer_id?: string | null;
+          amount?: number;
+          payment_method?: string;
+          payment_reference?: string | null;
+          status?: string;
+          paid_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -402,12 +452,14 @@ export type RegoCache = Database['public']['Tables']['rego_cache']['Row'];
 export type VehicleOverride = Database['public']['Tables']['vehicle_overrides']['Row'];
 export type SiteSetting = Database['public']['Tables']['site_settings']['Row'];
 export type Payable = Database['public']['Tables']['payables']['Row'];
+export type Payment = Database['public']['Tables']['payments']['Row'];
 
 // Insert types
 export type CustomerInsert = Database['public']['Tables']['customers']['Insert'];
 export type OrderInsert = Database['public']['Tables']['orders']['Insert'];
 export type SubscriptionInsert = Database['public']['Tables']['subscriptions']['Insert'];
 export type PayableInsert = Database['public']['Tables']['payables']['Insert'];
+export type PaymentInsert = Database['public']['Tables']['payments']['Insert'];
 
 // Update types
 export type CustomerUpdate = Database['public']['Tables']['customers']['Update'];

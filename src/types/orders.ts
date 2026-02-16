@@ -33,6 +33,8 @@ export interface Order {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_payment_intent_id?: string | null;
 }
 
 export interface OrderFilters {

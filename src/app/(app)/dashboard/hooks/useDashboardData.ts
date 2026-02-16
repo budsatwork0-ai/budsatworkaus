@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
+import { formatCurrency, formatChange } from '@/lib/dashboard/utils';
 import type {
   DashboardData,
   DashboardMetrics,
   ReceivableRecord,
   PayableRecord,
-} from '@/app/api/dashboard/route';
+  JobRecord,
+  ActivityItem,
+} from '@/types/dashboard';
 
-export type { DashboardMetrics, ReceivableRecord, PayableRecord };
+export type { DashboardMetrics, ReceivableRecord, PayableRecord, JobRecord, ActivityItem };
 
 type UseDashboardDataResult = {
   metrics: DashboardMetrics | null;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
+  jobs: JobRecord[];
+  recentActivity: ActivityItem[];
+  lastUpdated: string | null;
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -20,9 +26,9 @@ type UseDashboardDataResult = {
 // Default metrics for loading state
 const defaultMetrics: DashboardMetrics = {
   cashBalance: 0,
-  outstandingReceivables: { total: 0, count: 0 },
-  upcomingPayables: { total: 0, count: 0 },
-  netProfit: { amount: 0, margin: 0 },
+  outstandingReceivables: { total: 0, count: 0, change: 0 },
+  upcomingPayables: { total: 0, count: 0, change: 0 },
+  netProfit: { amount: 0, margin: 0, change: 0 },
   revenueByService: [],
   expensesByCategory: [],
   alerts: {
@@ -37,16 +43,69 @@ const defaultMetrics: DashboardMetrics = {
     labourPercent: 0,
     grossMargin: 0,
   },
+  revenueTrend: [],
+  goals: {
+    monthlyRevenueTarget: 15000,
+    currentRevenue: 0,
+    monthlyJobsTarget: 30,
+    currentJobs: 0,
+  },
 };
+
+const CACHE_KEY = 'dashboard_cache';
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+function readCache(): DashboardData | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: DashboardData; fetchedAt: number };
+    if (Date.now() - parsed.fetchedAt > CACHE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(data: DashboardData) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() }));
+  } catch {
+    // sessionStorage may be unavailable (private browsing, storage quota)
+  }
+}
 
 export function useDashboardData(): UseDashboardDataResult {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
   const [payables, setPayables] = useState<PayableRecord[]>([]);
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  function applyData(data: DashboardData) {
+    setMetrics(data.metrics);
+    setReceivables(data.receivables);
+    setPayables(data.payables);
+    setJobs(data.jobs || []);
+    setRecentActivity(data.recentActivity || []);
+    setLastUpdated(data.lastUpdated || null);
+  }
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    // Serve from cache unless forcing refresh
+    if (!forceRefresh) {
+      const cached = readCache();
+      if (cached) {
+        applyData(cached);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -59,10 +118,8 @@ export function useDashboardData(): UseDashboardDataResult {
       }
 
       const data: DashboardData = await response.json();
-
-      setMetrics(data.metrics);
-      setReceivables(data.receivables);
-      setPayables(data.payables);
+      writeCache(data);
+      applyData(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load dashboard data';
       setError(message);
@@ -70,6 +127,7 @@ export function useDashboardData(): UseDashboardDataResult {
     } finally {
       setIsLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -80,30 +138,29 @@ export function useDashboardData(): UseDashboardDataResult {
     metrics: metrics ?? defaultMetrics,
     receivables,
     payables,
+    jobs,
+    recentActivity,
+    lastUpdated,
     isLoading,
     error,
-    refetch: fetchData,
+    refetch: () => fetchData(true), // force-refresh bypasses cache
   };
 }
 
 // Helper hook for formatted display values
 export function useFormattedMetrics(metrics: DashboardMetrics | null) {
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      maximumFractionDigits: 0,
-    }).format(value);
-
   if (!metrics) {
     return {
       cashBalance: '$0',
       outstandingReceivables: '$0',
       outstandingReceivablesHint: '0 invoices due',
+      outstandingReceivablesChange: null,
       upcomingPayables: '$0',
       upcomingPayablesHint: '0 bills scheduled',
+      upcomingPayablesChange: null,
       netProfit: '$0',
       netProfitHint: '0% margin',
+      netProfitChange: null,
     };
   }
 
@@ -111,9 +168,12 @@ export function useFormattedMetrics(metrics: DashboardMetrics | null) {
     cashBalance: formatCurrency(metrics.cashBalance),
     outstandingReceivables: formatCurrency(metrics.outstandingReceivables.total),
     outstandingReceivablesHint: `${metrics.outstandingReceivables.count} invoices due`,
+    outstandingReceivablesChange: formatChange(metrics.outstandingReceivables.change),
     upcomingPayables: formatCurrency(metrics.upcomingPayables.total),
     upcomingPayablesHint: `${metrics.upcomingPayables.count} bills scheduled`,
+    upcomingPayablesChange: formatChange(metrics.upcomingPayables.change),
     netProfit: formatCurrency(metrics.netProfit.amount),
     netProfitHint: `${metrics.netProfit.margin}% margin`,
+    netProfitChange: formatChange(metrics.netProfit.change),
   };
 }

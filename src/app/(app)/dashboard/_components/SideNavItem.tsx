@@ -41,7 +41,12 @@ export default function SideNavItem({
         >
           {icon ?? <span className="text-[10px]">•</span>}
         </motion.span>
-        <span className="text-sm font-medium">{label}</span>
+        <span
+          className="text-sm font-medium"
+          style={active ? { color: brand.primary } : undefined}
+        >
+          {label}
+        </span>
       </Link>
     </motion.div>
   );

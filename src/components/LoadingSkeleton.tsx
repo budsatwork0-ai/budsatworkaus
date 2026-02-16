@@ -29,7 +29,7 @@ export default function LoadingSkeleton({ rows = 5, columns = 6, showHeader = tr
                   <td key={colIndex} className="px-3 py-4">
                     <div
                       className="h-4 bg-slate-200 rounded"
-                      style={{ width: `${60 + Math.random() * 40}%` }}
+                      style={{ width: `${60 + ((rowIndex * 7 + colIndex * 13) % 40)}%` }}
                     />
                   </td>
                 ))}
