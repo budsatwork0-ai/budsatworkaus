@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
           }]);
 
         // Audit log
-        logAudit(client, orderId, 'payment_received', {
+        logAudit(client, 'order', orderId, 'payment_received', {
           amount: paymentAmount,
           stripe_session_id: session.id,
           payment_intent: session.payment_intent,
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Audit log
-          logAudit(client, refundOrder.id, isFullRefund ? 'refunded' : 'partial_refund', {
+          logAudit(client, 'order', refundOrder.id, isFullRefund ? 'refunded' : 'partial_refund', {
             refund_amount: refundAmount,
             charge_id: charge.id,
             payment_intent_id: paymentIntentId,
