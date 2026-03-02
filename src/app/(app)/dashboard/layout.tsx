@@ -244,13 +244,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="mt-2 grid gap-2">
               <button
                 onClick={() => setCreateOrderOpen(true)}
-                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left text-slate-800"
               >
                 New Job
               </button>
               <button
                 onClick={() => setCreateSubscriptionOpen(true)}
-                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left text-slate-800"
               >
                 New Subscription
               </button>
@@ -321,7 +321,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       setMobileMenuOpen(false);
                       setCreateOrderOpen(true);
                     }}
-                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left text-slate-800"
                   >
                     New Job
                   </button>
@@ -330,7 +330,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       setMobileMenuOpen(false);
                       setCreateSubscriptionOpen(true);
                     }}
-                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left"
+                    className="text-xs px-3 py-2 rounded-lg border border-black/10 bg-white hover:shadow-sm text-left text-slate-800"
                   >
                     New Subscription
                   </button>
@@ -398,7 +398,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="relative">
                 <button
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
-                  className="relative p-2 rounded-xl border border-black/10 bg-white hover:bg-slate-50 transition-colors"
+                  className="relative p-2 rounded-xl border border-black/10 bg-white hover:bg-slate-50 transition-colors text-slate-700"
                   aria-label="Notifications"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -514,14 +514,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50">
+                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800">
                       My Profile
                     </button>
-                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50">
+                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800">
                       Settings
                     </button>
                     <div className="border-t border-slate-100 px-4 py-1.5">
-                      <span className="text-[10px] uppercase tracking-wide text-slate-400">Role: {role}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-slate-500">Role: {role}</span>
                     </div>
                     <button
                       onClick={handleSignOut}
