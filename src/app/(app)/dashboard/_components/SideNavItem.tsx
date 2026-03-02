@@ -21,7 +21,7 @@ export default function SideNavItem({
   icon?: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const active = pathname === href || pathname?.startsWith(href + '/');
+  const active = pathname === href || (href !== '/dashboard' && pathname?.startsWith(href + '/'));
 
   return (
     <motion.div
@@ -48,7 +48,7 @@ export default function SideNavItem({
         </motion.span>
         <span
           className="text-sm font-medium"
-          style={active ? { color: brand.primary } : undefined}
+          style={{ color: active ? brand.primary : brand.muted }}
         >
           {label}
         </span>

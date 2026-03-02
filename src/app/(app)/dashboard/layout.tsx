@@ -201,7 +201,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <motion.aside
         animate={{ width: sidebarOpen ? 260 : 80 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="hidden md:flex flex-col gap-3 p-4 sticky top-0 h-svh"
+        className="hidden md:flex flex-col gap-3 p-4 sticky top-0 h-svh overflow-y-auto"
         style={{
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
