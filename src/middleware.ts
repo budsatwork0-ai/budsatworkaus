@@ -1,25 +1,71 @@
 // src/middleware.ts
 import { NextResponse } from 'next/server';
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from '@/lib/supabase/middleware';
+import { resolveUserRole } from '@/types/roles';
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
-const isWebhookRoute = createRouteMatcher(['/api/webhooks(.*)']);
+export async function middleware(req: NextRequest) {
+  const { supabase, response } = createMiddlewareClient(req);
+  const { pathname } = req.nextUrl;
 
-const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
+  // Webhook routes use their own signature verification — skip auth
+  if (pathname.startsWith('/api/webhooks')) return response();
 
-const middleware = hasClerkKeys
-  ? clerkMiddleware((auth, req) => {
-      // Webhook routes use their own signature verification — skip Clerk auth
-      if (isWebhookRoute(req)) return;
-      if (isProtectedRoute(req)) auth.protect();
-    })
-  : () => {
-      // Allows local/dev usage without Clerk configured.
-      // Note: protected routes will not be enforced until Clerk keys are set.
-      return NextResponse.next();
-    };
+  const isDashboard = pathname.startsWith('/dashboard');
+  const isCrew = pathname.startsWith('/crew');
+  const isPortal = pathname.startsWith('/portal');
+  const isProtected = isDashboard || isCrew || isPortal;
 
-export default middleware;
+  // Always call getUser() so Supabase can refresh the session cookie on every request.
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!isProtected) return response();
+
+  if (!user) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/account';
+    url.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  let role = resolveUserRole(user.app_metadata?.role);
+
+  // Keep routing resilient when JWT metadata is stale or missing.
+  if (!user.app_metadata?.role) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    role = resolveUserRole(profile?.role);
+  }
+
+  // Strict role-based routing — redirect to wrong-portal so users understand what happened.
+  if (isDashboard && role !== 'admin') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/account/wrong-portal';
+    url.searchParams.set('from', 'dashboard');
+    return NextResponse.redirect(url);
+  }
+
+  if (isCrew && role === 'customer') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/account/wrong-portal';
+    url.searchParams.set('from', 'crew');
+    return NextResponse.redirect(url);
+  }
+
+  // Employees are redirected away from the customer portal; admins are allowed through
+  // (they may need to inspect the customer experience).
+  if (isPortal && role === 'employee') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/account/wrong-portal';
+    url.searchParams.set('from', 'portal');
+    return NextResponse.redirect(url);
+  }
+
+  return response();
+}
 
 // Match all routes except static files/_next
 export const config = {

@@ -4784,7 +4784,7 @@ const COMM_PRESETS: Record<
                       setIsCheckoutLoading(true);
 
                       try {
-                        const res = await fetch('/api/checkout', {
+                        const res = await fetch('/api/quotes', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -4795,11 +4795,9 @@ const COMM_PRESETS: Record<
                             context: S.context,
                             scope: S.scope,
                             frequency: (S as any).commFrequency || 'none',
-                            base_price: estimate.total,
-                            discount_percent: (S.contractDiscount || 0) * 100,
-                            final_price: effectiveTotal,
+                            submitted_total: effectiveTotal,
+                            total: effectiveTotal,
                             notes: S.notes || '',
-                            region: S.region,
                           }),
                         });
 
@@ -4808,29 +4806,29 @@ const COMM_PRESETS: Record<
                           throw new Error(errData.error || `Error ${res.status}`);
                         }
 
-                        const { url } = await res.json();
+                        const { quote } = await res.json();
 
-                        if (url) {
-                          window.location.href = url;
+                        if (quote?.id) {
+                          window.location.href = `/services/checkout/success?quote_id=${encodeURIComponent(quote.id)}`;
                         } else {
-                          throw new Error('No checkout URL returned');
+                          throw new Error('No quote reference returned');
                         }
                       } catch (err) {
-                        console.error('Checkout error:', err);
+                        console.error('Quote request error:', err);
                         toast.error(
                           err instanceof Error ? err.message : 'Something went wrong. Please try again.'
                         );
                         setIsCheckoutLoading(false);
                       }
                     }}
-                    aria-label="Proceed to payment"
+                    aria-label="Submit booking request"
                   >
                     {isCheckoutLoading ? (
                       <>
                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
                           <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" />
                         </svg>
-                        Processing...
+                        Submitting...
                       </>
                     ) : (
                       <>
@@ -4850,7 +4848,7 @@ const COMM_PRESETS: Record<
                             strokeLinejoin="round"
                           />
                         </svg>
-                        Request booking
+                        Submit booking request
                       </>
                     )}
                   </M.button>

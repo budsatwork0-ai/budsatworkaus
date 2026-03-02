@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
-import { createStripeClient } from '@/lib/stripe/server';
+import { getAuthUser } from '@/lib/auth';
 
-// Simple in-memory rate limiter (resets per server process restart)
+// Backward-compat endpoint:
+// Step 3 now stores a quote request only. Stripe checkout happens after final review.
+
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60_000;
@@ -21,7 +23,6 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-// Fire-and-forget audit log insert
 async function logAudit(
   client: ReturnType<typeof createServiceClientSafe>,
   entityId: string,
@@ -32,28 +33,18 @@ async function logAudit(
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (client as any).from('audit_log').insert([{
-      entity_type: 'order',
+      entity_type: 'quote',
       entity_id: entityId,
       action,
       new_value: newValue,
       source: 'checkout',
     }]);
   } catch {
-    // Don't block checkout if audit log fails
+    // Non-blocking
   }
 }
 
-const SERVICE_LABELS: Record<string, string> = {
-  windows: 'Window Cleaning',
-  cleaning: 'Home/Commercial Cleaning',
-  yard: 'Yard Care',
-  dump: 'Dump Runs',
-  auto: 'Auto Detailing',
-  laundry_sneakers: 'Laundry & Sneaker Care',
-};
-
 export async function POST(req: NextRequest) {
-  // Rate limiting
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (!checkRateLimit(ip)) {
     return NextResponse.json({ error: 'Too many requests. Please wait a moment and try again.' }, { status: 429 });
@@ -64,6 +55,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
+  const authUser = await getAuthUser();
+
   let body: {
     customer_name: string;
     customer_email: string;
@@ -72,14 +65,9 @@ export async function POST(req: NextRequest) {
     context: string;
     scope?: string;
     frequency?: string;
-    base_price: number;
-    discount_percent?: number;
-    final_price: number;
+    final_price?: number;
+    submitted_total?: number;
     notes?: string;
-    region?: string;
-    company_name?: string;
-    abn?: string;
-    is_business_expense?: boolean;
   };
 
   try {
@@ -95,13 +83,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!body.final_price || body.final_price <= 0) {
+  const submittedTotal = Number(body.submitted_total ?? body.final_price ?? 0);
+  if (!Number.isFinite(submittedTotal) || submittedTotal <= 0) {
     return NextResponse.json({ error: 'Invalid price' }, { status: 400 });
   }
 
   try {
-    // 1. Create order in database with status 'pending'
-    const orderData = {
+    const quoteData = {
+      customer_id: authUser?.role === 'customer' ? authUser.id : null,
       customer_name: body.customer_name,
       customer_email: body.customer_email || null,
       customer_phone: body.customer_phone || null,
@@ -109,88 +98,34 @@ export async function POST(req: NextRequest) {
       context: body.context,
       scope: body.scope || null,
       frequency: body.frequency || 'none',
-      base_price: body.base_price,
-      discount_percent: body.discount_percent || 0,
-      final_price: body.final_price,
-      status: 'pending',
+      total: submittedTotal,
+      submitted_total: submittedTotal,
+      reviewed_total: null,
+      status: 'submitted',
+      payment_status: 'not_requested',
       notes: body.notes || null,
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: order, error: orderError } = await (client as any)
-      .from('orders')
-      .insert([orderData])
+    const { data: quote, error } = await (client as any)
+      .from('quotes')
+      .insert([quoteData])
       .select()
       .single();
 
-    if (orderError || !order) {
-      console.error('Order creation error:', orderError);
-      return NextResponse.json(
-        { error: orderError?.message || 'Failed to create order' },
-        { status: 400 }
-      );
+    if (error || !quote) {
+      return NextResponse.json({ error: error?.message || 'Failed to create quote' }, { status: 400 });
     }
 
-    // 2. Create Stripe Checkout Session
-    const stripe = createStripeClient();
-
-    const serviceLabel = SERVICE_LABELS[body.service_type] || body.service_type;
-    const contextLabel = body.context === 'commercial' ? 'Commercial' : 'Residential';
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
-
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      currency: 'aud',
+    logAudit(client, quote.id, 'submitted', {
+      submitted_total: submittedTotal,
       customer_email: body.customer_email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'aud',
-            unit_amount: Math.round(body.final_price * 100), // Stripe uses cents
-            product_data: {
-              name: `${contextLabel} ${serviceLabel}`,
-              description: `Buds at Work – ${contextLabel} ${serviceLabel}${body.scope ? ` (${body.scope})` : ''}`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        order_id: order.id,
-        service_type: body.service_type,
-        context: body.context,
-        customer_name: body.customer_name,
-      },
-      success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/services/checkout/cancel?order_id=${order.id}`,
-    });
-
-    // 3. Store Stripe session ID on the order
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (client as any)
-      .from('orders')
-      .update({ stripe_checkout_session_id: session.id })
-      .eq('id', order.id);
-
-    // 4. Audit log (fire-and-forget)
-    logAudit(client, order.id, 'created', {
       service_type: body.service_type,
-      final_price: body.final_price,
-      customer_email: body.customer_email,
-      stripe_session_id: session.id,
     });
 
-    // 5. Return session URL for client-side redirect
-    return NextResponse.json({
-      url: session.url,
-      order_id: order.id,
-      session_id: session.id,
-    });
+    return NextResponse.json({ quote });
   } catch (error) {
-    console.error('Checkout error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create checkout session' },
-      { status: 500 }
-    );
+    console.error('Checkout quote submission error:', error);
+    return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
   }
 }

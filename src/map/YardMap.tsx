@@ -18,8 +18,7 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   disableDefaultUI: true,
   clickableIcons: false,
   // "cooperative" normally: scroll page on single-touch, require two fingers to pan map.
-  // We switch to "greedy" when drawing is active so mobile taps go to the drawing manager
-  // instead of being swallowed by the "use two fingers" overlay.
+  // We switch to "greedy" when drawing is active so mobile taps register on the map.
   gestureHandling: "cooperative",
   streetViewControl: false,
   mapTypeControl: false,
@@ -51,6 +50,8 @@ const FRAME_EVENTS: Array<"set_at" | "insert_at" | "remove_at"> = [
   "remove_at",
 ];
 
+const CLOSE_DISTANCE_M = 25;
+
 const roundCoord = (value: number) => Number(value.toFixed(7));
 
 const normalizeCoords = (coords?: LatLng[]) =>
@@ -68,6 +69,18 @@ const coordsFromPath = (path: google.maps.MVCArray<google.maps.LatLng>): LatLng[
 };
 
 const isInIframe = () => typeof window !== "undefined" && window.parent && window.parent !== window;
+
+const haversineDistance = (a: google.maps.LatLng, b: google.maps.LatLng): number => {
+  const R = 6378137;
+  const dLat = ((b.lat() - a.lat()) * Math.PI) / 180;
+  const dLng = ((b.lng() - a.lng()) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos((a.lat() * Math.PI) / 180) * Math.cos((b.lat() * Math.PI) / 180) * sinLng * sinLng;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
 
 export type YardMapProps = {
   apiKey: string;
@@ -94,12 +107,19 @@ export default function YardMap({
   const pendingSetPolygonRef = React.useRef<LatLng[] | null>(null);
   const suppressEmitRef = React.useRef(false);
   const autocompleteRef = React.useRef<google.maps.places.Autocomplete | null>(null);
-  const drawingManagerRef = React.useRef<google.maps.drawing.DrawingManager | null>(null);
   const googleRef = React.useRef<typeof google | null>(null);
   const attachEventsRef = React.useRef<(() => void) | null>(null);
+
+  // Custom tap-to-draw refs (replaces DrawingManager)
+  const drawingVerticesRef = React.useRef<google.maps.LatLng[]>([]);
+  const vertexMarkersRef = React.useRef<google.maps.Marker[]>([]);
+  const previewPolylineRef = React.useRef<google.maps.Polyline | null>(null);
+  const mapClickListenerRef = React.useRef<google.maps.MapsEventListener | null>(null);
+
   const [searchEnabled, setSearchEnabled] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [drawingEnabled, setDrawingEnabled] = React.useState(false);
+  const [vertexCount, setVertexCount] = React.useState(0);
 
   const initialCenterRef = React.useRef(initialCenter);
   const initialPolygonRef = React.useRef(initialPolygon);
@@ -243,33 +263,18 @@ export default function YardMap({
       polygonRef.current = polygon;
       polygon.setEditable(true);
 
-      const drawingManager = new googleLib.maps.drawing.DrawingManager({
-        drawingMode: null,
-        drawingControl: false,
-        polygonOptions: {
-          ...POLYGON_OPTIONS,
-          editable: false,
-        },
+      // Create a preview polyline for showing the in-progress drawing
+      const previewLine = new googleLib.maps.Polyline({
+        map,
+        strokeColor: "#16a34a",
+        strokeOpacity: 0.6,
+        strokeWeight: 2,
+        geodesic: true,
+        clickable: false,
+        zIndex: 4,
       });
-      drawingManager.setMap(map);
-      drawingManagerRef.current = drawingManager;
-      const overlayListener = googleLib.maps.event.addListener(
-        drawingManager,
-        "overlaycomplete",
-        (event: google.maps.drawing.OverlayCompleteEvent) => {
-          if (event.type === googleLib.maps.drawing.OverlayType.POLYGON) {
-            const overlay = event.overlay as google.maps.Polygon;
-            const path = coordsFromPath(overlay.getPath());
-            applyPolygonPath(path);
-            overlay.setMap(null);
-            drawingManager.setDrawingMode(null);
-            window.requestAnimationFrame(() => {
-              handlePolygonChange();
-            });
-          }
-        }
-      );
-      listenersRef.current.push(overlayListener);
+      previewPolylineRef.current = previewLine;
+
       const initialCoords = initialPolygonRef.current;
       if (initialCoords && initialCoords.length) {
         polygon.setPath(normalizeCoords(initialCoords));
@@ -285,13 +290,13 @@ export default function YardMap({
 
     const loadMaps = async () => {
       try {
-        const googleWithPlaces = await loadGoogleMapsOnce({ apiKey, libraries: ["places", "drawing"] });
+        const googleWithPlaces = await loadGoogleMapsOnce({ apiKey, libraries: ["places"] });
         initMap(googleWithPlaces, true);
       } catch (err) {
         console.warn("YardMap: Places API unavailable, continuing without search.", err);
         if (cancelled) return;
         try {
-          const googleBase = await loadGoogleMapsOnce({ apiKey, libraries: ["drawing"] });
+          const googleBase = await loadGoogleMapsOnce({ apiKey, libraries: [] });
           initMap(googleBase, false);
         } catch (fatal) {
           console.error("YardMap failed to load Google Maps", fatal);
@@ -318,27 +323,142 @@ export default function YardMap({
         rafRef.current = null;
       }
       polygonRef.current?.setMap(null);
-      drawingManagerRef.current?.setMap(null);
-      drawingManagerRef.current = null;
+      previewPolylineRef.current?.setMap(null);
+      previewPolylineRef.current = null;
+      mapClickListenerRef.current?.remove();
+      mapClickListenerRef.current = null;
+      vertexMarkersRef.current.forEach((m) => m.setMap(null));
+      vertexMarkersRef.current = [];
       autocompleteRef.current = null;
     };
   }, [apiKey, mapId, onPolygonChange]);
 
-  const applyDrawingMode = React.useCallback((enabled: boolean) => {
-    const drawingManager = drawingManagerRef.current;
-    const googleLib = googleRef.current;
-    const map = mapRef.current;
-    if (!drawingManager || !googleLib) return;
-    // On mobile, "cooperative" swallows the first touch with a "use two fingers" overlay,
-    // which prevents the drawing manager from receiving tap events.
-    // Switch to "greedy" while drawing so every touch goes straight to the drawing manager.
-    if (map) {
-      map.setOptions({ gestureHandling: enabled ? "greedy" : "cooperative" });
-    }
-    drawingManager.setDrawingMode(
-      enabled ? googleLib.maps.drawing.OverlayType.POLYGON : null
-    );
+  // --- Custom tap-to-draw helpers ---
+
+  const clearDrawingState = React.useCallback(() => {
+    vertexMarkersRef.current.forEach((m) => m.setMap(null));
+    vertexMarkersRef.current = [];
+    drawingVerticesRef.current = [];
+    previewPolylineRef.current?.setPath([]);
+    setVertexCount(0);
   }, []);
+
+  const closeShape = React.useCallback(() => {
+    const vertices = drawingVerticesRef.current;
+    if (vertices.length < 3) return;
+
+    const coords: LatLng[] = vertices.map((v) => ({
+      lat: roundCoord(v.lat()),
+      lng: roundCoord(v.lng()),
+    }));
+
+    // Apply to the main polygon
+    const polygon = polygonRef.current;
+    if (polygon) {
+      suppressEmitRef.current = true;
+      polygon.setPath(coords.map((c) => new google.maps.LatLng(c.lat, c.lng)));
+      polygon.setEditable(true);
+      attachEventsRef.current?.();
+      window.requestAnimationFrame(() => {
+        suppressEmitRef.current = false;
+        // Emit the change
+        const path = polygon.getPath();
+        if (!path) return;
+        const finalCoords = coordsFromPath(path);
+        onPolygonChange?.(finalCoords);
+        if (isInIframe()) {
+          window.parent.postMessage({ type: "YARD_POLYGON_CHANGE", coords: finalCoords }, "*");
+        }
+      });
+    }
+
+    clearDrawingState();
+    setDrawingEnabled(false);
+  }, [clearDrawingState, onPolygonChange]);
+
+  const applyDrawingMode = React.useCallback(
+    (enabled: boolean) => {
+      const map = mapRef.current;
+      const googleLib = googleRef.current;
+      if (!map || !googleLib) return;
+
+      // Toggle gesture handling for mobile
+      map.setOptions({ gestureHandling: enabled ? "greedy" : "cooperative" });
+
+      // Remove any existing click listener
+      mapClickListenerRef.current?.remove();
+      mapClickListenerRef.current = null;
+
+      if (enabled) {
+        // Hide the existing polygon while drawing a new one
+        polygonRef.current?.setEditable(false);
+        polygonRef.current?.setPath([]);
+
+        clearDrawingState();
+
+        const listener = map.addListener("click", (event: google.maps.MapMouseEvent) => {
+          if (!event.latLng) return;
+
+          const vertices = drawingVerticesRef.current;
+
+          // Check if tapping near the first point to close (need 3+ vertices)
+          if (vertices.length >= 3) {
+            const dist = haversineDistance(event.latLng, vertices[0]);
+            if (dist < CLOSE_DISTANCE_M) {
+              closeShape();
+              return;
+            }
+          }
+
+          // Add this vertex
+          vertices.push(event.latLng);
+          drawingVerticesRef.current = vertices;
+          setVertexCount(vertices.length);
+
+          // Add a marker at this vertex
+          const isFirst = vertices.length === 1;
+          const marker = new googleLib.maps.Marker({
+            position: event.latLng,
+            map,
+            icon: {
+              path: googleLib.maps.SymbolPath.CIRCLE,
+              scale: isFirst ? 8 : 6,
+              fillColor: isFirst ? "#22c55e" : "#ffffff",
+              fillOpacity: 1,
+              strokeColor: "#0f5132",
+              strokeWeight: 2,
+            },
+            clickable: isFirst && vertices.length >= 3,
+            zIndex: 5,
+          });
+
+          if (isFirst) {
+            // Allow clicking the first marker to close the shape
+            marker.addListener("click", () => {
+              if (drawingVerticesRef.current.length >= 3) {
+                closeShape();
+              }
+            });
+          }
+
+          vertexMarkersRef.current.push(marker);
+
+          // Update the preview polyline
+          previewPolylineRef.current?.setPath(vertices);
+        });
+
+        mapClickListenerRef.current = listener;
+      } else {
+        clearDrawingState();
+        // Re-enable polygon editing
+        const polygon = polygonRef.current;
+        if (polygon && polygon.getPath().getLength() > 0) {
+          polygon.setEditable(true);
+        }
+      }
+    },
+    [clearDrawingState, closeShape]
+  );
 
   React.useEffect(() => {
     applyDrawingMode(drawingEnabled);
@@ -362,9 +482,6 @@ export default function YardMap({
           });
         } else {
           pendingSetPolygonRef.current = normalized;
-        }
-        if (!normalized.length && drawingManagerRef.current && googleRef.current) {
-          drawingManagerRef.current.setDrawingMode(googleRef.current.maps.drawing.OverlayType.POLYGON);
         }
         return;
       }
@@ -543,9 +660,34 @@ export default function YardMap({
             textAlign: "center",
             backdropFilter: "blur(4px)",
             lineHeight: 1.5,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
           }}
         >
-          Tap to place points &mdash; tap the <strong>first point</strong> again to close the shape
+          <span>
+            Tap to place points &mdash; tap the <strong>first point</strong> again to close the
+            shape
+          </span>
+          {vertexCount >= 3 && (
+            <button
+              onClick={closeShape}
+              style={{
+                padding: "6px 16px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.4)",
+                background: "rgba(255,255,255,0.15)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              Close shape ({vertexCount} points)
+            </button>
+          )}
         </div>
       )}
     </div>

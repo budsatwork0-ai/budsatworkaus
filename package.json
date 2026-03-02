@@ -15,11 +15,11 @@
     "test:debug": "playwright test --debug"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.37.1",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@next/third-parties": "^16.1.6",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.88.0",
     "framer-motion": "^12.23.24",
     "konva": "^10.0.12",

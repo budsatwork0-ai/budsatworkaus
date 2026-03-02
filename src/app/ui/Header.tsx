@@ -132,21 +132,19 @@ export default function Header() {
           </Link>
           <Link
             href="/account"
-            aria-label="Profile"
+            aria-label="Sign in"
             className={cx(
-              'p-2 rounded-xl border transition-colors',
-              showLight ? 'border-white/40 hover:bg-white/20' : 'hover:bg-gray-50'
+              'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors',
+              showLight ? 'border-white/40 hover:bg-white/20 text-white' : 'hover:bg-gray-50'
             )}
             onClick={() => handleNavClick('/account')}
-            style={{ borderColor: showLight ? undefined : brand.border, color: showLight ? '#fff' : brand.primary }}
+            style={{ borderColor: showLight ? undefined : brand.border, color: showLight ? '#fff' : brand.muted }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" className="h-6 w-6"
-            >
-              <circle cx="12" cy="8" r="4" strokeWidth={1.8} />
-              <path d="M4 20c0-4 4-6 8-6s8 2 8 6" strokeWidth={1.8} />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
             </svg>
+            <span className="hidden md:inline">Sign in</span>
           </Link>
         </div>
       </div>

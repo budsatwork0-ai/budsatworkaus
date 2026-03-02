@@ -1,0 +1,252 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { useAuth } from '@/app/hooks/useAuth';
+import { brand } from '@/app/ui/theme';
+
+type OrderSummary = {
+  id: string;
+  service_type: string;
+  status: string;
+  scheduled_date: string | null;
+  final_price: number;
+  created_at: string;
+};
+
+type SubSummary = {
+  id: string;
+  service_type: string;
+  status: string;
+  frequency: string;
+  next_service_date: string | null;
+  price_per_cycle: number;
+};
+
+const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
+
+const SERVICE_ICONS: Record<string, string> = {
+  windows: '\u{1F6BF}', cleaning: '\u{1F9F9}', yard: '\u{1F33F}',
+  dump: '\u{1F69A}', auto: '\u{1F697}', laundry_sneakers: '\u{1F45F}',
+};
+
+const SERVICE_LABELS: Record<string, string> = {
+  windows: 'Window Cleaning', cleaning: 'Home Cleaning', yard: 'Yard Care',
+  dump: 'Dump Run', auto: 'Auto Detailing', laundry_sneakers: 'Laundry & Sneakers',
+};
+
+const STATUS_STEPS = ['confirmed', 'scheduled', 'in_progress', 'completed'];
+
+function StatusTimeline({ status }: { status: string }) {
+  const currentIdx = STATUS_STEPS.indexOf(status);
+  return (
+    <div className="flex items-center gap-1">
+      {STATUS_STEPS.map((step, i) => (
+        <div key={step} className="flex items-center">
+          <div
+            className="w-2 h-2 rounded-full transition-colors"
+            style={{ background: i <= currentIdx ? brand.primary : '#E2E8F0' }}
+          />
+          {i < STATUS_STEPS.length - 1 && (
+            <div
+              className="w-4 h-0.5 transition-colors"
+              style={{ background: i < currentIdx ? brand.primary : '#E2E8F0' }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function PortalHome() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [subs, setSubs] = useState<SubSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFetchError(null);
+    Promise.all([
+      fetch('/api/orders?limit=20').then((r) => {
+        if (!r.ok) throw new Error('Failed to load orders');
+        return r.json();
+      }),
+      fetch('/api/subscriptions?limit=10').then((r) => {
+        if (!r.ok) throw new Error('Failed to load subscriptions');
+        return r.json();
+      }),
+    ]).then(([orderData, subData]) => {
+      setOrders(orderData.orders || []);
+      setSubs(subData.subscriptions || []);
+    }).catch(() => {
+      setFetchError('Some data failed to load. Your dashboard may be incomplete.');
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0] || 'there';
+  const today = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const activeOrders = orders.filter((o) => !['completed', 'cancelled'].includes(o.status));
+  const activeSubs = subs.filter((s) => s.status === 'active');
+  const totalSpent = orders.filter((o) => o.status === 'completed').reduce((s, o) => s + o.final_price, 0);
+  const nextService = activeOrders
+    .filter((o) => o.scheduled_date)
+    .sort((a, b) => new Date(a.scheduled_date!).getTime() - new Date(b.scheduled_date!).getTime())[0];
+
+  const attentionOrders = orders.filter((o) => ['in_progress', 'scheduled', 'confirmed'].includes(o.status));
+
+  const stats = [
+    { label: 'Active Orders', value: String(activeOrders.length), color: '#3B82F6' },
+    {
+      label: 'Next Service',
+      value: nextService?.scheduled_date
+        ? new Date(nextService.scheduled_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+        : 'None',
+      color: brand.primary,
+    },
+    { label: 'Subscriptions', value: String(activeSubs.length), color: '#8B5CF6' },
+    { label: 'Total Spent', value: `$${totalSpent.toFixed(0)}`, color: '#10B981' },
+  ];
+
+  const quickActions = [
+    { href: '/services', label: 'Book a Service', desc: 'Request a new service quote', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+    ) },
+    { href: '/portal/subscriptions', label: 'My Subscriptions', desc: 'Manage recurring services', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2"><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 014-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>
+    ) },
+    { href: '/portal/property', label: 'Property Details', desc: 'Update address & instructions', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+    ) },
+    { href: '/portal/payments', label: 'Payment History', desc: 'View invoices and receipts', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" /></svg>
+    ) },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {fetchError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+          </svg>
+          {fetchError}
+        </div>
+      )}
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>
+          Welcome back, {firstName}
+        </h1>
+        <p className="text-sm mt-1" style={{ color: brand.muted }}>{today}</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {stats.map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className={`${glass} p-4`}
+          >
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>{stat.label}</p>
+            {loading ? (
+              <div className="h-8 w-16 rounded bg-slate-100 animate-pulse mt-1" />
+            ) : (
+              <p className="text-2xl font-bold mt-1" style={{ color: stat.color }}>{stat.value}</p>
+            )}
+          </motion.div>
+        ))}
+      </div>
+
+      {!loading && attentionOrders.length > 0 && (
+        <div className={`${glass} p-5`}>
+          <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>Needs Your Attention</h2>
+          <div className="space-y-3">
+            {attentionOrders.slice(0, 4).map((order) => (
+              <Link
+                key={order.id}
+                href="/portal/orders"
+                className="flex items-center justify-between p-3 rounded-xl border transition-colors hover:bg-slate-50/50"
+                style={{ borderColor: 'rgba(0,0,0,0.05)' }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{SERVICE_ICONS[order.service_type] || '\u{1F4CB}'}</span>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: brand.text }}>
+                      {SERVICE_LABELS[order.service_type] || order.service_type}
+                    </p>
+                    <p className="text-xs" style={{ color: brand.muted }}>
+                      {order.scheduled_date
+                        ? new Date(order.scheduled_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+                        : 'Pending schedule'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusTimeline status={order.status} />
+                  <span className="text-sm font-semibold" style={{ color: brand.text }}>${order.final_price.toFixed(0)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {quickActions.map((action) => (
+          <Link key={action.href} href={action.href} className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow`}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(15,61,46,0.08)' }}>
+              {action.icon}
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: brand.text }}>{action.label}</p>
+              <p className="text-xs" style={{ color: brand.muted }}>{action.desc}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className={`${glass} p-5`}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold" style={{ color: brand.text }}>Recent Orders</h2>
+          <Link href="/portal/orders" className="text-xs font-medium" style={{ color: brand.primary }}>View all</Link>
+        </div>
+        {loading ? (
+          <div className="space-y-2">{[1, 2, 3].map((n) => <div key={n} className="h-10 rounded-lg bg-slate-100 animate-pulse" />)}</div>
+        ) : orders.length === 0 ? (
+          <p className="text-sm py-6 text-center" style={{ color: brand.muted }}>
+            No orders yet. <Link href="/services" className="underline" style={{ color: brand.primary }}>Book a service</Link>
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {orders.slice(0, 5).map((order) => (
+              <div key={order.id} className="flex items-center justify-between p-3 rounded-xl border" style={{ borderColor: 'rgba(0,0,0,0.05)' }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-base">{SERVICE_ICONS[order.service_type] || '\u{1F4CB}'}</span>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: brand.text }}>{SERVICE_LABELS[order.service_type] || order.service_type}</p>
+                    <p className="text-[11px]" style={{ color: brand.muted }}>{new Date(order.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.final_price.toFixed(2)}</p>
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background: order.status === 'completed' ? '#ECFDF5' : order.status === 'cancelled' ? '#FEE2E2' : '#F1F5F9',
+                      color: order.status === 'completed' ? '#065F46' : order.status === 'cancelled' ? '#991B1B' : brand.muted,
+                    }}
+                  >{order.status.replace('_', ' ')}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

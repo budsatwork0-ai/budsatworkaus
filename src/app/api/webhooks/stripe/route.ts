@@ -57,9 +57,28 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.order_id;
+        const quoteId = session.metadata?.quote_id;
 
-        if (!orderId) {
-          console.warn('checkout.session.completed without order_id in metadata');
+        if (!orderId && !quoteId) {
+          console.warn('checkout.session.completed without order_id/quote_id in metadata');
+          break;
+        }
+
+        let resolvedOrderId = orderId;
+
+        if (!resolvedOrderId && quoteId) {
+          // Resolve order from quote fallback when metadata is quote-only.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: quoteOrder } = await (client as any)
+            .from('quotes')
+            .select('converted_order_id')
+            .eq('id', quoteId)
+            .maybeSingle();
+          resolvedOrderId = quoteOrder?.converted_order_id || undefined;
+        }
+
+        if (!resolvedOrderId) {
+          console.warn('checkout.session.completed could not resolve an order id');
           break;
         }
 
@@ -71,7 +90,7 @@ export async function POST(req: NextRequest) {
             stripe_payment_intent_id: session.payment_intent as string,
             status: 'confirmed',
           })
-          .eq('id', orderId);
+          .eq('id', resolvedOrderId);
 
         // Insert payment record
         const paymentAmount = (session.amount_total || 0) / 100;
@@ -80,7 +99,7 @@ export async function POST(req: NextRequest) {
         await (client as any)
           .from('payments')
           .insert([{
-            order_id: orderId,
+            order_id: resolvedOrderId,
             amount: paymentAmount,
             payment_method: 'card',
             payment_reference: session.payment_intent as string,
@@ -90,11 +109,33 @@ export async function POST(req: NextRequest) {
           }]);
 
         // Audit log
-        logAudit(client, 'order', orderId, 'payment_received', {
+        logAudit(client, 'order', resolvedOrderId, 'payment_received', {
           amount: paymentAmount,
           stripe_session_id: session.id,
           payment_intent: session.payment_intent,
         });
+
+        if (quoteId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (client as any)
+            .from('quotes')
+            .update({
+              status: 'paid',
+              payment_status: 'paid',
+              paid_at: new Date().toISOString(),
+              stripe_payment_intent_id: session.payment_intent as string,
+              converted_order_id: resolvedOrderId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', quoteId);
+
+          logAudit(client, 'quote', quoteId, 'payment_received', {
+            order_id: resolvedOrderId,
+            amount: paymentAmount,
+            stripe_session_id: session.id,
+            payment_intent: session.payment_intent,
+          });
+        }
 
         break;
       }

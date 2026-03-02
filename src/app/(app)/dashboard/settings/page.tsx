@@ -30,7 +30,7 @@ type TeamMember = {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: string;
   active: boolean;
 };
 
@@ -40,10 +40,12 @@ const STAT_LABELS: Record<keyof SiteStats, string> = {
   repeat_customers: 'Repeat Customers',
 };
 
-const ROLE_LABELS: Record<TeamMember['role'], string> = {
-  admin: 'Admin',
-  manager: 'Manager',
-  staff: 'Staff',
+const ALL_ROLES = ['admin', 'employee', 'customer'] as const;
+
+const ROLE_COLORS: Record<string, string> = {
+  admin: 'bg-emerald-100 text-emerald-700',
+  employee: 'bg-blue-100 text-blue-700',
+  customer: 'bg-slate-100 text-slate-600',
 };
 
 // Icons
@@ -80,14 +82,6 @@ function DocumentIcon({ className = 'h-5 w-5' }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
       <rect x="4" y="3" width="16" height="18" rx="2" />
       <path d="M8 7h8M8 11h8M8 15h4" />
-    </svg>
-  );
-}
-
-function PlusIcon({ className = 'h-4 w-4' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
-      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
@@ -165,10 +159,8 @@ export default function SettingsPage() {
     emailWeeklySummary: false,
     browserNotifications: true,
   });
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    { id: '1', name: 'Jackson Taylor', email: 'jackson@budsatwork.com.au', role: 'admin', active: true },
-    { id: '2', name: 'Team Member', email: 'team@budsatwork.com.au', role: 'staff', active: true },
-  ]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
   const [invoiceSettings, setInvoiceSettings] = useState({
     defaultPaymentTerms: 14,
     invoicePrefix: 'INV-',
@@ -179,7 +171,42 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    fetchTeam();
   }, []);
+
+  async function fetchTeam() {
+    setTeamLoading(true);
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setTeamMembers(data.users || []);
+    } catch {
+      // Fall back to empty - user may not be admin
+    } finally {
+      setTeamLoading(false);
+    }
+  }
+
+  async function handleRoleChange(userId: string, newRole: string) {
+    const prev = teamMembers.find(m => m.id === userId);
+    if (!prev || prev.role === newRole) return;
+    // Optimistic update
+    setTeamMembers(members => members.map(m => m.id === userId ? { ...m, role: newRole } : m));
+    try {
+      const res = await fetch('/api/users/role', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Role updated to ${newRole}`);
+    } catch {
+      // Revert
+      setTeamMembers(members => members.map(m => m.id === userId ? { ...m, role: prev.role } : m));
+      toast.error('Failed to update role');
+    }
+  }
 
   async function fetchSettings() {
     try {
@@ -505,46 +532,57 @@ export default function SettingsPage() {
           icon={<UserIcon />}
         >
           <div className="space-y-3">
-            {teamMembers.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-semibold">
-                    {member.name.charAt(0)}
+            {teamLoading ? (
+              <>
+                {[1, 2].map((n) => (
+                  <div key={n} className="rounded-xl border border-slate-200 bg-white px-4 py-3 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-200" />
+                      <div>
+                        <div className="h-4 w-28 bg-slate-200 rounded" />
+                        <div className="h-3 w-36 bg-slate-100 rounded mt-1" />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">{member.name}</div>
-                    <div className="text-xs text-slate-500">{member.email}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
-                      member.role === 'admin'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : member.role === 'manager'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {ROLE_LABELS[member.role]}
-                  </span>
-                  <span
-                    className={`w-2 h-2 rounded-full ${member.active ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                    title={member.active ? 'Active' : 'Inactive'}
-                  />
-                </div>
+                ))}
+              </>
+            ) : teamMembers.length === 0 ? (
+              <div className="text-sm text-center py-4" style={{ color: brand.muted }}>
+                No team members found. Users will appear here once they sign up.
               </div>
-            ))}
-            <button
-              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 px-4 py-3 text-sm font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700 transition-colors"
-              onClick={() => toast.info('Team management coming soon!')}
-            >
-              <PlusIcon />
-              Add Team Member
-            </button>
+            ) : (
+              teamMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-semibold">
+                      {member.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">{member.name}</div>
+                      <div className="text-xs text-slate-500">{member.email}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                      className={`px-2 py-1 rounded-full text-[10px] font-semibold border-0 cursor-pointer ${ROLE_COLORS[member.role] || ROLE_COLORS.customer}`}
+                    >
+                      {ALL_ROLES.map((r) => (
+                        <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                      ))}
+                    </select>
+                    <span
+                      className={`w-2 h-2 rounded-full ${member.active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      title={member.active ? 'Active' : 'Inactive'}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </SettingsCard>
 

@@ -247,6 +247,8 @@ export default function GetInvolvedPage() {
 
   const [consent, setConsent] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     setShowErrors(false);
@@ -447,6 +449,81 @@ export default function GetInvolvedPage() {
       if (typeof navigator === 'undefined') return;
       navigator.clipboard?.writeText?.(text);
     } catch {}
+  }
+
+  async function submitToApi() {
+    if (!canSubmit) {
+      setShowErrors(true);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const suburb = isCrew && needsTransport ? pickupSuburb.trim() : isWorker ? workerSuburb.trim() : undefined;
+      const payload: Record<string, unknown> = {
+        role,
+        full_name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || null,
+        suburb: suburb || null,
+        consent,
+      };
+
+      if (isCrew) {
+        payload.availability = availability.length ? availability : null;
+        payload.services = services.length ? services : null;
+        payload.needs_transport = needsTransport;
+        payload.pickup_suburb = needsTransport ? pickupSuburb.trim() || null : null;
+        payload.max_ride_minutes = needsTransport ? maxRideMins : null;
+        payload.ndis_participant = isNDIS;
+        payload.ndis_number = isNDIS && ndisNumber.trim() ? ndisNumber.trim() : null;
+        payload.ndis_funding_type = isNDIS ? fundingType : null;
+        payload.support_coordinator_contact = isNDIS && scContact.trim() ? scContact.trim() : null;
+        payload.mobility_aid = needsTransport ? mobilityAidCrew : null;
+        payload.ride_preferences = needsTransport && ridePrefs.length ? ridePrefs.join(', ') : null;
+        if (abn.trim()) payload.abn = abn.trim();
+        if (notes.trim()) payload.notes = notes.trim();
+      } else if (isWorker) {
+        payload.availability = availability.length ? availability : null;
+        payload.services = services.length ? services : null;
+        payload.car_compliant = carCompliant;
+        payload.all_clearances = allClearances;
+        payload.resume = resume.trim() || null;
+        payload.seats_available = seatsAvail;
+        payload.boot_space = bootSpace;
+        payload.can_carry_aid = canCarryAid;
+        payload.pickup_radius_km = pickupRadiusKm;
+        if (abn.trim()) payload.abn = abn.trim();
+        if (typeof yearsExp === 'number') payload.years_experience = yearsExp;
+        if (notes.trim()) payload.notes = notes.trim();
+      } else if (isQualityPartner) {
+        payload.quality_business_name = qualityBusinessName.trim() || null;
+        payload.quality_contribution_types = qualityContributionTypes.length ? qualityContributionTypes : null;
+        payload.quality_message = qualityMessage.trim() || null;
+      } else if (isInnovationPartner) {
+        payload.innovation_organisation = innovationOrganisation.trim() || null;
+        payload.innovation_interest_areas = innovationInterestAreas.length ? innovationInterestAreas : null;
+        payload.innovation_notes = innovationNotes.trim() || null;
+      }
+
+      const res = await fetch('/api/applicants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Submission failed');
+      }
+
+      setSubmitted(true);
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    } catch (err) {
+      // Fall back to email if API fails
+      openEmailDraft();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   /* styles */
@@ -1166,7 +1243,7 @@ export default function GetInvolvedPage() {
               </div>
 
               <p className="text-sm text-slate-600 mb-4">
-                No accounts needed. This form creates a ready-to-send email.
+                No accounts needed. We&apos;ll save your expression of interest and get in touch.
               </p>
 
               {/* Status indicator */}
@@ -1189,8 +1266,8 @@ export default function GetInvolvedPage() {
               <ol className="space-y-3 mb-5">
                 {[
                   { step: 1, text: 'Fill in the form above' },
-                  { step: 2, text: 'Click to open or copy your email' },
-                  { step: 3, text: 'Send to admin@budsatwork.com' },
+                  { step: 2, text: 'Hit submit when ready' },
+                  { step: 3, text: 'We review and get in touch' },
                 ].map(({ step, text }) => (
                   <li key={step} className="flex items-start gap-3">
                     <span
@@ -1237,30 +1314,42 @@ export default function GetInvolvedPage() {
               </label>
 
               {/* Actions */}
-              <div className="grid gap-3">
-                <button
-                  onClick={openEmailDraft}
-                  className="w-full py-3.5 px-5 rounded-2xl font-semibold text-white shadow-[0_12px_30px_rgba(20,83,45,0.25)] transition-all hover:shadow-[0_16px_40px_rgba(20,83,45,0.3)] active:scale-[0.98]"
-                  style={{ backgroundColor: brand.primary }}
-                >
-                  Open email draft
-                </button>
-                <button
-                  type="button"
-                  onClick={copyDraft}
-                  className="w-full py-3 px-5 rounded-2xl font-semibold border bg-white/70 backdrop-blur hover:bg-white transition-colors"
-                  style={{ borderColor: brand.border, color: brand.text }}
-                >
-                  Copy to clipboard
-                </button>
-              </div>
+              {submitted ? (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
+                  <p className="text-sm font-semibold text-emerald-800">Thank you!</p>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Your expression of interest has been received. We&apos;ll be in touch soon.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3">
+                    <button
+                      onClick={submitToApi}
+                      disabled={submitting}
+                      className="w-full py-3.5 px-5 rounded-2xl font-semibold text-white shadow-[0_12px_30px_rgba(20,83,45,0.25)] transition-all hover:shadow-[0_16px_40px_rgba(20,83,45,0.3)] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: brand.primary }}
+                    >
+                      {submitting ? 'Submitting...' : 'Submit expression of interest'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openEmailDraft}
+                      className="w-full py-3 px-5 rounded-2xl font-semibold border bg-white/70 backdrop-blur hover:bg-white transition-colors"
+                      style={{ borderColor: brand.border, color: brand.text }}
+                    >
+                      Or send via email instead
+                    </button>
+                  </div>
 
-              <p className="mt-4 text-xs text-slate-500">
-                If nothing opens, paste the copied text into an email to{' '}
-                <a href="mailto:admin@budsatwork.com" className="underline underline-offset-2">
-                  admin@budsatwork.com
-                </a>
-              </p>
+                  <p className="mt-4 text-xs text-slate-500">
+                    Trouble submitting? Send an email directly to{' '}
+                    <a href="mailto:admin@budsatwork.com" className="underline underline-offset-2">
+                      admin@budsatwork.com
+                    </a>
+                  </p>
+                </>
+              )}
 
               <div className="mt-6 pt-5 border-t border-black/10">
                 <p className="text-xs text-slate-500">

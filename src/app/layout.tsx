@@ -1,7 +1,5 @@
 // src/app/layout.tsx
 import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
-import { Footer } from "@/components/Footer";
 import { SkipLinks } from "@/components/SkipLinks";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
 import { GoogleAnalytics } from "@next/third-parties/google";
@@ -63,7 +61,6 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (
@@ -75,17 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       {gaId && <GoogleAnalytics gaId={gaId} />}
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
         <SkipLinks />
-        {publishableKey ? (
-          <ClerkProvider publishableKey={publishableKey}>
-            <main id="main-content" className="flex-1">{children}</main>
-            <Footer />
-          </ClerkProvider>
-        ) : (
-          <>
-            <main id="main-content" className="flex-1">{children}</main>
-            <Footer />
-          </>
-        )}
+        <main id="main-content" className="flex-1">{children}</main>
       </body>
     </html>
   );

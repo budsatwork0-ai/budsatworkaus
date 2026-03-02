@@ -16,6 +16,7 @@ import {
   DetailDrawer,
 } from './components/shared';
 import {
+  ScheduleTab,
   OverviewTab,
   ReceivablesTab,
   PayablesTab,
@@ -29,7 +30,7 @@ export default function DashboardHome() {
   const { metrics, receivables, payables, jobs, recentActivity, lastUpdated, isLoading, error, refetch } = useDashboardData();
   const formattedMetrics = useFormattedMetrics(metrics);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('schedule');
   const [selectedDetail, setSelectedDetail] = useState<RecordDetail | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -131,6 +132,8 @@ export default function DashboardHome() {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'schedule':
+        return <ScheduleTab />;
       case 'overview':
         return <OverviewTab metrics={metrics} recentActivity={recentActivity} isLoading={isLoading} />;
       case 'receivables':
@@ -205,7 +208,7 @@ export default function DashboardHome() {
 
       {/* Tabs */}
       <div className="rounded-2xl border border-black/5 bg-white/90 p-1 text-xs text-slate-600 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -240,7 +243,7 @@ export default function DashboardHome() {
       <div className="fixed bottom-4 right-4 hidden lg:flex items-center gap-2 text-[10px] text-slate-400 bg-white/80 backdrop-blur rounded-lg px-3 py-1.5 border border-slate-200">
         <span>⌘K search</span>
         <span>•</span>
-        <span>1-5 tabs</span>
+        <span>1-6 tabs</span>
         <span>•</span>
         <span>R refresh</span>
         <span>•</span>

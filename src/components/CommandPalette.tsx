@@ -12,6 +12,15 @@ interface CommandItem {
   icon?: React.ReactNode;
   action: () => void;
   keywords?: string[];
+  category?: string;
+}
+
+interface SearchResult {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+  category: string;
 }
 
 interface CommandPaletteProps {
@@ -29,120 +38,102 @@ export default function CommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  const navIcon = (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+    </svg>
+  );
+
+  const addIcon = (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+
   const commands: CommandItem[] = [
-    {
-      id: 'dashboard',
-      label: 'Go to Dashboard',
-      description: 'View financial metrics and overview',
-      keywords: ['home', 'main', 'overview'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard'),
-    },
-    {
-      id: 'orders',
-      label: 'Go to Orders',
-      description: 'Manage one-time service orders',
-      keywords: ['jobs', 'work'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/orders'),
-    },
-    {
-      id: 'subscriptions',
-      label: 'Go to Subscriptions',
-      description: 'Manage recurring services',
-      keywords: ['recurring', 'weekly', 'monthly'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/subscriptions'),
-    },
-    {
-      id: 'quotes',
-      label: 'Go to Quotes',
-      description: 'Review quote submissions',
-      keywords: ['pricing', 'estimates'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/quotes'),
-    },
-    {
-      id: 'settings',
-      label: 'Go to Settings',
-      description: 'Manage site settings',
-      keywords: ['config', 'preferences'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/settings'),
-    },
-    {
-      id: 'create-order',
-      label: 'Create New Order',
-      description: 'Add a one-time service order',
-      keywords: ['new', 'add', 'job'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      ),
-      action: () => onCreateOrder?.(),
-    },
-    {
-      id: 'create-subscription',
-      label: 'Create New Subscription',
-      description: 'Add a recurring service',
-      keywords: ['new', 'add', 'recurring'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      ),
-      action: () => onCreateSubscription?.(),
-    },
-    {
-      id: 'reports',
-      label: 'Go to Reports',
-      description: 'View analytics and reports',
-      keywords: ['analytics', 'metrics', 'data'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/reports'),
-    },
-    {
-      id: 'alerts',
-      label: 'Go to Alerts',
-      description: 'View system alerts',
-      keywords: ['notifications', 'warnings'],
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
-      ),
-      action: () => router.push('/dashboard/alerts'),
-    },
+    { id: 'dashboard', label: 'Go to Dashboard', description: 'Financial overview', keywords: ['home', 'main'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard') },
+    { id: 'orders', label: 'Go to Orders', description: 'Manage orders', keywords: ['jobs', 'work'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/orders') },
+    { id: 'subscriptions', label: 'Go to Subscriptions', description: 'Recurring services', keywords: ['recurring'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/subscriptions') },
+    { id: 'quotes', label: 'Go to Quotes', description: 'Review submissions', keywords: ['pricing'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/quotes') },
+    { id: 'customers', label: 'Go to Customers', description: 'Customer list', keywords: ['clients'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/customers') },
+    { id: 'crew', label: 'Go to Crew', description: 'Crew management', keywords: ['employees', 'team'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/crew') },
+    { id: 'applicants', label: 'Go to Applicants', description: 'Applicant pipeline', keywords: ['hiring'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/applicants') },
+    { id: 'schedule', label: 'Go to Schedule', description: 'Weekly dispatch', keywords: ['calendar'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/schedule') },
+    { id: 'settings', label: 'Go to Settings', description: 'System settings', keywords: ['config'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/settings') },
+    { id: 'audit-log', label: 'Go to Audit Log', description: 'System changes log', keywords: ['history'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/audit-log') },
+    { id: 'reports', label: 'Go to Reports', description: 'Analytics', keywords: ['metrics'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/reports') },
+    { id: 'create-order', label: 'Create New Order', description: 'Add a one-time service', keywords: ['new', 'add', 'job'], category: 'Actions', icon: addIcon, action: () => onCreateOrder?.() },
+    { id: 'create-subscription', label: 'Create New Subscription', description: 'Add a recurring service', keywords: ['new', 'add'], category: 'Actions', icon: addIcon, action: () => onCreateSubscription?.() },
   ];
+
+  // Search across entities when query has 2+ chars
+  useEffect(() => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results: SearchResult[] = [];
+
+        const [customersRes, ordersRes, crewRes] = await Promise.all([
+          fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=5`).then((r) => r.json()).catch(() => ({ customers: [] })),
+          fetch(`/api/orders?search=${encodeURIComponent(query)}&limit=5`).then((r) => r.json()).catch(() => ({ orders: [] })),
+          fetch(`/api/crew/employees?search=${encodeURIComponent(query)}&limit=5`).then((r) => r.json()).catch(() => ({ employees: [] })),
+        ]);
+
+        (customersRes.customers || []).forEach((c: { id: string; full_name: string; email: string | null }) => {
+          results.push({
+            id: `customer-${c.id}`,
+            label: c.full_name,
+            description: c.email || 'Customer',
+            href: '/dashboard/customers',
+            category: 'Customers',
+          });
+        });
+
+        (ordersRes.orders || []).forEach((o: { id: string; customer_name: string; service_type: string; status: string }) => {
+          results.push({
+            id: `order-${o.id}`,
+            label: `${o.customer_name} — ${o.service_type}`,
+            description: o.status,
+            href: '/dashboard/orders',
+            category: 'Orders',
+          });
+        });
+
+        (crewRes.employees || []).forEach((e: { id: string; full_name: string; email: string }) => {
+          results.push({
+            id: `crew-${e.id}`,
+            label: e.full_name,
+            description: e.email || 'Crew member',
+            href: '/dashboard/crew',
+            category: 'Crew',
+          });
+        });
+
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [query]);
 
   const filteredCommands = query
     ? commands.filter((cmd) => {
@@ -152,9 +143,26 @@ export default function CommandPalette({
       })
     : commands;
 
+  const allItems = [
+    ...filteredCommands.map((cmd) => ({ type: 'command' as const, ...cmd })),
+    ...searchResults.map((sr) => ({
+      type: 'search' as const,
+      id: sr.id,
+      label: sr.label,
+      description: sr.description,
+      category: sr.category,
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      ),
+      action: () => router.push(sr.href),
+    })),
+  ];
+
   const handleSelect = useCallback(
-    (command: CommandItem) => {
-      command.action();
+    (item: (typeof allItems)[number]) => {
+      item.action();
       onClose();
       setQuery('');
     },
@@ -168,7 +176,7 @@ export default function CommandPalette({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelectedIndex((i) => Math.min(i + 1, filteredCommands.length - 1));
+          setSelectedIndex((i) => Math.min(i + 1, allItems.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -176,8 +184,8 @@ export default function CommandPalette({
           break;
         case 'Enter':
           e.preventDefault();
-          if (filteredCommands[selectedIndex]) {
-            handleSelect(filteredCommands[selectedIndex]);
+          if (allItems[selectedIndex]) {
+            handleSelect(allItems[selectedIndex]);
           }
           break;
         case 'Escape':
@@ -187,7 +195,7 @@ export default function CommandPalette({
           break;
       }
     },
-    [isOpen, filteredCommands, selectedIndex, handleSelect, onClose]
+    [isOpen, allItems, selectedIndex, handleSelect, onClose]
   );
 
   useEffect(() => {
@@ -205,6 +213,14 @@ export default function CommandPalette({
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
+  // Group items by category
+  const grouped = allItems.reduce<Record<string, typeof allItems>>((acc, item) => {
+    const cat = item.category || 'Other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
 
   return (
     <AnimatePresence>
@@ -232,45 +248,64 @@ export default function CommandPalette({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search commands..."
+                placeholder="Search commands, customers, orders..."
                 className="flex-1 outline-none text-sm placeholder:text-slate-400 bg-transparent"
               />
+              {searching && (
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+              )}
               <kbd className="px-2 py-1 text-[10px] font-medium text-slate-400 bg-slate-100 rounded">ESC</kbd>
             </div>
 
             <div className="max-h-80 overflow-y-auto py-2">
-              {filteredCommands.length === 0 ? (
+              {allItems.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
-                  No commands found for "{query}"
+                  No results found for &quot;{query}&quot;
                 </div>
               ) : (
-                filteredCommands.map((command, index) => (
-                  <button
-                    key={command.id}
-                    onClick={() => handleSelect(command)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                      index === selectedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div
-                      className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: index === selectedIndex ? brand.primary : '#f1f5f9', color: index === selectedIndex ? 'white' : brand.primary }}
-                    >
-                      {command.icon}
+                Object.entries(grouped).map(([category, items]) => {
+                  let flatIdx = 0;
+                  for (const [cat, catItems] of Object.entries(grouped)) {
+                    if (cat === category) break;
+                    flatIdx += catItems.length;
+                  }
+
+                  return (
+                    <div key={category}>
+                      <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-slate-400 font-medium">{category}</div>
+                      {items.map((item, idx) => {
+                        const globalIdx = flatIdx + idx;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => handleSelect(item)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                              globalIdx === selectedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div
+                              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                              style={{ background: globalIdx === selectedIndex ? brand.primary : '#f1f5f9', color: globalIdx === selectedIndex ? 'white' : brand.primary }}
+                            >
+                              {item.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-slate-900">{item.label}</div>
+                              {item.description && (
+                                <div className="text-xs text-slate-500 truncate">{item.description}</div>
+                              )}
+                            </div>
+                            {globalIdx === selectedIndex && (
+                              <kbd className="px-2 py-1 text-[10px] font-medium text-slate-400 bg-white border border-slate-200 rounded">
+                                Enter
+                              </kbd>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-slate-900">{command.label}</div>
-                      {command.description && (
-                        <div className="text-xs text-slate-500 truncate">{command.description}</div>
-                      )}
-                    </div>
-                    {index === selectedIndex && (
-                      <kbd className="px-2 py-1 text-[10px] font-medium text-slate-400 bg-white border border-slate-200 rounded">
-                        Enter
-                      </kbd>
-                    )}
-                  </button>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -288,6 +323,7 @@ export default function CommandPalette({
                 <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded">Esc</kbd>
                 Close
               </span>
+              {query.length >= 2 && <span className="ml-auto">Searching customers, orders, crew...</span>}
             </div>
           </motion.div>
         </div>

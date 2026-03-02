@@ -64,6 +64,11 @@ export function Footer() {
             <h4 className="font-medium text-slate-900">Contact</h4>
             <ul className="mt-2 space-y-2">
               <li className="text-sm text-slate-600">admin@budsatwork.com</li>
+              <li>
+                <Link href="/account" className="text-sm text-slate-400 hover:text-slate-600 transition">
+                  Staff login
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

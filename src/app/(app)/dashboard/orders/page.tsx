@@ -20,7 +20,7 @@ import EmptyState from '@/components/EmptyState';
 import LoadingSkeleton, { SummaryCardsSkeleton } from '@/components/LoadingSkeleton';
 import CreateOrderModal from '@/components/CreateOrderModal';
 
-type TabKey = 'all' | 'pending' | 'scheduled' | 'in_progress' | 'completed';
+type TabKey = 'all' | 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -28,6 +28,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'scheduled', label: 'Scheduled' },
   { key: 'in_progress', label: 'In Progress' },
   { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
 ];
 
 const serviceTypeOptions: Array<ServiceType | 'all'> = [
@@ -105,6 +106,9 @@ export default function OrdersPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [employees, setEmployees] = useState<Array<{ id: string; full_name: string; services: string[] | null }>>([]);
+  const [assignLoading, setAssignLoading] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -233,13 +237,50 @@ export default function OrdersPage() {
     setConfirmDialog({
       isOpen: true,
       title: 'Cancel Order',
-      message: 'Are you sure you want to cancel this order? This action cannot be undone.',
+      message: 'Are you sure you want to cancel this order? You can restore it from the Cancelled tab if needed.',
       variant: 'danger',
       onConfirm: () => {
         updateOrderStatus(orderId, 'cancelled');
         setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
       },
     });
+  };
+
+  // Assign to crew
+  const openAssignModal = async () => {
+    setAssignModalOpen(true);
+    try {
+      const res = await fetch('/api/crew/employees');
+      if (res.ok) {
+        const data = await res.json();
+        setEmployees(data.employees || []);
+      }
+    } catch {
+      // employees list may be empty
+    }
+  };
+
+  const assignToCrew = async (employeeId: string) => {
+    if (!selectedOrder) return;
+    setAssignLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${selectedOrder.id}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_ids: [employeeId] }),
+      });
+      if (res.ok) {
+        toast.success('Job assigned to crew member');
+        setAssignModalOpen(false);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to assign');
+      }
+    } catch {
+      toast.error('Failed to assign job');
+    } finally {
+      setAssignLoading(false);
+    }
   };
 
   // Bulk actions
@@ -447,10 +488,29 @@ export default function OrdersPage() {
                 {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && (
                   <button
                     type="button"
+                    onClick={openAssignModal}
+                    className="rounded-lg border px-3 py-2 text-xs font-semibold"
+                    style={{ borderColor: brand.border, color: brand.primary }}
+                  >
+                    Assign to Crew
+                  </button>
+                )}
+                {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && (
+                  <button
+                    type="button"
                     onClick={() => handleCancelOrder(selectedOrder.id)}
                     className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
                   >
                     Cancel
+                  </button>
+                )}
+                {selectedOrder.status === 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => updateOrderStatus(selectedOrder.id, 'pending')}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
+                  >
+                    Restore to Pending
                   </button>
                 )}
               </div>
@@ -601,6 +661,14 @@ export default function OrdersPage() {
             >
               Cancel
             </button>
+            {activeTab === 'cancelled' && (
+              <button
+                onClick={() => handleBulkStatusUpdate('pending')}
+                className="px-2 py-1 text-xs rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200"
+              >
+                Restore
+              </button>
+            )}
             <button
               onClick={() => setSelectedOrderIds(new Set())}
               className="px-2 py-1 text-xs rounded-lg border border-slate-200 text-slate-600"
@@ -725,6 +793,53 @@ export default function OrdersPage() {
         variant={confirmDialog.variant}
         confirmLabel={confirmDialog.variant === 'danger' ? 'Yes, Cancel' : 'Confirm'}
       />
+
+      {/* Assign to Crew Modal */}
+      {assignModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setAssignModalOpen(false)} aria-hidden />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 className="text-lg font-semibold mb-4" style={{ color: brand.text }}>
+              Assign to Crew
+            </h2>
+            {employees.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">No crew members found. Employees need to create their crew profile first.</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {employees
+                  .filter((e) => {
+                    if (!selectedOrder) return true;
+                    // Show employees who can do this service type
+                    return !e.services || e.services.length === 0 || e.services.includes(selectedOrder.service_type);
+                  })
+                  .map((emp) => (
+                  <button
+                    key={emp.id}
+                    onClick={() => assignToCrew(emp.id)}
+                    disabled={assignLoading}
+                    className="w-full text-left px-4 py-3 rounded-lg border transition-colors hover:bg-slate-50"
+                    style={{ borderColor: brand.border }}
+                  >
+                    <p className="text-sm font-medium" style={{ color: brand.text }}>{emp.full_name}</p>
+                    {emp.services && emp.services.length > 0 && (
+                      <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                        {emp.services.map((s) => SERVICE_TYPE_LABELS[s as ServiceType] || s).join(', ')}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setAssignModalOpen(false)}
+              className="mt-4 w-full py-2 rounded-lg border text-sm"
+              style={{ borderColor: brand.border, color: brand.muted }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

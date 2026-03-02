@@ -364,6 +364,137 @@ export interface Database {
           updated_at?: string;
         };
       };
+      applicants: {
+        Row: {
+          id: string;
+          role: string;
+          stage: string;
+          full_name: string;
+          email: string;
+          phone: string | null;
+          suburb: string | null;
+          availability: string[] | null;
+          services: string[] | null;
+          needs_transport: boolean;
+          pickup_suburb: string | null;
+          max_ride_minutes: number | null;
+          ndis_participant: boolean;
+          ndis_number: string | null;
+          ndis_funding_type: string | null;
+          support_coordinator_contact: string | null;
+          mobility_aid: string | null;
+          ride_preferences: string | null;
+          car_compliant: boolean;
+          all_clearances: boolean;
+          resume: string | null;
+          abn: string | null;
+          years_experience: number | null;
+          seats_available: number | null;
+          boot_space: string | null;
+          can_carry_aid: string | null;
+          pickup_radius_km: number | null;
+          quality_business_name: string | null;
+          quality_contribution_types: string[] | null;
+          quality_message: string | null;
+          innovation_organisation: string | null;
+          innovation_interest_areas: string[] | null;
+          innovation_notes: string | null;
+          owner: string | null;
+          notes: string | null;
+          missing_docs: string[] | null;
+          sla_deadline: string | null;
+          user_id: string | null;
+          consent: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          role: string;
+          stage?: string;
+          full_name: string;
+          email: string;
+          user_id?: string | null;
+          phone?: string | null;
+          suburb?: string | null;
+          availability?: string[] | null;
+          services?: string[] | null;
+          needs_transport?: boolean;
+          pickup_suburb?: string | null;
+          max_ride_minutes?: number | null;
+          ndis_participant?: boolean;
+          ndis_number?: string | null;
+          ndis_funding_type?: string | null;
+          support_coordinator_contact?: string | null;
+          mobility_aid?: string | null;
+          ride_preferences?: string | null;
+          car_compliant?: boolean;
+          all_clearances?: boolean;
+          resume?: string | null;
+          abn?: string | null;
+          years_experience?: number | null;
+          seats_available?: number | null;
+          boot_space?: string | null;
+          can_carry_aid?: string | null;
+          pickup_radius_km?: number | null;
+          quality_business_name?: string | null;
+          quality_contribution_types?: string[] | null;
+          quality_message?: string | null;
+          innovation_organisation?: string | null;
+          innovation_interest_areas?: string[] | null;
+          innovation_notes?: string | null;
+          owner?: string | null;
+          notes?: string | null;
+          missing_docs?: string[] | null;
+          sla_deadline?: string | null;
+          consent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          role?: string;
+          stage?: string;
+          full_name?: string;
+          email?: string;
+          user_id?: string | null;
+          phone?: string | null;
+          suburb?: string | null;
+          availability?: string[] | null;
+          services?: string[] | null;
+          needs_transport?: boolean;
+          pickup_suburb?: string | null;
+          max_ride_minutes?: number | null;
+          ndis_participant?: boolean;
+          ndis_number?: string | null;
+          ndis_funding_type?: string | null;
+          support_coordinator_contact?: string | null;
+          mobility_aid?: string | null;
+          ride_preferences?: string | null;
+          car_compliant?: boolean;
+          all_clearances?: boolean;
+          resume?: string | null;
+          abn?: string | null;
+          years_experience?: number | null;
+          seats_available?: number | null;
+          boot_space?: string | null;
+          can_carry_aid?: string | null;
+          pickup_radius_km?: number | null;
+          quality_business_name?: string | null;
+          quality_contribution_types?: string[] | null;
+          quality_message?: string | null;
+          innovation_organisation?: string | null;
+          innovation_interest_areas?: string[] | null;
+          innovation_notes?: string | null;
+          owner?: string | null;
+          notes?: string | null;
+          missing_docs?: string[] | null;
+          sla_deadline?: string | null;
+          consent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       payments: {
         Row: {
           id: string;
@@ -406,6 +537,413 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      profiles: {
+        Row: {
+          id: string;
+          full_name: string | null;
+          email: string | null;
+          role: string;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          full_name?: string | null;
+          email?: string | null;
+          role?: string;
+          avatar_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          full_name?: string | null;
+          email?: string | null;
+          role?: string;
+          avatar_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      employees: {
+        Row: {
+          id: string;
+          user_id: string;
+          full_name: string;
+          email: string;
+          phone: string | null;
+          suburb: string | null;
+          photo_url: string | null;
+          availability: string[] | null;
+          services: string[] | null;
+          bio: string | null;
+          emergency_contact_name: string | null;
+          emergency_contact_phone: string | null;
+          onboarding_complete: boolean;
+          ndis_worker: boolean;
+          hourly_rate: number;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          full_name: string;
+          email: string;
+          phone?: string | null;
+          suburb?: string | null;
+          photo_url?: string | null;
+          availability?: string[] | null;
+          services?: string[] | null;
+          bio?: string | null;
+          emergency_contact_name?: string | null;
+          emergency_contact_phone?: string | null;
+          onboarding_complete?: boolean;
+          ndis_worker?: boolean;
+          hourly_rate?: number;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          full_name?: string;
+          email?: string;
+          phone?: string | null;
+          suburb?: string | null;
+          photo_url?: string | null;
+          availability?: string[] | null;
+          services?: string[] | null;
+          bio?: string | null;
+          emergency_contact_name?: string | null;
+          emergency_contact_phone?: string | null;
+          onboarding_complete?: boolean;
+          ndis_worker?: boolean;
+          hourly_rate?: number;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      job_assignments: {
+        Row: {
+          id: string;
+          order_id: string;
+          employee_id: string;
+          status: string;
+          accepted_at: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          employee_id: string;
+          status?: string;
+          accepted_at?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          employee_id?: string;
+          status?: string;
+          accepted_at?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      checklist_templates: {
+        Row: {
+          id: string;
+          service_type: string;
+          name: string;
+          items: Json;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          service_type: string;
+          name: string;
+          items?: Json;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          service_type?: string;
+          name?: string;
+          items?: Json;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      job_completions: {
+        Row: {
+          id: string;
+          assignment_id: string;
+          checklist_responses: Json;
+          notes: string | null;
+          photos: string[] | null;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          assignment_id: string;
+          checklist_responses?: Json;
+          notes?: string | null;
+          photos?: string[] | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          assignment_id?: string;
+          checklist_responses?: Json;
+          notes?: string | null;
+          photos?: string[] | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+      };
+      employee_documents: {
+        Row: {
+          id: string;
+          employee_id: string;
+          doc_type: string;
+          file_url: string;
+          file_name: string | null;
+          status: string;
+          expires_at: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          employee_id: string;
+          doc_type: string;
+          file_url: string;
+          file_name?: string | null;
+          status?: string;
+          expires_at?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          employee_id?: string;
+          doc_type?: string;
+          file_url?: string;
+          file_name?: string | null;
+          status?: string;
+          expires_at?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      employee_onboarding: {
+        Row: {
+          id: string;
+          employee_id: string;
+          section: string;
+          responses: Json;
+          completed: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          employee_id: string;
+          section: string;
+          responses?: Json;
+          completed?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          employee_id?: string;
+          section?: string;
+          responses?: Json;
+          completed?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      audit_log: {
+        Row: {
+          id: string;
+          entity_type: string;
+          entity_id: string;
+          action: string;
+          old_value: Json | null;
+          new_value: Json | null;
+          source: string | null;
+          user_email: string | null;
+          details: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entity_type: string;
+          entity_id: string;
+          action: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          source?: string | null;
+          user_email?: string | null;
+          details?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entity_type?: string;
+          entity_id?: string;
+          action?: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          source?: string | null;
+          user_email?: string | null;
+          details?: string | null;
+          created_at?: string;
+        };
+      };
+      quotes: {
+        Row: {
+          id: string;
+          customer_id: string | null;
+          customer_name: string;
+          customer_email: string | null;
+          customer_phone: string | null;
+          service_type: string;
+          context: string;
+          scope: string | null;
+          frequency: string;
+          total: number;
+          submitted_total: number;
+          reviewed_total: number | null;
+          status: string;
+          payment_status: string;
+          payment_requested_at: string | null;
+          paid_at: string | null;
+          finalized_at: string | null;
+          finalized_by: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          notes: string | null;
+          converted_order_id: string | null;
+          converted_subscription_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id?: string | null;
+          customer_name: string;
+          customer_email?: string | null;
+          customer_phone?: string | null;
+          service_type: string;
+          context?: string;
+          scope?: string | null;
+          frequency?: string;
+          total?: number;
+          submitted_total?: number;
+          reviewed_total?: number | null;
+          status?: string;
+          payment_status?: string;
+          payment_requested_at?: string | null;
+          paid_at?: string | null;
+          finalized_at?: string | null;
+          finalized_by?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          notes?: string | null;
+          converted_order_id?: string | null;
+          converted_subscription_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          customer_email?: string | null;
+          customer_phone?: string | null;
+          service_type?: string;
+          context?: string;
+          scope?: string | null;
+          frequency?: string;
+          total?: number;
+          submitted_total?: number;
+          reviewed_total?: number | null;
+          status?: string;
+          payment_status?: string;
+          payment_requested_at?: string | null;
+          paid_at?: string | null;
+          finalized_at?: string | null;
+          finalized_by?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          notes?: string | null;
+          converted_order_id?: string | null;
+          converted_subscription_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      ratings: {
+        Row: {
+          id: string;
+          order_id: string;
+          customer_id: string | null;
+          rating: number;
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          customer_id?: string | null;
+          rating: number;
+          comment?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          customer_id?: string | null;
+          rating?: number;
+          comment?: string | null;
+          created_at?: string;
         };
       };
     };
@@ -466,3 +1004,50 @@ export type CustomerUpdate = Database['public']['Tables']['customers']['Update']
 export type OrderUpdate = Database['public']['Tables']['orders']['Update'];
 export type SubscriptionUpdate = Database['public']['Tables']['subscriptions']['Update'];
 export type PayableUpdate = Database['public']['Tables']['payables']['Update'];
+
+// Applicant types
+export type Applicant = Database['public']['Tables']['applicants']['Row'];
+export type ApplicantInsert = Database['public']['Tables']['applicants']['Insert'];
+export type ApplicantUpdate = Database['public']['Tables']['applicants']['Update'];
+
+// Profile types
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
+export type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+
+// Employee / Crew types
+export type Employee = Database['public']['Tables']['employees']['Row'];
+export type EmployeeInsert = Database['public']['Tables']['employees']['Insert'];
+export type EmployeeUpdate = Database['public']['Tables']['employees']['Update'];
+
+export type JobAssignment = Database['public']['Tables']['job_assignments']['Row'];
+export type JobAssignmentInsert = Database['public']['Tables']['job_assignments']['Insert'];
+export type JobAssignmentUpdate = Database['public']['Tables']['job_assignments']['Update'];
+
+export type ChecklistTemplate = Database['public']['Tables']['checklist_templates']['Row'];
+export type ChecklistTemplateInsert = Database['public']['Tables']['checklist_templates']['Insert'];
+export type ChecklistTemplateUpdate = Database['public']['Tables']['checklist_templates']['Update'];
+
+export type JobCompletion = Database['public']['Tables']['job_completions']['Row'];
+export type JobCompletionInsert = Database['public']['Tables']['job_completions']['Insert'];
+
+export type EmployeeDocument = Database['public']['Tables']['employee_documents']['Row'];
+export type EmployeeDocumentInsert = Database['public']['Tables']['employee_documents']['Insert'];
+export type EmployeeDocumentUpdate = Database['public']['Tables']['employee_documents']['Update'];
+
+export type EmployeeOnboarding = Database['public']['Tables']['employee_onboarding']['Row'];
+export type EmployeeOnboardingInsert = Database['public']['Tables']['employee_onboarding']['Insert'];
+export type EmployeeOnboardingUpdate = Database['public']['Tables']['employee_onboarding']['Update'];
+
+// Audit Log types
+export type AuditLog = Database['public']['Tables']['audit_log']['Row'];
+export type AuditLogInsert = Database['public']['Tables']['audit_log']['Insert'];
+
+// Quote types
+export type Quote = Database['public']['Tables']['quotes']['Row'];
+export type QuoteInsert = Database['public']['Tables']['quotes']['Insert'];
+export type QuoteUpdate = Database['public']['Tables']['quotes']['Update'];
+
+// Rating types
+export type Rating = Database['public']['Tables']['ratings']['Row'];
+export type RatingInsert = Database['public']['Tables']['ratings']['Insert'];

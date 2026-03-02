@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { CreateOrderInput, OrderStatus, ServiceType } from '@/types/orders';
+import { getAuthUser } from '@/lib/auth';
+import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+
+// 30 order creations per IP per 15 minutes (admin/employee only).
+const checkOrderPostLimit = createRateLimiter({ limit: 30, windowMs: 15 * 60 * 1000 });
 
 // GET /api/orders - List orders with optional filters
 export async function GET(req: NextRequest) {
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
@@ -41,10 +51,15 @@ export async function GET(req: NextRequest) {
     query = query.lte('scheduled_date', dateTo);
   }
 
+  if (authUser.role === 'customer') {
+    query = query.eq('customer_id', authUser.id);
+  }
+
   const { data, error, count } = await query;
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/orders] GET list failed:', error.message);
+    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
   }
 
   return NextResponse.json({ orders: data, total: count });
@@ -52,6 +67,22 @@ export async function GET(req: NextRequest) {
 
 // POST /api/orders - Create a new order
 export async function POST(req: NextRequest) {
+  const { allowed } = checkOrderPostLimit(getClientIp(req));
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please wait a few minutes and try again.' },
+      { status: 429 }
+    );
+  }
+
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (authUser.role === 'customer') {
+    return NextResponse.json({ error: 'Admin or employee access required' }, { status: 403 });
+  }
+
   const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
@@ -95,7 +126,8 @@ export async function POST(req: NextRequest) {
   const { data, error } = await (client as any).from('orders').insert([orderData]).select().single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error('[api/orders] POST failed:', error.message);
+    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
   }
 
   return NextResponse.json(data, { status: 201 });
