@@ -1,29 +1,45 @@
 // src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createMiddlewareClient } from '@/lib/supabase/middleware';
-import { resolveUserRole } from '@/types/roles';
 
-export async function middleware(req: NextRequest) {
-  const { supabase, response } = createMiddlewareClient(req);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+async function runMiddleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
 
-  // Webhook routes use their own signature verification — skip auth
-  if (pathname.startsWith('/api/webhooks')) return response();
+  // Webhook routes bypass auth entirely
+  if (pathname.startsWith('/api/webhooks')) return NextResponse.next();
 
   const isDashboard = pathname.startsWith('/dashboard');
   const isCrew = pathname.startsWith('/crew');
   const isPortal = pathname.startsWith('/portal');
   const isProtected = isDashboard || isCrew || isPortal;
 
-  // Always call getUser() so Supabase can refresh the session cookie on every request.
-  // Wrap in try/catch so a Supabase outage or missing env vars never crashes the middleware.
+  // If Supabase env vars aren't configured, fail open on public routes
+  // and redirect unauthenticated on protected routes rather than crashing.
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    if (isProtected) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/account';
+      url.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
+
+  // Lazy-import so a missing/broken module never crashes the middleware at load time.
+  const { createMiddlewareClient } = await import('@/lib/supabase/middleware');
+  const { resolveUserRole } = await import('@/types/roles');
+
+  const { supabase, response } = createMiddlewareClient(req);
+
+  // Refresh the session cookie on every request.
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null;
   try {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch {
-    // If Supabase is unreachable, fail open on public routes; redirect to sign-in on protected ones.
     if (isProtected) {
       const url = req.nextUrl.clone();
       url.pathname = '/account';
@@ -44,7 +60,7 @@ export async function middleware(req: NextRequest) {
 
   let role = resolveUserRole(user.app_metadata?.role);
 
-  // Keep routing resilient when JWT metadata is stale or missing.
+  // Fallback: resolve role from profiles table if JWT metadata is stale or missing.
   if (!user.app_metadata?.role) {
     try {
       const { data: profile } = await supabase
@@ -54,11 +70,10 @@ export async function middleware(req: NextRequest) {
         .maybeSingle();
       role = resolveUserRole(profile?.role);
     } catch {
-      // Profile lookup failed — default role already set above, continue.
+      // Keep the default role resolved above.
     }
   }
 
-  // Strict role-based routing — redirect to wrong-portal so users understand what happened.
   if (isDashboard && role !== 'admin') {
     const url = req.nextUrl.clone();
     url.pathname = '/account/wrong-portal';
@@ -73,8 +88,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Employees are redirected away from the customer portal; admins are allowed through
-  // (they may need to inspect the customer experience).
   if (isPortal && role === 'employee') {
     const url = req.nextUrl.clone();
     url.pathname = '/account/wrong-portal';
@@ -83,6 +96,23 @@ export async function middleware(req: NextRequest) {
   }
 
   return response();
+}
+
+export async function middleware(req: NextRequest) {
+  try {
+    return await runMiddleware(req);
+  } catch (err) {
+    console.error('[middleware] Unhandled error:', err);
+    const { pathname } = req.nextUrl;
+    const isProtected =
+      pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/crew') ||
+      pathname.startsWith('/portal');
+    if (isProtected) {
+      return NextResponse.redirect(new URL('/account', req.url));
+    }
+    return NextResponse.next();
+  }
 }
 
 // Match all routes except static files/_next
