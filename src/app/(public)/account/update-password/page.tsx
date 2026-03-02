@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { brand } from '../../../ui/theme';
 import { homePathForRole, resolveUserRole } from '@/types/roles';
@@ -15,7 +15,7 @@ const INVITE_STEPS = [
   { icon: '💰', label: 'Start accepting paid jobs', detail: "You're in!" },
 ];
 
-export default function UpdatePasswordPage() {
+function UpdatePasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isInvite = searchParams?.get('type') === 'invite';
@@ -131,5 +131,13 @@ export default function UpdatePasswordPage() {
         </p>
       </form>
     </AuthSplitLayout>
+  );
+}
+
+export default function UpdatePasswordPage() {
+  return (
+    <Suspense>
+      <UpdatePasswordContent />
+    </Suspense>
   );
 }
