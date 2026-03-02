@@ -17,7 +17,21 @@ export async function middleware(req: NextRequest) {
   const isProtected = isDashboard || isCrew || isPortal;
 
   // Always call getUser() so Supabase can refresh the session cookie on every request.
-  const { data: { user } } = await supabase.auth.getUser();
+  // Wrap in try/catch so a Supabase outage or missing env vars never crashes the middleware.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // If Supabase is unreachable, fail open on public routes; redirect to sign-in on protected ones.
+    if (isProtected) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/account';
+      url.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(url);
+    }
+    return response();
+  }
 
   if (!isProtected) return response();
 
@@ -32,12 +46,16 @@ export async function middleware(req: NextRequest) {
 
   // Keep routing resilient when JWT metadata is stale or missing.
   if (!user.app_metadata?.role) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle();
-    role = resolveUserRole(profile?.role);
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      role = resolveUserRole(profile?.role);
+    } catch {
+      // Profile lookup failed — default role already set above, continue.
+    }
   }
 
   // Strict role-based routing — redirect to wrong-portal so users understand what happened.
