@@ -15,7 +15,7 @@ const PORTAL_LABELS: Record<string, string> = {
 function WrongPortalContent() {
   const { role, isLoaded } = useAuth();
   const searchParams = useSearchParams();
-  const from = searchParams.get('from') ?? '';
+  const from = searchParams?.get('from') ?? '';
 
   const triedTo = PORTAL_LABELS[from] ?? 'that page';
   const roleLabel = isLoaded ? ROLE_LABELS[role] : null;
