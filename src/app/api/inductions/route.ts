@@ -23,11 +23,21 @@ export async function GET() {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  const { data, error } = await client
+  type ApplicantRow = {
+    id: string;
+    full_name: string;
+    role: string | null;
+    created_at: string;
+    induction_progress: Record<string, boolean> | null;
+  };
+
+  // Cast to unknown because the generated types don't yet include
+  // induction_progress (added in migration 016, types not regenerated)
+  const { data, error } = await (client
     .from('applicants')
     .select('id, full_name, role, created_at, induction_progress')
     .in('stage', ['verify', 'paperwork', 'induct'])
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true }) as unknown as Promise<{ data: ApplicantRow[] | null; error: unknown }>);
 
   if (error) {
     console.error('Inductions GET error:', error);
@@ -39,7 +49,7 @@ export async function GET() {
     full_name: row.full_name,
     role: row.role || 'Field Tech',
     created_at: row.created_at,
-    induction_progress: (row.induction_progress as Record<string, boolean>) || {},
+    induction_progress: row.induction_progress || {},
   }));
 
   return NextResponse.json({ inductees });

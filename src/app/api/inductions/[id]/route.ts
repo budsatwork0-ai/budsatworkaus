@@ -34,19 +34,20 @@ export async function PATCH(
 
   const { id } = await params;
 
-  // Fetch current progress
-  const { data: existing, error: fetchError } = await client
+  // Fetch current progress — cast to unknown first because the generated
+  // types don't yet reflect the induction_progress column from migration 016
+  const { data: existing, error: fetchError } = await (client
     .from('applicants')
     .select('induction_progress')
     .eq('id', id)
-    .single();
+    .single() as unknown as Promise<{ data: { induction_progress: Record<string, boolean> } | null; error: unknown }>);
 
   if (fetchError || !existing) {
     return NextResponse.json({ error: 'Applicant not found' }, { status: 404 });
   }
 
   const updatedProgress = {
-    ...((existing.induction_progress as Record<string, boolean>) || {}),
+    ...(existing.induction_progress || {}),
     [stepKey]: value,
   };
 
