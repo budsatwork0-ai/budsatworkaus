@@ -184,10 +184,10 @@ const testimonials = [
 ];
 
 const trustBadges = [
-  { label: 'NDIS-Ready', icon: '✓' },
-  { label: 'Fully Insured', icon: '✓' },
-  { label: 'Vetted Crew', icon: '✓' },
-  { label: 'No Surprise Fees', icon: '✓' },
+  'NDIS-Ready',
+  'Fully Insured',
+  'Vetted Crew',
+  'No Surprise Fees',
 ];
 
 export default function HomePage() {
@@ -214,12 +214,15 @@ export default function HomePage() {
             bottom: 0,
           }}
         >
+          {/* Mobile: static gradient instead of video to avoid large download */}
+          <div className="sm:hidden absolute inset-0 bg-gradient-to-br from-emerald-900 via-slate-800 to-slate-900" />
+          {/* Desktop: video background */}
           <video
             autoPlay
             muted
             loop
             playsInline
-            className="w-full h-full object-cover"
+            className="hidden sm:block w-full h-full object-cover"
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
@@ -260,10 +263,10 @@ export default function HomePage() {
 
           {/* Trust badges */}
           <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2">
-            {trustBadges.map((b) => (
-              <span key={b.label} className="flex items-center gap-1.5 text-sm text-white/80">
-                <span className="text-emerald-300 font-bold">{b.icon}</span>
-                {b.label}
+            {trustBadges.map((label) => (
+              <span key={label} className="flex items-center gap-1.5 text-sm text-white/80">
+                <span className="text-emerald-300"><CheckIcon /></span>
+                {label}
               </span>
             ))}
           </div>
@@ -428,6 +431,19 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+          {/* TODO: replace href with real Google Reviews link once available */}
+          <div className="mt-6 text-center">
+            <a
+              href="https://g.page/r/PLACEHOLDER/review"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+              style={{ color: brand.primary }}
+            >
+              Had a great experience? Leave us a review
+              <ArrowRightIcon />
+            </a>
           </div>
         </section>
 
