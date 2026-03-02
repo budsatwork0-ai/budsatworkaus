@@ -51,7 +51,8 @@ export async function PATCH(
     [stepKey]: value,
   };
 
-  const { error: updateError } = await client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (client as any)
     .from('applicants')
     .update({ induction_progress: updatedProgress })
     .eq('id', id);
