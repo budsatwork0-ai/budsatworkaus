@@ -53,7 +53,7 @@ export default function QualityPartnerForm({
           Help us improve our work
         </h3>
         <p className="mt-1 text-sm text-slate-600">
-          Tell us how you or your business can help Buds at Work do better cleaning, yard care, or car work. Share
+          Tell us how you or your business can help Buds At Work do better cleaning, yard care, or car work. Share
           advice, tips, or honest feedback.
         </p>
         <ul className="mt-3 text-sm text-slate-700 list-disc pl-5 space-y-1">

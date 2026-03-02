@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth';
 
 // GET /api/site-settings - Get all site settings
 export async function GET() {
@@ -27,8 +28,16 @@ export async function GET() {
   return NextResponse.json({ settings, raw: data });
 }
 
-// POST /api/site-settings - Update site settings
+// POST /api/site-settings - Update site settings (admin only)
 export async function POST(req: NextRequest) {
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
   const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });

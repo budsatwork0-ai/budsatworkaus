@@ -123,7 +123,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           unit_amount: Math.round(amount * 100),
           product_data: {
             name: `${contextLabel} ${serviceLabel}`,
-            description: `Buds at Work quote #${quote.id.slice(0, 8).toUpperCase()}`,
+            description: `Buds At Work quote #${quote.id.slice(0, 8).toUpperCase()}`,
           },
         },
         quantity: 1,

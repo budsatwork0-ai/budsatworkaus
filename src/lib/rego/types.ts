@@ -1,4 +1,4 @@
-// Buds at Work currently operates as a Queensland-only rego lookup experience.
+// Buds At Work currently operates as a Queensland-only rego lookup experience.
 export type RegoState = 'QLD';
 
 export type VehicleCategory =

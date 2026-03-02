@@ -4,10 +4,10 @@ import { brand } from '../../ui/theme';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
-  description: 'Buds at Work privacy policy: how we collect, use, and protect your personal information when you use our home and property services.',
+  description: 'Buds At Work privacy policy: how we collect, use, and protect your personal information when you use our home and property services.',
   openGraph: {
-    title: 'Privacy Policy | Buds at Work',
-    description: 'Learn how Buds at Work keeps your details safe and never sells them to third parties.',
+    title: 'Privacy Policy | Buds At Work',
+    description: 'Learn how Buds At Work keeps your details safe and never sells them to third parties.',
   },
 };
 
@@ -21,7 +21,7 @@ const infoPoints = [
 const usagePoints = [
   'Answer questions, send confirmations, and keep you updated about appointments.',
   'Deliver services by coordinating crew members, partners, and support workers with the minimal data they need.',
-  'Improve Buds at Work through anonymized analytics and diagnostics.',
+  'Improve Buds At Work through anonymized analytics and diagnostics.',
   'Share safety reminders, privacy updates, and other critical notices by email or SMS when requested.',
 ];
 
@@ -61,7 +61,7 @@ export default function PrivacyPolicyPage() {
             Privacy Policy
           </h1>
           <p className="mt-4 text-sm leading-relaxed" style={{ color: brand.muted }}>
-            Buds at Work keeps your details safe, shares them only when required, and never sells them
+            Buds At Work keeps your details safe, shares them only when required, and never sells them
             to third parties. This page explains what we collect, why we keep it, and how to reach us
             when you have questions.
           </p>

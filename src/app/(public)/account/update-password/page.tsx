@@ -55,7 +55,7 @@ function UpdatePasswordContent() {
   return (
     <AuthSplitLayout>
       <h1 className="text-2xl font-bold text-white mb-1">
-        {isInvite ? 'Welcome to Buds at Work!' : 'Set a new password'}
+        {isInvite ? 'Welcome to Buds At Work!' : 'Set a new password'}
       </h1>
       <p className="text-slate-400 text-sm mb-7">
         {isInvite

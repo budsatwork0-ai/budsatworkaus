@@ -3,7 +3,7 @@ import { brand } from '../../ui/theme';
 
 export const metadata: Metadata = {
   title: 'Cart',
-  description: 'Your Buds at Work shopping cart. Review and checkout your selected services.',
+  description: 'Your Buds At Work shopping cart. Review and checkout your selected services.',
   robots: {
     index: false,
     follow: false,

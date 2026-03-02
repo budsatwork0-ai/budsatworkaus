@@ -117,6 +117,14 @@ function ArrowRightIcon() {
   );
 }
 
+function StarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+    </svg>
+  );
+}
+
 const services = [
   { key: 'windows', title: 'Window cleaning', icon: <WindowIcon />, href: '/services?service=windows' },
   { key: 'cleaning', title: 'Home cleaning', icon: <HomeIcon />, href: '/services?service=cleaning' },
@@ -149,6 +157,37 @@ const values = [
   'Quotes mean something — no surprise fees',
   'Local crew who actually care about the work',
   'We confirm everything before we start',
+];
+
+const testimonials = [
+  {
+    name: 'Sarah M.',
+    suburb: 'Springwood',
+    service: 'Home Cleaning',
+    rating: 5,
+    text: 'Absolutely brilliant service. The team were professional, on time, and left the house spotless. Will definitely be booking again.',
+  },
+  {
+    name: 'James T.',
+    suburb: 'Beenleigh',
+    service: 'Yard & Garden',
+    rating: 5,
+    text: "Our yard was a mess after the wet season. These guys transformed it in a few hours. The quote was fair and there were no surprise charges.",
+  },
+  {
+    name: 'Linda K.',
+    suburb: 'Browns Plains',
+    service: 'Window Cleaning',
+    rating: 5,
+    text: 'So easy to book online and get a real price upfront. The crew were friendly and thorough — windows look brand new.',
+  },
+];
+
+const trustBadges = [
+  { label: 'NDIS-Ready', icon: '✓' },
+  { label: 'Fully Insured', icon: '✓' },
+  { label: 'Vetted Crew', icon: '✓' },
+  { label: 'No Surprise Fees', icon: '✓' },
 ];
 
 export default function HomePage() {
@@ -199,7 +238,7 @@ export default function HomePage() {
           </h1>
 
           <p className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-white/90">
-            We&apos;re Buds at Work — a local crew that handles cleaning, yard care, dump runs,
+            We&apos;re Buds At Work — a local crew that handles cleaning, yard care, dump runs,
             and car detailing. Get a real quote in minutes, not a callback next week.
           </p>
 
@@ -209,7 +248,7 @@ export default function HomePage() {
               className="rounded-full px-7 py-3.5 text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
               style={{ background: brand.primary, color: '#fff' }}
             >
-              Get a quote
+              Get a free quote
             </Link>
             <Link
               href="/about"
@@ -217,6 +256,16 @@ export default function HomePage() {
             >
               Meet the team
             </Link>
+          </div>
+
+          {/* Trust badges */}
+          <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2">
+            {trustBadges.map((b) => (
+              <span key={b.label} className="flex items-center gap-1.5 text-sm text-white/80">
+                <span className="text-emerald-300 font-bold">{b.icon}</span>
+                {b.label}
+              </span>
+            ))}
           </div>
         </div>
       </section>
@@ -353,6 +402,35 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* TESTIMONIALS */}
+        <section>
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
+              What our customers say
+            </h2>
+            <div className="flex items-center justify-center gap-1 mt-2" style={{ color: '#F59E0B' }}>
+              {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
+              <span className="ml-2 text-sm font-medium" style={{ color: brand.muted }}>5.0 average rating</span>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            {testimonials.map((t) => (
+              <div key={t.name} className={cx('rounded-2xl p-6', glass)}>
+                <div className="flex items-center gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
+                  {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
+                </div>
+                <p className="text-sm leading-relaxed mb-4" style={{ color: brand.text }}>
+                  &ldquo;{t.text}&rdquo;
+                </p>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: brand.text }}>{t.name}</p>
+                  <p className="text-xs" style={{ color: brand.muted }}>{t.suburb} &middot; {t.service}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* JOIN CTA */}
         <section
           className="rounded-3xl p-8 md:p-10 text-center"
@@ -380,14 +458,14 @@ export default function HomePage() {
             Ready to get started?
           </h2>
           <p className="text-base mb-6" style={{ color: brand.muted }}>
-            Pick a service and build your quote. We&apos;ll confirm everything before any work begins.
+            Pick a service and build your free quote. No payment until you confirm — we&apos;ll lock in your price for 7 days.
           </p>
           <Link
             href="/services"
             className="inline-flex rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
             style={{ background: brand.primary, color: '#fff' }}
           >
-            Build your quote
+            Get a free quote
           </Link>
         </section>
         </div>

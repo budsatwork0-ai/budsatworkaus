@@ -1,4 +1,4 @@
-// Subscription Types for Buds at Work
+// Subscription Types for Buds At Work
 
 import type { ServiceType, Context } from './orders';
 

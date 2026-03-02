@@ -4,9 +4,9 @@ import { brand, cx, glass, glassSoft } from '../../ui/theme';
 
 export const metadata: Metadata = {
   title: 'Contact Us',
-  description: 'Get in touch with Buds at Work. We\'re here to help with your home cleaning, window cleaning, yard care, dump runs, and car detailing needs in Logan & South Brisbane.',
+  description: 'Get in touch with Buds At Work. We\'re here to help with your home cleaning, window cleaning, yard care, dump runs, and car detailing needs in Logan & South Brisbane.',
   openGraph: {
-    title: 'Contact Buds at Work',
+    title: 'Contact Buds At Work',
     description: 'Reach out for a quote or to ask any questions about our services.',
   },
 };
@@ -65,13 +65,28 @@ function ArrowRightIcon() {
   );
 }
 
+function PhoneIcon() {
+  return (
+    <svg {...iconProps} className="h-6 w-6">
+      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.01 2.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+    </svg>
+  );
+}
+
 const contactMethods = [
   {
     icon: <MailIcon />,
     title: 'Email',
     value: 'admin@budsatwork.com',
     href: 'mailto:admin@budsatwork.com',
-    description: 'We typically respond within 24 hours',
+    description: 'Usually replied to within 2 hours',
+  },
+  {
+    icon: <PhoneIcon />,
+    title: 'SMS',
+    value: 'Text us anytime',
+    href: 'sms:admin@budsatwork.com',
+    description: 'Mon–Sat, 7am–5pm',
   },
   {
     icon: <MapPinIcon />,
@@ -126,7 +141,7 @@ export default function ContactPage() {
         </section>
 
         {/* CONTACT METHODS */}
-        <section className="grid sm:grid-cols-3 gap-4">
+        <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {contactMethods.map((method, i) => (
             <div
               key={i}
@@ -185,7 +200,7 @@ export default function ContactPage() {
               {/* Success redirect */}
               <input type="hidden" name="_next" value="https://budsatwork.com/contact?success=true" />
               {/* Subject */}
-              <input type="hidden" name="_subject" value="New contact form submission from Buds at Work" />
+              <input type="hidden" name="_subject" value="New contact form submission from Buds At Work" />
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>

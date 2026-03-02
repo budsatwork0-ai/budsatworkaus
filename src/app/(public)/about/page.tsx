@@ -5,9 +5,9 @@ import { getSiteSettings } from '@/lib/site-settings';
 
 export const metadata: Metadata = {
   title: 'About Us',
-  description: 'Meet the Buds at Work team — local mates from Logan delivering reliable home cleaning, window cleaning, yard care, dump runs, and car detailing services.',
+  description: 'Meet the Buds At Work team — local mates from Logan delivering reliable home cleaning, window cleaning, yard care, dump runs, and car detailing services.',
   openGraph: {
-    title: 'About Buds at Work | Your Local Service Team',
+    title: 'About Buds At Work | Your Local Service Team',
     description: 'A small team from Logan building a simple promise: show up on time, do the job properly, and treat people like neighbours.',
   },
 };
@@ -231,7 +231,7 @@ export default async function AboutPage() {
             className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
             style={{ color: brand.muted }}
           >
-            We&apos;re Buds at Work — a small team from Logan building a simple promise:
+            We&apos;re Buds At Work — a small team from Logan building a simple promise:
             show up on time, do the job properly, and treat people like neighbours.
           </p>
 
@@ -394,7 +394,7 @@ export default async function AboutPage() {
               Started as mates helping neighbours
             </h2>
             <p className="text-base leading-relaxed mb-6" style={{ color: brand.muted }}>
-              Buds at Work began with two friends lending a hand around the neighbourhood.
+              Buds At Work began with two friends lending a hand around the neighbourhood.
               Word spread, more folks asked for help, and before long we had a small crew
               delivering reliable work across Logan and South Brisbane.
             </p>

@@ -168,7 +168,7 @@ export default function DashboardHome() {
             </button>
           </div>
           <p className="text-sm text-slate-500">
-            Financial command centre for Buds at Work
+            Financial command centre for Buds At Work
           </p>
           {lastUpdated && (
             <p className="text-xs text-slate-400">

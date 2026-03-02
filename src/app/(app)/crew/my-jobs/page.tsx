@@ -34,16 +34,19 @@ export default function MyJobsPage() {
   const { employee, isLoading: empLoading } = useEmployee();
   const [assignments, setAssignments] = useState<JobAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('active');
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/crew/my-jobs');
+      if (!res.ok) throw new Error(`Failed to load jobs (${res.status})`);
       const data = await res.json();
       setAssignments(data.assignments || []);
-    } catch {
-      // handle silently
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load jobs');
     } finally {
       setLoading(false);
     }
@@ -75,6 +78,18 @@ export default function MyJobsPage() {
         <h1 className="text-2xl font-bold" style={{ color: brand.text }}>My Jobs</h1>
         <p className="text-sm mt-1" style={{ color: brand.muted }}>Track your accepted and completed jobs.</p>
       </div>
+
+      {error && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          <button
+            onClick={fetchJobs}
+            className="shrink-0 font-medium underline underline-offset-2 hover:no-underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b" style={{ borderColor: brand.border }}>

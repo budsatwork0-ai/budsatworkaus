@@ -429,7 +429,7 @@ export default function GetInvolvedPage() {
 
     if (!isPartner && notes) lines.push('Notes: ' + notes);
     lines.push('');
-    lines.push('I consent to Buds at Work contacting me about suitable opportunities.');
+    lines.push('I consent to Buds At Work contacting me about suitable opportunities.');
     return enc(lines.join('\r\n'));
   }
 
@@ -571,7 +571,7 @@ export default function GetInvolvedPage() {
           </h1>
 
           <p className="mt-5 text-base md:text-lg leading-relaxed max-w-2xl" style={{ color: brand.muted }}>
-            {"Whether you want paid work, to support others, or to help us improve — there's a place for you at Buds at Work. Choose your path below and we'll guide you through."}
+            {"Whether you want paid work, to support others, or to help us improve — there's a place for you at Buds At Work. Choose your path below and we'll guide you through."}
           </p>
         </header>
 
@@ -1309,7 +1309,7 @@ export default function GetInvolvedPage() {
                   className="mt-0.5 h-5 w-5 rounded border-slate-300 text-[#0F3D2E] focus:ring-[#0F3D2E]"
                 />
                 <span className="text-sm text-slate-700">
-                  {"It's okay for Buds at Work to contact me about work or opportunities."}
+                  {"It's okay for Buds At Work to contact me about work or opportunities."}
                 </span>
               </label>
 

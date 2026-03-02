@@ -3,7 +3,7 @@ export function LocalBusinessSchema() {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     '@id': 'https://budsatwork.com/#organization',
-    name: 'Buds at Work',
+    name: 'Buds At Work',
     description: 'Quote-first local services in Logan & South Brisbane: home cleaning, window cleaning, yard care, dump runs, car detailing, and NDIS-friendly support.',
     url: 'https://budsatwork.com',
     logo: 'https://budsatwork.com/logo.png',
@@ -113,7 +113,7 @@ export function WebsiteSchema() {
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'Buds at Work',
+    name: 'Buds At Work',
     url: 'https://budsatwork.com',
     description: 'Quote-first local services in Logan & South Brisbane',
     publisher: {

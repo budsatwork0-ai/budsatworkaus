@@ -72,7 +72,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 B
               </div>
               <span className="hidden sm:block font-bold text-sm tracking-tight" style={{ color: brand.primary }}>
-                Buds at Work
+                Buds At Work
               </span>
             </Link>
 

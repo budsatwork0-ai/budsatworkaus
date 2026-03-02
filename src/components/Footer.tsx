@@ -9,7 +9,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Buds at Work</h3>
+            <h3 className="text-lg font-semibold text-slate-900">Buds At Work</h3>
             <p className="mt-2 text-sm text-slate-600">
               Professional services you can trust.
             </p>
@@ -27,6 +27,16 @@ export function Footer() {
               <li>
                 <Link href="/services" className="text-sm text-slate-600 hover:text-slate-900 transition">
                   Services
+                </Link>
+              </li>
+              <li>
+                <Link href="/faq" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                  FAQ
+                </Link>
+              </li>
+              <li>
+                <Link href="/shop" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                  Shop
                 </Link>
               </li>
               <li>
@@ -75,7 +85,7 @@ export function Footer() {
 
         <div className="mt-8 border-t border-black/10 pt-8 text-center">
           <p className="text-sm text-slate-500">
-            &copy; {currentYear} Buds at Work. All rights reserved.
+            &copy; {currentYear} Buds At Work. All rights reserved.
           </p>
         </div>
       </div>

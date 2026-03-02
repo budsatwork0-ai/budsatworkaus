@@ -127,7 +127,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
               </div>
               <div className="hidden sm:block leading-tight">
                 <div className="font-bold text-sm tracking-tight" style={{ color: brand.primary }}>
-                  Buds at Work
+                  Buds At Work
                 </div>
                 <div className="text-[10px]" style={{ color: brand.muted }}>Crew Hub</div>
               </div>

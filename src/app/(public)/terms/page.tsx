@@ -4,10 +4,10 @@ import { brand } from '../../ui/theme';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
-  description: 'Buds at Work terms of service: bookings, quotes, payments, cancellations, and service expectations for home and property services.',
+  description: 'Buds At Work terms of service: bookings, quotes, payments, cancellations, and service expectations for home and property services.',
   openGraph: {
-    title: 'Terms of Service | Buds at Work',
-    description: 'Terms and conditions for Buds at Work services including bookings, payments, and cancellations.',
+    title: 'Terms of Service | Buds At Work',
+    description: 'Terms and conditions for Buds At Work services including bookings, payments, and cancellations.',
   },
 };
 
@@ -49,7 +49,7 @@ const termsSections = [
     points: [
       'To the fullest extent permitted by law, liability is limited to the value of the service and does not cover indirect issues.',
       'We may suspend or cancel services if the site is unsafe, needs additional permits, or if payment terms are breached.',
-      'These terms form part of your agreement with Buds at Work—continued use of the site or services means you accept them.',
+      'These terms form part of your agreement with Buds At Work—continued use of the site or services means you accept them.',
     ],
   },
 ];
@@ -79,7 +79,7 @@ export default function TermsPage() {
           </h1>
           <p className="mt-4 text-sm leading-relaxed" style={{ color: brand.muted }}>
             These terms explain how bookings work, what payments cover, and how we keep everyone safe.
-            They apply to every request, quote, and service supplied by Buds at Work.
+            They apply to every request, quote, and service supplied by Buds At Work.
           </p>
         </section>
 

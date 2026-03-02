@@ -1,4 +1,4 @@
-// Order Types for Buds at Work
+// Order Types for Buds At Work
 
 export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'laundry_sneakers';
 export type Context = 'home' | 'commercial';

@@ -16,7 +16,7 @@ type Recipe = {
 const DEFAULT_RECIPES: Recipe[] = [
   { key: 'tag_by_suburb',   title: 'Auto-tag by Suburb',          desc: 'Tag onboardees with their service area based on postcode.',              enabled: true,  config: { map: { '4300-4301': 'Ipswich', '4114': 'Logan' } } },
   { key: 'assign_by_service', title: 'Auto-assign by Service',    desc: 'Assign owner based on first selected service.',                          enabled: false, config: { Windows: 'Jackson', Lawns: 'Dean', Cleaning: 'Nate' } },
-  { key: 'welcome_sms',     title: 'Welcome SMS on Intake',        desc: 'Send a friendly SMS when someone enters Intake.',                        enabled: true,  config: { template: 'Hi {{name}}, thanks for joining Buds at Work! – Jackson' } },
+  { key: 'welcome_sms',     title: 'Welcome SMS on Intake',        desc: 'Send a friendly SMS when someone enters Intake.',                        enabled: true,  config: { template: 'Hi {{name}}, thanks for joining Buds At Work! – Jackson' } },
   { key: 'docs_chase',      title: 'Chase Missing Docs after 48h', desc: 'Auto-reminder if paperwork is incomplete after 48 hours.',               enabled: true,  config: { afterHours: 48 } },
   { key: 'sla_escalate',    title: 'Escalate if Verify > 72h',     desc: 'Ping team lead if the Verify stage exceeds its SLA.',                    enabled: false, config: { hours: 72, ping: 'Team Lead' } },
 ];

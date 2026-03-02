@@ -224,7 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {sidebarOpen && (
             <motion.div layout className="leading-tight">
               <div className="font-semibold" style={{ color: brand.primary }}>
-                Buds at Work
+                Buds At Work
               </div>
               <div className="text-[11px] text-slate-500">Operations Console</div>
             </motion.div>
@@ -293,7 +293,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                   <div className="leading-tight">
                     <div className="font-semibold" style={{ color: brand.primary }}>
-                      Buds at Work
+                      Buds At Work
                     </div>
                     <div className="text-[11px] text-slate-500">Operations Console</div>
                   </div>

@@ -164,7 +164,7 @@ export default function SettingsPage() {
   const [invoiceSettings, setInvoiceSettings] = useState({
     defaultPaymentTerms: 14,
     invoicePrefix: 'INV-',
-    footerNote: 'Thank you for choosing Buds at Work!',
+    footerNote: 'Thank you for choosing Buds At Work!',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);

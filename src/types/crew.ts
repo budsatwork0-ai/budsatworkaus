@@ -1,4 +1,4 @@
-// Crew / Employee types for Buds at Work
+// Crew / Employee types for Buds At Work
 
 export type AssignmentStatus = 'available' | 'accepted' | 'declined' | 'in_progress' | 'completed';
 
