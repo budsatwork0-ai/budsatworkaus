@@ -58,20 +58,19 @@ async function runMiddleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(url);
   }
 
+  // Always read role from the profiles table so that admin-applied role
+  // changes take effect immediately at the routing layer (not just in API routes).
+  // JWT app_metadata is used only as a final fallback if the DB query fails.
   let role = resolveUserRole(user.app_metadata?.role);
-
-  // Fallback: resolve role from profiles table if JWT metadata is stale or missing.
-  if (!user.app_metadata?.role) {
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-      role = resolveUserRole(profile?.role);
-    } catch {
-      // Keep the default role resolved above.
-    }
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profile?.role) role = resolveUserRole(profile.role);
+  } catch {
+    // Keep the JWT-based role resolved above.
   }
 
   if (isDashboard && role !== 'admin') {

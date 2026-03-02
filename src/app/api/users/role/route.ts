@@ -20,10 +20,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // Check caller is admin (dev mode: allow self-role-switch for testing)
-  const isDev = process.env.NODE_ENV === 'development';
-  const isSelfSwitch = body.userId === caller.id;
-  if (caller.role !== 'admin' && !(isDev && isSelfSwitch)) {
+  // Check caller is admin.
+  // Dev self-switch (for testing role UX) requires BOTH NODE_ENV=development
+  // AND the explicit ALLOW_DEV_ROLE_SWITCH=true env flag, so a misconfigured
+  // production deploy with NODE_ENV=development can't be exploited.
+  const isDevSelfSwitch =
+    process.env.NODE_ENV === 'development' &&
+    process.env.ALLOW_DEV_ROLE_SWITCH === 'true' &&
+    body.userId === caller.id;
+  if (caller.role !== 'admin' && !isDevSelfSwitch) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 

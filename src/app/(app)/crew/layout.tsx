@@ -33,17 +33,23 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const onboarded = employee?.onboarding_complete === true;
+  const employeeIsActive = !employee || employee.status === 'active';
   const navItems = onboarded ? ALL_NAV : ONBOARDING_NAV;
 
   useEffect(() => {
     if (isLoading) return;
+    // Suspended or inactive employees are blocked from the crew portal.
+    if (employee && !employeeIsActive) {
+      router.replace('/account/wrong-portal?from=crew&reason=suspended');
+      return;
+    }
     if (needsSetup || !onboarded) {
       const allowed = ONBOARDING_ALLOWED.some(
         (p) => pathname === p || pathname.startsWith(p + '/')
       );
       if (!allowed) router.replace('/crew/onboarding');
     }
-  }, [isLoading, needsSetup, onboarded, pathname, router]);
+  }, [isLoading, employeeIsActive, needsSetup, onboarded, pathname, router, employee]);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -153,7 +159,16 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
 
             {/* Right */}
             <div className="ml-auto flex items-center gap-2">
-              {!onboarded && (
+              {!employeeIsActive && employee && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                  style={{ background: 'rgba(239,68,68,0.12)', color: '#991B1B' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  {employee.status === 'suspended' ? 'Suspended' : 'Inactive'}
+                </span>
+              )}
+              {employeeIsActive && !onboarded && (
                 <span
                   className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
                   style={{ background: 'rgba(251,191,36,0.15)', color: '#92400E' }}

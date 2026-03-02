@@ -80,6 +80,14 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (client as any).from('profiles').upsert({ id: userId, full_name, email, role });
 
+  if (role === 'customer') {
+    // Create a customers row linked to the auth user so that RLS policies
+    // (customer_id IN SELECT id FROM customers WHERE user_id = auth.uid())
+    // can correctly scope orders, quotes, and subscriptions to this user.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client as any).from('customers').insert({ full_name, email, user_id: userId });
+  }
+
   if (role === 'employee') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: employee } = await (client as any)

@@ -8,16 +8,17 @@ export async function getAuthUser() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  let role = resolveUserRole(user.app_metadata?.role);
-  if (!user.app_metadata?.role) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase as any)
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle();
-    role = resolveUserRole(profile?.role);
-  }
+  // Always read role from the profiles table so that admin-applied role
+  // changes take effect immediately rather than waiting for JWT expiry.
+  // JWT app_metadata is used only as a fallback if the profiles row is absent.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = await (supabase as any)
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const role = resolveUserRole(profile?.role ?? user.app_metadata?.role);
 
   return {
     id: user.id,

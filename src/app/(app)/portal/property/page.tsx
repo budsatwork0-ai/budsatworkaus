@@ -1,45 +1,72 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { brand } from '@/app/ui/theme';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
 type PropertyInfo = {
   address: string;
-  gateCode: string;
-  petWarnings: string;
+  gate_code: string;
+  pet_warnings: string;
   parking: string;
-  specialInstructions: string;
+  special_instructions: string;
 };
 
-const STORAGE_KEY = 'baw_property_info';
+const EMPTY: PropertyInfo = {
+  address: '', gate_code: '', pet_warnings: '', parking: '', special_instructions: '',
+};
 
 export default function PropertyPage() {
-  const [info, setInfo] = useState<PropertyInfo>({
-    address: '', gateCode: '', petWarnings: '', parking: '', specialInstructions: '',
-  });
+  const [info, setInfo] = useState<PropertyInfo>(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try { setInfo(JSON.parse(stored)); } catch { /* ignore */ }
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/portal/property');
+      if (!res.ok) throw new Error('Failed to load property details');
+      const { property } = await res.json();
+      if (property) setInfo({ ...EMPTY, ...property });
+    } catch {
+      // Non-fatal — user can still fill in and save
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(info));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/portal/property', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(info),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to save');
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const fields: { key: keyof PropertyInfo; label: string; placeholder: string; multiline?: boolean }[] = [
     { key: 'address', label: 'Property Address', placeholder: '123 Main Street, Logan QLD 4114' },
-    { key: 'gateCode', label: 'Gate / Access Code', placeholder: 'e.g. #1234 or side gate unlocked' },
-    { key: 'petWarnings', label: 'Pets on Property', placeholder: 'e.g. Friendly dog in backyard, cat indoor' },
+    { key: 'gate_code', label: 'Gate / Access Code', placeholder: 'e.g. #1234 or side gate unlocked' },
+    { key: 'pet_warnings', label: 'Pets on Property', placeholder: 'e.g. Friendly dog in backyard, cat indoor' },
     { key: 'parking', label: 'Parking Instructions', placeholder: 'e.g. Park in driveway, street parking only' },
-    { key: 'specialInstructions', label: 'Special Instructions', placeholder: 'Any other notes for our crew...', multiline: true },
+    { key: 'special_instructions', label: 'Special Instructions', placeholder: 'Any other notes for our crew...', multiline: true },
   ];
 
   return (
@@ -52,47 +79,60 @@ export default function PropertyPage() {
       </div>
 
       <div className={`${glass} p-5 sm:p-6`}>
-        <div className="space-y-5">
-          {fields.map((field) => (
-            <div key={field.key}>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: brand.text }}>
-                {field.label}
-              </label>
-              {field.multiline ? (
-                <textarea
-                  value={info[field.key]}
-                  onChange={(e) => setInfo({ ...info, [field.key]: e.target.value })}
-                  placeholder={field.placeholder}
-                  rows={3}
-                  className="w-full rounded-xl border px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2"
-                  style={{ borderColor: brand.border, color: brand.text }}
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={info[field.key]}
-                  onChange={(e) => setInfo({ ...info, [field.key]: e.target.value })}
-                  placeholder={field.placeholder}
-                  className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
-                  style={{ borderColor: brand.border, color: brand.text }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="space-y-5">
+            {fields.map((f) => (
+              <div key={f.key}>
+                <div className="h-4 w-32 rounded bg-slate-100 animate-pulse mb-1.5" />
+                <div className="h-10 rounded-xl bg-slate-100 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {fields.map((field) => (
+              <div key={field.key}>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: brand.text }}>
+                  {field.label}
+                </label>
+                {field.multiline ? (
+                  <textarea
+                    value={info[field.key]}
+                    onChange={(e) => setInfo({ ...info, [field.key]: e.target.value })}
+                    placeholder={field.placeholder}
+                    rows={3}
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2"
+                    style={{ borderColor: brand.border, color: brand.text }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={info[field.key]}
+                    onChange={(e) => setInfo({ ...info, [field.key]: e.target.value })}
+                    placeholder={field.placeholder}
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
+                    style={{ borderColor: brand.border, color: brand.text }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={handleSave}
-            className="px-6 py-2.5 rounded-xl text-sm font-medium text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            disabled={saving || loading}
+            className="px-6 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{ background: brand.primary }}
           >
-            Save Details
+            {saving ? 'Saving…' : 'Save Details'}
           </button>
           {saved && (
-            <span className="text-sm font-medium" style={{ color: '#059669' }}>
-              Saved!
-            </span>
+            <span className="text-sm font-medium" style={{ color: '#059669' }}>Saved!</span>
+          )}
+          {error && (
+            <span className="text-sm font-medium text-red-600">{error}</span>
           )}
         </div>
       </div>
