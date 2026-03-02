@@ -4,9 +4,11 @@ import { getAuthUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+type RouteParams = { params: Promise<{ id: string }> };
+
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   const authUser = await getAuthUser();
   if (!authUser || authUser.role === 'customer') {
@@ -30,11 +32,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'stepKey (string) and value (boolean) are required' }, { status: 400 });
   }
 
+  const { id } = await params;
+
   // Fetch current progress
   const { data: existing, error: fetchError } = await client
     .from('applicants')
     .select('induction_progress')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
 
   if (fetchError || !existing) {
@@ -49,7 +53,7 @@ export async function PATCH(
   const { error: updateError } = await client
     .from('applicants')
     .update({ induction_progress: updatedProgress })
-    .eq('id', params.id);
+    .eq('id', id);
 
   if (updateError) {
     console.error('Induction PATCH error:', updateError);
