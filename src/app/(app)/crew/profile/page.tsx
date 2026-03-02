@@ -19,6 +19,29 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  async function handlePhotoUpload(file: File) {
+    setPhotoError('');
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Photo must be under 5MB.');
+      return;
+    }
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
+      const json = await res.json() as { url?: string; error?: string };
+      if (!res.ok) throw new Error(json.error || 'Upload failed');
+      setForm((f) => ({ ...f, photo_url: json.url! }));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
 
   useEffect(() => {
     if (employee) {
@@ -74,7 +97,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Profile</h1>
         {!editing && (
@@ -98,7 +121,28 @@ export default function ProfilePage() {
             <EditField label="Email" value={form.email as string} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
             <EditField label="Phone" value={form.phone as string} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
             <EditField label="Suburb" value={form.suburb as string} onChange={(v) => setForm((f) => ({ ...f, suburb: v }))} />
-            <EditField label="Profile Photo URL" value={form.photo_url as string} onChange={(v) => setForm((f) => ({ ...f, photo_url: v }))} />
+            {/* Profile photo upload */}
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>Profile Photo</label>
+              <div className="flex items-center gap-4">
+                {form.photo_url ? (
+                  <img src={form.photo_url as string} alt="Profile" className="w-14 h-14 rounded-full object-cover border-2 shrink-0" style={{ borderColor: brand.border }} />
+                ) : (
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${brand.primary}12` }}>
+                    <svg className="w-6 h-6" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </div>
+                )}
+                <div>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all hover:bg-slate-50" style={{ borderColor: brand.border, color: photoUploading ? brand.muted : brand.primary }}>
+                    {photoUploading ? 'Uploading…' : (form.photo_url ? 'Change photo' : 'Upload photo')}
+                    <input type="file" accept="image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} disabled={photoUploading} />
+                  </label>
+                  {photoError && <p className="text-xs mt-1 text-red-600">{photoError}</p>}
+                </div>
+              </div>
+            </div>
             <EditField label="Bio" value={form.bio as string} onChange={(v) => setForm((f) => ({ ...f, bio: v }))} multiline />
 
             <div className="pt-2">
@@ -129,11 +173,24 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Avatar */}
+            <div className="flex items-center gap-4 pb-2">
+              {employee.photo_url ? (
+                <img src={employee.photo_url} alt={employee.full_name} className="w-16 h-16 rounded-full object-cover border-2 shrink-0" style={{ borderColor: brand.border }} />
+              ) : (
+                <div className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 text-xl font-bold" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+                  {employee.full_name?.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="font-semibold text-sm" style={{ color: brand.text }}>{employee.full_name}</p>
+                <p className="text-xs" style={{ color: brand.muted }}>{employee.email}</p>
+              </div>
+            </div>
             <InfoRow label="Name" value={employee.full_name} />
             <InfoRow label="Email" value={employee.email} />
             <InfoRow label="Phone" value={employee.phone || 'Not set'} />
             <InfoRow label="Suburb" value={employee.suburb || 'Not set'} />
-            <InfoRow label="Profile Photo URL" value={employee.photo_url || 'Not set'} />
             {employee.bio && <InfoRow label="Bio" value={employee.bio} />}
             {employee.emergency_contact_name && (
               <InfoRow label="Emergency Contact" value={`${employee.emergency_contact_name} - ${employee.emergency_contact_phone || ''}`} />

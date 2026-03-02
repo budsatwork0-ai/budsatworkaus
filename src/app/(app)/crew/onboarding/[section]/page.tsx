@@ -65,6 +65,30 @@ export default function OnboardingSectionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  async function handlePhotoUpload(file: File) {
+    setPhotoError('');
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Photo must be under 5MB.');
+      return;
+    }
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
+      const json = await res.json() as { url?: string; error?: string };
+      if (!res.ok) throw new Error(json.error || 'Upload failed');
+      updateField('photo_url', json.url!);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPhotoError(`Upload failed: ${msg}`);
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
 
   const sectionLabel = ONBOARDING_SECTION_LABELS[section] || section;
 
@@ -79,6 +103,20 @@ export default function OnboardingSectionPage() {
 
   const loadSection = useCallback(async () => {
     try {
+      // Guard: check previous section is complete before allowing access
+      const progressRes = await fetch('/api/crew/onboarding');
+      if (progressRes.ok) {
+        const progressData = await progressRes.json() as { sections: { section: string; completed: boolean }[] };
+        const idx = BASE_SECTION_ORDER.indexOf(section);
+        if (idx > 0) {
+          const prev = progressData.sections.find((s) => s.section === BASE_SECTION_ORDER[idx - 1]);
+          if (prev && !prev.completed) {
+            router.replace('/crew/onboarding');
+            return;
+          }
+        }
+      }
+
       const res = await fetch(`/api/crew/onboarding/${section}`);
       if (res.ok) {
         const data = await res.json();
@@ -89,7 +127,7 @@ export default function OnboardingSectionPage() {
     } finally {
       setLoading(false);
     }
-  }, [section]);
+  }, [section, router]);
 
   useEffect(() => {
     loadSection();
@@ -143,7 +181,7 @@ export default function OnboardingSectionPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-5 max-w-2xl mx-auto">
 
       {/* Top navigation & step indicator */}
       <div className="flex items-center justify-between">
@@ -209,14 +247,52 @@ export default function OnboardingSectionPage() {
             <Field label="Full Name" value={responses.full_name as string} onChange={(v) => updateField('full_name', v)} required />
             <Field label="Phone Number" value={responses.phone as string} onChange={(v) => updateField('phone', v)} placeholder="e.g. 0412 345 678" />
             <Field label="Suburb" value={responses.suburb as string} onChange={(v) => updateField('suburb', v)} placeholder="e.g. Fortitude Valley" />
-            <Field
-              label="Profile Photo URL"
-              value={responses.photo_url as string}
-              onChange={(v) => updateField('photo_url', v)}
-              required
-              placeholder="https://..."
-              hint="Paste a direct link to your photo (e.g. from Google Drive or Dropbox)."
-            />
+            {/* Profile photo upload */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: brand.text }}>
+                Profile Photo <span className="text-red-500 ml-1">*</span>
+              </label>
+              <div className="flex items-center gap-4">
+                {responses.photo_url ? (
+                  <img
+                    src={responses.photo_url as string}
+                    alt="Profile"
+                    className="w-16 h-16 rounded-full object-cover border-2 shrink-0"
+                    style={{ borderColor: brand.border }}
+                  />
+                ) : (
+                  <div
+                    className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
+                    style={{ background: `${brand.primary}12` }}
+                  >
+                    <svg className="w-7 h-7" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </div>
+                )}
+                <div>
+                  <label
+                    className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-slate-50"
+                    style={{ borderColor: brand.border, color: photoUploading ? brand.muted : brand.primary }}
+                  >
+                    {photoUploading ? (
+                      <><Spinner className="h-3.5 w-3.5" /> Uploading…</>
+                    ) : (
+                      responses.photo_url ? 'Change photo' : 'Upload photo'
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])}
+                      disabled={photoUploading}
+                    />
+                  </label>
+                  <p className="text-xs mt-1.5" style={{ color: brand.muted }}>JPG, PNG or HEIC · Max 5MB</p>
+                  {photoError && <p className="text-xs mt-1 text-red-600">{photoError}</p>}
+                </div>
+              </div>
+            </div>
             <Field label="Date of Birth" value={responses.dob as string} onChange={(v) => updateField('dob', v)} type="date" />
           </>
         )}

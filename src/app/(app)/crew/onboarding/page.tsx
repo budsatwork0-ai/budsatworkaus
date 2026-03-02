@@ -217,6 +217,7 @@ export default function OnboardingPage() {
               const href = sectionHref(section.section);
               const desc = SECTION_DESCRIPTIONS[section.section];
               const isNext = !onboardingComplete && nextSection?.section === section.section;
+              const isLocked = !section.completed && !isNext && !onboardingComplete;
               const isLast = idx === sections.length - 1;
               const stepNum = idx + 1;
 
@@ -263,56 +264,57 @@ export default function OnboardingPage() {
                     )}
                   </div>
 
-                  {/* Step card */}
-                  <Link
-                    href={href}
-                    className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] ${isLast ? 'mb-0' : 'mb-2'} ${isNext ? '' : glass}`}
-                    style={isNext ? {
-                      background: `${brand.primary}09`,
-                      border: `1.5px solid ${brand.primary}30`,
-                      boxShadow: `0 2px 16px ${brand.primary}10`,
-                    } : {}}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm leading-snug" style={{ color: brand.text }}>
-                        {label}
-                      </p>
-                      {desc && (
-                        <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{desc}</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {section.completed && (
-                        <span
-                          className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                          style={{ background: '#ECFDF5', color: brand.primary }}
-                        >
-                          Done
-                        </span>
-                      )}
-                      {isNext && (
-                        <span
-                          className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full text-white"
-                          style={{ background: brand.primary }}
-                        >
-                          Start now
-                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                            <path d="M5 12h14M12 5l7 7-7 7" />
-                          </svg>
-                        </span>
-                      )}
-                      <svg
-                        className="w-4 h-4"
-                        style={{ color: isNext ? brand.primary : brand.muted, opacity: isNext ? 1 : 0.5 }}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  {/* Step card — locked steps are non-interactive */}
+                  {isLocked ? (
+                    <div
+                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 ${isLast ? 'mb-0' : 'mb-2'} ${glass} opacity-50 cursor-not-allowed select-none`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm leading-snug" style={{ color: brand.text }}>{label}</p>
+                        {desc && <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{desc}</p>}
+                      </div>
+                      <svg className="w-4 h-4 shrink-0" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
                       </svg>
                     </div>
-                  </Link>
+                  ) : (
+                    <Link
+                      href={href}
+                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] ${isLast ? 'mb-0' : 'mb-2'} ${isNext ? '' : glass}`}
+                      style={isNext ? {
+                        background: `${brand.primary}09`,
+                        border: `1.5px solid ${brand.primary}30`,
+                        boxShadow: `0 2px 16px ${brand.primary}10`,
+                      } : {}}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm leading-snug" style={{ color: brand.text }}>{label}</p>
+                        {desc && <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{desc}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {section.completed && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#ECFDF5', color: brand.primary }}>
+                            Done
+                          </span>
+                        )}
+                        {isNext && (
+                          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ background: brand.primary }}>
+                            Start now
+                            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        )}
+                        <svg
+                          className="w-4 h-4"
+                          style={{ color: isNext ? brand.primary : brand.muted, opacity: isNext ? 1 : 0.5 }}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </Link>
+                  )}
                 </motion.div>
               );
             })}
