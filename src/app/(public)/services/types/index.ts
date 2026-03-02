@@ -241,6 +241,7 @@ export type WizardState = {
   clutterAccess: boolean;
   secondStorey: boolean;
   photosOK: boolean;
+  preferredAvailability: string[];
   yardMeasureRequested: boolean;
   commSecurityInduction: boolean;
   commClientConsumables: boolean;
@@ -258,6 +259,7 @@ export type WizardState = {
   fullName: string;
   email: string;
   phone: string;
+  address: string;
   region: string;
   companyName: string;
   abn: string;

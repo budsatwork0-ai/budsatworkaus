@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
       reviewed_total: null,
       status: 'submitted',
       payment_status: 'not_requested',
+      service_address: body.service_address || null,
       notes: body.notes,
     })
     .select()

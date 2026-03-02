@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { brand } from '@/app/ui/theme';
 
@@ -38,7 +38,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     label: 'Ready to Pay',
     color: brand.primary,
     bg: '#ECFDF5',
-    desc: 'Your quote has been confirmed. Proceed to secure payment below.',
+    desc: 'Your quote has been confirmed. Review the details below and proceed to payment.',
   },
   payment_pending: {
     label: 'Payment Pending',
@@ -86,10 +86,177 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// ── Confirmation modal ──────────────────────────────────────────────────────
+
+function PayConfirmModal({
+  quote,
+  onConfirm,
+  onClose,
+  loading,
+}: {
+  quote: Quote;
+  onConfirm: () => void;
+  onClose: () => void;
+  loading: boolean;
+}) {
+  const finalAmount = quote.reviewed_total!;
+  const priceChanged = Math.abs(finalAmount - quote.submitted_total) > 0.01;
+  const priceUp = finalAmount > quote.submitted_total;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pay-modal-title"
+    >
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="px-6 pt-6 pb-5 border-b border-black/[0.06]">
+          <div className="flex items-start gap-4">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
+              style={{ background: 'rgba(15,61,46,0.07)' }}
+            >
+              {SERVICE_ICONS[quote.service_type] || '📋'}
+            </div>
+            <div>
+              <h2 id="pay-modal-title" className="text-lg font-bold" style={{ color: brand.text }}>
+                Confirm your payment
+              </h2>
+              <p className="text-sm mt-0.5" style={{ color: brand.muted }}>
+                {SERVICE_LABELS[quote.service_type] || quote.service_type} ·{' '}
+                {quote.context === 'commercial' ? 'Commercial' : 'Home'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Price comparison */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 rounded-xl border" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
+              <p className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: brand.muted }}>
+                Your Estimate
+              </p>
+              <p className="text-xl font-bold" style={{ color: brand.text }}>
+                {fmt(quote.submitted_total)}
+              </p>
+            </div>
+            <div
+              className="p-4 rounded-xl border"
+              style={{
+                borderColor: priceChanged ? (priceUp ? 'rgba(251,191,36,0.5)' : 'rgba(16,185,129,0.4)') : 'rgba(0,0,0,0.07)',
+                background: priceChanged ? (priceUp ? 'rgba(251,191,36,0.05)' : 'rgba(16,185,129,0.05)') : '#F0FDF9',
+              }}
+            >
+              <p className="text-[11px] uppercase tracking-wider font-medium mb-1" style={{ color: brand.muted }}>
+                Final Price
+              </p>
+              <p className="text-xl font-bold" style={{ color: brand.primary }}>
+                {fmt(finalAmount)}
+              </p>
+            </div>
+          </div>
+
+          {/* Price change callout */}
+          {priceChanged && (
+            <div
+              className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm"
+              style={{
+                background: priceUp ? '#FFFBEB' : '#ECFDF5',
+                color: priceUp ? '#92400E' : '#065F46',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5">
+                <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+              </svg>
+              <span>
+                {priceUp
+                  ? `Our team adjusted the price up by ${fmt(finalAmount - quote.submitted_total)} based on the scope of your job.`
+                  : `Great news — our team reduced the price by ${fmt(quote.submitted_total - finalAmount)}.`}
+              </span>
+            </div>
+          )}
+
+          {/* Team notes */}
+          {quote.notes && (
+            <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(0,0,0,0.03)', color: brand.muted }}>
+              <span className="text-[11px] uppercase tracking-wider font-semibold block mb-1" style={{ color: brand.text }}>
+                Note from team
+              </span>
+              {quote.notes}
+            </div>
+          )}
+
+          {/* Stripe trust line */}
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: brand.muted }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            Powered by Stripe. Your card details are never stored on our servers.
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 pb-6 flex flex-col gap-3">
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold text-white shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-60"
+            style={{ background: brand.primary }}
+          >
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin border-white" />
+                Taking you to payment…
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+                </svg>
+                Confirm & Pay {fmt(finalAmount)}
+              </>
+            )}
+          </button>
+          <div className="flex items-center justify-between text-xs" style={{ color: brand.muted }}>
+            <button onClick={onClose} className="hover:underline">
+              Cancel
+            </button>
+            <Link href="/contact" className="hover:underline">
+              Something's not right? Contact us
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Main page ───────────────────────────────────────────────────────────────
+
 export default function PortalQuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paying, setPaying] = useState<string | null>(null);
+  const [confirmingQuote, setConfirmingQuote] = useState<Quote | null>(null);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,24 +267,38 @@ export default function PortalQuotesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handlePay(quoteId: string) {
-    setPaying(quoteId);
+  async function handleConfirmPay() {
+    if (!confirmingQuote) return;
+    setPaying(true);
     try {
-      const res = await fetch(`/api/quotes/${quoteId}/checkout`, { method: 'POST' });
+      const res = await fetch(`/api/quotes/${confirmingQuote.id}/checkout`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Checkout failed');
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data.checkoutUrl || data.url) {
+        window.location.href = data.checkoutUrl ?? data.url;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Payment failed');
+      setConfirmingQuote(null);
     } finally {
-      setPaying(null);
+      setPaying(false);
     }
   }
 
   return (
     <div className="space-y-8">
+      {/* Confirmation modal */}
+      <AnimatePresence>
+        {confirmingQuote && (
+          <PayConfirmModal
+            quote={confirmingQuote}
+            onConfirm={handleConfirmPay}
+            onClose={() => !paying && setConfirmingQuote(null)}
+            loading={paying}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Page header */}
       <div className="flex items-end justify-between">
         <div>
@@ -149,7 +330,7 @@ export default function PortalQuotesPage() {
           {[
             { step: '1', label: 'You submit', desc: 'Your estimated cost is locked in at submission.' },
             { step: '2', label: 'We review', desc: 'Our team confirms the scope and final price.' },
-            { step: '3', label: 'You approve', desc: "We'll notify you when it's ready to pay." },
+            { step: '3', label: 'You approve', desc: 'Review the final quote and confirm before paying.' },
             { step: '4', label: 'Job booked', desc: 'Secure Stripe payment confirms your booking.' },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-3">
@@ -327,27 +508,17 @@ export default function PortalQuotesPage() {
                   {isFinalized && (
                     <div className="mt-4">
                       <button
-                        onClick={() => handlePay(quote.id)}
-                        disabled={paying === quote.id}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-60"
+                        onClick={() => setConfirmingQuote(quote)}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
                         style={{ background: brand.primary }}
                       >
-                        {paying === quote.id ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin border-white" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
-                            </svg>
-                            Pay {fmt(quote.reviewed_total!)} Securely
-                          </>
-                        )}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+                        </svg>
+                        Review & Pay {fmt(quote.reviewed_total!)}
                       </button>
                       <p className="text-[11px] mt-2" style={{ color: brand.muted }}>
-                        Powered by Stripe. Your card details are never stored on our servers.
+                        You'll confirm the details before any payment is taken.
                       </p>
                     </div>
                   )}
@@ -364,7 +535,7 @@ export default function PortalQuotesPage() {
                   {isPending && (
                     <div className="mt-4 flex items-center gap-2 text-sm" style={{ color: '#D97706' }}>
                       <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#D97706', borderTopColor: 'transparent' }} />
-                      Payment in progress...
+                      Payment in progress…
                     </div>
                   )}
                 </div>

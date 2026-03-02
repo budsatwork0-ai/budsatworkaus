@@ -6,6 +6,13 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/app/hooks/useAuth';
 import { brand } from '@/app/ui/theme';
 
+type FinalizedQuote = {
+  id: string;
+  service_type: string;
+  reviewed_total: number | null;
+  submitted_total: number;
+};
+
 type OrderSummary = {
   id: string;
   service_type: string;
@@ -64,6 +71,7 @@ export default function PortalHome() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [subs, setSubs] = useState<SubSummary[]>([]);
+  const [finalizedQuotes, setFinalizedQuotes] = useState<FinalizedQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -78,9 +86,11 @@ export default function PortalHome() {
         if (!r.ok) throw new Error('Failed to load subscriptions');
         return r.json();
       }),
-    ]).then(([orderData, subData]) => {
+      fetch('/api/quotes?status=finalized&limit=10').then((r) => r.json()).catch(() => ({ quotes: [] })),
+    ]).then(([orderData, subData, quoteData]) => {
       setOrders(orderData.orders || []);
       setSubs(subData.subscriptions || []);
+      setFinalizedQuotes(quoteData.quotes || []);
     }).catch(() => {
       setFetchError('Some data failed to load. Your dashboard may be incomplete.');
     }).finally(() => setLoading(false));
@@ -161,6 +171,40 @@ export default function PortalHome() {
           </motion.div>
         ))}
       </div>
+
+      {/* Finalized quotes awaiting payment */}
+      {!loading && finalizedQuotes.length > 0 && (
+        <Link
+          href="/portal/quotes"
+          className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
+          style={{ borderLeftColor: brand.primary }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'rgba(15,61,46,0.10)' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
+              <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: brand.text }}>
+              {finalizedQuotes.length === 1
+                ? `${SERVICE_LABELS[finalizedQuotes[0].service_type] || 'A quote'} is ready for payment`
+                : `${finalizedQuotes.length} quotes are ready for payment`}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+              Review and confirm before your spot is booked
+            </p>
+          </div>
+          <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: brand.primary }}>
+            Review
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </Link>
+      )}
 
       {!loading && attentionOrders.length > 0 && (
         <div className={`${glass} p-5`}>

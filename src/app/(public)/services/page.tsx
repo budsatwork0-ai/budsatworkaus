@@ -143,6 +143,7 @@ import {
 import { LiveOrdersStrip } from './components/shared/LiveOrdersStrip';
 import { WindowsEditor } from './components/windows/WindowsEditor';
 import { DistanceRouteConfigurator } from './components/dump/DistanceRouteConfigurator';
+import { ServiceAddressInput } from './components/shared/ServiceAddressInput';
 
 // Isolated slider component so dragging doesn't re-render the entire ServicesPageContent.
 // Keeps a local display-value and only propagates the final value on pointer/touch release.
@@ -1077,7 +1078,7 @@ function winSessionMinutes(S: WizardState) {
               <div className="flex flex-col gap-2 lg:flex-row lg:items-baseline">
                 <div>
                   <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">Build your quote</h1>
-                  <p className="mt-2 text-slate-700">It’s that simple every step of the way</p>
+                  <p className="mt-2 text-slate-700">It's that simple every step of the way</p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -1695,7 +1696,7 @@ const COMM_PRESETS: Record<
                 ? 'Thanks — suede is cleaned with material-safe methods.'
                 : refreshMaterial === 'boots'
                 ? 'Boots get an exterior uplift; we keep it material-safe.'
-                : 'We’ll match the clean to the material.';
+                : "We'll match the clean to the material.";
 
             const concernHint =
               refreshConcern === 'yellowing'
@@ -1705,7 +1706,7 @@ const COMM_PRESETS: Record<
                 : refreshConcern === 'odour'
                 ? 'Odour treatment is included in Refresh Clean.'
                 : refreshConcern === 'wear'
-                ? 'Wear & tear is noted — we’ll set expectations clearly.'
+                ? "Wear & tear is noted — we'll set expectations clearly."
                 : 'General dirt is well suited to Refresh Clean.';
 
             return [materialHint, concernHint];
@@ -1721,8 +1722,8 @@ const COMM_PRESETS: Record<
                 : 'Lightly worn pairs still get full deep care.';
             const sensitives = Array.from(deepSensitive);
             const sensitiveHint = sensitives.length
-              ? 'We’ll take extra care with suede, dyed leather, and collectible pairs.'
-              : 'No sensitive materials flagged; we’ll still handle carefully.';
+              ? "We'll take extra care with suede, dyed leather, and collectible pairs."
+              : "We'll still handle carefully — no sensitive materials flagged.";
             return [soilingHint, sensitiveHint];
           })();
 
@@ -1742,7 +1743,7 @@ const COMM_PRESETS: Record<
           })();
 
           const FALLBACK_INCLUSIONS = [
-            'Scope confirmed (what’s in / out)',
+            "Scope confirmed (what's in / out)",
             'Access/parking/prep noted',
             'Time & pricing confirmed',
             'Handover/QA (photos or walkthrough)',
@@ -3811,7 +3812,7 @@ const COMM_PRESETS: Record<
                           Map your lawns and sites
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-                          Choose what we’re doing, then outline each address on the satellite map. We auto-calc the area,
+                          Choose what we're doing, then outline each address on the satellite map. We auto-calc the area,
                           time, and cost for every site across Greater Brisbane.
                         </p>
                       </div>
@@ -3821,7 +3822,7 @@ const COMM_PRESETS: Record<
                           Our Abilities
                         </h3>
                         <p className="mt-1 text-sm text-slate-600">
-                          Tell us what matters and we’ll shape it to you.
+                          Tell us what matters and we'll shape it to you.
                         </p>
                       </div>
                     )}
@@ -4236,54 +4237,46 @@ const COMM_PRESETS: Record<
         ) : (
           <div className="grid lg:grid-cols-3 gap-6">
             {/* MAIN: form */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
               {/* Header */}
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
-                    Request your booking
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    We&apos;ll confirm times and any changes before work proceeds.
-                  </p>
-                </div>
-                <span
-                  className={cls(
-                    'text-[11px] px-2 py-1 rounded-full flex-shrink-0',
-                    estimate.confidence === 'High'
-                      ? 'bg-green-100 text-green-900'
-                      : estimate.confidence === 'Medium'
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'bg-red-100 text-red-900'
-                  )}
-                  title="Our confidence based on typical variance"
-                >
-                  {estimate.confidence} confidence
-                </span>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
+                  Request your booking
+                </h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  We&apos;ll confirm times and any changes before work proceeds.
+                </p>
               </div>
 
               {/* Contact */}
               <S3_Card>
-                <S3_Title>Contact details</S3_Title>
-                <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                <S3_Title>
+                  <span className="flex items-center gap-2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Contact details
+                  </span>
+                </S3_Title>
+                <div className="grid sm:grid-cols-2 gap-4 mt-3">
                   <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-fullname">Full name <span className="text-red-500">*</span></label>
                     <input
-                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm"
-                      placeholder="Full name"
+                      id="s3-fullname"
+                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]"
+                      placeholder="Jane Smith"
                       value={S.fullName}
                       onChange={(e) => set('fullName', e.target.value)}
                       aria-label="Full name"
                     />
-                    {S.fullName.trim().length < 2 && (
-                      <div className="text-[11px] text-red-700 mt-1">
-                        Please enter your full name.
-                      </div>
+                    {S.fullName.trim().length > 0 && S.fullName.trim().length < 2 && (
+                      <div className="text-[11px] text-red-600 mt-1">Please enter your full name.</div>
                     )}
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-email">Email <span className="text-red-500">*</span></label>
                     <input
-                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm"
-                      placeholder="Email"
+                      id="s3-email"
+                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]"
+                      placeholder="jane@example.com"
                       value={S.email}
                       onChange={(e) => set('email', e.target.value)}
                       onBlur={(e) =>
@@ -4291,16 +4284,16 @@ const COMM_PRESETS: Record<
                       }
                       aria-label="Email"
                     />
-                    {!/\S+@\S+\.\S+/.test(S.email || '') && (
-                      <div className="text-[11px] text-red-700 mt-1">
-                        Enter a valid email.
-                      </div>
+                    {S.email.length > 0 && !/\S+@\S+\.\S+/.test(S.email) && (
+                      <div className="text-[11px] text-red-600 mt-1">Enter a valid email.</div>
                     )}
                   </div>
                   <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-phone">Phone <span className="text-red-500">*</span></label>
                     <input
-                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm"
-                      placeholder="Phone"
+                      id="s3-phone"
+                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]"
+                      placeholder="04XX XXX XXX"
                       value={S.phone}
                       onChange={(e) =>
                         set(
@@ -4313,10 +4306,8 @@ const COMM_PRESETS: Record<
                       }
                       aria-label="Phone"
                     />
-                    {S.phone.replace(/\D+/g, '').length < 8 && (
-                      <div className="text-[11px] text-red-700 mt-1">
-                        Add your phone number.
-                      </div>
+                    {S.phone.replace(/\D+/g, '').length > 0 && S.phone.replace(/\D+/g, '').length < 8 && (
+                      <div className="text-[11px] text-red-600 mt-1">Add your phone number.</div>
                     )}
                   </div>
                 </div>
@@ -4324,54 +4315,28 @@ const COMM_PRESETS: Record<
 
               {/* Location & access */}
               <S3_Card>
-                <S3_Title>Location & access</S3_Title>
+                <S3_Title>
+                  <span className="flex items-center gap-2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Location & access
+                  </span>
+                </S3_Title>
                 <div className="mt-3">
-                  <div className="text-xs text-slate-600 mb-1">Service region</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {SERVICE_REGIONS.map((r) => (
-                      <button
-                        type="button"
-                        key={r}
-                        className={cls(
-                          'rounded-2xl px-3 py-2 border text-sm',
-                          S.region === r
-                            ? 'border-[color:var(--accent)] bg-white'
-                            : 'border-black/10 bg-white/70'
-                        )}
-                        onClick={() => set('region', r as any)}
-                        aria-label={`Select region ${r}`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="col-span-2 sm:col-span-4 text-xs underline text-slate-700"
-                      onClick={() => set('region', '')}
-                    >
-                      Not listed? Enter suburb manually
-                    </button>
-                  </div>
-                  {S.region === '' && (
-                    <div className="mt-2">
-                      <input
-                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm"
-                        placeholder="Suburb (e.g., Calamvale)"
-                        value={typeof S.region === 'string' ? S.region : ''}
-                        onChange={(e) => set('region', e.target.value)}
-                        aria-label="Suburb"
-                      />
-                    </div>
-                  )}
-                  {S.region && !servicedRegion && (
-                    <div className="text-[11px] text-red-700 mt-1">
-                      We currently service the listed regions only.
-                    </div>
-                  )}
+                  <ServiceAddressInput
+                    address={S.address}
+                    onAddressChange={(formatted, suburb) => {
+                      set('address', formatted as any);
+                      set('region', (suburb || formatted) as any);
+                    }}
+                    onClear={() => {
+                      set('address', '' as any);
+                      set('region', '' as any);
+                    }}
+                  />
                 </div>
 
-                <div className="mt-3">
-                  <div className="text-xs text-slate-600 mb-1">Access notes</div>
+                <div className="mt-4">
+                  <div className="text-xs text-slate-600 mb-2">Access notes</div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -4409,134 +4374,109 @@ const COMM_PRESETS: Record<
                     >
                       After-hours (post-6pm)
                     </button>
-
-                    <details className="text-xs text-slate-700">
-                      <summary className="cursor-pointer px-1.5 py-0.5 rounded bg-white/60 border border-black/10 inline-block ml-1">
-                        More
-                      </summary>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className={cls(
-                            'px-2.5 py-1 rounded-full text-xs border',
-                            S.clutterAccess
-                              ? 'border-[color:var(--accent)] bg-white'
-                              : 'border-black/10 bg-white/70'
-                          )}
-                          onClick={() => set('clutterAccess', !S.clutterAccess)}
-                        >
-                          Tight access
-                        </button>
-                        <button
-                          type="button"
-                          className={cls(
-                            'px-2.5 py-1 rounded-full text-xs border',
-                            S.petHair
-                              ? 'border-[color:var(--accent)] bg-white'
-                              : 'border-black/10 bg-white/70'
-                          )}
-                          onClick={() => set('petHair', !S.petHair)}
-                        >
-                          Pets present
-                        </button>
-                      </div>
-                    </details>
+                    <button
+                      type="button"
+                      className={cls(
+                        'px-2.5 py-1 rounded-full text-xs border',
+                        S.clutterAccess
+                          ? 'border-[color:var(--accent)] bg-white'
+                          : 'border-black/10 bg-white/70'
+                      )}
+                      onClick={() => set('clutterAccess', !S.clutterAccess)}
+                    >
+                      Tight access
+                    </button>
+                    <button
+                      type="button"
+                      className={cls(
+                        'px-2.5 py-1 rounded-full text-xs border',
+                        S.petHair
+                          ? 'border-[color:var(--accent)] bg-white'
+                          : 'border-black/10 bg-white/70'
+                      )}
+                      onClick={() => set('petHair', !S.petHair)}
+                    >
+                      Pets present
+                    </button>
                   </div>
                 </div>
               </S3_Card>
 
-              {!(S.context === 'commercial' && S.service === 'cleaning') && (
-                <S3_Card>
-                  <S3_Title>Job complexity</S3_Title>
-                  <div className="mt-2">
-                    <input
-                      type="range"
-                      min={0}
-                      max={2}
-                      step={1}
-                      value={
-                        (['small', 'standard', 'large'] as const).indexOf(S.sizeAdjust)
-                      }
-                      onChange={(e) => {
-                        const idx = Number(e.target.value);
-                        const sizes = ['small', 'standard', 'large'] as const;
-                        const chosen = sizes[idx] ?? 'standard';
-                        set('sizeAdjust', chosen);
-                        if (chosen === 'small') {
-                          set('contractDiscount', 0 as any);
-                          set('conditionFlat', 0 as any);
-                        }
-                        if (chosen === 'standard') {
-                          set('contractDiscount', 0.1 as any);
-                          set('conditionFlat', 20 as any);
-                        }
-                        if (chosen === 'large') {
-                          set('contractDiscount', 0.15 as any);
-                          set('conditionFlat', 35 as any);
-                        }
-                      }}
-                      className="w-full"
-                      aria-label="Job size slider"
-                    />
-                    <div className="flex justify-between text-[11px] text-slate-600 mt-1">
-                      <span>Small</span>
-                      <span>Standard</span>
-                      <span>Large</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    {(['light', 'standard', 'heavy'] as const).map((lvl) => (
+              {/* Availability */}
+              <S3_Card>
+                <S3_Title>
+                  <span className="flex items-center gap-2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    When works best for you?
+                  </span>
+                </S3_Title>
+                <p className="text-[11px] text-slate-500 mt-1">Select all that apply — we'll try to match your schedule.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(['Weekday mornings', 'Weekday afternoons', 'Weekends', 'Flexible / ASAP'] as const).map((slot) => {
+                    const active = (S.preferredAvailability || []).includes(slot);
+                    return (
                       <button
-                        key={lvl}
+                        key={slot}
                         type="button"
                         className={cls(
-                          'px-2.5 py-1 rounded-full border',
-                          S.conditionLevel === lvl
-                            ? 'border-[color:var(--accent)] bg-white'
+                          'px-3 py-1.5 rounded-full text-xs border transition-colors',
+                          active
+                            ? 'border-[color:var(--accent)] bg-white font-medium'
                             : 'border-black/10 bg-white/70'
                         )}
-                        onClick={() => set('conditionLevel', lvl)}
+                        onClick={() => {
+                          const current: string[] = S.preferredAvailability || [];
+                          set(
+                            'preferredAvailability',
+                            active ? current.filter((v) => v !== slot) : [...current, slot]
+                          );
+                        }}
                       >
-                        {lvl[0].toUpperCase() + lvl.slice(1)} condition
+                        {slot}
                       </button>
-                    ))}
-                  </div>
-
-                  <textarea
-                    className="mt-3 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm"
-                    rows={3}
-                    placeholder="Anything else? (gate code, preferred dates/times, parking notes, pets, etc.)"
-                    value={S.notes}
-                    onChange={(e) => set('notes', e.target.value)}
-                    aria-label="Notes"
-                  />
-                </S3_Card>
-              )}
-
-              {/* Business expense */}
-              <S3_Card>
-                <label className="inline-flex items-center gap-2 text-sm text-slate-800">
+                    );
+                  })}
+                </div>
+                <label className="mt-4 flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={S.isBusinessExpense}
-                    onChange={(e) => set('isBusinessExpense', e.target.checked)}
+                    checked={S.photosOK}
+                    onChange={(e) => set('photosOK', e.target.checked)}
+                    className="mt-0.5 accent-emerald-600"
                   />
-                  Need a GST invoice
+                  <span className="text-xs text-slate-700">
+                    I'm happy to share a few photos to help with quoting
+                    <span className="block text-[11px] text-slate-400 mt-0.5">We'll follow up via SMS or email — no app needed.</span>
+                  </span>
                 </label>
-                <div className="text-[11px] text-slate-600 mt-1">
-                  We’ll include GST and invoice details in the confirmation.
-                </div>
+              </S3_Card>
+
+              {/* Notes */}
+              <S3_Card>
+                <S3_Title>
+                  <span className="flex items-center gap-2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Anything else?
+                  </span>
+                </S3_Title>
+                <textarea
+                  className="mt-3 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)] resize-none"
+                  rows={3}
+                  placeholder="Gate code, parking instructions, pets, anything specific…"
+                  value={S.notes}
+                  onChange={(e) => set('notes', e.target.value)}
+                  aria-label="Notes"
+                />
               </S3_Card>
 
               <div className="text-[11px] text-slate-600 text-center">
-                You won’t be charged now. We’ll confirm any price changes before work
+                You won't be charged now. We'll confirm any price changes before work
                 proceeds.
               </div>
             </div>
 
             {/* SIDEBAR */}
-            <aside className={cls('lg:col-span-1 h-fit', !yardActive && 'lg:sticky lg:top-6')}>
+            <aside className={cls('lg:col-span-1 h-fit order-1 lg:order-2', !yardActive && 'lg:sticky lg:top-6')}>
               <S3_Card className="relative overflow-hidden">
                 <div
                   className="absolute inset-x-0 -top-1 h-1 rounded-t-2xl"
@@ -4659,33 +4599,25 @@ const COMM_PRESETS: Record<
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <S3_Row k="Per-items" v={fmtAUD(estimate.unitSum)} />
                       {estimate.labourFloor ? (
-                        <S3_Row
-                          k="Time minimum"
-                          v={fmtAUD(estimate.labourFloor)}
-                        />
+                        <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} />
                       ) : null}
-                      <S3_Row
-                        k="Adjusted (size/condition/contract)"
-                        v={fmtAUD(estimate.baseBeforeFees)}
-                      />
-                      <S3_Row
-                        k="Travel / Parking / Tip"
-                        v={fmtAUD(
-                          estimate.travel + estimate.parking + estimate.tip
-                        )}
-                      />
-                      <S3_Row
-                        k="Materials (consumables)"
-                        v={fmtAUD(
-                          S.service === 'cleaning'
-                            ? S.context === 'commercial'
-                              ? 12
-                              : 8
-                            : 0
-                        )}
-                      />
+                      <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
+                      {estimate.travel > 0 && (
+                        <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />
+                      )}
+                      {estimate.parking > 0 && (
+                        <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />
+                      )}
+                      {estimate.tip > 0 && (
+                        <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />
+                      )}
+                      {(() => {
+                        const mats = S.service === 'cleaning'
+                          ? S.context === 'commercial' ? 12 : 8
+                          : 0;
+                        return mats > 0 ? <S3_Row k="Materials" v={fmtAUD(mats)} /> : null;
+                      })()}
                       <div className="h-[1px] bg-white/60 my-2" />
                       <S3_Row k="Total" v={priceLabel} bold />
                       <div className="text-[11px] text-slate-600">
@@ -4699,7 +4631,7 @@ const COMM_PRESETS: Record<
                       </div>
 
                       <div className="text-xs text-slate-600 mt-2">
-                        Need to change what’s included?{' '}
+                        Need to change what's included?{' '}
                         <button
                           type="button"
                           className="underline"
@@ -4739,19 +4671,10 @@ const COMM_PRESETS: Record<
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 flex flex-col gap-2">
-                  <M.button
-                    className="px-4 py-2 rounded-2xl text-sm text-white"
-                    style={{ background: 'var(--accent)' }}
-                    onClick={() => goToStep(2)}
-                    aria-label="Back to Step 2"
-                  >
-                    Back
-                  </M.button>
-
+                <div className="mt-5 flex flex-col gap-2.5">
                   <M.button
                     className={cls(
-                      "px-4 py-2 rounded-2xl text-sm text-white flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(20,83,45,0.25)]",
+                      "px-4 py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(20,83,45,0.28)]",
                       (!captchaToken || isCheckoutLoading) && "opacity-60 cursor-not-allowed"
                     )}
                     style={{ background: 'var(--accent)' }}
@@ -4766,11 +4689,11 @@ const COMM_PRESETS: Record<
                         S.fullName?.trim().length >= 2 &&
                         /\S+@\S+\.\S+/.test(S.email || '') &&
                         S.phone.replace(/\D+/g, '').length >= 8 &&
-                        Boolean(servicedRegion);
+                        S.address.trim().length > 0;
 
                       if (!okInputs) {
                         toast.error(
-                          'Please complete your details and select a serviced region.'
+                          'Please complete your details and confirm your service address.'
                         );
                         return;
                       }
@@ -4797,7 +4720,14 @@ const COMM_PRESETS: Record<
                             frequency: (S as any).commFrequency || 'none',
                             submitted_total: effectiveTotal,
                             total: effectiveTotal,
-                            notes: S.notes || '',
+                            service_address: S.address.trim(),
+                            notes: [
+                              S.notes || '',
+                              S.preferredAvailability?.length
+                                ? `Availability: ${S.preferredAvailability.join(', ')}`
+                                : '',
+                              S.photosOK ? 'Happy to share photos for quoting.' : '',
+                            ].filter(Boolean).join('\n').trim() || '',
                           }),
                         });
 
@@ -4852,15 +4782,52 @@ const COMM_PRESETS: Record<
                       </>
                     )}
                   </M.button>
+
+                  <M.button
+                    className="px-4 py-2 rounded-2xl text-sm font-medium text-slate-700 border border-black/10 bg-white/70 hover:bg-white/90 transition-colors"
+                    onClick={() => goToStep(2)}
+                    aria-label="Back to Step 2"
+                  >
+                    ← Back to scope
+                  </M.button>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mt-1">
-                  <S3_Chip>Insured</S3_Chip>
-                  <S3_Chip>GST invoice ready</S3_Chip>
-                  {S.region && SERVICE_REGIONS.includes(S.region as any) ? (
-                    <S3_Chip>In service area</S3_Chip>
-                  ) : S.region ? (
-                    <S3_Chip>Outside area</S3_Chip>
+                <p className="text-[11px] text-slate-500 text-center mt-2 leading-relaxed">
+                  By submitting this request you agree to the{' '}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 text-slate-600 hover:text-slate-800"
+                  >
+                    Terms of Service
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 text-slate-600 hover:text-slate-800"
+                  >
+                    Privacy Policy
+                  </a>{' '}
+                  of Buds At Work.
+                </p>
+
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <S3_Chip>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Insured
+                  </S3_Chip>
+                  <S3_Chip>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    GST invoice ready
+                  </S3_Chip>
+                  {S.address ? (
+                    <S3_Chip>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                      Address verified
+                    </S3_Chip>
                   ) : null}
                 </div>
               </S3_Card>
