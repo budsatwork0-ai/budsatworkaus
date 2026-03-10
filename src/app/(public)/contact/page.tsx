@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     title: 'Contact Buds At Work',
     description: 'Reach out for a quote or to ask any questions about our services.',
   },
+  alternates: { canonical: 'https://budsatwork.com/contact' },
 };
 
 const iconProps = {

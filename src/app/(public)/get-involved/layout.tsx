@@ -7,6 +7,7 @@ export const metadata: Metadata = {
     title: 'Get Involved | Buds At Work',
     description: 'Join our team as casual crew, support worker, or partner. Help us deliver reliable local services across Logan and South Brisbane.',
   },
+  alternates: { canonical: 'https://budsatwork.com/get-involved' },
 };
 
 export default function GetInvolvedLayout({

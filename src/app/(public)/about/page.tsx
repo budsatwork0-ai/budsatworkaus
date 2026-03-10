@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     title: 'About Buds At Work | Your Local Service Team',
     description: 'A small team from Logan building a simple promise: show up on time, do the job properly, and treat people like neighbours.',
   },
+  alternates: { canonical: 'https://budsatwork.com/about' },
 };
 
 const iconProps = {

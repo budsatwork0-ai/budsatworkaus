@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     title: 'Privacy Policy | Buds At Work',
     description: 'Learn how Buds At Work keeps your details safe and never sells them to third parties.',
   },
+  alternates: { canonical: 'https://budsatwork.com/privacy' },
 };
 
 const infoPoints = [

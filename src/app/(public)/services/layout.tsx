@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     description: 'Home cleaning, window cleaning, yard care, dump runs, and car detailing. Quote-first approach with transparent pricing.',
   },
   keywords: ['home cleaning Logan', 'window cleaning Brisbane', 'yard care', 'dump runs', 'car detailing', 'end of lease cleaning', 'NDIS cleaning services'],
+  alternates: { canonical: 'https://budsatwork.com/services' },
 };
 
 export default function ServicesLayout({

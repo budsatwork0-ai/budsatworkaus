@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     title: 'Terms of Service | Buds At Work',
     description: 'Terms and conditions for Buds At Work services including bookings, payments, and cancellations.',
   },
+  alternates: { canonical: 'https://budsatwork.com/terms' },
 };
 
 const termsSections = [

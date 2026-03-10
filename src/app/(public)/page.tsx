@@ -4,6 +4,7 @@ import HomePage from '@/app/ui/home/HomePage';
 export const metadata: Metadata = {
   title: 'Home',
   description: 'Quote-first local services in Logan & South Brisbane: home cleaning, window cleaning, yard care, dump runs, car detailing. NDIS-friendly support available.',
+  alternates: { canonical: 'https://budsatwork.com' },
   openGraph: {
     title: 'Buds At Work | Your Local Mates for Home Services',
     description: 'Quote-first local services: cleaning, windows, yard care, dump runs, car detailing. NDIS-friendly. Logan & South Brisbane.',

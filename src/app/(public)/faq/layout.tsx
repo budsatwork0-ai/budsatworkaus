@@ -7,6 +7,7 @@ export const metadata: Metadata = {
     title: 'FAQ | Buds At Work',
     description: 'Got questions? We have answers. Find out everything about our services, pricing, and how we work.',
   },
+  alternates: { canonical: 'https://budsatwork.com/faq' },
 };
 
 export default function FAQLayout({ children }: { children: React.ReactNode }) {

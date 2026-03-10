@@ -7,6 +7,7 @@ export const metadata: Metadata = {
     title: 'Pricing | Buds At Work',
     description: 'Transparent, indicative price ranges for all our services. Final price confirmed before work begins.',
   },
+  alternates: { canonical: 'https://budsatwork.com/pricing' },
 };
 
 export default function PricingLayout({

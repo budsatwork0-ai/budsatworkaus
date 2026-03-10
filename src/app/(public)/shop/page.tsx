@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     title: 'Shop | Buds At Work',
     description: 'Shop cleaning supplies, gift cards, and service bundles. Coming soon.',
   },
+  alternates: { canonical: 'https://budsatwork.com/shop' },
 };
 
 const upcomingItems = [
