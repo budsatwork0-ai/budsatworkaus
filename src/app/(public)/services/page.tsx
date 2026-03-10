@@ -981,6 +981,13 @@ const estMinutes = useMemo(() => {
     };
     return autoTimeMap[S.scope] ?? estimate.minutes;
   }
+  // Dump runs: scale time with load count and load type
+  if (S.service === "dump" && S.scope === "dump_runs") {
+    const loads = Math.max(1, S.dumpRun?.loads || 1);
+    const loadType = S.dumpRun?.loadType || 'ute';
+    const perLoadMins = loadType === 'trailer' ? 45 : loadType === 'bulky' ? 20 : 30;
+    return 15 + loads * perLoadMins;
+  }
   return routeDurationOverride ?? estimate.minutes;
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [
@@ -996,6 +1003,7 @@ const estMinutes = useMemo(() => {
   S.commercialCleaningType,
   S.commPreset,
   routeDurationOverride,
+  S.dumpRun,
 ]);
 
 const routePriceOverride = useMemo<number | null>(() => {

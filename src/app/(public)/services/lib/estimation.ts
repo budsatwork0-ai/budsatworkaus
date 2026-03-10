@@ -487,6 +487,14 @@ export function computeScopeMinutes(S: WizardState, service: ServiceType, scopeK
     if (map[scopeKey] != null) return map[scopeKey];
   }
 
+  // Dump runs: scale time with load count and load type
+  if (service === 'dump' && scopeKey === 'dump_runs') {
+    const dump = S.dumpRun || DEFAULT_DUMP_RUN;
+    const loads = Math.max(1, dump.loads || 1);
+    const perLoadMins = dump.loadType === 'trailer' ? 45 : dump.loadType === 'bulky' ? 20 : 30;
+    return 15 + loads * perLoadMins;
+  }
+
   // Fallback: use estimateForScope minutes
   const est = estimateForScope(S, service, scopeKey);
   return est ? est.minutes || 0 : 0;
