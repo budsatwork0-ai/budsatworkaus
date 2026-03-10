@@ -4,7 +4,11 @@ export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'l
 export type ScopeKey = string;
 
 // Laundry & Sneaker Care types
-export type LaundryTier = 'wash_fold' | 'wash_iron';
+export type LaundryTier = 'wash_fold';
+export type LaundryPerLoadAddOn = 'eco_detergent' | 'extra_rinse' | 'whites_brightening';
+export type LaundryPerOrderAddOn = 'hygiene_sanitise' | 'express_turnaround';
+export type IroningItemType = 'standard' | 'business_shirt' | 'complex';
+export type IroningItem = { type: IroningItemType; count: number };
 export type SneakerTier = 'refresh' | 'deep' | 'multi';
 
 // Frequency and selections
@@ -43,12 +47,18 @@ export type DeliverySelection = {
   itemType: 'parcel' | 'household' | 'mattress' | 'groceries' | 'tools' | null;
   distance: 'same_suburb' | 'drive_30' | 'drive_60' | 'long';
   assist: 'no_help' | 'need_help';
+  extraStops?: number;
+  priority?: boolean;
+  stairsAtDropoff?: boolean;
 };
 
 export type TransportSelection = {
   moveType: 'house' | 'bedroom' | 'student' | 'office' | 'event';
   stairs: 'none' | 'one' | 'multi' | 'no_lift';
   loadSize: 'bags' | 'boot' | 'small_load' | 'full_move';
+  helpers?: 1 | 2 | 3;
+  urgent?: boolean;
+  afterHours?: boolean;
 };
 
 export type DumpRunSelection = {
@@ -290,7 +300,11 @@ export type WizardState = {
   // Laundry & Sneaker Care
   laundryTier: LaundryTier;
   laundryLoads: number;
+  laundryPerLoadAddOns: LaundryPerLoadAddOn[];
+  laundryPerOrderAddOns: LaundryPerOrderAddOn[];
+  laundryIroningItems: IroningItem[];
   sneakerTier: SneakerTier;
+  sneakerPairCount: number;
 };
 
 export type CleaningWizardChecklistState = {

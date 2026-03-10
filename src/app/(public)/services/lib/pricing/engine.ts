@@ -725,23 +725,18 @@ export function selectedFromParams(
   }
 
   if (service === 'laundry_sneakers') {
-    // Laundry scope
+    // Laundry scope — wash_fold only; add-ons are computed in the UI layer
     if (scope === 'laundry') {
-      const tier = (p as any).laundryTier || 'wash_fold';
       const loads = Math.max(1, (p as any).laundryLoads || 1);
-      if (tier === 'wash_iron') {
-        sel['laundry.iron'] = loads;
-      } else {
-        sel['laundry.fold'] = loads;
-      }
+      sel['laundry.fold'] = loads;
       return sel;
     }
-    // Sneaker care scope (unified card with tier selector)
+    // Sneaker care scope — multi-pair price is overridden in the UI layer
     if (scope === 'sneaker_care') {
       const tier: SneakerTier = (p as any).sneakerTier || 'deep';
       if (tier === 'refresh') sel['sneaker.basic'] = 1;
-      else if (tier === 'multi') sel['sneaker.lot'] = 1;
-      else sel['sneaker.full'] = 1; // default to deep
+      else if (tier === 'multi') sel['sneaker.basic'] = 1; // placeholder; price overridden in UI
+      else sel['sneaker.full'] = 1;
       return sel;
     }
     // Legacy scope support (backward compatibility)
@@ -852,18 +847,14 @@ export function sneakerTurnaroundMultiplier(speed: SneakerTurnaround) {
 
 /* ===== Laundry pricing ===== */
 
-export function laundryPriceForTier(tier: LaundryTier, loads: number): number {
-  const pricePerLoad = tier === 'wash_iron' ? PRICE_OVERRIDE['laundry.iron'] : PRICE_OVERRIDE['laundry.fold'];
-  return (pricePerLoad || 30) * Math.max(1, loads);
+export function laundryPriceForTier(_tier: LaundryTier, loads: number): number {
+  const pricePerLoad = PRICE_OVERRIDE['laundry.fold'] ?? 30;
+  return pricePerLoad * Math.max(1, loads);
 }
 
-export function sneakerPriceForTier(tier: SneakerTier, turnaround: SneakerTurnaround, multiPairs?: number): number {
+export function sneakerPriceForTier(tier: SneakerTier, turnaround: SneakerTurnaround): number {
   const meta = sneakerTurnaroundMeta(turnaround);
-  if (tier === 'multi') {
-    const pairs = multiPairs ?? 4;
-    const basePer = PRICE_OVERRIDE['sneaker.lot'] / 4; // ~$30/pair
-    return (basePer + meta.surcharge) * pairs;
-  }
+  // Multi-pair is priced via SNEAKER_MULTI_PRICING in the UI layer
   const base = tier === 'refresh' ? PRICE_OVERRIDE['sneaker.basic'] : PRICE_OVERRIDE['sneaker.full'];
   return (base || 40) + meta.surcharge;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import StableMapSlot from '@/components/StableMapSlot';
@@ -36,6 +37,10 @@ import type {
   DeliverySelection,
   TransportSelection,
   CleaningWizardChecklistState,
+  LaundryPerLoadAddOn,
+  LaundryPerOrderAddOn,
+  IroningItemType,
+  IroningItem,
 } from './types';
 
 // Extracted modules - Constants
@@ -54,6 +59,10 @@ import {
   DEFAULT_DUMP_TRANSPORT,
   AUTO_SIZE_CATEGORIES,
   SNEAKER_TURNAROUND_META,
+  SNEAKER_MULTI_PRICING,
+  LAUNDRY_PER_LOAD_ADDONS,
+  LAUNDRY_PER_ORDER_ADDONS,
+  LAUNDRY_IRONING_PRICES,
 } from './lib/pricing/constants';
 
 // Extracted modules - Utilities
@@ -129,6 +138,12 @@ import {
   buildQuoteSummary,
   emailHrefForContext,
 } from './lib/estimation';
+
+// Transport / Delivery dedicated pricing
+import {
+  calcTransportQuote,
+  calcDeliveryQuote,
+} from './lib/pricing/transport';
 
 // Extracted modules - Glass UI
 import {
@@ -215,6 +230,9 @@ function ServicesPageContent() {
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [laundryIroningOpen, setLaundryIroningOpen] = useState(false);
+  const [routeExpanded, setRouteExpanded] = useState(false);
+  const [transportRouteExpanded, setTransportRouteExpanded] = useState(false);
 
   const handleDistanceInputFocusChange = useCallback((focused: boolean) => {
     setIsDistanceInputFocused(focused);
@@ -225,7 +243,7 @@ function ServicesPageContent() {
   }, []);
   const routeServiceActive = ROUTE_SCOPES.includes(S.scope as RouteScopeKey);
   const usesRoutePricing = S.service === 'dump' && routeServiceActive;
-  const routeCardActive = usesRoutePricing && activeServiceId === S.scope;
+  const routeCardActive = usesRoutePricing;
   const normalizedStep = Number(S.step);
   const yardStep2 = yardActive && normalizedStep === 2;
   const mapVisible = yardStep2;
@@ -235,7 +253,7 @@ function ServicesPageContent() {
     iframeRef,
     activeYardJob,
     postMessageToIframe,
-    postPolygonToIframe,
+    postZonesToIframe,
     addYardJob,
     removeYardJob,
     resetActivePolygon,
@@ -256,21 +274,22 @@ function ServicesPageContent() {
 
   const yardMeasurementConfig = getYardMeasurementConfig(S.scope);
   const yardMeasurementUnit = YARD_MEASUREMENT_UNITS[yardMeasurementConfig.mode];
-  const activeYardPolygon = activeYardJob?.polygon_geojson?.[0] || [];
+  // Sum across all zones in the active job
+  const activeYardZones = activeYardJob?.polygon_geojson ?? [];
   const activeMeasurementValue =
     yardMeasurementConfig.mode === 'perimeter'
-      ? computePerimeterFromPath(activeYardPolygon)
-      : computeAreaFromPath(activeYardPolygon);
+      ? activeYardZones.reduce((sum, zone) => sum + computePerimeterFromPath(zone), 0)
+      : activeYardZones.reduce((sum, zone) => sum + computeAreaFromPath(zone), 0);
   const activeMeasurementLabel =
     activeMeasurementValue > 0
       ? `${yardMeasurementConfig.label}: ${Math.round(activeMeasurementValue)} ${yardMeasurementUnit}`
       : `Draw the ${yardMeasurementConfig.label.toLowerCase()} to capture ${yardMeasurementUnit}`;
 
   const getMeasurementValueForJob = (job: YardJob) => {
-    const coords = job.polygon_geojson?.[0] || [];
+    const zones = job.polygon_geojson ?? [];
     return yardMeasurementConfig.mode === 'perimeter'
-      ? computePerimeterFromPath(coords)
-      : computeAreaFromPath(coords);
+      ? zones.reduce((sum, zone) => sum + computePerimeterFromPath(zone), 0)
+      : zones.reduce((sum, zone) => sum + computeAreaFromPath(zone), 0);
   };
 
   const measurementLabelForJob = (job: YardJob) => {
@@ -953,6 +972,15 @@ const estMinutes = useMemo(() => {
     const addOns = computeCleaningAddons(S.scope, mergedCleaning);
     return extras.baseMinutes + extras.extraMinutes + addOns.minutes;
   }
+  // Auto detailing: use fixed package times regardless of vehicle size multiplier
+  if (S.service === "auto") {
+    const autoTimeMap: Partial<Record<string, number>> = {
+      auto_express: 120,
+      auto_interior: 120,
+      auto_full: 240,
+    };
+    return autoTimeMap[S.scope] ?? estimate.minutes;
+  }
   return routeDurationOverride ?? estimate.minutes;
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [
@@ -971,13 +999,15 @@ const estMinutes = useMemo(() => {
 ]);
 
 const routePriceOverride = useMemo<number | null>(() => {
+  // Transport and delivery use dedicated calculators — route formula doesn't apply
+  if (S.scope === 'dump_transport' || S.scope === 'dump_delivery') return null;
   if (!routeCardActive || !routeLookup) return null;
   const raw =
     ROUTE_BASE_FEE +
     routeLookup.distanceKm * ROUTE_PER_KM_RATE +
     routeLookup.durationMinutes * ROUTE_PER_MIN_RATE;
   return Math.max(ROUTE_MIN_PRICE, Math.round(raw));
-}, [routeCardActive, routeLookup]);
+}, [S.scope, routeCardActive, routeLookup]);
 const routeDistanceLabel = routeLookup
   ? `${routeLookup.distanceKm.toFixed(1)} km · ${Math.round(routeLookup.durationMinutes)} mins travel`
   : null;
@@ -997,15 +1027,87 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 
   const effectivePrice = routePriceOverride ?? scopedPricing.price;
   const isSneakerLot = S.service === 'laundry_sneakers' && (S.scope === 'sneaker_lot' || (S.scope === 'sneaker_care' && S.sneakerTier === 'multi'));
-  const priceLabel = useMemo(() => {
+  const isLaundryService = S.service === 'laundry_sneakers' && S.scope === 'laundry';
+  const isSneakerService = S.service === 'laundry_sneakers' && S.scope === 'sneaker_care';
+  // Minimums: $60 laundry, $40 sneaker care
+  const LAUNDRY_MIN = 60;
+  const SNEAKER_MIN = 40;
+  // Fees: $12 pickup+delivery + $2 service fee for laundry; $8 p+d + $2 service fee for sneakers
+  const LAUNDRY_FEE = 14; // $12 delivery + $2 service
+  const SNEAKER_FEE = 10; // $8 delivery + $2 service
+
+  const laundryLoads = S.laundryLoads || 1;
+  const laundryAddOnTotal = useMemo(() => {
+    const perLoad = (S.laundryPerLoadAddOns ?? []).reduce(
+      (sum, k) => sum + (LAUNDRY_PER_LOAD_ADDONS[k]?.price ?? 0) * laundryLoads,
+      0,
+    );
+    const perOrder = (S.laundryPerOrderAddOns ?? []).reduce(
+      (sum, k) => sum + (LAUNDRY_PER_ORDER_ADDONS[k]?.price ?? 0),
+      0,
+    );
+    const ironing = (S.laundryIroningItems ?? []).reduce(
+      (sum, item) => sum + (LAUNDRY_IRONING_PRICES[item.type]?.price ?? 0) * item.count,
+      0,
+    );
+    return perLoad + perOrder + ironing;
+  }, [S.laundryPerLoadAddOns, S.laundryPerOrderAddOns, S.laundryIroningItems, laundryLoads]);
+
+  const priceLabelBase = useMemo(() => {
+    if (S.service === 'dump' && S.scope === 'dump_transport') {
+      const result = calcTransportQuote(S.dumpTransport, S.distanceKm);
+      return result.isCustomQuote ? 'Custom quote' : fmtAUD(result.total);
+    }
+    if (S.service === 'dump' && S.scope === 'dump_delivery') {
+      const result = calcDeliveryQuote(S.dumpDelivery, S.distanceKm);
+      return result.isCustomQuote ? 'Custom quote' : fmtAUD(result.total);
+    }
     if (isSneakerLot) {
-      const perPairPrice = Math.round(effectivePrice / 4);
-      return `${fmtAUD(perPairPrice)}/pair`;
+      const opt = SNEAKER_MULTI_PRICING.find((o) => o.pairs === (S.sneakerPairCount ?? 3));
+      return fmtAUD(opt?.price ?? 95);
+    }
+    if (isLaundryService) {
+      const base = Math.max(LAUNDRY_MIN, laundryLoads * 30) + laundryAddOnTotal;
+      return fmtAUD(base);
+    }
+    if (isSneakerService) return fmtAUD(Math.max(SNEAKER_MIN, effectivePrice));
+    return fmtAUD(effectivePrice);
+  }, [S.service, S.scope, S.dumpTransport, S.dumpDelivery, S.distanceKm, effectivePrice, isSneakerLot, isLaundryService, isSneakerService, S.sneakerPairCount, laundryLoads, laundryAddOnTotal]);
+
+  const priceLabel = useMemo(() => {
+    if (S.service === 'dump' && S.scope === 'dump_transport') {
+      const result = calcTransportQuote(S.dumpTransport, S.distanceKm);
+      return result.isCustomQuote ? 'Custom quote' : fmtAUD(result.total);
+    }
+    if (S.service === 'dump' && S.scope === 'dump_delivery') {
+      const result = calcDeliveryQuote(S.dumpDelivery, S.distanceKm);
+      return result.isCustomQuote ? 'Custom quote' : fmtAUD(result.total);
+    }
+    if (isSneakerLot) {
+      const opt = SNEAKER_MULTI_PRICING.find((o) => o.pairs === (S.sneakerPairCount ?? 3));
+      return fmtAUD((opt?.price ?? 95) + SNEAKER_FEE);
+    }
+    if (isLaundryService) {
+      const base = Math.max(LAUNDRY_MIN, laundryLoads * 30) + laundryAddOnTotal;
+      return fmtAUD(base + LAUNDRY_FEE);
+    }
+    if (isSneakerService) {
+      const withFees = effectivePrice + SNEAKER_FEE;
+      const total = Math.max(SNEAKER_MIN + SNEAKER_FEE, withFees);
+      return fmtAUD(total);
     }
     return fmtAUD(effectivePrice);
-  }, [effectivePrice, isSneakerLot]);
+  }, [S.service, S.scope, S.dumpTransport, S.dumpDelivery, S.distanceKm, effectivePrice, isSneakerLot, isLaundryService, isSneakerService, S.sneakerPairCount, laundryLoads, laundryAddOnTotal]);
 
-  const timeLabel = useMemo(() => `~${fmtHrMin(estMinutes)}`, [estMinutes]);
+  const timeLabel = useMemo(() => {
+    if (isLaundryService) return '~1–2 business days';
+    if (isSneakerService) {
+      const turnaround = S.sneakerTurnaround ?? 'standard';
+      const meta = SNEAKER_TURNAROUND_META.find((m) => m.key === turnaround);
+      return meta ? `~${meta.window}` : '~3–5 business days';
+    }
+    return `~${fmtHrMin(estMinutes)}`;
+  }, [estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround]);
 
 function winSessionMinutes(S: WizardState) {
   return computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
@@ -1432,6 +1534,7 @@ const COMM_PRESETS: Record<
           );
           const [multiPairs, setMultiPairs] = React.useState(1);
           const [multiMixed, setMultiMixed] = React.useState<'yes' | 'no'>('no');
+          const [deliveryItemQty, setDeliveryItemQty] = React.useState(1);
           const showSheet = !!openChecklists[sc.key];
           const _popoverId = React.useId(); // eslint-disable-line @typescript-eslint/no-unused-vars
           const minutes = computeMins(S, S.service as ServiceType, sc.key as ScopeKey);
@@ -1459,7 +1562,6 @@ const COMM_PRESETS: Record<
           const isDumpRunsCard = S.service === 'dump' && sc.key === 'dump_runs';
           const isDeliveryCard = S.service === 'dump' && sc.key === 'dump_delivery';
           const isTransportCard = S.service === 'dump' && sc.key === 'dump_transport';
-          const isRouteCard = isDeliveryCard || isTransportCard;
           // Laundry & Sneaker Care card detection
           const isLaundryCard = S.service === 'laundry_sneakers' && sc.key === 'laundry';
           const isSneakerCareCard = S.service === 'laundry_sneakers' && sc.key === 'sneaker_care';
@@ -1810,7 +1912,10 @@ const COMM_PRESETS: Record<
               aria-describedby={hookId}
               className={cls(
                 glassCard(isActive),
-                'relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)] transition-all',
+                'relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 transition-all',
+                isConfigOpen
+                  ? 'shadow-[0_20px_60px_rgba(2,6,23,0.18)] z-10'
+                  : 'hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)]',
                 'flex flex-col h-full min-w-0',
                 className
               )}
@@ -1819,7 +1924,7 @@ const COMM_PRESETS: Record<
                 if (target && target.closest('[data-card-interactive="true"]')) return;
                 if (S.scope !== sc.key) onSelect(sc.key);
                 setHasInteractedStep2(true);
-                setActiveServiceId((curr) => (curr === sc.key ? null : sc.key));
+                if (S.service !== 'yard') setActiveServiceId((curr) => (curr === sc.key ? null : sc.key));
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -1828,7 +1933,7 @@ const COMM_PRESETS: Record<
                   e.preventDefault();
                   if (S.scope !== sc.key) onSelect(sc.key);
                   setHasInteractedStep2(true);
-                  setActiveServiceId((curr) => (curr === sc.key ? null : sc.key));
+                  if (S.service !== 'yard') setActiveServiceId((curr) => (curr === sc.key ? null : sc.key));
                 }
               }}
             >
@@ -1873,7 +1978,7 @@ const COMM_PRESETS: Record<
                   </span>
                 )}
 
-                {isActive && (
+                {isActive && S.service !== 'laundry_sneakers' && (
                   <div className="flex flex-col items-end gap-1 shrink-0" aria-live="polite">
                     <span
                       className="rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 text-[10px] md:text-[11px] text-slate-600"
@@ -1893,6 +1998,26 @@ const COMM_PRESETS: Record<
                       </span>
                     )}
                   </div>
+                )}
+                {/* Expand/collapse chevron — hidden for yard cards */}
+                {S.service !== 'yard' && (
+                <svg
+                  aria-hidden
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={cls(
+                    'shrink-0 self-center text-slate-400 transition-transform duration-200',
+                    isConfigOpen && 'rotate-90'
+                  )}
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
                 )}
               </div>
 
@@ -2006,7 +2131,15 @@ const COMM_PRESETS: Record<
                       </div>
                     </div>
                   )}
-                  {isActive && isCleaningWizardCard && isConfigOpen && (
+                  <AnimatePresence>
+                    {isActive && isCleaningWizardCard && isConfigOpen && (
+                      <M.div
+                        key="cleaning-config"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                      >
                     <div
                       className="mt-3 space-y-2 border-t border-slate-200/80 pt-3"
                     >
@@ -2248,8 +2381,18 @@ const COMM_PRESETS: Record<
                         })}
                       </div>
                     </div>
-                  )}
-                  {isActive && isCommercialNicheCard && isConfigOpen && (
+                      </M.div>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                    {isActive && isCommercialNicheCard && isConfigOpen && (
+                      <M.div
+                        key="commercial-config"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                      >
                     <div
                       data-card-interactive="true"
                       className="mt-3 space-y-3 border-t border-slate-200/80 pt-3"
@@ -2363,13 +2506,25 @@ const COMM_PRESETS: Record<
                         </div>
                       </div>
                     </div>
-                  )}
+                      </M.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
 
               {/* CTA row */}
               <div className="mt-auto pt-1.5 flex flex-col gap-3">
-                {S.service === 'windows' && isActive && isConfigOpen && (
+                <AnimatePresence>
+                  {isConfigOpen && (
+                    <M.div
+                      key={sc.key + '-cta'}
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex flex-col gap-3"
+                    >
+                {S.service === 'windows' && isActive && (
                   <div
                     data-card-interactive="true"
                     className="min-w-0 w-full overflow-hidden"
@@ -2382,7 +2537,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {S.service === 'auto' && isActive && isConfigOpen && (
+                {S.service === 'auto' && isActive && (
                   <div
                     data-card-interactive="true"
                     className="rounded-2xl bg-slate-900 overflow-hidden"
@@ -2579,8 +2734,8 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {/* Laundry Card - Tier Selector & Load Counter */}
-                {S.service === 'laundry_sneakers' && isLaundryCard && isActive && isConfigOpen && (
+                {/* Laundry Card */}
+                {S.service === 'laundry_sneakers' && isLaundryCard && isActive && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-3"
@@ -2589,70 +2744,146 @@ const COMM_PRESETS: Record<
                     onPointerDown={stopCardBubble}
                     onTouchStart={stopCardBubble}
                   >
-                    <div className="text-sm font-semibold text-slate-900">Service type</div>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { key: 'wash_fold', label: 'Wash & Fold', price: 30 },
-                        { key: 'wash_iron', label: 'Wash & Iron', price: 45 },
-                      ].map((tier) => (
-                        <button
-                          key={tier.key}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('laundryTier', tier.key as any);
-                          }}
-                          className={cls(
-                            'rounded-full border px-3 py-1.5 text-sm flex items-center gap-2',
-                            S.laundryTier === tier.key
-                              ? 'bg-emerald-600 text-white border-emerald-600'
-                              : 'bg-white border-black/10 hover:border-emerald-300'
-                          )}
-                        >
-                          <span>{tier.label}</span>
-                          <span className={cls('text-xs', S.laundryTier === tier.key ? 'text-emerald-100' : 'text-slate-500')}>
-                            ${tier.price}/load
-                          </span>
-                        </button>
-                      ))}
+                    {/* Service type — single pre-selected pill */}
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1.5">Service type</div>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-sm">
+                        <span>Wash &amp; Fold</span>
+                        <span className="text-emerald-100 text-xs">$30/load</span>
+                      </span>
                     </div>
+
+                    {/* Load counter */}
                     <div className="flex items-center justify-between gap-2 text-sm">
                       <span className="text-slate-700">How many loads? <span className="text-xs text-slate-500">(~5kg each)</span></span>
                       <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1">
                         <button
                           type="button"
                           className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('laundryLoads', Math.max(1, (S.laundryLoads || 1) - 1));
-                          }}
+                          onClick={(e) => { e.stopPropagation(); set('laundryLoads', Math.max(1, (S.laundryLoads || 1) - 1)); }}
                           aria-label="Decrease loads"
-                        >
-                          –
-                        </button>
+                        >–</button>
                         <span className="min-w-[24px] text-center font-semibold">{S.laundryLoads || 1}</span>
                         <button
                           type="button"
                           className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('laundryLoads', Math.min(20, (S.laundryLoads || 1) + 1));
-                          }}
+                          onClick={(e) => { e.stopPropagation(); set('laundryLoads', Math.min(10, (S.laundryLoads || 1) + 1)); }}
                           aria-label="Increase loads"
-                        >
-                          +
-                        </button>
+                        >+</button>
                       </div>
                     </div>
-                    <div className="text-[11px] text-slate-600 space-y-0.5">
-                      <div>✓ Pickup & delivery included</div>
-                      <div>✓ 24-48hr turnaround</div>
+
+                    {/* Add-ons */}
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1.5">Add-ons <span className="text-slate-400">(optional)</span></div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(Object.entries(LAUNDRY_PER_LOAD_ADDONS) as [LaundryPerLoadAddOn, { label: string; price: number }][]).map(([key, meta]) => {
+                          const active = (S.laundryPerLoadAddOns ?? []).includes(key);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const current = S.laundryPerLoadAddOns ?? [];
+                                set('laundryPerLoadAddOns', active ? current.filter((k) => k !== key) : [...current, key]);
+                              }}
+                              className={cls(
+                                'rounded-full border px-2.5 py-1 text-xs flex items-center gap-1',
+                                active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-black/10 hover:border-emerald-300',
+                              )}
+                            >
+                              {meta.label}
+                              <span className={active ? 'text-emerald-100' : 'text-slate-400'}>+${meta.price}/load</span>
+                            </button>
+                          );
+                        })}
+                        {(Object.entries(LAUNDRY_PER_ORDER_ADDONS) as [LaundryPerOrderAddOn, { label: string; price: number }][]).map(([key, meta]) => {
+                          const active = (S.laundryPerOrderAddOns ?? []).includes(key);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const current = S.laundryPerOrderAddOns ?? [];
+                                set('laundryPerOrderAddOns', active ? current.filter((k) => k !== key) : [...current, key]);
+                              }}
+                              className={cls(
+                                'rounded-full border px-2.5 py-1 text-xs flex items-center gap-1',
+                                active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-black/10 hover:border-emerald-300',
+                              )}
+                            >
+                              {meta.label}
+                              <span className={active ? 'text-emerald-100' : 'text-slate-400'}>+${meta.price}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Ironing toggle */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setLaundryIroningOpen((v) => !v); }}
+                        className="text-xs text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+                      >
+                        <span>{laundryIroningOpen ? '▼' : '▶'}</span>
+                        <span>Add ironing items</span>
+                      </button>
+                      {laundryIroningOpen && (
+                        <div className="mt-2 space-y-2">
+                          {(Object.entries(LAUNDRY_IRONING_PRICES) as [IroningItemType, { label: string; price: number }][]).map(([type, meta]) => {
+                            const item = (S.laundryIroningItems ?? []).find((i) => i.type === type);
+                            const count = item?.count ?? 0;
+                            const setCount = (n: number) => {
+                              const items: IroningItem[] = (S.laundryIroningItems ?? []).filter((i) => i.type !== type);
+                              if (n > 0) items.push({ type, count: n });
+                              set('laundryIroningItems', items);
+                            };
+                            return (
+                              <div key={type} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-slate-700">{meta.label} <span className="text-slate-400">${meta.price}/item</span></span>
+                                <div className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-1.5 py-0.5">
+                                  <button
+                                    type="button"
+                                    className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10 hover:bg-slate-50 text-[11px]"
+                                    onClick={(e) => { e.stopPropagation(); setCount(Math.max(0, count - 1)); }}
+                                    aria-label={`Decrease ${meta.label}`}
+                                  >–</button>
+                                  <span className="min-w-[20px] text-center font-semibold">{count}</span>
+                                  <button
+                                    type="button"
+                                    className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10 hover:bg-slate-50 text-[11px]"
+                                    onClick={(e) => { e.stopPropagation(); setCount(count + 1); }}
+                                    aria-label={`Increase ${meta.label}`}
+                                  >+</button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live estimated total */}
+                    {laundryAddOnTotal > 0 && (
+                      <div className="text-xs text-slate-600 font-medium">
+                        Estimated: {priceLabelBase} <span className="text-slate-400">(excl. fees)</span>
+                      </div>
+                    )}
+
+                    {/* Footer notes */}
+                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                      <div>Minimum service $60 (pickup &amp; delivery for up to 2 loads) · fees shown at checkout</div>
+                      <div>Loads are ~5kg each. Overweight or bulky items may count as an extra load — we&apos;ll confirm any changes before washing.</div>
                     </div>
                   </div>
                 )}
 
                 {/* Sneaker Care Card - Tier Selector */}
-                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && isConfigOpen && (
+                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-2"
@@ -2665,21 +2896,18 @@ const COMM_PRESETS: Record<
                     <div className="flex flex-wrap gap-2">
                       {[
                         { key: 'refresh', label: 'Refresh Clean', price: '$40' },
-                        { key: 'deep', label: 'Deep Restore', price: '$40' },
-                        { key: 'multi', label: 'Multi-Pair', price: '~$30/pair' },
+                        { key: 'deep',    label: 'Deep Restore',  price: '$60' },
+                        { key: 'multi',   label: 'Multi-Pair',    price: 'from $40' },
                       ].map((tier) => (
                         <button
                           key={tier.key}
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            set('sneakerTier', tier.key as any);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); set('sneakerTier', tier.key as any); }}
                           className={cls(
                             'rounded-full border px-3 py-1.5 text-sm flex items-center gap-2',
                             S.sneakerTier === tier.key
                               ? 'bg-emerald-600 text-white border-emerald-600'
-                              : 'bg-white border-black/10 hover:border-emerald-300'
+                              : 'bg-white border-black/10 hover:border-emerald-300',
                           )}
                         >
                           <span>{tier.label}</span>
@@ -2689,16 +2917,48 @@ const COMM_PRESETS: Record<
                         </button>
                       ))}
                     </div>
-                    <div className="text-[11px] text-slate-600">
-                      {S.sneakerTier === 'refresh' && 'Quick cosmetic refresh for lightly worn pairs.'}
-                      {S.sneakerTier === 'deep' && 'Full restoration for noticeably dirty or worn pairs.'}
-                      {S.sneakerTier === 'multi' && 'Batch-friendly pricing for 3+ pairs.'}
+
+                    {/* Multi-pair count picker */}
+                    {S.sneakerTier === 'multi' && (
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1.5">How many pairs?</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {SNEAKER_MULTI_PRICING.map((opt) => (
+                            <button
+                              key={opt.pairs}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); set('sneakerPairCount', opt.pairs); }}
+                              className={cls(
+                                'rounded-full border px-2.5 py-1 text-xs flex items-center gap-1',
+                                (S.sneakerPairCount ?? 3) === opt.pairs
+                                  ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : 'bg-white border-black/10 hover:border-emerald-300',
+                              )}
+                            >
+                              {opt.popular && <span>⭐</span>}
+                              <span>{opt.pairs} {opt.pairs === 1 ? 'pair' : 'pairs'}</span>
+                              <span className={cls('ml-0.5', (S.sneakerPairCount ?? 3) === opt.pairs ? 'text-emerald-100' : 'text-slate-400')}>
+                                {fmtAUD(opt.price)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="text-[11px] text-slate-600 space-y-0.5">
+                      <div>
+                        {S.sneakerTier === 'refresh' && 'Quick cosmetic refresh for lightly worn pairs.'}
+                        {S.sneakerTier === 'deep' && 'Full restoration for noticeably dirty or worn pairs.'}
+                        {S.sneakerTier === 'multi' && 'Best value when cleaning 3 or more pairs at once.'}
+                      </div>
+                      <div>Fees shown at checkout</div>
                     </div>
                   </div>
                 )}
 
                 {/* Sneaker Care Card - Turnaround Selector */}
-                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && isConfigOpen && (
+                {S.service === 'laundry_sneakers' && isSneakerCareCard && isActive && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3 space-y-2"
@@ -2739,7 +2999,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isDumpRunsCard && isConfigOpen && (
+                {isDumpRunsCard && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -2815,7 +3075,7 @@ const COMM_PRESETS: Record<
                     </div>
                   </div>
                 )}
-                {isDeliveryCard && isConfigOpen && (
+                {isDeliveryCard && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/90 p-4 shadow-sm space-y-4"
@@ -2824,29 +3084,12 @@ const COMM_PRESETS: Record<
                     onPointerDown={stopCardBubble}
                     onTouchStart={stopCardBubble}
                   >
-                    {/* Header with live price estimate */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-slate-900">Delivery Details</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">Configure your delivery for an accurate quote</div>
-                      </div>
-                      {(() => {
-                        const estimate = calculateEstimatedPrice('dump_delivery', S);
-                        if (!estimate || (estimate.min === 0 && estimate.max === 0)) return null;
-                        return (
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-emerald-700">
-                              {estimate.min === estimate.max
-                                ? fmtAUD(estimate.min)
-                                : `${fmtAUD(estimate.min)}–${fmtAUD(estimate.max)}`}
-                            </div>
-                            <div className="text-[10px] text-slate-500">estimated</div>
-                          </div>
-                        );
-                      })()}
+                    <div>
+                      <div className="font-semibold text-slate-900">Delivery Details</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Tell us what you need delivered</div>
                     </div>
 
-                    {/* Step 1: What are you delivering? */}
+                    {/* Step 1: What + how many */}
                     <div className="space-y-2">
                       <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                         <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">1</span>
@@ -2884,15 +3127,27 @@ const COMM_PRESETS: Record<
                           </button>
                         ))}
                       </div>
-                    </div>
-
-                    {/* Step 2: Do you need help? */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">2</span>
-                        Do you need lifting help?
+                      {/* Quantity */}
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-[11px] text-slate-700">How many items?</span>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1">
+                          <button
+                            type="button"
+                            className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                            onClick={(e) => { e.stopPropagation(); setDeliveryItemQty((n) => Math.max(1, n - 1)); }}
+                            aria-label="Decrease quantity"
+                          >–</button>
+                          <span className="min-w-[24px] text-center font-semibold text-sm">{deliveryItemQty}</span>
+                          <button
+                            type="button"
+                            className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                            onClick={(e) => { e.stopPropagation(); setDeliveryItemQty((n) => Math.min(20, n + 1)); }}
+                            aria-label="Increase quantity"
+                          >+</button>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      {/* Lifting help */}
+                      <div className="grid grid-cols-2 gap-2 mt-1">
                         {[
                           { key: 'no_help', label: 'No help needed', desc: 'I can load/unload myself', icon: '👤' },
                           { key: 'need_help', label: 'Need help', desc: 'Extra hands for lifting', icon: '👥', extra: '+$25–50' },
@@ -2901,7 +3156,7 @@ const COMM_PRESETS: Record<
                             key={c.key}
                             type="button"
                             className={cls(
-                              'p-3 rounded-lg border text-left transition-all',
+                              'p-2.5 rounded-lg border text-left transition-all',
                               deliveryAssist === c.key
                                 ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-400'
                                 : 'border-black/10 bg-white hover:bg-slate-50'
@@ -2912,15 +3167,13 @@ const COMM_PRESETS: Record<
                             }}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-lg">{c.icon}</span>
-                              <div className="flex-1">
+                              <span>{c.icon}</span>
+                              <div className="flex-1 min-w-0">
                                 <div className="text-xs font-medium text-slate-800">{c.label}</div>
                                 <div className="text-[10px] text-slate-500">{c.desc}</div>
                               </div>
                               {c.extra && (
-                                <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                                  {c.extra}
-                                </span>
+                                <span className="text-[9px] font-medium text-amber-600 bg-amber-50 px-1 py-0.5 rounded shrink-0">{c.extra}</span>
                               )}
                             </div>
                           </button>
@@ -2928,87 +3181,140 @@ const COMM_PRESETS: Record<
                       </div>
                     </div>
 
-                    {/* Step 3: Distance indicator */}
-                    <div className="space-y-2">
+                    {/* Step 2: Extra stops + optional extras */}
+                    <div className="space-y-3">
                       <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">3</span>
-                        Pickup & drop-off locations
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">2</span>
+                        Any extra stops?
                       </div>
-                      <div className="text-[11px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-dashed border-slate-200">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>
-                            {S.distanceKm > 0
-                              ? `${Math.round(S.distanceKm)} km route configured`
-                              : 'Enter addresses below for distance-based pricing'}
-                          </span>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-[11px] text-slate-700">Extra drop-off stops <span className="text-slate-400">(+$8 each)</span></span>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1">
+                          <button
+                            type="button"
+                            className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                            onClick={(e) => { e.stopPropagation(); updateDelivery({ extraStops: Math.max(0, (deliveryState.extraStops ?? 0) - 1) }); }}
+                            aria-label="Decrease stops"
+                          >–</button>
+                          <span className="min-w-[24px] text-center font-semibold text-sm">{deliveryState.extraStops ?? 0}</span>
+                          <button
+                            type="button"
+                            className="px-2 py-0.5 rounded-full border border-black/10 text-[11px] hover:bg-slate-50"
+                            onClick={(e) => { e.stopPropagation(); updateDelivery({ extraStops: Math.min(5, (deliveryState.extraStops ?? 0) + 1) }); }}
+                            aria-label="Increase stops"
+                          >+</button>
                         </div>
-                        {S.distanceKm > 0 && (
-                          <div className="mt-2 text-[10px] text-slate-500">
-                            Travel component: ~{fmtAUD(Math.round(S.distanceKm * ROUTE_PER_KM_RATE))}
-                          </div>
-                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        {[
+                          { key: 'priority', label: 'Priority / same-day delivery', price: '+$15', value: deliveryState.priority ?? false },
+                          { key: 'stairsAtDropoff', label: 'Stairs at drop-off', price: '+$20', value: deliveryState.stairsAtDropoff ?? false },
+                        ].map((opt) => (
+                          <label
+                            key={opt.key}
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-black/10 bg-white cursor-pointer hover:bg-slate-50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={opt.value}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateDelivery({ [opt.key]: !opt.value } as any);
+                                }}
+                                className="rounded border-slate-300 accent-emerald-600"
+                              />
+                              <span className="text-xs text-slate-800">{opt.label}</span>
+                            </div>
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">{opt.price}</span>
+                          </label>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Pricing breakdown */}
-                    {deliveryType && (
-                      <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 space-y-2">
-                        <div className="text-[11px] font-semibold text-emerald-800">Pricing breakdown</div>
-                        <div className="text-[11px] text-slate-700 space-y-1">
-                          <div className="flex justify-between">
-                            <span>Base callout</span>
-                            <span className="font-medium">{fmtAUD(BASE_CALLOUT_PRICE)}</span>
+                    {/* Live delivery price preview */}
+                    {deliveryType && (() => {
+                      const dResult = calcDeliveryQuote(deliveryState, S.distanceKm);
+                      if (dResult.isCustomQuote) {
+                        return (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                            <div className="font-semibold mb-0.5">Custom quote may be required</div>
+                            <div className="text-[11px]">{dResult.customQuoteReason ?? 'This job may require a custom quote based on distance or item size.'}</div>
                           </div>
-                          <div className="flex justify-between">
-                            <span>Item handling ({deliveryType})</span>
-                            <span className="font-medium">
-                              {fmtAUD(
-                                ({ parcel: 0, household: 20, mattress: 40, groceries: 20, tools: 20 }[deliveryType] || 0) +
-                                ({ parcel: 0, household: 15, mattress: 35, groceries: 15, tools: 15 }[deliveryType] || 0)
-                              ) + '–' + fmtAUD(
-                                ({ parcel: 0, household: 35, mattress: 70, groceries: 35, tools: 35 }[deliveryType] || 0)
-                              )}
-                            </span>
-                          </div>
-                          {deliveryAssist === 'need_help' && (
-                            <div className="flex justify-between">
-                              <span>Lifting assistance</span>
-                              <span className="font-medium">{fmtAUD(PHYSICAL_BLOCK_RANGE.min)}–{fmtAUD(PHYSICAL_BLOCK_RANGE.max)}</span>
+                        );
+                      }
+                      return (
+                        <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3 space-y-1">
+                          <div className="text-[11px] font-semibold text-emerald-900 mb-1.5">Price breakdown</div>
+                          {dResult.lineItems.map((item, i) => (
+                            <div key={i} className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-700">{item.label}</span>
+                              <span className="font-medium text-slate-900 tabular-nums">
+                                {item.note === 'Included' ? <span className="text-slate-400">Included</span> : `$${item.amount}`}
+                              </span>
                             </div>
-                          )}
-                          {S.distanceKm > 0 && (
-                            <div className="flex justify-between">
-                              <span>Distance ({Math.round(S.distanceKm)} km)</span>
-                              <span className="font-medium">~{fmtAUD(Math.round(S.distanceKm * ROUTE_PER_KM_RATE))}</span>
-                            </div>
-                          )}
-                          <div className="border-t border-emerald-200 pt-1 mt-1 flex justify-between font-semibold text-emerald-800">
-                            <span>Estimated total</span>
-                            {(() => {
-                              const estimate = calculateEstimatedPrice('dump_delivery', S);
-                              if (!estimate) return <span>—</span>;
-                              return (
-                                <span>
-                                  {estimate.min === estimate.max
-                                    ? fmtAUD(estimate.min)
-                                    : `${fmtAUD(estimate.min)}–${fmtAUD(estimate.max)}`}
-                                </span>
-                              );
-                            })()}
+                          ))}
+                          <div className="h-px bg-emerald-200 my-1" />
+                          <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className="text-slate-900">Total</span>
+                            <span className="text-emerald-700">{fmtAUD(dResult.total)}</span>
                           </div>
+                          <div className="text-[10px] text-slate-500 mt-1">Transparent pricing — no hidden fees</div>
                         </div>
-                        <div className="text-[10px] text-slate-500 italic">
-                          Final price confirmed after route is calculated below.
-                        </div>
+                      );
+                    })()}
+
+                    {/* Step 3: Where to deliver */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">3</span>
+                        Where would you like it delivered?
                       </div>
-                    )}
+                      <div className="text-[11px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-dashed border-slate-200">
+                        {S.dumpRouteDropoff?.address
+                          ? <span className="text-emerald-700 font-medium">{S.dumpRouteDropoff.address}</span>
+                          : <span>Add addresses in the route calculator to refine the distance price</span>}
+                      </div>
+                    </div>
+
+                    {/* Step 4: Route Calculator (collapsible) */}
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={(e) => { e.stopPropagation(); setRouteExpanded((v) => !v); }}
+                      >
+                        <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">4</span>
+                          Route Calculator
+                          {S.distanceKm > 0 && (
+                            <span className="ml-1 text-emerald-600 font-semibold">{Math.round(S.distanceKm)} km</span>
+                          )}
+                          <svg
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                            className={cls('ml-auto text-slate-400 transition-transform duration-200', routeExpanded ? 'rotate-180' : '')}
+                          >
+                            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                      </button>
+                      {routeExpanded && (
+                        <DistanceRouteConfigurator
+                          S={S}
+                          set={set}
+                          routeLookup={routeLookup}
+                          routeLookupLoading={routeLookupLoading}
+                          routeLookupMessage={routeLookupMessage}
+                          routeDistanceLabel={routeDistanceLabel}
+                          onFocusChange={handleDistanceInputFocusChange}
+                          onPlaceSelected={handleDistancePlaceSelected}
+                        />
+                      )}
+                    </div>
                   </div>
                 )}
-                {isTransportCard && isConfigOpen && (
+                {isTransportCard && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/90 p-4 shadow-sm space-y-4"
@@ -3017,26 +3323,9 @@ const COMM_PRESETS: Record<
                     onPointerDown={stopCardBubble}
                     onTouchStart={stopCardBubble}
                   >
-                    {/* Header with live price estimate */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-slate-900">Move Assistance Details</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">Tell us about your move for accurate pricing</div>
-                      </div>
-                      {(() => {
-                        const estimate = calculateEstimatedPrice('dump_transport', S);
-                        if (!estimate || (estimate.min === 0 && estimate.max === 0)) return null;
-                        return (
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-emerald-700">
-                              {estimate.min === estimate.max
-                                ? fmtAUD(estimate.min)
-                                : `${fmtAUD(estimate.min)}–${fmtAUD(estimate.max)}`}
-                            </div>
-                            <div className="text-[10px] text-slate-500">estimated</div>
-                          </div>
-                        );
-                      })()}
+                    <div>
+                      <div className="font-semibold text-slate-900">Move Assistance Details</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Tell us about your move</div>
                     </div>
 
                     {/* Step 1: Type of move */}
@@ -3088,10 +3377,10 @@ const COMM_PRESETS: Record<
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { key: 'bags', label: 'A few bags', desc: 'Small items only', icon: '🎒', price: 'From $99' },
-                          { key: 'boot', label: 'Car boot full', desc: 'Boxes & small furniture', icon: '🚗', price: 'From $129' },
-                          { key: 'small_load', label: 'Small load', desc: 'Bed, desk, boxes', icon: '📦', price: 'From $179' },
-                          { key: 'full_move', label: 'Full move', desc: 'Complete household', icon: '🚚', price: 'From $299' },
+                          { key: 'bags', label: 'A few bags', desc: 'Small items only', icon: '🎒', price: 'From $104' },
+                          { key: 'boot', label: 'Car boot load', desc: 'Boxes & small furniture', icon: '🚗', price: 'From $124' },
+                          { key: 'small_load', label: 'Small load', desc: 'Bed, desk, boxes', icon: '📦', price: 'From $158' },
+                          { key: 'full_move', label: 'Full move', desc: 'Complete household', icon: '🚚', price: 'From $228' },
                         ].map((c) => (
                           <button
                             key={c.key}
@@ -3122,7 +3411,7 @@ const COMM_PRESETS: Record<
                       </div>
                     </div>
 
-                    {/* Step 3: Access difficulty */}
+                    {/* Step 3: Stair access */}
                     <div className="space-y-2">
                       <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                         <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">3</span>
@@ -3131,9 +3420,9 @@ const COMM_PRESETS: Record<
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { key: 'none', label: 'No stairs', desc: 'Ground level access', icon: '✓', extra: null },
-                          { key: 'one', label: 'One flight', desc: 'Single staircase', icon: '🔼', extra: '+$25–50' },
-                          { key: 'multi', label: 'Multiple flights', desc: '2+ floors of stairs', icon: '🔼🔼', extra: '+$50–100' },
-                          { key: 'no_lift', label: 'No lift access', desc: 'Apartment without lift', icon: '🏢', extra: '+$50–100' },
+                          { key: 'one', label: 'One flight', desc: 'Single staircase', icon: '🔼', extra: '+$20' },
+                          { key: 'multi', label: 'Multiple flights', desc: '2+ floors of stairs', icon: '🔼🔼', extra: '+$40' },
+                          { key: 'no_lift', label: 'No lift access', desc: 'Apartment without lift', icon: '🏢', extra: '+$30' },
                         ].map((c) => (
                           <button
                             key={c.key}
@@ -3166,112 +3455,157 @@ const COMM_PRESETS: Record<
                       </div>
                     </div>
 
-                    {/* Step 4: Distance indicator */}
+                    {/* Step 4: How many helpers? */}
                     <div className="space-y-2">
                       <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                         <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">4</span>
-                        Origin & destination
+                        How many helpers do you need?
                       </div>
-                      <div className="text-[11px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-dashed border-slate-200">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                          </svg>
-                          <span>
-                            {S.distanceKm > 0
-                              ? `${Math.round(S.distanceKm)} km between locations`
-                              : 'Enter addresses below for distance-based pricing'}
-                          </span>
-                        </div>
-                        {S.distanceKm > 0 && (
-                          <div className="mt-2 text-[10px] text-slate-500">
-                            Travel component: ~{fmtAUD(Math.round(S.distanceKm * ROUTE_PER_KM_RATE))}
-                            {transportSize === 'full_move' && ' (per trip)'}
-                          </div>
-                        )}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { key: 1, label: '1 helper', desc: 'Included', extra: null },
+                          { key: 2, label: '2 helpers', desc: 'Extra hands', extra: '+$60' },
+                          { key: 3, label: '3 helpers', desc: 'Heavy loads', extra: '+$120' },
+                        ].map((c) => (
+                          <button
+                            key={c.key}
+                            type="button"
+                            className={cls(
+                              'p-3 rounded-lg border text-left transition-all',
+                              (transportState.helpers ?? 1) === c.key
+                                ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-400'
+                                : 'border-black/10 bg-white hover:bg-slate-50'
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTransport({ helpers: c.key as 1 | 2 | 3 });
+                            }}
+                          >
+                            <div className="text-xs font-medium text-slate-800">{c.label}</div>
+                            <div className="text-[10px] text-slate-500">{c.desc}</div>
+                            {c.extra && (
+                              <div className="text-[10px] font-medium text-amber-600 mt-0.5">{c.extra}</div>
+                            )}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Pricing breakdown */}
-                    <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
-                      <div className="text-[11px] font-semibold text-blue-800">Pricing breakdown</div>
-                      <div className="text-[11px] text-slate-700 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Base callout</span>
-                          <span className="font-medium">{fmtAUD(BASE_CALLOUT_PRICE)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Load size ({transportSize || 'small_load'})</span>
-                          <span className="font-medium">
-                            {fmtAUD(
-                              ({ bags: 20, boot: 40, small_load: 60, full_move: 80 }[transportSize] || 60) +
-                              ({ bags: 15, boot: 35, small_load: 55, full_move: 80 }[transportSize] || 55)
-                            )}–{fmtAUD(
-                              ({ bags: 35, boot: 70, small_load: 105, full_move: 140 }[transportSize] || 105)
-                            )}
-                          </span>
-                        </div>
-                        {transportStairs !== 'none' && (
-                          <div className="flex justify-between">
-                            <span>Stair access ({transportStairs})</span>
-                            <span className="font-medium">
-                              {transportStairs === 'one'
-                                ? `${fmtAUD(PHYSICAL_BLOCK_RANGE.min)}–${fmtAUD(PHYSICAL_BLOCK_RANGE.max)}`
-                                : `${fmtAUD(PHYSICAL_BLOCK_RANGE.min * 2)}–${fmtAUD(PHYSICAL_BLOCK_RANGE.max * 2)}`}
-                            </span>
+                    {/* Optional extras */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">
+                        Optional extras
+                      </div>
+                      <div className="space-y-1.5">
+                        {[
+                          { key: 'urgent', label: 'Priority / urgent booking', price: '+$15', value: transportState.urgent ?? false },
+                          { key: 'afterHours', label: 'After-hours or weekend loading', price: '+$40', value: transportState.afterHours ?? false },
+                        ].map((opt) => (
+                          <label
+                            key={opt.key}
+                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-black/10 bg-white cursor-pointer hover:bg-slate-50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={opt.value}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateTransport({ [opt.key]: !opt.value } as any);
+                                }}
+                                className="rounded border-slate-300 accent-blue-600"
+                              />
+                              <span className="text-xs text-slate-800">{opt.label}</span>
+                            </div>
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">{opt.price}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Live price preview */}
+                    {(() => {
+                      const tResult = calcTransportQuote(transportState, S.distanceKm);
+                      if (tResult.isCustomQuote) {
+                        return (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                            <div className="font-semibold mb-0.5">Custom quote may be required</div>
+                            <div className="text-[11px]">{tResult.customQuoteReason ?? 'This job may require a custom quote based on distance, access, or item size.'}</div>
                           </div>
-                        )}
-                        {S.distanceKm > 0 && (
-                          <div className="flex justify-between">
-                            <span>Distance ({Math.round(S.distanceKm)} km)</span>
-                            <span className="font-medium">~{fmtAUD(Math.round(S.distanceKm * ROUTE_PER_KM_RATE))}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-blue-200 pt-1 mt-1 flex justify-between font-semibold text-blue-800">
-                          <span>Estimated total</span>
-                          {(() => {
-                            const estimate = calculateEstimatedPrice('dump_transport', S);
-                            if (!estimate) return <span>—</span>;
-                            return (
-                              <span>
-                                {estimate.min === estimate.max
-                                  ? fmtAUD(estimate.min)
-                                  : `${fmtAUD(estimate.min)}–${fmtAUD(estimate.max)}`}
+                        );
+                      }
+                      return (
+                        <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-1">
+                          <div className="text-[11px] font-semibold text-blue-900 mb-1.5">Price breakdown</div>
+                          {tResult.lineItems.map((item, i) => (
+                            <div key={i} className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-700">{item.label}</span>
+                              <span className="font-medium text-slate-900 tabular-nums">
+                                {item.note === 'Included' ? <span className="text-slate-400">Included</span> : `$${item.amount}`}
                               </span>
-                            );
-                          })()}
+                            </div>
+                          ))}
+                          <div className="h-px bg-blue-200 my-1" />
+                          <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className="text-slate-900">Total</span>
+                            <span className="text-blue-700">{fmtAUD(tResult.total)}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">Transparent pricing — no hidden fees</div>
                         </div>
+                      );
+                    })()}
+
+                    {/* Step 5: Origin & destination display */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">5</span>
+                        Origin &amp; destination
                       </div>
-                      <div className="text-[10px] text-slate-500 italic">
-                        {transportSize === 'full_move'
-                          ? 'Full moves often require multiple trips. Final scope confirmed after site review.'
-                          : 'Final price confirmed after route is calculated below.'}
+                      <div className="text-[11px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-dashed border-slate-200">
+                        {S.distanceKm > 0
+                          ? <span className="text-blue-700 font-medium">{Math.round(S.distanceKm)} km between locations</span>
+                          : <span>Add addresses in the route calculator to refine the distance price</span>}
                       </div>
+                    </div>
+
+                    {/* Step 6: Route Calculator (collapsible) */}
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={(e) => { e.stopPropagation(); setTransportRouteExpanded((v) => !v); }}
+                      >
+                        <div className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">6</span>
+                          Route Calculator
+                          {S.distanceKm > 0 && (
+                            <span className="ml-1 text-blue-600 font-semibold">{Math.round(S.distanceKm)} km</span>
+                          )}
+                          <svg
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                            className={cls('ml-auto text-slate-400 transition-transform duration-200', transportRouteExpanded ? 'rotate-180' : '')}
+                          >
+                            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                      </button>
+                      {transportRouteExpanded && (
+                        <DistanceRouteConfigurator
+                          S={S}
+                          set={set}
+                          routeLookup={routeLookup}
+                          routeLookupLoading={routeLookupLoading}
+                          routeLookupMessage={routeLookupMessage}
+                          routeDistanceLabel={routeDistanceLabel}
+                          onFocusChange={handleDistanceInputFocusChange}
+                          onPlaceSelected={handleDistancePlaceSelected}
+                        />
+                      )}
                     </div>
                   </div>
                 )}
-                {isRouteCard && isActive && isConfigOpen && (
-                  <div
-                    data-card-interactive="true"
-                    className="mt-4"
-                    onClick={stopCardBubble}
-                    onMouseDown={stopCardBubble}
-                    onPointerDown={stopCardBubble}
-                    onTouchStart={stopCardBubble}
-                  >
-                    <DistanceRouteConfigurator
-                      S={S}
-                      set={set}
-                      routeLookup={routeLookup}
-                      routeLookupLoading={routeLookupLoading}
-                      routeLookupMessage={routeLookupMessage}
-                      routeDistanceLabel={routeDistanceLabel}
-                      onFocusChange={handleDistanceInputFocusChange}
-                      onPlaceSelected={handleDistancePlaceSelected}
-                    />
-                  </div>
-                )}
-                {isBinCleans && isConfigOpen && (
+                {isBinCleans && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/90 p-4 shadow-sm"
@@ -3531,7 +3865,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerRefresh && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerRefresh && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -3607,7 +3941,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerDeep && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerDeep && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -3685,7 +4019,7 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
-                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerMulti && isConfigOpen && (
+                {isActive && S.service === 'laundry_sneakers' && isSneakerCareCard && isSneakerMulti && (
                   <div
                     data-card-interactive="true"
                     className="rounded-xl border border-black/5 bg-white/80 p-3"
@@ -3706,7 +4040,7 @@ const COMM_PRESETS: Record<
                             className="px-2 py-0.5 rounded-full border border-black/10 text-[11px]"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setMultiPairs((n) => Math.max(1, Math.min(20, n - 1)));
+                              setMultiPairs((n) => Math.max(1, Math.min(10, n - 1)));
                             }}
                             aria-label="Decrease pairs"
                           >
@@ -3718,7 +4052,7 @@ const COMM_PRESETS: Record<
                             className="px-2 py-0.5 rounded-full border border-black/10 text-[11px]"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setMultiPairs((n) => Math.max(1, Math.min(20, n + 1)));
+                              setMultiPairs((n) => Math.max(1, Math.min(10, n + 1)));
                             }}
                             aria-label="Increase pairs"
                           >
@@ -3780,6 +4114,9 @@ const COMM_PRESETS: Record<
                   </div>
                 )}
 
+                    </M.div>
+                  )}
+                </AnimatePresence>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="text-[11px] text-slate-600">
                     Builds a clear to-do list for our techs and your peace of mind.
@@ -3876,7 +4213,12 @@ const COMM_PRESETS: Record<
                                     .slice(0, 3)
                                     .join(', ')}…`
                                 : 'A simple, reliable preset tailored to your place.');
-                            const className = spanLastOdd ? 'md:col-span-2' : '';
+                            const isBlurred = !mapVisible && !!activeServiceId && activeServiceId !== sc.key;
+                            const className = cls(
+                              spanLastOdd ? 'md:col-span-2' : '',
+                              'transition-all duration-200',
+                              isBlurred ? 'blur-[2px] opacity-50 pointer-events-none' : ''
+                            );
                             return (
                               <ScopeCard
                                 key={sc.key}
@@ -4063,8 +4405,9 @@ const COMM_PRESETS: Record<
                           sandbox="allow-scripts allow-same-origin allow-popups"
                           className="h-full w-full border-0"
                           onLoad={() => {
-                            const polygon = activeYardJob?.polygon_geojson?.[0] || [];
-                            postPolygonToIframe(polygon);
+                            const zones = activeYardJob?.polygon_geojson || [];
+                            postZonesToIframe(zones);
+                            postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: S.scope });
                           }}
                         />
                         {isCalculating && (
@@ -4076,35 +4419,25 @@ const COMM_PRESETS: Record<
                           </div>
                         )}
                       </StableMapSlot>
-                      <div className="flex flex-wrap gap-2 items-center p-3 rounded-xl border border-black/5 bg-white/60 backdrop-blur-sm">
+                      {(activeYardJob?.polygon_geojson ?? []).some((z: any[]) => z.length >= 3) && (
                         <M.button
-                          className="px-4 py-2 rounded-xl text-sm text-white flex items-center gap-2 shadow-sm hover:shadow-md transition-shadow"
-                          style={{ background: 'var(--accent)' }}
-                          onClick={() => postMessageToIframe({ type: 'YARD_TOGGLE_DRAWING', enabled: true })}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                          </svg>
-                          Draw or edit
-                        </M.button>
-                        <M.button
-                          className="px-4 py-2 rounded-xl text-sm border border-black/10 bg-white text-slate-900 hover:border-rose-300 hover:text-rose-700 transition-colors flex items-center gap-2"
+                          className="self-start px-3 py-1.5 rounded-lg text-xs border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-1.5"
                           onClick={resetActivePolygon}
-                          disabled={!activeYardJob?.polygon_geojson?.[0]?.length}
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                           </svg>
-                          Clear polygon
+                          Clear zones
                         </M.button>
-                      </div>
+                      )}
                       {/* Live measurement & price display */}
                       {(() => {
                         const measurement = getYardMeasurementConfig(S.scope);
                         const value = measurement.mode === 'perimeter' ? S.yardPerimeter : S.yardArea;
                         const unit = measurement.mode === 'perimeter' ? 'm' : 'm²';
-                        const hasPolygon = (S.yardPolygon?.[0]?.length ?? 0) >= 3;
+                        const activeZones = (S.yardPolygon ?? []).filter((z: any[]) => z.length >= 3);
+                        const hasPolygon = activeZones.length > 0;
                         const scopeLabel = SCOPES_BY_SERVICE.yard.find((s) => s.key === S.scope)?.label ?? S.scope;
                         const jobPrice = activeYardJob?.price ?? 0;
 
@@ -4116,9 +4449,12 @@ const COMM_PRESETS: Record<
                                 {hasPolygon ? (
                                   <span className="text-lg font-bold text-emerald-900">
                                     {(value ?? 0).toLocaleString()} {unit}
+                                    {activeZones.length > 1 && (
+                                      <span className="ml-1.5 text-[11px] font-normal text-emerald-600">({activeZones.length} zones)</span>
+                                    )}
                                   </span>
                                 ) : (
-                                  <span className="text-sm text-slate-500">Draw to measure</span>
+                                  <span className="text-sm text-slate-500">Tap Draw and outline your area</span>
                                 )}
                               </div>
                             </div>
@@ -4132,7 +4468,7 @@ const COMM_PRESETS: Record<
                         );
                       })()}
                       <div className="text-xs text-slate-500 px-1">
-                        Search your address, then tap <strong>Draw or edit</strong> to outline your area. On mobile, tap the first point again to close the shape.
+                        Search your address, tap <strong>Draw</strong> on the map, then outline your area — tap the first point or &ldquo;Close shape&rdquo; to finish. Tap a completed zone to edit it.
                       </div>
                       <div className="rounded-xl border border-black/5 bg-gradient-to-br from-white/80 to-slate-50/50 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2 px-1">Your sites</div>
@@ -4583,49 +4919,121 @@ const COMM_PRESETS: Record<
                           ) : null}
                         </div>
                       </div>
-                      <span
-                        className={cls(
-                          'text-[11px] px-2 py-1 rounded-full flex-shrink-0',
-                          estimate.confidence === 'High'
-                            ? 'bg-green-100 text-green-900'
-                            : estimate.confidence === 'Medium'
-                            ? 'bg-amber-100 text-amber-900'
-                            : 'bg-red-100 text-red-900'
-                        )}
-                        title="Our confidence based on typical variance"
-                      >
-                        {estimate.confidence} confidence
-                      </span>
+                      {S.service !== 'dump' || (S.scope !== 'dump_transport' && S.scope !== 'dump_delivery') ? (
+                        <span
+                          className={cls(
+                            'text-[11px] px-2 py-1 rounded-full flex-shrink-0',
+                            estimate.confidence === 'High'
+                              ? 'bg-green-100 text-green-900'
+                              : estimate.confidence === 'Medium'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-red-100 text-red-900'
+                          )}
+                          title="Our confidence based on typical variance"
+                        >
+                          {estimate.confidence} confidence
+                        </span>
+                      ) : (
+                        <span className="text-[11px] px-2 py-1 rounded-full flex-shrink-0 bg-green-100 text-green-900">
+                          Fixed pricing
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      {estimate.labourFloor ? (
-                        <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} />
-                      ) : null}
-                      <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
-                      {estimate.travel > 0 && (
-                        <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />
+                      {/* Transport / Delivery: dedicated transparent breakdown */}
+                      {S.service === 'dump' && (S.scope === 'dump_transport' || S.scope === 'dump_delivery') ? (() => {
+                        const isTransport = S.scope === 'dump_transport';
+                        const quoteResult = isTransport
+                          ? calcTransportQuote(S.dumpTransport, S.distanceKm)
+                          : calcDeliveryQuote(S.dumpDelivery, S.distanceKm);
+
+                        if (quoteResult.isCustomQuote) {
+                          return (
+                            <>
+                              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                                <div className="font-semibold mb-1">Custom quote required</div>
+                                <div className="text-[11px]">{quoteResult.customQuoteReason ?? 'This job may require a custom quote based on distance, access, or item size.'}</div>
+                              </div>
+                              <div className="text-[11px] text-slate-600 mt-2">
+                                Contact us and we'll provide a fair, itemised quote.
+                              </div>
+                            </>
+                          );
+                        }
+
+                        return (
+                          <>
+                            <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
+                            {quoteResult.lineItems.map((item, i) => (
+                              <S3_Row
+                                key={i}
+                                k={item.label}
+                                v={item.note === 'Included' ? 'Included' : fmtAUD(item.amount)}
+                              />
+                            ))}
+                            <div className="h-[1px] bg-white/60 my-2" />
+                            <S3_Row k="Total" v={priceLabel} bold />
+                            <div className="text-[11px] text-slate-500 mt-1">
+                              Transparent pricing — no hidden fees.
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Large or long-distance jobs may require a custom quote.
+                            </div>
+                          </>
+                        );
+                      })() : (
+                        <>
+                          {estimate.labourFloor ? (
+                            <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} />
+                          ) : null}
+                          <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
+                          {isLaundryService && (
+                            <>
+                              {(S.laundryPerLoadAddOns ?? []).map((k) => (
+                                <S3_Row key={k} k={LAUNDRY_PER_LOAD_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_LOAD_ADDONS[k].price * laundryLoads)}`} />
+                              ))}
+                              {(S.laundryPerOrderAddOns ?? []).map((k) => (
+                                <S3_Row key={k} k={LAUNDRY_PER_ORDER_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_ORDER_ADDONS[k].price)}`} />
+                              ))}
+                              {(S.laundryIroningItems ?? []).filter((i) => i.count > 0).map((item) => (
+                                <S3_Row key={item.type} k={`Ironing – ${LAUNDRY_IRONING_PRICES[item.type].label}`} v={`+${fmtAUD(LAUNDRY_IRONING_PRICES[item.type].price * item.count)}`} />
+                              ))}
+                              <S3_Row k="Pickup & delivery" v={fmtAUD(12)} />
+                              <S3_Row k="Service fee" v={fmtAUD(2)} />
+                            </>
+                          )}
+                          {(isSneakerService || isSneakerLot) && (
+                            <>
+                              <S3_Row k="Pickup & delivery" v={fmtAUD(8)} />
+                              <S3_Row k="Service fee" v={fmtAUD(2)} />
+                            </>
+                          )}
+                          {estimate.travel > 0 && (
+                            <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />
+                          )}
+                          {estimate.parking > 0 && (
+                            <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />
+                          )}
+                          {estimate.tip > 0 && (
+                            <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />
+                          )}
+                          {(() => {
+                            const mats = S.service === 'cleaning'
+                              ? S.context === 'commercial' ? 12 : 8
+                              : 0;
+                            return mats > 0 ? <S3_Row k="Materials" v={fmtAUD(mats)} /> : null;
+                          })()}
+                          <div className="h-[1px] bg-white/60 my-2" />
+                          <S3_Row k="Total" v={priceLabel} bold />
+                          <div className="text-[11px] text-slate-600">
+                            {PRICE_SCOPE_DISCLAIMER}
+                          </div>
+                          <div className="text-[11px] text-slate-600">
+                            {FAIRNESS_PROMISE_COPY}
+                          </div>
+                        </>
                       )}
-                      {estimate.parking > 0 && (
-                        <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />
-                      )}
-                      {estimate.tip > 0 && (
-                        <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />
-                      )}
-                      {(() => {
-                        const mats = S.service === 'cleaning'
-                          ? S.context === 'commercial' ? 12 : 8
-                          : 0;
-                        return mats > 0 ? <S3_Row k="Materials" v={fmtAUD(mats)} /> : null;
-                      })()}
-                      <div className="h-[1px] bg-white/60 my-2" />
-                      <S3_Row k="Total" v={priceLabel} bold />
-                      <div className="text-[11px] text-slate-600">
-                        {PRICE_SCOPE_DISCLAIMER}
-                      </div>
-                      <div className="text-[11px] text-slate-600">
-                        {FAIRNESS_PROMISE_COPY}
-                      </div>
                       <div className="text-[11px] text-slate-600">
                         {TERMS_SNIPPET}
                       </div>
@@ -4848,11 +5256,9 @@ const COMM_PRESETS: Record<
 
 
 {/* Live orders strip sits below the main flow so Steps 1–3 stay the focal point */}
-{S.service !== 'yard' && (
-  <section className="mt-40 mb-28">
-    <LiveOrdersStrip />
-  </section>
-)}
+<section className="mt-40 mb-28">
+  <LiveOrdersStrip />
+</section>
 
 {/* Spacer for sticky footer */}
 {(S.step === 2 || S.step === 3) && <div className="h-48 md:h-36" />}
@@ -4878,7 +5284,7 @@ const COMM_PRESETS: Record<
             <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-600">
               Price for this scope
             </div>
-            <div className="text-xl md:text-2xl font-bold">{priceLabel}</div>
+            <div className="text-xl md:text-2xl font-bold">{priceLabelBase}</div>
             <div className="text-[11px] md:text-xs text-slate-600 mt-0.5 md:mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {timeLabel}
             </div>
@@ -4920,13 +5326,48 @@ const COMM_PRESETS: Record<
 )}
 
 {S.service === 'yard' && S.step === 2 && (() => {
-  const polygonReady = (S.yardPolygon?.[0]?.length ?? 0) >= 3;
+  const zones = S.yardPolygon ?? [];
+  const polygonReady = zones.some((z: any[]) => z.length >= 3);
   const priceReady = polygonReady && estimate.total > 0;
   const siteCount = S.yardJobs?.length || 0;
-  const siteLabel = `${siteCount} site${siteCount === 1 ? '' : 's'} mapped`;
+  const zoneCount = zones.filter((z: any[]) => z.length >= 3).length;
+  const siteLabel = `${siteCount} site${siteCount === 1 ? '' : 's'} · ${zoneCount} zone${zoneCount !== 1 ? 's' : ''}`;
   const measurementHint = activeMeasurementLabel
     ? `${siteLabel} · ${activeMeasurementLabel}`
     : siteLabel;
+  // Price cap detection
+  const YARD_SCOPE_MAX: Record<string, number> = {
+    yard_mow: 420, yard_hedge: 420, yard_leaves: 420,
+    blast_and_shine: 360, gutter_clean: 360,
+  };
+  const scopeMax = YARD_SCOPE_MAX[S.scope] ?? 420;
+  const isAtCap = priceReady && estimate.total >= scopeMax;
+  // Large-property warning: when area/perimeter exceeds one-visit threshold
+  const YARD_VISIT_MAX_M2: Partial<Record<string, number>> = {
+    yard_mow: 3000, yard_leaves: 2000, blast_and_shine: 800,
+  };
+  const YARD_VISIT_MAX_M: Partial<Record<string, number>> = {
+    yard_hedge: 220, gutter_clean: 160,
+  };
+  const isPerimeterScope = S.scope === 'yard_hedge' || S.scope === 'gutter_clean';
+  const measurement = isPerimeterScope ? (S.yardPerimeter ?? 0) : (S.yardArea ?? 0);
+  const visitCap = isPerimeterScope ? (YARD_VISIT_MAX_M[S.scope] ?? null) : (YARD_VISIT_MAX_M2[S.scope] ?? null);
+  const isLargeProperty = visitCap !== null && measurement > visitCap;
+  const unit = isPerimeterScope ? 'm' : 'm²';
+  const numVisits = isLargeProperty ? Math.ceil(measurement / visitCap!) : 1;
+  const perVisitMeasurement = isLargeProperty ? measurement / numVisits : measurement;
+  const perVisitParams = isPerimeterScope
+    ? { ...S.paramsByService.yard, yard_perimeter: perVisitMeasurement }
+    : { ...S.paramsByService.yard, yard_area: perVisitMeasurement };
+  const perVisitQuote = isLargeProperty
+    ? computeYardQuote(perVisitParams, {
+        scope: S.scope,
+        conditionMultiplier: conditionMult,
+        accessTight: S.clutterAccess,
+        conditionLevel: S.conditionLevel,
+      })
+    : null;
+  const multiVisitTotal = perVisitQuote ? perVisitQuote.cost * numVisits : null;
   return (
     <div
       className="fixed left-0 right-0 pointer-events-none z-40"
@@ -4936,8 +5377,19 @@ const COMM_PRESETS: Record<
       <M.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-auto max-w-3xl px-4"
+        className="mx-auto max-w-3xl px-4 space-y-2"
       >
+        {/* Large property — multi-visit pricing */}
+        {isLargeProperty && priceReady && perVisitQuote && (
+          <div className="pointer-events-auto rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900 shadow-lg">
+            <div className="font-semibold mb-0.5">Large property — {numVisits} visits recommended</div>
+            <div className="text-blue-800">
+              ~{Math.round(perVisitMeasurement).toLocaleString()}{unit} per visit
+              · {fmtAUD(perVisitQuote.cost)}/visit
+              · <span className="font-semibold">Total {fmtAUD(multiVisitTotal!)}</span>
+            </div>
+          </div>
+        )}
         <div
           className="pointer-events-auto rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-xl"
           role="region"
@@ -4953,12 +5405,21 @@ const COMM_PRESETS: Record<
                     <span className="text-[10px] text-blue-600 font-medium">Updating</span>
                   </div>
                 )}
+                {isAtCap && !isLargeProperty && !isCalculating && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                    Max price reached
+                  </span>
+                )}
               </div>
               <div className="text-3xl font-semibold text-slate-900" aria-live="polite">
-                {priceReady ? priceLabel : 'Draw a polygon to reveal price'}
+                {priceReady ? priceLabel : 'Draw a zone to reveal price'}
               </div>
               <div className="text-xs text-slate-600 mt-1">
-                {priceReady ? measurementHint : 'Complete a polygon to reveal calm pricing.'}
+                {isAtCap && !isLargeProperty
+                  ? `Max for this service — we'll honour this price regardless of area.`
+                  : isLargeProperty && priceReady
+                    ? `Price per visit · ${numVisits} visits recommended`
+                    : priceReady ? measurementHint : 'Tap "Draw" on the map above and outline your area.'}
               </div>
             </div>
             <div className="flex items-center gap-2">

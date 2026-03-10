@@ -11,12 +11,12 @@ import { WindowIcon, CleanIcon, LawnIcon, TruckIcon, CarIcon, ShoeIcon } from '.
    SERVICES
    ========================= */
 export const SERVICES = [
-  { key: 'windows',  label: 'Window Cleaning',      icon: <WindowIcon />, subtitle: 'Panes · tracks' },
-  { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · deep · EoL' },
-  { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · hedge · tidy' },
-  { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · delivery' },
-  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express → full' },
-  { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · fold · sneakers' },
+  { key: 'windows',  label: 'Window Cleaning',      icon: <WindowIcon />, subtitle: 'Panes · Tracks' },
+  { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · Deep · EoL' },
+  { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · Hedge · Tidy' },
+  { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · Delivery' },
+  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full' },
+  { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · Fold · Sneakers' },
 ] as const;
 
 /* =========================
@@ -34,7 +34,7 @@ export const FAIRNESS_PROMISE_COPY =
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 // Local storage key for persisting wizard state; bump if shape changes.
-export const STORAGE_KEY = 'budsatwork.quote.v1';
+export const STORAGE_KEY = 'budsatwork.quote.v2';
 // Optional dev helper: flip to true to reset stored session on mount.
 export const RESET_ON_MOUNT = false;
 
@@ -304,10 +304,8 @@ export const TASKS: Task[] = [
 
   // ===== LAUNDRY & SNEAKER CARE =====
   { code: 'laundry.fold', service: 'laundry_sneakers', name: 'Wash & Fold (per load)', unit: 'load', minutes: 0 },
-  { code: 'laundry.iron', service: 'laundry_sneakers', name: 'Wash & Iron (per load)', unit: 'load', minutes: 0 },
   { code: 'sneaker.basic', service: 'laundry_sneakers', name: 'Refresh Clean (per pair)', unit: 'pair', minutes: 0 },
   { code: 'sneaker.full', service: 'laundry_sneakers', name: 'Deep Restore (per pair)', unit: 'pair', minutes: 0 },
-  { code: 'sneaker.lot', service: 'laundry_sneakers', name: 'Multi-Pair Care (3–5 pairs)', unit: 'lot', minutes: 0 },
 ];
 
 export const TASK_MAP = new Map(TASKS.map((t) => [t.code, t]));
@@ -377,13 +375,13 @@ export const SCOPES_BY_SERVICE: Record<ServiceType, ScopeDef[]> = {
     {
       key: 'laundry',
       label: 'Laundry',
-      inclusions: ['Wash, dry & fold', 'Wash & iron available', 'Pickup & delivery included', '24-48hr turnaround'],
-      desc: 'Fresh laundry returned clean and ready to wear.',
+      inclusions: ['Wash, dry & fold', 'Ironing available as add-on', 'Pickup & delivery included', 'Eco, brightening & express options'],
+      desc: 'Fresh laundry returned clean and ready to wear. Add-ons available at checkout.',
     },
     {
       key: 'sneaker_care',
       label: 'Sneaker Care',
-      inclusions: ['Refresh Clean ($40)', 'Deep Restore ($40)', 'Multi-Pair Care (~$30/pair)'],
+      inclusions: ['Refresh Clean ($40)', 'Deep Restore ($60)', 'Multi-Pair (from $40)'],
       desc: 'Professional sneaker cleaning with turnaround options.',
     },
   ],

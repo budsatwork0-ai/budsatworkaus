@@ -31,8 +31,7 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   backgroundColor: "#f8fafc",
 };
 
-const POLYGON_OPTIONS: google.maps.PolygonOptions = {
-  editable: true,
+const POLYGON_BASE: google.maps.PolygonOptions = {
   draggable: false,
   geodesic: true,
   strokeColor: "#0f5132",
@@ -40,17 +39,36 @@ const POLYGON_OPTIONS: google.maps.PolygonOptions = {
   strokeWeight: 2,
   fillColor: "#16a34a",
   fillOpacity: 0.22,
-  clickable: false,
   zIndex: 3,
 };
+
+// Stroke weights represent the physical "width" of the job on the ground
+const PERIMETER_STROKE_WEIGHTS: Record<string, number> = {
+  yard_hedge: 8,   // hedges are wide — thick line
+  gutter_clean: 4, // gutters are narrow — thinner line
+};
+
+function getScopePolygonOptions(scope: string): Partial<google.maps.PolygonOptions> {
+  const isPerimeter = scope === "yard_hedge" || scope === "gutter_clean";
+  if (isPerimeter) {
+    return {
+      fillOpacity: 0,
+      strokeWeight: PERIMETER_STROKE_WEIGHTS[scope] ?? 4,
+      strokeColor: scope === "yard_hedge" ? "#15803d" : "#0369a1",
+    };
+  }
+  return {
+    fillOpacity: 0.22,
+    strokeWeight: 2,
+    strokeColor: "#0f5132",
+  };
+}
 
 const FRAME_EVENTS: Array<"set_at" | "insert_at" | "remove_at"> = [
   "set_at",
   "insert_at",
   "remove_at",
 ];
-
-const CLOSE_DISTANCE_M = 25;
 
 const roundCoord = (value: number) => Number(value.toFixed(7));
 
@@ -70,47 +88,52 @@ const coordsFromPath = (path: google.maps.MVCArray<google.maps.LatLng>): LatLng[
 
 const isInIframe = () => typeof window !== "undefined" && window.parent && window.parent !== window;
 
-const haversineDistance = (a: google.maps.LatLng, b: google.maps.LatLng): number => {
-  const R = 6378137;
-  const dLat = ((b.lat() - a.lat()) * Math.PI) / 180;
-  const dLng = ((b.lng() - a.lng()) * Math.PI) / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h =
-    sinLat * sinLat +
-    Math.cos((a.lat() * Math.PI) / 180) * Math.cos((b.lat() * Math.PI) / 180) * sinLng * sinLng;
-  return 2 * R * Math.asin(Math.sqrt(h));
+
+type ZoneData = {
+  polygon: google.maps.Polygon;
+  listeners: google.maps.MapsEventListener[];
 };
 
 export type YardMapProps = {
   apiKey: string;
   mapId?: string;
   initialCenter?: LatLng;
+  /** Initial zones to display. Each element is one zone's coordinate array. */
+  initialZones?: LatLng[][];
+  /** Deprecated single-polygon compat. Prefer initialZones. */
   initialPolygon?: LatLng[];
-  onPolygonChange?: (coords: LatLng[]) => void;
+  onPolygonChange?: (zones: LatLng[][]) => void;
 };
 
 export default function YardMap({
   apiKey,
   mapId,
   initialCenter,
+  initialZones,
   initialPolygon,
   onPolygonChange,
 }: YardMapProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
   const mapRef = React.useRef<google.maps.Map | null>(null);
-  const polygonRef = React.useRef<google.maps.Polygon | null>(null);
   const listenersRef = React.useRef<google.maps.MapsEventListener[]>([]);
   const didInitRef = React.useRef(false);
   const rafRef = React.useRef<number | null>(null);
-  const pendingSetPolygonRef = React.useRef<LatLng[] | null>(null);
   const suppressEmitRef = React.useRef(false);
   const autocompleteRef = React.useRef<google.maps.places.Autocomplete | null>(null);
   const googleRef = React.useRef<typeof google | null>(null);
-  const attachEventsRef = React.useRef<(() => void) | null>(null);
 
-  // Custom tap-to-draw refs (replaces DrawingManager)
+  // Zone management
+  const zonesRef = React.useRef<ZoneData[]>([]);
+  const currentScopeRef = React.useRef<string>("yard_mow");
+  const pendingSetZonesRef = React.useRef<LatLng[][] | null>(null);
+
+  // Function refs — set by the main useEffect after map init
+  const emitAllZonesRef = React.useRef<(() => void) | null>(null);
+  const applyZonesRef = React.useRef<((zones: LatLng[][]) => void) | null>(null);
+  const removeZoneRef = React.useRef<((index: number) => void) | null>(null);
+
+  // Custom tap-to-draw refs
   const drawingVerticesRef = React.useRef<google.maps.LatLng[]>([]);
   const vertexMarkersRef = React.useRef<google.maps.Marker[]>([]);
   const previewPolylineRef = React.useRef<google.maps.Polyline | null>(null);
@@ -120,9 +143,12 @@ export default function YardMap({
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [drawingEnabled, setDrawingEnabled] = React.useState(false);
   const [vertexCount, setVertexCount] = React.useState(0);
+  const [zoneCount, setZoneCount] = React.useState(0);
 
   const initialCenterRef = React.useRef(initialCenter);
-  const initialPolygonRef = React.useRef(initialPolygon);
+  const initialZonesRef = React.useRef(
+    initialZones ?? (initialPolygon?.length ? [initialPolygon] : undefined)
+  );
 
   React.useEffect(() => {
     console.log("[YARD MAP] mounted");
@@ -144,53 +170,97 @@ export default function YardMap({
       listenersRef.current = [];
     };
 
-    const handlePolygonChange = () => {
+    // ---- Zone management functions (defined here to close over googleRef/mapRef) ----
+
+    const emitAllZones = () => {
       if (suppressEmitRef.current) return;
       if (rafRef.current) return;
       rafRef.current = window.requestAnimationFrame(() => {
         rafRef.current = null;
-        const path = polygonRef.current?.getPath();
-        if (!path) return;
-        const coords = coordsFromPath(path);
-        onPolygonChange?.(coords);
+        const zones = zonesRef.current.map((z) => coordsFromPath(z.polygon.getPath()));
+        onPolygonChange?.(zones);
         if (isInIframe()) {
-          window.parent.postMessage({ type: "YARD_POLYGON_CHANGE", coords }, "*");
+          window.parent.postMessage({ type: "YARD_POLYGON_CHANGE", zones }, "*");
         }
       });
     };
+    emitAllZonesRef.current = emitAllZones;
 
-    // Track path-specific listeners separately so we can re-attach on path change
-    let pathListeners: google.maps.MapsEventListener[] = [];
-
-    const attachEvents = () => {
-      // Remove old path listeners
-      pathListeners.forEach((listener) => listener.remove());
-      pathListeners = [];
-
-      const path = polygonRef.current?.getPath();
-      if (!path) return;
-      FRAME_EVENTS.forEach((eventName) => {
-        const listener = path.addListener(eventName, handlePolygonChange);
-        pathListeners.push(listener);
+    const attachZoneEvents = (zone: ZoneData) => {
+      const path = zone.polygon.getPath();
+      FRAME_EVENTS.forEach((evt) => {
+        const listener = path.addListener(evt, emitAllZones);
+        zone.listeners.push(listener);
         listenersRef.current.push(listener);
       });
+      // Re-attach on path replacement
+      const replacedListener = zone.polygon.addListener("paths_changed", () => {
+        zone.listeners.forEach((l) => l.remove());
+        zone.listeners = [];
+        attachZoneEvents(zone);
+      });
+      zone.listeners.push(replacedListener);
+      listenersRef.current.push(replacedListener);
     };
 
-    // Store attachEvents in ref so it can be called from message handler
-    attachEventsRef.current = attachEvents;
+    const createZoneFromCoords = (coords: LatLng[]): ZoneData => {
+      const map = mapRef.current!;
+      const googleLib = googleRef.current!;
+      const scopeOpts = getScopePolygonOptions(currentScopeRef.current);
+      const poly = new googleLib.maps.Polygon({
+        ...POLYGON_BASE,
+        ...scopeOpts,
+        map,
+        editable: false,
+        clickable: true,
+      });
+      poly.setPath(coords.map((c) => new googleLib.maps.LatLng(c.lat, c.lng)));
+      const zone: ZoneData = { polygon: poly, listeners: [] };
+      attachZoneEvents(zone);
+      // Click to select this zone for editing
+      poly.addListener("click", () => {
+        zonesRef.current.forEach((z) => z.polygon.setEditable(false));
+        poly.setEditable(true);
+        setDrawingEnabled(false);
+      });
+      return zone;
+    };
 
-    const applyPolygonPath = (coords?: LatLng[]) => {
-      const normalized = normalizeCoords(coords);
-      const polygon = polygonRef.current;
-      if (!polygon) return;
+    const applyZones = (zones: LatLng[][]) => {
+      // Remove existing zones
+      zonesRef.current.forEach((z) => {
+        z.listeners.forEach((l) => l.remove());
+        z.polygon.setMap(null);
+      });
+      zonesRef.current = [];
+
       suppressEmitRef.current = true;
-      polygon.setPath(normalized);
-      // Re-attach listeners to the new path
-      attachEvents();
+      zones.forEach((zoneCoords) => {
+        const normalized = normalizeCoords(zoneCoords);
+        if (normalized.length >= 3) {
+          const zone = createZoneFromCoords(normalized);
+          zonesRef.current.push(zone);
+        }
+      });
       window.requestAnimationFrame(() => {
         suppressEmitRef.current = false;
       });
+      setZoneCount(zonesRef.current.length);
     };
+    applyZonesRef.current = applyZones;
+
+    const removeZone = (index: number) => {
+      if (index < 0 || index >= zonesRef.current.length) return;
+      const zone = zonesRef.current[index];
+      zone.listeners.forEach((l) => l.remove());
+      zone.polygon.setMap(null);
+      zonesRef.current.splice(index, 1);
+      setZoneCount(zonesRef.current.length);
+      emitAllZones();
+    };
+    removeZoneRef.current = removeZone;
+
+    // ---- Map initialization ----
 
     const initMap = (googleLib: typeof google, allowPlaces: boolean) => {
       if (cancelled) return;
@@ -256,14 +326,7 @@ export default function YardMap({
         setSearchEnabled(false);
       }
 
-      const polygon = new googleLib.maps.Polygon({
-        ...POLYGON_OPTIONS,
-        map,
-      });
-      polygonRef.current = polygon;
-      polygon.setEditable(true);
-
-      // Create a preview polyline for showing the in-progress drawing
+      // Preview polyline for in-progress drawing
       const previewLine = new googleLib.maps.Polyline({
         map,
         strokeColor: "#16a34a",
@@ -275,16 +338,15 @@ export default function YardMap({
       });
       previewPolylineRef.current = previewLine;
 
-      const initialCoords = initialPolygonRef.current;
-      if (initialCoords && initialCoords.length) {
-        polygon.setPath(normalizeCoords(initialCoords));
+      // Apply initial zones
+      const initZones = initialZonesRef.current;
+      if (initZones && initZones.length) {
+        applyZones(initZones);
       }
 
-      attachEvents();
-
-      if (pendingSetPolygonRef.current) {
-        applyPolygonPath(pendingSetPolygonRef.current);
-        pendingSetPolygonRef.current = null;
+      if (pendingSetZonesRef.current) {
+        applyZones(pendingSetZonesRef.current);
+        pendingSetZonesRef.current = null;
       }
     };
 
@@ -322,7 +384,11 @@ export default function YardMap({
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      polygonRef.current?.setMap(null);
+      zonesRef.current.forEach((z) => {
+        z.listeners.forEach((l) => l.remove());
+        z.polygon.setMap(null);
+      });
+      zonesRef.current = [];
       previewPolylineRef.current?.setMap(null);
       previewPolylineRef.current = null;
       mapClickListenerRef.current?.remove();
@@ -352,29 +418,43 @@ export default function YardMap({
       lng: roundCoord(v.lng()),
     }));
 
-    // Apply to the main polygon
-    const polygon = polygonRef.current;
-    if (polygon) {
-      suppressEmitRef.current = true;
-      polygon.setPath(coords.map((c) => new google.maps.LatLng(c.lat, c.lng)));
-      polygon.setEditable(true);
-      attachEventsRef.current?.();
-      window.requestAnimationFrame(() => {
-        suppressEmitRef.current = false;
-        // Emit the change
-        const path = polygon.getPath();
-        if (!path) return;
-        const finalCoords = coordsFromPath(path);
-        onPolygonChange?.(finalCoords);
-        if (isInIframe()) {
-          window.parent.postMessage({ type: "YARD_POLYGON_CHANGE", coords: finalCoords }, "*");
-        }
+    // Create a new locked zone polygon and add it to the collection
+    if (googleRef.current && mapRef.current) {
+      const scopeOpts = getScopePolygonOptions(currentScopeRef.current);
+      const poly = new googleRef.current.maps.Polygon({
+        ...POLYGON_BASE,
+        ...scopeOpts,
+        map: mapRef.current,
+        editable: false,
+        clickable: true,
       });
+      poly.setPath(coords.map((c) => new googleRef.current!.maps.LatLng(c.lat, c.lng)));
+      const zone: ZoneData = { polygon: poly, listeners: [] };
+
+      // Attach path-change listeners for this zone
+      if (emitAllZonesRef.current) {
+        const emitFn = emitAllZonesRef.current;
+        FRAME_EVENTS.forEach((evt) => {
+          const l = poly.getPath().addListener(evt, emitFn);
+          zone.listeners.push(l);
+          listenersRef.current.push(l);
+        });
+      }
+      // Click to select for editing
+      poly.addListener("click", () => {
+        zonesRef.current.forEach((z) => z.polygon.setEditable(false));
+        poly.setEditable(true);
+        setDrawingEnabled(false);
+      });
+
+      zonesRef.current.push(zone);
     }
 
+    emitAllZonesRef.current?.();
     clearDrawingState();
     setDrawingEnabled(false);
-  }, [clearDrawingState, onPolygonChange]);
+    setZoneCount(zonesRef.current.length);
+  }, [clearDrawingState]);
 
   const applyDrawingMode = React.useCallback(
     (enabled: boolean) => {
@@ -390,25 +470,14 @@ export default function YardMap({
       mapClickListenerRef.current = null;
 
       if (enabled) {
-        // Hide the existing polygon while drawing a new one
-        polygonRef.current?.setEditable(false);
-        polygonRef.current?.setPath([]);
-
+        // Lock all existing zones (keep them visible, just non-editable)
+        zonesRef.current.forEach((z) => z.polygon.setEditable(false));
         clearDrawingState();
 
         const listener = map.addListener("click", (event: google.maps.MapMouseEvent) => {
           if (!event.latLng) return;
 
           const vertices = drawingVerticesRef.current;
-
-          // Check if tapping near the first point to close (need 3+ vertices)
-          if (vertices.length >= 3) {
-            const dist = haversineDistance(event.latLng, vertices[0]);
-            if (dist < CLOSE_DISTANCE_M) {
-              closeShape();
-              return;
-            }
-          }
 
           // Add this vertex
           vertices.push(event.latLng);
@@ -428,18 +497,9 @@ export default function YardMap({
               strokeColor: "#0f5132",
               strokeWeight: 2,
             },
-            clickable: isFirst && vertices.length >= 3,
+            clickable: false,
             zIndex: 5,
           });
-
-          if (isFirst) {
-            // Allow clicking the first marker to close the shape
-            marker.addListener("click", () => {
-              if (drawingVerticesRef.current.length >= 3) {
-                closeShape();
-              }
-            });
-          }
 
           vertexMarkersRef.current.push(marker);
 
@@ -450,11 +510,6 @@ export default function YardMap({
         mapClickListenerRef.current = listener;
       } else {
         clearDrawingState();
-        // Re-enable polygon editing
-        const polygon = polygonRef.current;
-        if (polygon && polygon.getPath().getLength() > 0) {
-          polygon.setEditable(true);
-        }
       }
     },
     [clearDrawingState, closeShape]
@@ -469,26 +524,50 @@ export default function YardMap({
     const handler = (event: MessageEvent) => {
       const data = event.data;
       if (!data || typeof data !== "object") return;
-      if (data.type === "YARD_SET_POLYGON") {
-        const coords = Array.isArray(data.coords) ? data.coords : [];
-        const normalized = normalizeCoords(coords as LatLng[]);
-        if (polygonRef.current) {
-          suppressEmitRef.current = true;
-          polygonRef.current.setPath(normalized);
-          // Re-attach event listeners to the new path
-          attachEventsRef.current?.();
-          window.requestAnimationFrame(() => {
-            suppressEmitRef.current = false;
-          });
+
+      // Multi-zone: set all zones at once
+      if (data.type === "YARD_SET_ZONES") {
+        const zones = Array.isArray(data.zones) ? data.zones : [];
+        if (applyZonesRef.current) {
+          applyZonesRef.current(zones);
         } else {
-          pendingSetPolygonRef.current = normalized;
+          pendingSetZonesRef.current = zones;
         }
         return;
       }
+
+      // Backward compat: single polygon → treat as one zone
+      if (data.type === "YARD_SET_POLYGON") {
+        const coords = Array.isArray(data.coords) ? normalizeCoords(data.coords as LatLng[]) : [];
+        const zones = coords.length >= 3 ? [coords] : [];
+        if (applyZonesRef.current) {
+          applyZonesRef.current(zones);
+        } else {
+          pendingSetZonesRef.current = zones;
+        }
+        return;
+      }
+
+      // Remove a specific zone by index
+      if (data.type === "YARD_REMOVE_ZONE") {
+        const index = typeof data.index === "number" ? data.index : -1;
+        removeZoneRef.current?.(index);
+        return;
+      }
+
       if (data.type === "YARD_TOGGLE_DRAWING") {
         setDrawingEnabled(Boolean(data.enabled));
         return;
       }
+
+      if (data.type === "YARD_SET_SCOPE") {
+        const scope = typeof data.scope === "string" ? data.scope : "";
+        currentScopeRef.current = scope;
+        const opts = getScopePolygonOptions(scope);
+        zonesRef.current.forEach((z) => z.polygon.setOptions(opts));
+        return;
+      }
+
       if (data.type === "YARD_GOTO_LOCATION") {
         const coords = data.coords as LatLng | undefined;
         if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) return;
@@ -524,6 +603,12 @@ export default function YardMap({
       inputEl.removeEventListener("blur", onBlur);
     };
   }, []);
+
+  const drawingStatusText = () => {
+    if (vertexCount === 0) return "Tap to place points on the map";
+    if (vertexCount < 3) return `${vertexCount} point${vertexCount > 1 ? "s" : ""} placed — keep tapping to outline`;
+    return `${vertexCount} points placed — tap "Close shape" to finish`;
+  };
 
   return (
     <div
@@ -562,32 +647,11 @@ export default function YardMap({
           }}
           role="alert"
         >
-          <p
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              margin: 0,
-              color: "#0f172a",
-            }}
-          >
+          <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: "#0f172a" }}>
             Map unavailable
           </p>
-          <p
-            style={{
-              fontSize: 14,
-              margin: 0,
-              color: "#475569",
-            }}
-          >
-            {loadError}
-          </p>
-          <p
-            style={{
-              fontSize: 12,
-              margin: 0,
-              color: "#475569",
-            }}
-          >
+          <p style={{ fontSize: 14, margin: 0, color: "#475569" }}>{loadError}</p>
+          <p style={{ fontSize: 12, margin: 0, color: "#475569" }}>
             Please reload or try again later.
           </p>
         </div>
@@ -624,6 +688,7 @@ export default function YardMap({
           }}
         />
       </div>
+      {/* Zone count badge */}
       {!drawingEnabled && (
         <div
           style={{
@@ -631,16 +696,63 @@ export default function YardMap({
             top: 68,
             left: 16,
             right: 16,
-            padding: "8px 16px",
-            borderRadius: 12,
-            background: "rgba(255,255,255,0.85)",
-            color: "#0f5132",
-            fontSize: 12,
-            boxShadow: "0 10px 30px rgba(15,23,42,0.12)",
-            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
           }}
         >
-          Search your address above, then tap &ldquo;Draw or edit&rdquo; to outline your area.
+          {zoneCount > 0 ? (
+            <div
+              style={{
+                padding: "5px 12px",
+                borderRadius: 9999,
+                background: "rgba(22,163,74,0.92)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(15,23,42,0.15)",
+              }}
+            >
+              {zoneCount} zone{zoneCount !== 1 ? "s" : ""} drawn
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: "6px 12px",
+                borderRadius: 9999,
+                background: "rgba(255,255,255,0.85)",
+                color: "#0f5132",
+                fontSize: 12,
+                boxShadow: "0 4px 12px rgba(15,23,42,0.1)",
+              }}
+            >
+              Search your address, then tap Draw
+            </div>
+          )}
+          <button
+            onClick={() => setDrawingEnabled(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 16px",
+              borderRadius: 9999,
+              border: "none",
+              background: "#0f5132",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(15,81,50,0.35)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            Draw
+          </button>
         </div>
       )}
       {drawingEnabled && (
@@ -666,28 +778,43 @@ export default function YardMap({
             gap: 8,
           }}
         >
-          <span>
-            Tap to place points &mdash; tap the <strong>first point</strong> again to close the
-            shape
-          </span>
-          {vertexCount >= 3 && (
+          <span>{drawingStatusText()}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {vertexCount > 0 && (
+              <button
+                onClick={closeShape}
+                disabled={vertexCount < 3}
+                style={{
+                  padding: "6px 16px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  background: vertexCount >= 3 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)",
+                  color: vertexCount >= 3 ? "#0f5132" : "rgba(255,255,255,0.45)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: vertexCount >= 3 ? "pointer" : "default",
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                Close shape
+              </button>
+            )}
             <button
-              onClick={closeShape}
+              onClick={() => setDrawingEnabled(false)}
               style={{
-                padding: "6px 16px",
+                padding: "6px 14px",
                 borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.4)",
-                background: "rgba(255,255,255,0.15)",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 600,
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "transparent",
+                color: "rgba(255,255,255,0.75)",
+                fontSize: 11,
+                fontWeight: 500,
                 cursor: "pointer",
-                backdropFilter: "blur(4px)",
               }}
             >
-              Close shape ({vertexCount} points)
+              Done
             </button>
-          )}
+          </div>
         </div>
       )}
     </div>

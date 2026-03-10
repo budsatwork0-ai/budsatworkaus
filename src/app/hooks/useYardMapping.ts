@@ -108,12 +108,18 @@ export function useYardMapping({
     target.postMessage(message, window.location.origin);
   }, []);
 
-  const postPolygonToIframe = useCallback((coords: LatLng[]) => {
+  /** Send all zones to the iframe map. Each element is one zone's coord array. */
+  const postZonesToIframe = useCallback((zones: LatLng[][]) => {
     if (typeof window === 'undefined') return;
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
-    target.postMessage({ type: 'YARD_SET_POLYGON', coords }, window.location.origin);
+    target.postMessage({ type: 'YARD_SET_ZONES', zones }, window.location.origin);
   }, []);
+
+  /** @deprecated Use postZonesToIframe instead. Wraps single polygon as one zone. */
+  const postPolygonToIframe = useCallback((coords: LatLng[]) => {
+    postZonesToIframe(coords.length >= 3 ? [coords] : []);
+  }, [postZonesToIframe]);
 
   const updateYardJob = useCallback(
     (id: string, updater: (job: YardJob) => YardJob) => {
@@ -124,21 +130,19 @@ export function useYardMapping({
   );
 
   // Memoize expensive calculations
-  const computeMeasurements = useCallback((coords: LatLng[]) => {
-    return {
-      area: computeAreaFromPath(coords),
-      perimeter: computePerimeterFromPath(coords),
-    };
+  const computeMeasurements = useCallback((zones: LatLng[][]) => {
+    const area = zones.reduce((sum, zone) => sum + computeAreaFromPath(zone), 0);
+    const perimeter = zones.reduce((sum, zone) => sum + computePerimeterFromPath(zone), 0);
+    return { area, perimeter };
   }, []);
 
   // Optimized polygon change handler with debouncing and batched updates
+  // Now accepts an array of zones (multi-polygon support)
   const handlePolygonChangeImmediate = useCallback(
-    (coords: LatLng[]) => {
+    (zones: LatLng[][]) => {
       setIsCalculating(true);
 
-      // Memoized calculations
-      const { area, perimeter } = computeMeasurements(coords);
-      const normalized = coords.length ? [coords] : [];
+      const { area, perimeter } = computeMeasurements(zones);
       const measurement = getYardMeasurementConfig(scopeRef.current);
       const measurementValue = measurement.mode === 'perimeter' ? perimeter : area;
 
@@ -172,12 +176,11 @@ export function useYardMapping({
           ...paramsRef.current,
           yard: nextYardParams,
         },
-        yardPolygon: normalized,
+        yardPolygon: zones,
         yardArea: area || null,
         yardPerimeter: perimeter || null,
       };
 
-      // Apply batched updates
       Object.entries(updates).forEach(([key, value]) => {
         set(key as any, value);
       });
@@ -185,7 +188,7 @@ export function useYardMapping({
       if (activeYardJob?.job_id) {
         updateYardJob(activeYardJob.job_id, (job) => ({
           ...job,
-          polygon_geojson: normalized,
+          polygon_geojson: zones,
           area_m2: area || null,
           price,
           status: 'draft',
@@ -205,7 +208,7 @@ export function useYardMapping({
 
   const addYardJob = useCallback(() => {
     const createYardJob = (): YardJob => ({
-      job_id: `yard_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      job_id: `yard_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       polygon_geojson: [],
       area_m2: null,
       price: 0,
@@ -223,7 +226,7 @@ export function useYardMapping({
       const nextActive = next.length ? next[0].job_id : null;
       set('yardActiveJobId', nextActive);
       if (!nextActive) {
-        postPolygonToIframe([]);
+        postZonesToIframe([]);
         const measurement = getYardMeasurementConfig(scopeRef.current);
         const yardParams = paramsRef.current.yard || {};
         const clearedParams = {
@@ -239,11 +242,11 @@ export function useYardMapping({
         });
       }
     },
-    [set, postPolygonToIframe, getYardMeasurementConfig]
+    [set, postZonesToIframe, getYardMeasurementConfig]
   );
 
   const resetActivePolygon = useCallback(() => {
-    postPolygonToIframe([]);
+    postZonesToIframe([]);
     set('yardPolygon', []);
     set('yardArea', null);
     set('yardPerimeter', null);
@@ -275,7 +278,7 @@ export function useYardMapping({
 
     // Auto-enable drawing mode after clearing
     postMessageToIframe({ type: 'YARD_TOGGLE_DRAWING', enabled: true });
-  }, [set, postPolygonToIframe, activeYardJob, updateYardJob, getYardMeasurementConfig, postMessageToIframe]);
+  }, [set, postZonesToIframe, activeYardJob, updateYardJob, getYardMeasurementConfig, postMessageToIframe]);
 
   // Listen to messages from iframe
   useEffect(() => {
@@ -283,18 +286,35 @@ export function useYardMapping({
 
     const handler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      const data = event.data as { type?: string; coords?: unknown; address?: string };
+      const data = event.data as { type?: string; zones?: unknown; coords?: unknown; address?: string };
       if (!data || typeof data.type !== 'string') return;
 
-      if (data.type === 'YARD_POLYGON_CHANGE' && Array.isArray(data.coords)) {
-        const normalized: LatLng[] = data.coords
-          .map((entry: any) => ({
-            lat: Number(entry?.lat),
-            lng: Number(entry?.lng),
-          }))
-          .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
-        handlePolygonChange(normalized);
-        return;
+      if (data.type === 'YARD_POLYGON_CHANGE') {
+        // New multi-zone format: data.zones is LatLng[][]
+        if (Array.isArray(data.zones)) {
+          const normalizedZones: LatLng[][] = data.zones
+            .map((zone: any) =>
+              (Array.isArray(zone) ? zone : [])
+                .map((entry: any) => ({
+                  lat: Number(entry?.lat),
+                  lng: Number(entry?.lng),
+                }))
+                .filter((pt: any) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng))
+            )
+            .filter((zone: LatLng[]) => zone.length >= 3);
+          handlePolygonChange(normalizedZones);
+          return;
+        }
+        // Legacy format: data.coords is a flat LatLng[] (single polygon)
+        if (Array.isArray(data.coords)) {
+          const normalized: LatLng[] = (data.coords as any[])
+            .map((entry: any) => ({ lat: Number(entry?.lat), lng: Number(entry?.lng) }))
+            .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+          if (normalized.length >= 3) {
+            handlePolygonChange([normalized]);
+          }
+          return;
+        }
       }
 
       if (data.type === 'YARD_ADDRESS') {
@@ -304,12 +324,7 @@ export function useYardMapping({
         const activeId = yardActiveJobIdRef.current || jobs[0]?.job_id;
         if (!activeId) return;
         const nextJobs = jobs.map((job) =>
-          job.job_id === activeId
-            ? {
-                ...job,
-                address,
-              }
-            : job
+          job.job_id === activeId ? { ...job, address } : job
         );
         set('yardJobs', nextJobs as any);
       }
@@ -319,18 +334,19 @@ export function useYardMapping({
     return () => window.removeEventListener('message', handler);
   }, [handlePolygonChange, set]);
 
-  // Sync polygon when active job or scope changes (recalculate measurements and price for new scope)
+  // Sync zones when active job or scope changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
 
-    const polygon = activeYardJob?.polygon_geojson?.[0] || [];
-    postPolygonToIframe(polygon);
+    // All zones for the active job
+    const zones = activeYardJob?.polygon_geojson || [];
+    postZonesToIframe(zones);
+    postMessageToIframe({ type: 'YARD_SET_SCOPE', scope });
 
-    const normalized = polygon.length ? [polygon] : [];
-    const { area, perimeter } = computeMeasurements(polygon);
-    const measurement = getYardMeasurementConfig(scope); // Use scope directly, not ref
+    const { area, perimeter } = computeMeasurements(zones);
+    const measurement = getYardMeasurementConfig(scope);
     const measurementValue = measurement.mode === 'perimeter' ? perimeter : area;
 
     const currentYardParams = paramsRef.current.yard || {};
@@ -351,12 +367,12 @@ export function useYardMapping({
       });
     }
 
-    set('yardPolygon', normalized);
+    set('yardPolygon', zones);
     set('yardArea', area || null);
     set('yardPerimeter', perimeter || null);
 
     // Recalculate job price when scope changes
-    if (activeYardJob?.job_id && polygon.length >= 3) {
+    if (activeYardJob?.job_id && zones.some((z) => z.length >= 3)) {
       const yardCondMap: Record<YardConditionLevel, number> = {
         light: 0.9,
         standard: 1,
@@ -381,7 +397,7 @@ export function useYardMapping({
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeYardJob?.job_id, scope, postPolygonToIframe, set, getYardMeasurementConfig, computeMeasurements, computeYardQuote, updateYardJob]);
+  }, [activeYardJob?.job_id, scope, postZonesToIframe, set, getYardMeasurementConfig, computeMeasurements, computeYardQuote, updateYardJob]);
 
   return {
     iframeRef,
@@ -389,6 +405,7 @@ export function useYardMapping({
     handlePolygonChange,
     postMessageToIframe,
     postPolygonToIframe,
+    postZonesToIframe,
     addYardJob,
     removeYardJob,
     resetActivePolygon,

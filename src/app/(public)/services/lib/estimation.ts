@@ -12,6 +12,7 @@ import type {
   TravelBand,
   SelMap,
 } from '../types';
+import { calcTransportQuote, calcDeliveryQuote } from './pricing/transport';
 import { clamp, fmtAUD, fmtHrMin } from '../utils/formatting';
 import {
   DEFAULT_DUMP_RUN,
@@ -101,36 +102,16 @@ export function calculateEstimatedPrice(serviceId: ScopeKey | string, wizardStat
   const scope = (serviceId || wizardState.scope) as ScopeKey;
   if (scope === 'dump_delivery') {
     const delivery = wizardState.dumpDelivery || DEFAULT_DUMP_DELIVERY;
-    const effortMap: Record<NonNullable<DeliverySelection['itemType']>, number> = {
-      parcel: 0,
-      household: 1,
-      mattress: 2,
-      groceries: 1,
-      tools: 1,
-    };
-    const effortBlocks = effortMap[delivery.itemType || 'parcel'] ?? 0;
-    const physicalBlocks = delivery.assist === 'need_help' ? 1 : 0;
-    const travel = travelRange(delivery.distance, wizardState.distanceKm);
-    return combinePricing(effortBlocks, physicalBlocks, travel);
+    const result = calcDeliveryQuote(delivery, wizardState.distanceKm);
+    if (result.isCustomQuote) return null;
+    return { min: result.total, max: result.total };
   }
 
   if (scope === 'dump_transport') {
     const transport = wizardState.dumpTransport || DEFAULT_DUMP_TRANSPORT;
-    const sizeEffort: Record<TransportSelection['loadSize'], number> = {
-      bags: 1,
-      boot: 2,
-      small_load: 3,
-      full_move: 4,
-    };
-    const effortBlocks = sizeEffort[transport.loadSize] ?? 1;
-    const physicalBlocks =
-      transport.stairs === 'one'
-        ? 1
-        : transport.stairs === 'multi' || transport.stairs === 'no_lift'
-        ? 2
-        : 0;
-    const travel = travelRange(null, wizardState.distanceKm);
-    return combinePricing(effortBlocks, physicalBlocks, travel);
+    const result = calcTransportQuote(transport, wizardState.distanceKm);
+    if (result.isCustomQuote) return null;
+    return { min: result.total, max: result.total };
   }
 
   if (scope === 'dump_runs') {
@@ -216,6 +197,7 @@ export function calculateEstimatedTime(serviceId: ScopeKey | string, wizardState
     const greenBins = dumpParams.greenBins ?? 0;
     const kitchenBins = dumpParams.kitchenBins ?? 0;
     const totalBins = redBins + yellowBins + greenBins + kitchenBins;
+    if (totalBins === 0) return null;
     if (totalBins <= 2) return '~15–25 mins';
     if (totalBins <= 4) return '~25–40 mins';
     if (totalBins <= 6) return '~35–50 mins';

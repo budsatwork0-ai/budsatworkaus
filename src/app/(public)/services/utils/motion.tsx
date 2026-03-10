@@ -24,9 +24,13 @@ const MButton = ({ children, ...props }: any) => {
   );
 };
 
+const MOTION_PROPS = new Set(['initial', 'animate', 'exit', 'whileInView', 'whileHover', 'whileTap', 'whileFocus', 'whileDrag', 'variants', 'transition', 'viewport', 'layout', 'layoutId', 'layoutDependency', 'onAnimationStart', 'onAnimationComplete', 'onUpdate']);
+
 const MDiv = ({ children, ...props }: any) => {
   const motionAllowed = React.useContext(MotionContext) && WITH_MOTION;
-  return motionAllowed ? <motion.div {...props}>{children}</motion.div> : <div {...props}>{children}</div>;
+  if (motionAllowed) return <motion.div {...props}>{children}</motion.div>;
+  const domProps = Object.fromEntries(Object.entries(props).filter(([k]) => !MOTION_PROPS.has(k)));
+  return <div {...domProps}>{children}</div>;
 };
 
 export const M = {

@@ -4,6 +4,9 @@ import type {
   SneakerTurnaround,
   Context,
   ServiceType,
+  LaundryPerLoadAddOn,
+  LaundryPerOrderAddOn,
+  IroningItemType,
 } from '../../types';
 import { brand } from '@/app/ui/theme';
 
@@ -35,16 +38,39 @@ export const PRICE_OVERRIDE: Record<string, number> = {
   'dump.bin': 20,
   // Laundry pricing (per load ~5kg, pickup & delivery included)
   'laundry.fold': 30,  // Wash & Fold $30/load
-  'laundry.iron': 45,  // Wash & Iron $45/load
   // Sneaker care pricing (turnaround surcharges: Express +$5/pair, Priority +$10/pair)
-  // Refresh Clean / Deep Restore: $40/pair (Standard), $45 (Express), $50 (Priority)
-  // Multi-Pair Care: $30/pair (Standard), $35 (Express), $40 (Priority) × ~4 pairs per lot
-  'sneaker.basic': 40,
-  'sneaker.full': 40,
-  'sneaker.lot': 120,
+  'sneaker.basic': 40,  // Refresh Clean $40/pair
+  'sneaker.full': 60,   // Deep Restore $60/pair
   'auto.wash': 160,
   'auto.interior': 170,
   'auto.full': 290,
+};
+
+// Sneaker multi-pair fixed pricing tiers
+export const SNEAKER_MULTI_PRICING: { pairs: number; price: number; popular?: boolean }[] = [
+  { pairs: 1,  price: 40 },
+  { pairs: 2,  price: 75 },
+  { pairs: 3,  price: 95,  popular: true },
+  { pairs: 5,  price: 145 },
+  { pairs: 10, price: 270 },
+];
+
+// Laundry add-on pricing
+export const LAUNDRY_PER_LOAD_ADDONS: Record<LaundryPerLoadAddOn, { label: string; price: number }> = {
+  eco_detergent:      { label: 'Sensitive / eco detergent', price: 3  },
+  extra_rinse:        { label: 'Extra rinse',               price: 4  },
+  whites_brightening: { label: 'Whites / brightening',      price: 10 },
+};
+
+export const LAUNDRY_PER_ORDER_ADDONS: Record<LaundryPerOrderAddOn, { label: string; price: number }> = {
+  hygiene_sanitise:   { label: 'Hygiene / sanitise',    price: 15 },
+  express_turnaround: { label: 'Express turnaround',    price: 15 },
+};
+
+export const LAUNDRY_IRONING_PRICES: Record<IroningItemType, { label: string; price: number }> = {
+  standard:       { label: 'Standard item',  price: 4 },
+  business_shirt: { label: 'Business shirt', price: 5 },
+  complex:        { label: 'Complex item',   price: 8 },
 };
 
 // Auto/Sneaker categories
@@ -97,7 +123,7 @@ export const SERVICE_REGIONS = [
 // Allowed services by context
 export const ALLOWED_SERVICES_BY_CONTEXT: Record<Context, ServiceType[]> = {
   home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
-  commercial: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
+  commercial: ['windows', 'cleaning', 'yard'],
 };
 
 // Default selections
@@ -106,11 +132,17 @@ export const DEFAULT_DUMP_DELIVERY = {
   itemType: null,
   distance: 'same_suburb',
   assist: 'no_help',
+  extraStops: 0,
+  priority: false,
+  stairsAtDropoff: false,
 } as const;
 export const DEFAULT_DUMP_TRANSPORT = {
   moveType: 'house',
   stairs: 'none',
   loadSize: 'small_load',
+  helpers: 1,
+  urgent: false,
+  afterHours: false,
 } as const;
 
 // Windows constants

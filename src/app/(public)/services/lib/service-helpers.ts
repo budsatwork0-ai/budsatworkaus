@@ -131,7 +131,7 @@ export function scopePresetFor(
 
   if (service === 'dump') {
     if (scope === 'dump_runs') return { ...zero, items: 4, stops: 1, bins: 0 };
-    if (scope === 'bin_cleans') return { ...zero, redBins: 1, yellowBins: 1, greenBins: 0, kitchenBins: 0, items: 0, stops: 0 };
+    if (scope === 'bin_cleans') return { ...zero, redBins: 0, yellowBins: 0, greenBins: 0, kitchenBins: 0, binPlan: 0, items: 0, stops: 0 };
     if (scope === 'dump_delivery') return { ...zero, items: 2, stops: 2, bins: 0 };
     if (scope === 'dump_transport') return { ...zero, items: 3, stops: 2, bins: 0 };
   }

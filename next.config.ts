@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['framer-motion'],
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',

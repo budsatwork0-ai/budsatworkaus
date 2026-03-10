@@ -86,7 +86,11 @@ export function getInitialState(): WizardState {
     // Laundry & Sneaker Care
     laundryTier: 'wash_fold',
     laundryLoads: 1,
+    laundryPerLoadAddOns: [],
+    laundryPerOrderAddOns: [],
+    laundryIroningItems: [],
     sneakerTier: 'deep',
+    sneakerPairCount: 3,
   };
 }
 
