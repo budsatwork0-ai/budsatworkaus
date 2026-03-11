@@ -70,8 +70,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Auth is optional — anonymous visitors can submit quotes.
+  // If they are logged in we link the quote to their account.
   const authUser = await getAuthUser();
-  if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await (client as any)
     .from('quotes')
     .insert({
-      customer_id: authUser.role === 'customer' ? authUser.id : null,
+      customer_id: authUser?.role === 'customer' ? authUser.id : null,
       customer_name: body.customer_name,
       customer_email: body.customer_email,
       customer_phone: body.customer_phone,
