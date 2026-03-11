@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createStripeClient } from '@/lib/stripe/server';
+import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
+import { quoteFinalizedEmail } from '@/lib/email/templates';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     currency: 'aud',
+    automatic_payment_methods: { enabled: true },
     customer_email: quote.customer_email || undefined,
     line_items: [
       {
@@ -158,6 +161,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', quote.id);
+
+  // Send "quote finalized" email — fire and forget
+  if (quote.customer_email && session.url) {
+    const resend = getResendClient();
+    if (resend) {
+      const { subject, html } = quoteFinalizedEmail({
+        customerName: quote.customer_name,
+        serviceLabel: SERVICE_LABELS[quote.service_type] || quote.service_type,
+        total: amount,
+        quoteId: quote.id,
+        paymentUrl: session.url,
+      });
+      resend.emails.send({ from: FROM_ADDRESS, to: quote.customer_email, subject, html }).catch(() => {});
+    }
+  }
 
   return NextResponse.json({
     url: session.url,

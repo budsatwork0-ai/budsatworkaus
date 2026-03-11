@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
+import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
+import { bookingConfirmedEmail } from '@/lib/email/templates';
+
+const SERVICE_LABELS: Record<string, string> = {
+  windows: 'Window Cleaning',
+  cleaning: 'Home/Commercial Cleaning',
+  yard: 'Yard Care',
+  dump: 'Dump Runs',
+  auto: 'Auto Detailing',
+  laundry_sneakers: 'Laundry & Sneaker Care',
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +146,23 @@ export async function POST(req: NextRequest) {
             stripe_session_id: session.id,
             payment_intent: session.payment_intent,
           });
+        }
+
+        // Send booking confirmed email — fire and forget
+        const customerEmail = session.customer_email || session.customer_details?.email;
+        if (customerEmail) {
+          const resend = getResendClient();
+          if (resend) {
+            const serviceType = session.metadata?.service_type ?? '';
+            const customerName = session.metadata?.customer_name ?? 'there';
+            const { subject, html } = bookingConfirmedEmail({
+              customerName,
+              serviceLabel: SERVICE_LABELS[serviceType] ?? serviceType,
+              total: paymentAmount,
+              orderId: resolvedOrderId,
+            });
+            resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch(() => {});
+          }
         }
 
         break;

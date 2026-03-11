@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
+import { quoteReceivedEmail } from '@/lib/email/templates';
+
+const SERVICE_LABELS: Record<string, string> = {
+  windows: 'Window Cleaning',
+  cleaning: 'Home/Commercial Cleaning',
+  yard: 'Yard Care',
+  dump: 'Dump Runs',
+  auto: 'Auto Detailing',
+  laundry_sneakers: 'Laundry & Sneaker Care',
+};
 
 // 10 quote submissions per IP per 15 minutes.
 const checkQuotePostLimit = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
@@ -111,5 +122,21 @@ export async function POST(request: NextRequest) {
     console.error('[api/quotes] POST failed:', error.message);
     return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
   }
+
+  // Send "quote received" confirmation email — fire and forget
+  const customerEmail = body.customer_email as string | undefined;
+  if (customerEmail && data) {
+    const resend = getResendClient();
+    if (resend) {
+      const { subject, html } = quoteReceivedEmail({
+        customerName: body.customer_name as string,
+        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+        total: submittedTotal,
+        quoteId: data.id,
+      });
+      resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch(() => {});
+    }
+  }
+
   return NextResponse.json({ quote: data });
 }

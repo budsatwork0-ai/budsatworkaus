@@ -41,6 +41,8 @@ export default function AvailableJobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [confirmDecline, setConfirmDecline] = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -64,7 +66,9 @@ export default function AvailableJobsPage() {
   }, [employee, fetchJobs]);
 
   async function handleAction(assignmentId: string, action: 'accepted' | 'declined') {
+    setConfirmDecline(null);
     setActionLoading(assignmentId);
+    setActionError((prev) => { const next = { ...prev }; delete next[assignmentId]; return next; });
     try {
       const res = await fetch(`/api/crew/jobs/${assignmentId}`, {
         method: 'PATCH',
@@ -72,11 +76,13 @@ export default function AvailableJobsPage() {
         body: JSON.stringify({ status: action }),
       });
       if (res.ok) {
-        // Remove from available list
         setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setActionError((prev) => ({ ...prev, [assignmentId]: body.error ?? 'Action failed. Try again.' }));
       }
     } catch {
-      // handle silently
+      setActionError((prev) => ({ ...prev, [assignmentId]: 'Network error. Try again.' }));
     } finally {
       setActionLoading(null);
     }
@@ -193,24 +199,54 @@ export default function AvailableJobsPage() {
                     <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6' }}>
                       ~{SERVICE_HOURS[order.service_type] ?? 2}h est.
                     </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAction(assignment.id, 'declined')}
-                        disabled={actionLoading === assignment.id}
-                        className="px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-red-50"
-                        style={{ borderColor: brand.border, color: '#DC2626' }}
-                      >
-                        Decline
-                      </button>
-                      <button
-                        onClick={() => handleAction(assignment.id, 'accepted')}
-                        disabled={actionLoading === assignment.id}
-                        className="px-3 py-1.5 rounded-lg text-sm text-white transition-colors hover:opacity-90"
-                        style={{ background: brand.primary }}
-                      >
-                        Accept
-                      </button>
-                    </div>
+                    {confirmDecline === assignment.id ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <p className="text-xs font-medium text-red-600">Decline this job?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setConfirmDecline(null)}
+                            className="px-3 py-1.5 rounded-lg text-sm border transition-colors"
+                            style={{ borderColor: brand.border, color: brand.muted }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleAction(assignment.id, 'declined')}
+                            disabled={actionLoading === assignment.id}
+                            className="px-3 py-1.5 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                            style={{ background: '#DC2626' }}
+                          >
+                            {actionLoading === assignment.id ? (
+                              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : 'Yes, decline'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmDecline(assignment.id)}
+                          disabled={actionLoading === assignment.id}
+                          className="px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-red-50 disabled:opacity-50"
+                          style={{ borderColor: brand.border, color: '#DC2626' }}
+                        >
+                          Decline
+                        </button>
+                        <button
+                          onClick={() => handleAction(assignment.id, 'accepted')}
+                          disabled={actionLoading === assignment.id}
+                          className="px-3 py-1.5 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                          style={{ background: brand.primary }}
+                        >
+                          {actionLoading === assignment.id ? (
+                            <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : 'Accept'}
+                        </button>
+                      </div>
+                    )}
+                    {actionError[assignment.id] && (
+                      <p className="text-xs text-red-600 mt-1">{actionError[assignment.id]}</p>
+                    )}
                     <Link
                       href={`/crew/jobs/${assignment.id}`}
                       className="text-xs underline"

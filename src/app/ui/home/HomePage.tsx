@@ -432,10 +432,9 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          {/* TODO: replace href with real Google Reviews link once available */}
           <div className="mt-6 text-center">
             <a
-              href="https://g.page/r/PLACEHOLDER/review"
+              href="https://g.page/r/CYTORrk6H3xmEAI/review"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-sm font-medium hover:underline"

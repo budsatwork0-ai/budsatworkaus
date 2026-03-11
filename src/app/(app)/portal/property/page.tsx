@@ -137,23 +137,31 @@ export default function PropertyPage() {
         </div>
       </div>
 
-      {/* Map placeholder */}
       <div className={`${glass} p-5`}>
         <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>Location</h2>
-        <div
-          className="w-full h-48 rounded-xl flex items-center justify-center"
-          style={{ background: 'rgba(15,61,46,0.05)', border: '2px dashed rgba(15,61,46,0.15)' }}
-        >
-          <div className="text-center">
-            <svg className="mx-auto mb-2" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <p className="text-xs" style={{ color: brand.muted }}>
-              {info.address || 'Add your address above to see it on the map'}
-            </p>
+        {info.address ? (
+          <iframe
+            src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(info.address)}`}
+            className="w-full rounded-xl border-0"
+            style={{ height: '192px' }}
+            loading="lazy"
+            allowFullScreen
+            title="Property location map"
+          />
+        ) : (
+          <div
+            className="w-full h-48 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(15,61,46,0.05)', border: '2px dashed rgba(15,61,46,0.15)' }}
+          >
+            <div className="text-center">
+              <svg className="mx-auto mb-2" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <p className="text-xs" style={{ color: brand.muted }}>Add your address above to see it on the map</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
