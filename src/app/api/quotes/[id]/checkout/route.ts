@@ -114,7 +114,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const contextLabel = quote.context === 'commercial' ? 'Commercial' : 'Residential';
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
 
-  const session = await stripe.checkout.sessions.create({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await (stripe.checkout.sessions.create as any)({
     mode: 'payment',
     currency: 'aud',
     automatic_payment_methods: { enabled: true },
