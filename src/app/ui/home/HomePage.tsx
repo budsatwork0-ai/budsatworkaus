@@ -195,18 +195,17 @@ export default function HomePage() {
     <div className="relative">
       {/* HERO - Full screen with video */}
       <section
-        className="relative flex items-center justify-center text-center"
+        className="relative flex items-center justify-center text-center -mt-8 md:-mt-10"
         style={{
-          height: 'calc(100vh - 2.5rem)',
+          minHeight: '100svh',
           marginLeft: 'calc(-50vw + 50%)',
           marginRight: 'calc(-50vw + 50%)',
-          marginTop: '-2.5rem',
           width: '100vw',
         }}
       >
         {/* Video Background - positioned to go behind header */}
         <div
-          className="absolute z-0"
+          className="absolute z-0 bg-slate-900"
           style={{
             top: '-100px',
             left: 0,
@@ -214,15 +213,12 @@ export default function HomePage() {
             bottom: 0,
           }}
         >
-          {/* Mobile: static gradient instead of video to avoid large download */}
-          <div className="sm:hidden absolute inset-0 bg-gradient-to-br from-emerald-900 via-slate-800 to-slate-900" />
-          {/* Desktop: video background */}
           <video
             autoPlay
             muted
             loop
             playsInline
-            className="hidden sm:block w-full h-full object-cover"
+            className="w-full h-full object-cover"
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
@@ -302,7 +298,7 @@ export default function HomePage() {
               <Link key={s.key} href={s.href} className="group min-w-0">
                 <div
                   className={cx(
-                    'rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all',
+                    'h-full rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all',
                     glass,
                     'hover:shadow-lg hover:-translate-y-0.5'
                   )}
