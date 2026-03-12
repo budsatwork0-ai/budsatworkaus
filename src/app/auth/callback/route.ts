@@ -57,13 +57,17 @@ export async function GET(req: NextRequest) {
             // Link any anonymous quotes submitted with this email to this new account.
             if (user.email) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const { error: linkError } = await (serviceClient as any)
+              const { data: orphaned } = await (serviceClient as any)
                 .from('quotes')
-                .update({ customer_id: user.id, updated_at: new Date().toISOString() })
+                .select('id')
                 .ilike('customer_email', user.email)
                 .is('customer_id', null);
-              if (linkError) {
-                console.error('[auth/callback] Failed to link orphaned quotes for', user.email, linkError.message);
+              if (orphaned && orphaned.length > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (serviceClient as any)
+                  .from('quotes')
+                  .update({ customer_id: user.id, updated_at: new Date().toISOString() })
+                  .in('id', orphaned.map((q: { id: string }) => q.id));
               }
             }
           }

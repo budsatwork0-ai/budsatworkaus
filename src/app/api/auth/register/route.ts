@@ -89,13 +89,20 @@ export async function POST(req: NextRequest) {
 
     // Link any anonymous quotes submitted with this email to this new account.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: linkError } = await (client as any)
+    const { data: orphaned } = await (client as any)
       .from('quotes')
-      .update({ customer_id: userId, updated_at: new Date().toISOString() })
+      .select('id')
       .ilike('customer_email', emailKey)
       .is('customer_id', null);
-    if (linkError) {
-      console.error('[auth/register] Failed to link orphaned quotes for', emailKey, linkError.message);
+    if (orphaned && orphaned.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: linkError } = await (client as any)
+        .from('quotes')
+        .update({ customer_id: userId, updated_at: new Date().toISOString() })
+        .in('id', orphaned.map((q: { id: string }) => q.id));
+      if (linkError) {
+        console.error('[auth/register] Failed to link orphaned quotes for', emailKey, linkError.message);
+      }
     }
   }
 

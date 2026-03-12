@@ -50,15 +50,28 @@ export async function GET(request: NextRequest) {
   }
 
   if (authUser.role === 'customer') {
-    // Retroactively link any anonymous quotes submitted with this email.
-    // No-op after first link (customer_id IS NULL filter never matches again).
+    // Retroactively link anonymous quotes submitted with this email.
+    // Select first, then update by ID — avoids PostgREST filter quirks on PATCH.
     if (authUser.email) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (client as any)
+      const { data: orphaned, error: findErr } = await (client as any)
         .from('quotes')
-        .update({ customer_id: authUser.id, updated_at: new Date().toISOString() })
+        .select('id')
         .ilike('customer_email', authUser.email)
         .is('customer_id', null);
+      if (findErr) {
+        console.error('[api/quotes] orphan find failed:', findErr.message);
+      } else if (orphaned && orphaned.length > 0) {
+        const ids = orphaned.map((q: { id: string }) => q.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: linkErr } = await (client as any)
+          .from('quotes')
+          .update({ customer_id: authUser.id, updated_at: new Date().toISOString() })
+          .in('id', ids);
+        if (linkErr) {
+          console.error('[api/quotes] orphan link failed:', linkErr.message);
+        }
+      }
     }
     query = query.eq('customer_id', authUser.id);
   }
