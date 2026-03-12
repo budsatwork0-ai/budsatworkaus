@@ -17,6 +17,21 @@ export function WindowsEditor({
   const isCommercial = S.context === 'commercial';
   const announceId = React.useId();
 
+  // Local copy of rows so typing doesn't trigger a parent re-render on every keystroke.
+  // Structural changes (add/remove level, mode switch, reset) still sync to parent immediately.
+  const [localRows, setLocalRows] = React.useState<WizardState['winRows']>(() => S.winRows);
+  const prevScopeRef = React.useRef(S.scope);
+  const prevRowsLenRef = React.useRef(S.winRows.length);
+
+  // Sync local rows when the parent makes a structural change (scope change or row count change).
+  React.useEffect(() => {
+    if (S.scope !== prevScopeRef.current || S.winRows.length !== prevRowsLenRef.current) {
+      setLocalRows(S.winRows);
+      prevScopeRef.current = S.scope;
+      prevRowsLenRef.current = S.winRows.length;
+    }
+  }, [S.winRows, S.scope]);
+
   const currentMode: Mode = React.useMemo(() => {
     if (S.scope === 'windows_interior') return 'inside';
     if (S.scope === 'windows_exterior') return 'outside';
@@ -64,16 +79,16 @@ export function WindowsEditor({
   };
 
   const toCount = (v: string | number) => Math.max(0, Math.floor(Number(v) || 0));
-  const rows = S.winRows;
 
   const minutes = React.useMemo(
-    () => computeWindowsMinutes(S.scope, rows, S.context, S.paramsByService.windows),
-    [rows, S.context, S.scope, S.paramsByService.windows]
+    () => computeWindowsMinutes(S.scope, localRows, S.context, S.paramsByService.windows),
+    [localRows, S.context, S.scope, S.paramsByService.windows]
   );
 
+  // Structural changes: sync both local state and parent state immediately.
   const replaceRows = (nextRows: WizardState['winRows'], nextScope?: ScopeKey, nextSeg?: { int: boolean; ext: boolean; tracks: boolean }) => {
     const trimmedRows = isCommercial ? nextRows : nextRows.slice(0, 3);
-    const before = computeWindowsMinutes(S.scope, rows, S.context, S.paramsByService.windows);
+    const before = computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
     const after = computeWindowsMinutes(
       nextScope ?? S.scope,
       trimmedRows,
@@ -86,6 +101,22 @@ export function WindowsEditor({
     set('winRows', trimmedRows);
     set('winStoreys', trimmedRows.length);
     notifyDelta(before, after);
+    setLocalRows(trimmedRows);
+  };
+
+  // Typing: update local state only. Parent syncs on blur.
+  const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
+    setLocalRows(prev => prev.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r)));
+  };
+
+  // On blur, push local row values up to parent state (one re-render instead of one per keypress).
+  const syncToParent = () => {
+    const trimmed = isCommercial ? localRows : localRows.slice(0, 3);
+    const before = computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
+    const after = computeWindowsMinutes(S.scope, trimmed, S.context, S.paramsByService.windows);
+    set('winRows', trimmed);
+    set('winStoreys', trimmed.length);
+    notifyDelta(before, after);
   };
 
   const applyMode = (mode: Mode) => {
@@ -95,18 +126,13 @@ export function WindowsEditor({
   };
 
   const addLevel = () => {
-    const next = [...rows, presetRowForMode(currentMode, rows.length)];
+    const next = [...localRows, presetRowForMode(currentMode, localRows.length)];
     replaceRows(next);
   };
 
   const removeLevel = () => {
-    if (rows.length <= 1) return;
-    replaceRows(rows.slice(0, -1));
-  };
-
-  const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
-    const next = rows.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r));
-    replaceRows(next);
+    if (localRows.length <= 1) return;
+    replaceRows(localRows.slice(0, -1));
   };
 
   const showInside = currentMode === 'both' || currentMode === 'inside';
@@ -121,8 +147,8 @@ export function WindowsEditor({
     return 'Third Floor';
   };
 
-  const displayRows = (isCommercial ? rows : [...rows].reverse()).map((row, index) => {
-    const sourceIndex = isCommercial ? index : rows.length - 1 - index;
+  const displayRows = (isCommercial ? localRows : [...localRows].reverse()).map((row, index) => {
+    const sourceIndex = isCommercial ? index : localRows.length - 1 - index;
     return { row, sourceIndex };
   });
 
@@ -147,7 +173,7 @@ export function WindowsEditor({
   return (
     <section aria-label="Windows editor" className="rounded-2xl overflow-hidden bg-gradient-to-br from-slate-50 to-white border border-slate-200 shadow-sm">
       <div id={announceId} className="sr-only" aria-live="polite">
-        {rows.length} levels. {fmtHrMin(minutes)}.
+        {localRows.length} levels. {fmtHrMin(minutes)}.
       </div>
 
       {/* Header with title and time estimate */}
@@ -247,28 +273,28 @@ export function WindowsEditor({
                 type="button"
                 className={cls(
                   'w-8 h-8 rounded-lg flex items-center justify-center text-lg font-medium transition-all',
-                  rows.length <= 1
+                  localRows.length <= 1
                     ? 'text-slate-300 cursor-not-allowed'
                     : 'text-slate-600 hover:bg-white hover:shadow-sm'
                 )}
                 onClick={removeLevel}
                 aria-label="Remove level"
-                disabled={rows.length <= 1}
+                disabled={localRows.length <= 1}
               >
                 −
               </button>
-              <span className="w-10 text-center text-sm font-semibold text-slate-700">{rows.length} {rows.length === 1 ? 'lvl' : 'lvls'}</span>
+              <span className="w-10 text-center text-sm font-semibold text-slate-700">{localRows.length} {localRows.length === 1 ? 'lvl' : 'lvls'}</span>
               <button
                 type="button"
                 className={cls(
                   'w-8 h-8 rounded-lg flex items-center justify-center text-lg font-medium transition-all',
-                  (!isCommercial && rows.length >= 3) || (isCommercial && rows.length >= 12)
+                  localRows.length >= 3
                     ? 'text-slate-300 cursor-not-allowed'
                     : 'text-slate-600 hover:bg-white hover:shadow-sm'
                 )}
                 onClick={addLevel}
                 aria-label="Add level"
-                disabled={isCommercial ? rows.length >= 12 : rows.length >= 3}
+                disabled={localRows.length >= 3}
               >
                 +
               </button>
@@ -300,7 +326,7 @@ export function WindowsEditor({
           <ul className="space-y-2">
             {displayRows.map(({ row: r, sourceIndex }, displayIndex) => {
               const label = labelForRow(sourceIndex);
-              const isTop = displayIndex === 0 && rows.length > 1;
+              const isTop = displayIndex === 0 && localRows.length > 1;
               return (
                 <li
                   key={`${label}-${sourceIndex}`}
@@ -339,6 +365,7 @@ export function WindowsEditor({
                         aria-label={`Inside panes for ${label}`}
                         value={r.int ? r.int : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'int', e.target.value)}
+                        onBlur={syncToParent}
                       />
                     </div>
                   )}
@@ -357,6 +384,7 @@ export function WindowsEditor({
                         aria-label={`Outside panes for ${label}`}
                         value={r.ext ? r.ext : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'ext', e.target.value)}
+                        onBlur={syncToParent}
                       />
                     </div>
                   )}
@@ -375,6 +403,7 @@ export function WindowsEditor({
                         aria-label={`Tracks for ${label}`}
                         value={r.tracks ? r.tracks : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'tracks', e.target.value)}
+                        onBlur={syncToParent}
                       />
                     </div>
                   )}
@@ -393,6 +422,7 @@ export function WindowsEditor({
                         aria-label={`Screens for ${label}`}
                         value={r.screens ? r.screens : ''}
                         onChange={(e) => updateRowValue(sourceIndex, 'screens', e.target.value)}
+                        onBlur={syncToParent}
                       />
                     </div>
                   )}
@@ -403,7 +433,7 @@ export function WindowsEditor({
                         type="button"
                         className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
                         aria-label={`Remove ${label}`}
-                        onClick={() => replaceRows(rows.filter((_, i) => i !== sourceIndex))}
+                        onClick={() => replaceRows(localRows.filter((_, i) => i !== sourceIndex))}
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -417,10 +447,10 @@ export function WindowsEditor({
           </ul>
         </div>
 
-        {/* Add level hint for residential */}
-        {!isCommercial && rows.length < 3 && (
+        {/* Add level hint */}
+        {localRows.length < 3 && (
           <p className="mt-4 text-center text-xs text-slate-500">
-            Click <span className="font-semibold">+</span> to add another level (up to 3 for residential)
+            Click <span className="font-semibold">+</span> to add another level (up to 3)
           </p>
         )}
       </div>

@@ -4645,7 +4645,7 @@ function winSessionMinutes(S: WizardState) {
                           'phone',
                           e.target.value
                             .replace(/\D+/g, '')
-                            .replace(/(\d{3})(\d{3})(\d{0,4}).*/, '$1 $2 $3')
+                            .replace(/(\d{4})(\d{3})(\d{0,3}).*/, '$1 $2 $3')
                             .trim()
                         )
                       }
