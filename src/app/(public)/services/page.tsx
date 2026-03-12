@@ -290,6 +290,12 @@ function ServicesPageContent() {
     },
     [dispatch]
   );
+  const setMany = React.useCallback(
+    (values: Partial<WizardState>) => {
+      dispatch({ type: 'merge', value: values });
+    },
+    [dispatch]
+  );
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
@@ -2542,7 +2548,7 @@ function winSessionMinutes(S: WizardState) {
                     onPointerDown={stopCardBubble}
                     onTouchStart={stopCardBubble}
                   >
-                    <WindowsEditor S={S} set={set} notifyDelta={notifyDelta} />
+                    <WindowsEditor S={S} setMany={setMany} notifyDelta={notifyDelta} />
                   </div>
                 )}
 

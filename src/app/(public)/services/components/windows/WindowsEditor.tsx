@@ -7,11 +7,11 @@ type Mode = 'both' | 'inside' | 'outside' | 'tracks';
 
 export function WindowsEditor({
   S,
-  set,
+  setMany,
   notifyDelta,
 }: {
   S: WizardState;
-  set: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void;
+  setMany: (values: Partial<WizardState>) => void;
   notifyDelta: (prevMin: number, nextMin: number) => void;
 }) {
   const isCommercial = S.context === 'commercial';
@@ -90,7 +90,7 @@ export function WindowsEditor({
     [localRows, S.context, S.scope, S.paramsByService.windows]
   );
 
-  // Structural changes: sync both local state and parent state immediately.
+  // Structural changes: sync both local state and parent state in one dispatch.
   const replaceRows = (nextRows: WizardState['winRows'], nextScope?: ScopeKey, nextSeg?: { int: boolean; ext: boolean; tracks: boolean }) => {
     const trimmedRows = isCommercial ? nextRows : nextRows.slice(0, 3);
     const before = computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
@@ -101,21 +101,25 @@ export function WindowsEditor({
       S.paramsByService.windows
     );
 
-    if (nextScope) set('scope', nextScope);
-    if (nextSeg) set('winSessionSeg', nextSeg);
-    set('winRows', trimmedRows);
-    set('winStoreys', trimmedRows.length);
+    const updates: Partial<WizardState> = { winRows: trimmedRows, winStoreys: trimmedRows.length };
+    if (nextScope) updates.scope = nextScope;
+    if (nextSeg) updates.winSessionSeg = nextSeg;
+    setMany(updates);
     notifyDelta(before, after);
     setLocalRows(trimmedRows);
   };
 
-  // On blur (or debounce), push local row values up to parent state.
+  // On blur (or debounce), push local row values up to parent in one dispatch.
   const syncToParent = () => {
+    // Cancel any pending debounce — we're syncing now.
+    if (debounceSyncRef.current) {
+      clearTimeout(debounceSyncRef.current);
+      debounceSyncRef.current = null;
+    }
     const trimmed = isCommercial ? localRows : localRows.slice(0, 3);
     const before = computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
     const after = computeWindowsMinutes(S.scope, trimmed, S.context, S.paramsByService.windows);
-    set('winRows', trimmed);
-    set('winStoreys', trimmed.length);
+    setMany({ winRows: trimmed, winStoreys: trimmed.length });
     notifyDelta(before, after);
   };
 
@@ -127,7 +131,7 @@ export function WindowsEditor({
   const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
     setLocalRows(prev => prev.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r)));
     if (debounceSyncRef.current) clearTimeout(debounceSyncRef.current);
-    debounceSyncRef.current = setTimeout(() => syncToParentRef.current(), 400);
+    debounceSyncRef.current = setTimeout(() => syncToParentRef.current(), 150);
   };
 
   const applyMode = (mode: Mode) => {
