@@ -50,6 +50,16 @@ export async function GET(request: NextRequest) {
   }
 
   if (authUser.role === 'customer') {
+    // Retroactively link any anonymous quotes submitted with this email.
+    // No-op after first link (customer_id IS NULL filter never matches again).
+    if (authUser.email) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (client as any)
+        .from('quotes')
+        .update({ customer_id: authUser.id, updated_at: new Date().toISOString() })
+        .ilike('customer_email', authUser.email)
+        .is('customer_id', null);
+    }
     query = query.eq('customer_id', authUser.id);
   }
 
