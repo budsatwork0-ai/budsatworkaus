@@ -50,28 +50,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (authUser.role === 'customer') {
-    // Retroactively link anonymous quotes submitted with this email.
-    // Select first, then update by ID — avoids PostgREST filter quirks on PATCH.
+    // Claim any anonymous quotes submitted with this email via a SECURITY DEFINER
+    // Postgres function — pure SQL, bypasses RLS, no PostgREST filter quirks.
     if (authUser.email) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: orphaned, error: findErr } = await (client as any)
-        .from('quotes')
-        .select('id')
-        .ilike('customer_email', authUser.email)
-        .is('customer_id', null);
-      if (findErr) {
-        console.error('[api/quotes] orphan find failed:', findErr.message);
-      } else if (orphaned && orphaned.length > 0) {
-        const ids = orphaned.map((q: { id: string }) => q.id);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: linkErr } = await (client as any)
-          .from('quotes')
-          .update({ customer_id: authUser.id, updated_at: new Date().toISOString() })
-          .in('id', ids);
-        if (linkErr) {
-          console.error('[api/quotes] orphan link failed:', linkErr.message);
-        }
-      }
+      await (client as any).rpc('claim_anonymous_quotes', {
+        p_user_id: authUser.id,
+        p_email: authUser.email,
+      });
     }
     query = query.eq('customer_id', authUser.id);
   }

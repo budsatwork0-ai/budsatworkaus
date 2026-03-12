@@ -87,23 +87,9 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (client as any).from('customers').insert({ full_name, email, user_id: userId });
 
-    // Link any anonymous quotes submitted with this email to this new account.
+    // Claim any anonymous quotes submitted with this email via Postgres RPC.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: orphaned } = await (client as any)
-      .from('quotes')
-      .select('id')
-      .ilike('customer_email', emailKey)
-      .is('customer_id', null);
-    if (orphaned && orphaned.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: linkError } = await (client as any)
-        .from('quotes')
-        .update({ customer_id: userId, updated_at: new Date().toISOString() })
-        .in('id', orphaned.map((q: { id: string }) => q.id));
-      if (linkError) {
-        console.error('[auth/register] Failed to link orphaned quotes for', emailKey, linkError.message);
-      }
-    }
+    await (client as any).rpc('claim_anonymous_quotes', { p_user_id: userId, p_email: emailKey });
   }
 
   if (role === 'employee') {

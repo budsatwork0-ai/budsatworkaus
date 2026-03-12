@@ -54,21 +54,13 @@ export async function GET(req: NextRequest) {
               role: 'customer',
             });
 
-            // Link any anonymous quotes submitted with this email to this new account.
+            // Claim any anonymous quotes submitted with this email via Postgres RPC.
             if (user.email) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const { data: orphaned } = await (serviceClient as any)
-                .from('quotes')
-                .select('id')
-                .ilike('customer_email', user.email)
-                .is('customer_id', null);
-              if (orphaned && orphaned.length > 0) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (serviceClient as any)
-                  .from('quotes')
-                  .update({ customer_id: user.id, updated_at: new Date().toISOString() })
-                  .in('id', orphaned.map((q: { id: string }) => q.id));
-              }
+              await (serviceClient as any).rpc('claim_anonymous_quotes', {
+                p_user_id: user.id,
+                p_email: user.email,
+              });
             }
           }
 
