@@ -101,6 +101,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid quote total' }, { status: 400 });
   }
 
+  // Combine address + notes into a single field — quotes table has no
+  // dedicated service_address column, so we prepend it to notes.
+  const combinedNotes = [
+    body.service_address ? `Address: ${body.service_address}` : '',
+    typeof body.notes === 'string' ? body.notes : '',
+  ].filter(Boolean).join('\n') || null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any)
     .from('quotes')
@@ -118,8 +125,7 @@ export async function POST(request: NextRequest) {
       reviewed_total: null,
       status: 'submitted',
       payment_status: 'not_requested',
-      service_address: body.service_address || null,
-      notes: body.notes,
+      notes: combinedNotes,
     })
     .select()
     .single();
