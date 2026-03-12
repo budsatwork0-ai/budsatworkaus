@@ -50,8 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (authUser.role === 'customer') {
-    // Claim any anonymous quotes submitted with this email via a SECURITY DEFINER
-    // Postgres function — pure SQL, bypasses RLS, no PostgREST filter quirks.
+    // Best-effort: permanently link orphaned quotes via Postgres function.
     if (authUser.email) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (client as any).rpc('claim_anonymous_quotes', {
@@ -67,7 +66,28 @@ export async function GET(request: NextRequest) {
     console.error('[api/quotes] GET list failed:', error.message);
     return NextResponse.json({ error: 'Failed to fetch quotes' }, { status: 500 });
   }
-  return NextResponse.json({ quotes: data || [] });
+
+  let quotes = data || [];
+
+  // Fallback: also include any still-orphaned quotes matching by email.
+  // This ensures quotes are visible immediately even if the RPC link hasn't
+  // run yet or the DB function is not yet applied.
+  if (authUser.role === 'customer' && authUser.email) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orphaned } = await (client as any)
+      .from('quotes')
+      .select('*')
+      .ilike('customer_email', authUser.email)
+      .is('customer_id', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (orphaned && orphaned.length > 0) {
+      const seen = new Set(quotes.map((q: { id: string }) => q.id));
+      quotes = [...quotes, ...orphaned.filter((q: { id: string }) => !seen.has(q.id))];
+    }
+  }
+
+  return NextResponse.json({ quotes });
 }
 
 export async function POST(request: NextRequest) {
