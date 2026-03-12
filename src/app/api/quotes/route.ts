@@ -72,7 +72,12 @@ export async function POST(request: NextRequest) {
 
   // Auth is optional — anonymous visitors can submit quotes.
   // If they are logged in we link the quote to their account.
-  const authUser = await getAuthUser();
+  let authUser: Awaited<ReturnType<typeof getAuthUser>> = null;
+  try {
+    authUser = await getAuthUser();
+  } catch {
+    // Non-critical — proceed as anonymous if auth check fails
+  }
 
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
