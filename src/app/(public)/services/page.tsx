@@ -5285,11 +5285,7 @@ function winSessionMinutes(S: WizardState) {
     style={{ bottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
     aria-live="polite"
   >
-    <M.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mx-auto max-w-3xl px-4"
-    >
+    <div className="mx-auto max-w-3xl px-4">
       <div
         className={`pointer-events-auto flex items-center justify-between rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
         role="region"
@@ -5336,7 +5332,7 @@ function winSessionMinutes(S: WizardState) {
           </M.button>
         </div>
       </div>
-    </M.div>
+    </div>
   </div>
 )}
 
