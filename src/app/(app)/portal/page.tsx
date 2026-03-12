@@ -6,6 +6,13 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/app/hooks/useAuth';
 import { brand } from '@/app/ui/theme';
 
+type PendingQuote = {
+  id: string;
+  service_type: string;
+  submitted_total: number;
+  status: string;
+};
+
 type FinalizedQuote = {
   id: string;
   service_type: string;
@@ -72,6 +79,7 @@ export default function PortalHome() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [subs, setSubs] = useState<SubSummary[]>([]);
   const [finalizedQuotes, setFinalizedQuotes] = useState<FinalizedQuote[]>([]);
+  const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -87,10 +95,12 @@ export default function PortalHome() {
         return r.json();
       }),
       fetch('/api/quotes?status=finalized&limit=10').then((r) => r.json()).catch(() => ({ quotes: [] })),
-    ]).then(([orderData, subData, quoteData]) => {
+      fetch('/api/quotes?status=submitted,in_review&limit=10').then((r) => r.json()).catch(() => ({ quotes: [] })),
+    ]).then(([orderData, subData, quoteData, pendingData]) => {
       setOrders(orderData.orders || []);
       setSubs(subData.subscriptions || []);
       setFinalizedQuotes(quoteData.quotes || []);
+      setPendingQuotes(pendingData.quotes || []);
     }).catch(() => {
       setFetchError('Some data failed to load. Your dashboard may be incomplete.');
     }).finally(() => setLoading(false));
@@ -171,6 +181,40 @@ export default function PortalHome() {
           </motion.div>
         ))}
       </div>
+
+      {/* Pending quotes under review */}
+      {!loading && pendingQuotes.length > 0 && (
+        <Link
+          href="/portal/quotes"
+          className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
+          style={{ borderLeftColor: '#F59E0B' }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'rgba(245,158,11,0.10)' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: brand.text }}>
+              {pendingQuotes.length === 1
+                ? `Your ${SERVICE_LABELS[pendingQuotes[0].service_type] || 'quote'} request is being reviewed`
+                : `${pendingQuotes.length} quote requests are being reviewed`}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+              We'll confirm pricing and reach out shortly
+            </p>
+          </div>
+          <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: '#F59E0B' }}>
+            View
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </Link>
+      )}
 
       {/* Finalized quotes awaiting payment */}
       {!loading && finalizedQuotes.length > 0 && (
