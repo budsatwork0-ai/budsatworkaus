@@ -32,6 +32,11 @@ export function WindowsEditor({
     }
   }, [S.winRows, S.scope]);
 
+  // Keep a ref to the latest syncToParent so the debounce timer always calls the fresh version.
+  const syncToParentRef = React.useRef<() => void>(() => {});
+  // Debounce timer for syncing after spinner clicks or rapid typing.
+  const debounceSyncRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const currentMode: Mode = React.useMemo(() => {
     if (S.scope === 'windows_interior') return 'inside';
     if (S.scope === 'windows_exterior') return 'outside';
@@ -104,12 +109,7 @@ export function WindowsEditor({
     setLocalRows(trimmedRows);
   };
 
-  // Typing: update local state only. Parent syncs on blur.
-  const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
-    setLocalRows(prev => prev.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r)));
-  };
-
-  // On blur, push local row values up to parent state (one re-render instead of one per keypress).
+  // On blur (or debounce), push local row values up to parent state.
   const syncToParent = () => {
     const trimmed = isCommercial ? localRows : localRows.slice(0, 3);
     const before = computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
@@ -117,6 +117,17 @@ export function WindowsEditor({
     set('winRows', trimmed);
     set('winStoreys', trimmed.length);
     notifyDelta(before, after);
+  };
+
+  // Keep ref pointing to latest syncToParent so the debounce timer always calls the fresh closure.
+  syncToParentRef.current = syncToParent;
+
+  // Typing/spinner: update local state and schedule a debounced parent sync.
+  // Number input spinners don't fire onBlur, so without this the footer never updates.
+  const updateRowValue = (rowIndex: number, key: 'int' | 'ext' | 'tracks' | 'screens', value: string | number) => {
+    setLocalRows(prev => prev.map((r, idx) => (idx === rowIndex ? { ...r, [key]: toCount(value) } : r)));
+    if (debounceSyncRef.current) clearTimeout(debounceSyncRef.current);
+    debounceSyncRef.current = setTimeout(() => syncToParentRef.current(), 400);
   };
 
   const applyMode = (mode: Mode) => {
