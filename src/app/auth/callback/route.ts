@@ -53,6 +53,19 @@ export async function GET(req: NextRequest) {
               email: user.email,
               role: 'customer',
             });
+
+            // Link any anonymous quotes submitted with this email to this new account.
+            if (user.email) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error: linkError } = await (serviceClient as any)
+                .from('quotes')
+                .update({ customer_id: user.id, updated_at: new Date().toISOString() })
+                .ilike('customer_email', user.email)
+                .is('customer_id', null);
+              if (linkError) {
+                console.error('[auth/callback] Failed to link orphaned quotes for', user.email, linkError.message);
+              }
+            }
           }
 
           // Sync the resolved role into app_metadata so the JWT is correct on next sign-in.
