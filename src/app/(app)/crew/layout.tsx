@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { brand } from '@/app/ui/theme';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
+import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
 
 const ALL_NAV = [
   { href: '/crew', label: 'Home', exact: true },
@@ -31,6 +32,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const { employee, isLoading, error: employeeError, needsSetup, refetch } = useEmployee();
   const [mobileOpen, setMobileOpen] = useState(false);
+  useIdleSignOut();
 
   const onboarded = employee?.onboarding_complete === true;
   const employeeIsActive = !employee || employee.status === 'active';

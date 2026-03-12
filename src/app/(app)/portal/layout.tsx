@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useAuth } from '@/app/hooks/useAuth';
+import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
 import { brand } from '@/app/ui/theme';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { Toaster } from 'sonner';
@@ -24,6 +25,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname() || '';
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  useIdleSignOut();
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 

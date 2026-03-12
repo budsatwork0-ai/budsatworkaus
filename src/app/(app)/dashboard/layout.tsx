@@ -12,6 +12,7 @@ import CreateOrderModal from '@/components/CreateOrderModal';
 import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { useAuth } from '@/app/hooks/useAuth';
+import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
 
 type NotificationItem = {
   id: string;
@@ -25,6 +26,7 @@ type NotificationItem = {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const { role, isAdmin } = useAuth();
+  useIdleSignOut();
   const handleSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/'; };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
