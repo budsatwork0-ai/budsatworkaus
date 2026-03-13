@@ -1,20 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { brand } from '../../../ui/theme';
 import { AuthSplitLayout } from '../_components/AuthSplitLayout';
 import { BriefcaseIcon, Spinner, AlertCircleIcon } from '../_components/AuthIcons';
 import { PasswordField } from '../_components/PasswordField';
 
 export default function JoinPage() {
-  const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [registered, setRegistered] = useState(false);
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -41,6 +39,8 @@ export default function JoinPage() {
     });
     const data = await res.json();
 
+    setLoading(false);
+
     if (!res.ok) {
       const msg = (data as { error?: string }).error;
       if (msg?.toLowerCase().includes('already registered') || msg?.toLowerCase().includes('already exists')) {
@@ -48,25 +48,33 @@ export default function JoinPage() {
       } else {
         setError(msg || 'Could not create account. Please try again or contact support.');
       }
-      setLoading(false);
       return;
     }
 
-    const supabase = getSupabaseBrowserClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    });
+    setRegistered(true);
+  }
 
-    setLoading(false);
-
-    if (signInError) {
-      setError('Account created! Please sign in to continue.');
-      return;
-    }
-
-    router.push('/crew/onboarding');
-    router.refresh();
+  if (registered) {
+    return (
+      <AuthSplitLayout variant="staff">
+        <div className="text-center py-4">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/25 mb-5">
+            <svg className="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Check your inbox</h1>
+          <p className="text-slate-400 text-sm mb-1">We sent a verification link to</p>
+          <p className="text-emerald-400 font-medium text-sm mb-6">{form.email}</p>
+          <p className="text-slate-500 text-xs">Click the link in the email to activate your account, then sign in to complete onboarding.</p>
+          <div className="mt-8 pt-6 border-t border-white/8">
+            <Link href="/account/crew" className="text-sm font-semibold text-emerald-400 hover:underline">
+              Go to staff sign in
+            </Link>
+          </div>
+        </div>
+      </AuthSplitLayout>
+    );
   }
 
   return (
