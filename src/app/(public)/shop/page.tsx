@@ -38,7 +38,7 @@ export default function ShopPage() {
         aria-hidden
         style={{
           background:
-            'radial-gradient(750px circle at 20% 12%, rgba(20,83,45,0.10) 0, transparent 50%), radial-gradient(950px circle at 80% 5%, rgba(125,211,252,0.12) 0, transparent 55%)',
+            'radial-gradient(750px circle at 20% 12%, rgba(20,83,45,0.10) 0, transparent 50%), radial-gradient(950px circle at 80% 5%, rgba(125,211,252,0.12) 0, transparent 55%), radial-gradient(900px circle at 50% 100%, rgba(20,83,45,0.07) 0, transparent 60%)',
         }}
       />
       <div className="relative z-10 mx-auto max-w-4xl px-6 md:px-8 py-12 space-y-12">
