@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { brand, glass, glassSoft } from '../../ui/theme';
 
+
 export const metadata: Metadata = {
   title: 'Shop',
   description: 'Shop cleaning supplies, gift cards, and service bundles from Buds At Work. Coming soon to Logan & South Brisbane.',
@@ -32,16 +33,7 @@ const upcomingItems = [
 
 export default function ShopPage() {
   return (
-    <main className="relative overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        aria-hidden
-        style={{
-          background:
-            'radial-gradient(750px circle at 20% 12%, rgba(20,83,45,0.10) 0, transparent 50%), radial-gradient(950px circle at 80% 5%, rgba(125,211,252,0.12) 0, transparent 55%), radial-gradient(900px circle at 50% 100%, rgba(20,83,45,0.07) 0, transparent 60%)',
-        }}
-      />
-      <div className="relative z-10 mx-auto max-w-4xl px-6 md:px-8 py-12 space-y-12">
+    <div className="mx-auto max-w-4xl px-6 md:px-8 py-12 space-y-12">
 
         {/* Header */}
         <section className="text-center">
@@ -84,7 +76,6 @@ export default function ShopPage() {
           </Link>
         </section>
 
-      </div>
-    </main>
+    </div>
   );
 }
