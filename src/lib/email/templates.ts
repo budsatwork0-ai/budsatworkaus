@@ -103,7 +103,7 @@ export function bookingConfirmedEmail({ customerName, serviceLabel, total, order
   return {
     subject: `Booking confirmed — see you soon!`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're all booked in! 🎉</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're all booked in, ${customerName}! 🎉</h1>
       <p style="color:${MUTED};margin:0 0 20px;">Payment received — your booking is confirmed. We'll be in touch with scheduling details.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>

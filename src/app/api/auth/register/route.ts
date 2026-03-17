@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
 import { ipRatelimit, emailRatelimit, checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -72,21 +73,35 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const client = createServiceClient();
+  // Use the anon client for signUp so Supabase sends its configured confirmation email.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://budsatwork.com';
+  const anonClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
 
-  const { data: userData, error: createError } = await client.auth.admin.createUser({
+  const { data: signUpData, error: signUpError } = await anonClient.auth.signUp({
     email,
     password,
-    email_confirm: false,
-    user_metadata: { full_name },
-    app_metadata: { role },
+    options: {
+      data: { full_name },
+      emailRedirectTo: `${siteUrl}/auth/callback`,
+    },
   });
 
-  if (createError) {
-    return NextResponse.json({ error: createError.message }, { status: 400 });
+  if (signUpError) {
+    return NextResponse.json({ error: signUpError.message }, { status: 400 });
   }
 
-  const userId = userData.user.id;
+  const userId = signUpData.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: 'Account creation failed.' }, { status: 500 });
+  }
+
+  // Set role in app_metadata via service client (signUp only allows user_metadata).
+  const client = createServiceClient();
+  await client.auth.admin.updateUserById(userId, { app_metadata: { role } });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (client as any).from('profiles').upsert({ id: userId, full_name, email, role });
