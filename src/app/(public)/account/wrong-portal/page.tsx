@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { homePathForRole, ROLE_LABELS } from '@/types/roles';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const PORTAL_LABELS: Record<string, string> = {
   dashboard: 'the Admin Dashboard',
@@ -13,6 +14,14 @@ const PORTAL_LABELS: Record<string, string> = {
 };
 
 function SuspendedContent() {
+  const router = useRouter();
+
+  async function handleSignOut() {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push('/account');
+  }
+
   return (
     <div className="min-h-[calc(100vh-200px)] flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
@@ -25,12 +34,12 @@ function SuspendedContent() {
         <p className="text-slate-500 text-sm mb-8">
           Your crew account has been suspended. Please contact your manager for assistance.
         </p>
-        <Link
-          href="/account"
+        <button
+          onClick={handleSignOut}
           className="w-full inline-flex items-center justify-center rounded-xl py-3 px-6 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
         >
           Sign in with a different account
-        </Link>
+        </button>
       </div>
     </div>
   );
