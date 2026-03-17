@@ -4,23 +4,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 declare global {
   interface Window {
-    turnstile?: {
-      render: (container: HTMLElement, options: TurnstileOptions) => string;
-      reset: (widgetId: string) => void;
-      remove: (widgetId: string) => void;
-    };
     onTurnstileLoad?: () => void;
   }
 }
 
-interface TurnstileOptions {
-  sitekey: string;
-  callback?: (token: string) => void;
-  'error-callback'?: () => void;
-  'expired-callback'?: () => void;
-  theme?: 'light' | 'dark' | 'auto';
-  size?: 'normal' | 'compact';
-}
 
 interface TurnstileProps {
   siteKey: string;
@@ -53,7 +40,7 @@ export default function Turnstile({
       'expired-callback': onExpire,
       theme,
       size: 'normal',
-    });
+    }) ?? null;
   }, [siteKey, onVerify, onError, onExpire, theme]);
 
   useEffect(() => {
