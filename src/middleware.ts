@@ -87,7 +87,7 @@ async function runMiddleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(url);
   }
 
-  if (isPortal && role === 'employee') {
+  if (isPortal && role !== 'customer') {
     const url = req.nextUrl.clone();
     url.pathname = '/account/wrong-portal';
     url.searchParams.set('from', 'portal');
