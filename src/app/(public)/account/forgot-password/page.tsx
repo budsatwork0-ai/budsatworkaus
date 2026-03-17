@@ -23,9 +23,10 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
     const supabase = getSupabaseBrowserClient();
-    const siteUrl = window.location.origin;
+    // Use canonical origin (strips www) so the redirectTo always matches the Supabase allowlist.
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin.replace(/^https?:\/\/www\./, 'https://');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?redirect=/account/update-password`,
+      redirectTo: `${origin}/auth/callback?redirect=/account/update-password`,
     });
     setLoading(false);
     if (error) {

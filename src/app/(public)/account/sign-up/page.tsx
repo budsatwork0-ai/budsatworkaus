@@ -7,6 +7,7 @@ import { AuthSplitLayout } from '../_components/AuthSplitLayout';
 import { Spinner, AlertCircleIcon } from '../_components/AuthIcons';
 import { PasswordField } from '../_components/PasswordField';
 import { GoogleButton, OrDivider } from '../_components/GoogleButton';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 export default function SignUpPage() {
   const nameRef = useRef<HTMLInputElement>(null);
@@ -16,6 +17,7 @@ export default function SignUpPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -33,7 +35,7 @@ export default function SignUpPage() {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: fullName, email, password, role: 'customer' }),
+      body: JSON.stringify({ full_name: fullName, email, password, role: 'customer', turnstileToken }),
     });
     const data = await res.json();
 
@@ -134,9 +136,17 @@ export default function SignUpPage() {
           </div>
         )}
 
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+            onSuccess={setTurnstileToken}
+            options={{ theme: 'dark' }}
+          />
+        )}
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
           className="w-full rounded-xl py-3 text-sm font-semibold text-white shadow-md hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
           style={{ background: brand.primary }}
         >

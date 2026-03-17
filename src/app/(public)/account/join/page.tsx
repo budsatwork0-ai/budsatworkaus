@@ -6,6 +6,7 @@ import { brand } from '../../../ui/theme';
 import { AuthSplitLayout } from '../_components/AuthSplitLayout';
 import { BriefcaseIcon, Spinner, AlertCircleIcon } from '../_components/AuthIcons';
 import { PasswordField } from '../_components/PasswordField';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 export default function JoinPage() {
   const nameRef = useRef<HTMLInputElement>(null);
@@ -13,6 +14,7 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [registered, setRegistered] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -35,7 +37,7 @@ export default function JoinPage() {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: form.full_name, email: form.email, password: form.password, role: 'employee' }),
+      body: JSON.stringify({ full_name: form.full_name, email: form.email, password: form.password, role: 'employee', turnstileToken }),
     });
     const data = await res.json();
 
@@ -142,9 +144,17 @@ export default function JoinPage() {
           </div>
         )}
 
+        {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+            onSuccess={setTurnstileToken}
+            options={{ theme: 'dark' }}
+          />
+        )}
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
           className="w-full rounded-xl py-3 text-sm font-semibold text-white shadow-md hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
           style={{ background: brand.primary }}
         >

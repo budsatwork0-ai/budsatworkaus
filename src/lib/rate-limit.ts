@@ -1,31 +1,34 @@
-// Simple in-memory rate limiter for API routes.
-// NOTE: Resets on cold starts (serverless). For production scale, replace
-// the Map with a Redis/KV-backed store (e.g. Upstash, Vercel KV).
+// Redis-backed rate limiter using Upstash.
+// Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in your environment.
+// Falls back to allow-all if env vars are absent (local dev without Redis).
 
-const store = new Map<string, { count: number; resetAt: number }>();
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 
-interface RateLimitOptions {
-  limit: number;     // max requests per window
-  windowMs: number;  // window in milliseconds
+function createLimiter(requests: number, window: string) {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null;
+  }
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(requests, window as any) });
 }
 
-export function createRateLimiter(options: RateLimitOptions) {
-  return function check(key: string): { allowed: boolean; remaining: number } {
-    const now = Date.now();
-    const entry = store.get(key);
+// 5 registrations per IP per 15 minutes
+export const ipRatelimit = createLimiter(5, '15 m');
+// 3 registrations per email per hour
+export const emailRatelimit = createLimiter(3, '1 h');
 
-    if (!entry || now > entry.resetAt) {
-      store.set(key, { count: 1, resetAt: now + options.windowMs });
-      return { allowed: true, remaining: options.limit - 1 };
-    }
-
-    if (entry.count >= options.limit) {
-      return { allowed: false, remaining: 0 };
-    }
-
-    entry.count++;
-    return { allowed: true, remaining: options.limit - entry.count };
-  };
+export async function checkRateLimit(
+  limiter: Ratelimit | null,
+  key: string
+): Promise<{ allowed: boolean }> {
+  if (!limiter) return { allowed: true };
+  const { success } = await limiter.limit(key);
+  return { allowed: success };
 }
 
 // Extract the best-effort client IP from a Next.js request.

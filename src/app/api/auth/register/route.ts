@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import { ipRatelimit, emailRatelimit, checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 // POST /api/auth/register
 // Unified self-service sign-up for customers and employees.
-// Body: { full_name, email, password, role: 'customer' | 'employee' }
+// Body: { full_name, email, password, role: 'customer' | 'employee', turnstileToken }
 // Admin accounts are provisioned exclusively via the /account/setup page or
 // the Supabase dashboard — never through this endpoint.
-
-// 5 registrations per IP per 15 minutes.
-const checkIpRateLimit = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
-// 3 registrations per email per hour (prevents distributed attacks on a single address).
-const checkEmailRateLimit = createRateLimiter({ limit: 3, windowMs: 60 * 60 * 1000 });
 
 export async function POST(req: NextRequest) {
   // Rate limit by IP before doing any DB work.
   const ip = getClientIp(req);
-  const { allowed: ipAllowed } = checkIpRateLimit(ip);
+  const { allowed: ipAllowed } = await checkRateLimit(ipRatelimit, ip);
   if (!ipAllowed) {
     return NextResponse.json(
       { error: 'Too many sign-up attempts. Please wait a few minutes and try again.' },
@@ -24,14 +19,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { full_name: string; email: string; password: string; role: string };
+  let body: { full_name: string; email: string; password: string; role: string; turnstileToken?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { full_name, email, password, role } = body;
+  const { full_name, email, password, role, turnstileToken } = body;
+
+  // Verify Cloudflare Turnstile token before any account creation.
+  if (process.env.TURNSTILE_SECRET_KEY) {
+    if (!turnstileToken) {
+      return NextResponse.json({ error: 'Bot verification required.' }, { status: 400 });
+    }
+    const tsRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: process.env.TURNSTILE_SECRET_KEY, response: turnstileToken }),
+    });
+    const tsData = await tsRes.json() as { success: boolean };
+    if (!tsData.success) {
+      return NextResponse.json({ error: 'Bot verification failed. Please try again.' }, { status: 403 });
+    }
+  }
 
   if (!full_name?.trim() || !email?.trim() || !password) {
     return NextResponse.json({ error: 'full_name, email, and password are required' }, { status: 400 });
@@ -53,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   // Rate limit by email after validating input (prevents leaking which emails are registered).
   const emailKey = email.toLowerCase().trim();
-  const { allowed: emailAllowed } = checkEmailRateLimit(emailKey);
+  const { allowed: emailAllowed } = await checkRateLimit(emailRatelimit, emailKey);
   if (!emailAllowed) {
     return NextResponse.json(
       { error: 'Too many sign-up attempts for this email. Please try again in an hour.' },
