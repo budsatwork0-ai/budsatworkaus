@@ -31,6 +31,25 @@ export async function checkRateLimit(
   return { allowed: success };
 }
 
+// Simple in-memory sliding-window rate limiter factory.
+// Returns a synchronous check function — suitable for serverless edge use where
+// Redis isn't needed for every endpoint.
+export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs: number }) {
+  const hits = new Map<string, number[]>();
+  return function check(key: string): { allowed: boolean } {
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    const timestamps = (hits.get(key) ?? []).filter(t => t > windowStart);
+    if (timestamps.length >= limit) {
+      hits.set(key, timestamps);
+      return { allowed: false };
+    }
+    timestamps.push(now);
+    hits.set(key, timestamps);
+    return { allowed: true };
+  };
+}
+
 // Extract the best-effort client IP from a Next.js request.
 export function getClientIp(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
