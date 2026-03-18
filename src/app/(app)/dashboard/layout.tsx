@@ -12,7 +12,9 @@ import CreateOrderModal from '@/components/CreateOrderModal';
 import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { useAuth } from '@/app/hooks/useAuth';
-import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
+import { useSessionManager } from '@/app/hooks/useSessionManager';
+import { SessionWarningModal } from '@/components/SessionWarningModal';
+import { SoftLockModal } from '@/components/SoftLockModal';
 
 type NotificationItem = {
   id: string;
@@ -26,8 +28,9 @@ type NotificationItem = {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const { role, isAdmin } = useAuth();
-  useIdleSignOut();
+  const { sessionState, user: sessionUser, extendSession, unlock } = useSessionManager();
   const handleSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/'; };
+  const handleForceSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/account'; };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -71,14 +74,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       // Fetch new applicants
-      const appRes = await fetch('/api/applicants?stage=intake&limit=5').then((r) => r.json()).catch(() => ({ applicants: [] }));
-      const newApplicants = appRes.applicants || [];
-      if (newApplicants.length > 0) {
+      const appRes = await fetch('/api/applicants?stage=intake&limit=50').then((r) => r.json()).catch(() => ({ applicants: [] }));
+      const allIntake: { role: string }[] = appRes.applicants || [];
+      const communityRoles = ['Quality partner', 'Sponsor'];
+      const crewIntake = allIntake.filter((a) => !communityRoles.includes(a.role));
+      const communityIntake = allIntake.filter((a) => communityRoles.includes(a.role));
+      if (crewIntake.length > 0) {
         items.push({
           id: 'new-applicants',
           type: 'info',
-          title: `${newApplicants.length} new applicant${newApplicants.length > 1 ? 's' : ''}`,
+          title: `${crewIntake.length} new applicant${crewIntake.length > 1 ? 's' : ''}`,
           message: 'Review the applicant pipeline',
+          time: 'Today',
+          href: '/dashboard/applicants',
+        });
+      }
+      if (communityIntake.length > 0) {
+        items.push({
+          id: 'new-community',
+          type: 'info',
+          title: `${communityIntake.length} new community enquir${communityIntake.length > 1 ? 'ies' : 'y'}`,
+          message: 'Volunteer or sponsor — follow up soon',
           time: 'Today',
           href: '/dashboard/applicants',
         });
@@ -579,6 +595,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       />
 
       <DevRoleSwitcher />
+
+      {sessionState === 'warning' && (
+        <SessionWarningModal onStaySignedIn={extendSession} />
+      )}
+      {sessionState === 'soft_locked' && (
+        <SoftLockModal user={sessionUser} onUnlock={unlock} onSignOut={handleForceSignOut} />
+      )}
     </div>
   );
 }

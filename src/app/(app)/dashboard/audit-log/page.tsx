@@ -93,13 +93,13 @@ export default function AuditLogPage() {
           placeholder="Search actions, users, entities..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-          className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm focus:outline-none"
+          className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none"
           style={{ borderColor: brand.border }}
         />
         <select
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
-          className="rounded-xl border px-3 py-2 text-sm"
+          className="rounded-xl border px-3 py-2 text-sm text-slate-800 bg-white"
           style={{ borderColor: brand.border }}
         >
           {actions.map((a) => (
@@ -218,11 +218,11 @@ export default function AuditLogPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded-lg border text-xs disabled:opacity-40" style={{ borderColor: brand.border }}>
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: brand.border }}>
             Previous
           </button>
           <span className="text-xs text-slate-500">Page {page + 1} of {totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1.5 rounded-lg border text-xs disabled:opacity-40" style={{ borderColor: brand.border }}>
+          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: brand.border }}>
             Next
           </button>
         </div>

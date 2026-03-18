@@ -159,6 +159,8 @@ import { LiveOrdersStrip } from './components/shared/LiveOrdersStrip';
 import { WindowsEditor } from './components/windows/WindowsEditor';
 import { DistanceRouteConfigurator } from './components/dump/DistanceRouteConfigurator';
 import { ServiceAddressInput } from './components/shared/ServiceAddressInput';
+import type { User } from '@supabase/supabase-js';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 // Isolated slider component so dragging doesn't re-render the entire ServicesPageContent.
 // Keeps a local display-value and only propagates the final value on pointer/touch release.
@@ -296,6 +298,25 @@ function ServicesPageContent() {
     },
     [dispatch]
   );
+
+  // Pre-fill contact fields from auth user (only if fields are empty)
+  const handleAuthSignIn = React.useCallback((user: User) => {
+    const meta = user.user_metadata as Record<string, string | undefined>;
+    const prefill: Partial<WizardState> = {};
+    if (!S.fullName?.trim() && meta?.full_name) prefill.fullName = meta.full_name;
+    if (!S.email?.trim() && user.email) prefill.email = user.email;
+    if (!S.phone?.trim() && meta?.phone) prefill.phone = meta.phone;
+    if (Object.keys(prefill).length > 0) dispatch({ type: 'merge', value: prefill });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [S.fullName, S.email, S.phone, dispatch]);
+
+  // Listen for sign-in from the header's inline ServicesAuthBar
+  React.useEffect(() => {
+    const handler = (e: Event) => handleAuthSignIn((e as CustomEvent<User>).detail);
+    window.addEventListener('svc:auth-signin', handler);
+    return () => window.removeEventListener('svc:auth-signin', handler);
+  }, [handleAuthSignIn]);
+
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
@@ -393,16 +414,35 @@ function ServicesPageContent() {
       hardResetQuote(silent);
     };
     window.addEventListener('svc:reset', handler);
-
-    // Always reset on mount (covers page refresh & direct navigation)
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {}
-    dispatch({ type: 'reset' });
-
     return () => window.removeEventListener('svc:reset', handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardResetQuote]);
+
+  // Prompt to resume if meaningful quote state is saved in localStorage — only for signed-in users
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return; // anonymous visitors: restore silently, no prompt
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Partial<WizardState>;
+        const hasProgress =
+          (parsed.step ?? 1) > 1 ||
+          (parsed.service && parsed.service !== 'windows') ||
+          Boolean((parsed.fullName as string | undefined)?.trim()) ||
+          Boolean((parsed.email as string | undefined)?.trim());
+        if (!hasProgress) return;
+        toast('Quote in progress', {
+          description: 'Continue where you left off, or start fresh.',
+          duration: 8_000,
+          action: { label: 'Continue', onClick: () => {} },
+          cancel: { label: 'Start fresh', onClick: () => hardResetQuote(true) },
+        });
+      } catch {}
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   // Track touch/pointer state to distinguish clicks from scrolls on mobile

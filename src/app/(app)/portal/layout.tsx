@@ -6,7 +6,9 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useAuth } from '@/app/hooks/useAuth';
-import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
+import { useSessionManager } from '@/app/hooks/useSessionManager';
+import { SessionWarningModal } from '@/components/SessionWarningModal';
+import { SoftLockModal } from '@/components/SoftLockModal';
 import { brand } from '@/app/ui/theme';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { Toaster } from 'sonner';
@@ -25,7 +27,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname() || '';
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  useIdleSignOut();
+  const { sessionState, extendSession, unlock } = useSessionManager();
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -33,6 +35,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
     window.location.href = '/';
+  };
+
+  const handleForceSignOut = async () => {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    window.location.href = '/account';
   };
 
   const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0] || 'Account';
@@ -227,6 +235,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </main>
 
       <DevRoleSwitcher />
+
+      {sessionState === 'warning' && (
+        <SessionWarningModal onStaySignedIn={extendSession} />
+      )}
+      {sessionState === 'soft_locked' && (
+        <SoftLockModal user={user} onUnlock={unlock} onSignOut={handleForceSignOut} />
+      )}
     </div>
   );
 }

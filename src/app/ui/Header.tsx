@@ -3,22 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
+import type { User } from '@supabase/supabase-js';
 import { brand } from './theme';
+import { ServicesAuthBar } from '@/components/ServicesAuthBar';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
-
-function TruckIcon({ className = 'h-6 w-6' }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-      stroke="currentColor" className={className}
-    >
-      <path strokeWidth={1.8} d="M3 16V7a2 2 0 0 1 2-2h8v11m0-6h4l3 3v3h-3" />
-      <circle cx="7" cy="17.5" r="1.2" /><circle cx="17" cy="17.5" r="1.2" />
-    </svg>
-  );
-}
 
 function MenuIcon() {
   return (
@@ -44,10 +35,18 @@ const navLinks = [
   { href: '/get-involved', label: 'Get involved' },
 ];
 
+function portalLink(user: User) {
+  const role = user.app_metadata?.role as string | undefined;
+  if (role === 'admin') return { href: '/dashboard', label: 'My dashboard' };
+  if (role === 'employee') return { href: '/crew', label: 'My crew' };
+  return { href: '/portal', label: 'My portal' };
+}
+
 export default function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [user, setUser] = React.useState<User | null>(null);
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -61,7 +60,19 @@ export default function Header() {
     setMenuOpen(false);
   }, [pathname]);
 
+  // Track auth state
+  React.useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   if (pathname?.startsWith('/dashboard')) return null;
+
+  const onServices = pathname?.startsWith('/services');
 
   const broadcastReset = (silent = false) => {
     try {
@@ -70,7 +81,6 @@ export default function Header() {
   };
 
   const handleNavClick = (targetHref: string) => {
-    const onServices = pathname?.startsWith('/services');
     const goingToServices = targetHref === '/services';
     if (goingToServices || onServices) {
       const silent = onServices && goingToServices;
@@ -86,6 +96,11 @@ export default function Header() {
   const showLight = isHome && !scrolled;
 
   const linkBase = 'hover:underline transition-[color,opacity] duration-150';
+
+  // Derived user display info (only used when not on /services)
+  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0];
+  const initials = firstName ? firstName.slice(0, 2).toUpperCase() : '?';
+  const portal = user ? portalLink(user) : null;
 
   return (
     <>
@@ -124,34 +139,63 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/cart"
-              aria-label="Cart"
-              className={cx(
-                'p-2 rounded-xl border flex transition-colors',
-                showLight && !menuOpen ? 'border-white/40 hover:bg-white/20' : 'hover:bg-gray-50'
-              )}
-              onClick={() => handleNavClick('/cart')}
-              style={{ borderColor: showLight && !menuOpen ? undefined : brand.border, color: showLight && !menuOpen ? '#fff' : brand.primary }}
-            >
-              <TruckIcon />
-            </Link>
-            <Link
-              href="/account"
-              aria-label="Sign in"
-              className={cx(
-                'hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors',
-                showLight && !menuOpen ? 'border-white/40 hover:bg-white/20 text-white' : 'hover:bg-gray-50'
-              )}
-              onClick={() => handleNavClick('/account')}
-              style={{ borderColor: showLight && !menuOpen ? undefined : brand.border, color: showLight && !menuOpen ? '#fff' : brand.muted }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-              </svg>
-              Sign in
-            </Link>
+            {onServices ? (
+              /* Services page: ServicesAuthBar handles auth inline */
+              <ServicesAuthBar inline />
+            ) : user ? (
+              /* Authenticated: show user pill */
+              <div className="hidden md:flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full border border-black/10 bg-white/90 backdrop-blur shadow-sm">
+                <div
+                  className="h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                  style={{ background: brand.primary }}
+                >
+                  {initials}
+                </div>
+                <span className="text-xs font-medium" style={{ color: brand.text }}>
+                  {firstName}
+                </span>
+                <Link
+                  href={portal!.href}
+                  className="text-xs font-semibold ml-0.5 hover:underline"
+                  style={{ color: brand.primary }}
+                >
+                  {portal!.label} →
+                </Link>
+              </div>
+            ) : (
+              /* Not authenticated: Log in + Sign up */
+              <>
+                <Link
+                  href="/account"
+                  aria-label="Log in"
+                  className={cx(
+                    'hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors',
+                    showLight && !menuOpen ? 'border-white/40 hover:bg-white/20 text-white' : 'hover:bg-gray-50'
+                  )}
+                  onClick={() => handleNavClick('/account')}
+                  style={{ borderColor: showLight && !menuOpen ? undefined : brand.border, color: showLight && !menuOpen ? '#fff' : brand.muted }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                  </svg>
+                  Log in
+                </Link>
+                <Link
+                  href="/account/sign-up"
+                  className={cx(
+                    'hidden md:inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold transition-colors',
+                    showLight && !menuOpen
+                      ? 'bg-white/20 hover:bg-white/30 text-white border border-white/40'
+                      : 'text-white hover:opacity-90'
+                  )}
+                  onClick={() => handleNavClick('/account/sign-up')}
+                  style={showLight && !menuOpen ? undefined : { background: brand.primary }}
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
 
             {/* Hamburger — mobile only */}
             <button
@@ -191,18 +235,52 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              href="/account"
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2 mt-3 pt-3 text-base font-medium transition-colors"
-              style={{ color: brand.muted }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-              </svg>
-              Sign in
-            </Link>
+
+            {/* Mobile auth row */}
+            <div className="flex items-center gap-3 mt-3 pt-3">
+              {user ? (
+                <>
+                  <div
+                    className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                    style={{ background: brand.primary }}
+                  >
+                    {initials}
+                  </div>
+                  <span className="text-sm font-medium" style={{ color: brand.text }}>{firstName}</span>
+                  <Link
+                    href={portal!.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="ml-auto text-sm font-semibold hover:underline"
+                    style={{ color: brand.primary }}
+                  >
+                    {portal!.label} →
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/account"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 text-base font-medium transition-colors"
+                    style={{ color: brand.muted }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
+                      <circle cx="12" cy="8" r="4" />
+                      <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                    </svg>
+                    Log in
+                  </Link>
+                  <Link
+                    href="/account/sign-up"
+                    onClick={() => setMenuOpen(false)}
+                    className="ml-auto inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+                    style={{ background: brand.primary }}
+                  >
+                    Sign up
+                  </Link>
+                </>
+              )}
+            </div>
           </nav>
         )}
       </header>

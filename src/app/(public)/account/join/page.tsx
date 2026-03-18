@@ -4,7 +4,25 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { brand } from '../../../ui/theme';
 import { AuthSplitLayout } from '../_components/AuthSplitLayout';
-import { BriefcaseIcon, Spinner, AlertCircleIcon } from '../_components/AuthIcons';
+import { Spinner, AlertCircleIcon } from '../_components/AuthIcons';
+
+function UserRoundIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+    </svg>
+  );
+}
+
+function BriefcaseSmIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
 import { PasswordField } from '../_components/PasswordField';
 import { Turnstile } from '@marsidev/react-turnstile';
 
@@ -81,9 +99,22 @@ export default function JoinPage() {
 
   return (
     <AuthSplitLayout variant="staff">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-5 border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
-        <BriefcaseIcon className="h-3.5 w-3.5" />
-        Staff &amp; Contractors
+      {/* Portal switcher */}
+      <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 mb-8">
+        <Link
+          href="/account/sign-up"
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 text-slate-400 hover:text-white"
+        >
+          <UserRoundIcon />
+          Customer
+        </Link>
+        <Link
+          href="/account/join"
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 bg-indigo-600/90 text-white shadow-sm"
+        >
+          <BriefcaseSmIcon />
+          Staff
+        </Link>
       </div>
 
       <h1 className="text-2xl font-bold text-white mb-1">Create your staff account</h1>

@@ -17,11 +17,19 @@ type Applicant = {
   created_at: string;
   missing_docs: string[] | null;
   user_id: string | null;
+  quality_message?: string | null;
+  quality_business_name?: string | null;
+  quality_contribution_types?: string[] | null;
 };
 
 const STAGES = ['intake', 'verify', 'paperwork', 'induct', 'ready'];
+const COMMUNITY_STAGES = ['intake', 'verify'];
+
 const STAGE_LABELS: Record<string, string> = {
   intake: 'Intake', verify: 'Verify', paperwork: 'Paperwork', induct: 'Induct', ready: 'Ready',
+};
+const COMMUNITY_STAGE_LABELS: Record<string, string> = {
+  intake: 'New', verify: 'Contacted',
 };
 const STAGE_COLORS: Record<string, { bg: string; fg: string }> = {
   intake: { bg: '#F1F5F9', fg: '#475569' },
@@ -32,15 +40,29 @@ const STAGE_COLORS: Record<string, { bg: string; fg: string }> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  casual_crew: 'Casual Crew', support_worker: 'Support Worker',
-  quality_partner: 'Quality Partner', innovation_partner: 'Innovation Partner',
+  'Casual crew': 'Casual Crew',
+  'Support worker': 'Support Worker',
+  'Quality partner': 'Volunteer',
+  'Innovation partner': 'Innovation Partner',
+  'Sponsor': 'Sponsor',
 };
+
+const ROLE_COLORS: Record<string, { bg: string; fg: string }> = {
+  'Quality partner': { bg: '#ECFDF5', fg: '#065F46' },
+  'Sponsor': { bg: '#EEF2FF', fg: '#4338CA' },
+};
+
+const CREW_ROLES = ['Casual crew', 'Support worker'];
+const COMMUNITY_ROLES = ['Quality partner', 'Sponsor'];
+
+type GroupFilter = 'all' | 'crew' | 'community';
 
 export default function ApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [activating, setActivating] = useState<string | null>(null);
+  const [group, setGroup] = useState<GroupFilter>('all');
 
   useEffect(() => {
     fetch('/api/applicants')
@@ -49,6 +71,14 @@ export default function ApplicantsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = applicants.filter((a) => {
+    if (group === 'crew') return CREW_ROLES.includes(a.role);
+    if (group === 'community') return COMMUNITY_ROLES.includes(a.role);
+    return true;
+  });
+
+  const isCommunity = (role: string) => COMMUNITY_ROLES.includes(role);
 
   const activateApplicant = async (a: Applicant) => {
     setActivating(a.id);
@@ -77,7 +107,7 @@ export default function ApplicantsPage() {
       });
       if (res.ok) {
         setApplicants((prev) => prev.map((a) => (a.id === id ? { ...a, stage: newStage } : a)));
-        toast.success(`Moved to ${STAGE_LABELS[newStage]}`);
+        toast.success(`Updated`);
       } else {
         toast.error('Failed to update');
       }
@@ -92,12 +122,31 @@ export default function ApplicantsPage() {
     return new Date(a.created_at) >= weekAgo;
   }).length;
 
+  const communityCount = applicants.filter((a) => COMMUNITY_ROLES.includes(a.role)).length;
+
+  // Stages to show depend on active filter
+  const visibleStages = group === 'community' ? COMMUNITY_STAGES : STAGES;
+  const stageLabel = (stage: string) =>
+    group === 'community' ? (COMMUNITY_STAGE_LABELS[stage] ?? STAGE_LABELS[stage]) : STAGE_LABELS[stage];
+
+  function RoleBadge({ role }: { role: string }) {
+    const rc = ROLE_COLORS[role];
+    return (
+      <span
+        className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+        style={rc ? { background: rc.bg, color: rc.fg } : { background: '#F1F5F9', color: '#475569' }}
+      >
+        {ROLE_LABELS[role] ?? role}
+      </span>
+    );
+  }
+
   return (
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Applicant Pipeline</h1>
-          <p className="text-sm text-slate-500">Track applicants from application through to onboarding.</p>
+          <p className="text-sm text-slate-500">Track applicants, volunteers, and sponsor enquiries.</p>
         </div>
         <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5">
           <button onClick={() => setView('kanban')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={view === 'kanban' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}>Board</button>
@@ -106,7 +155,7 @@ export default function ApplicantsPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className={`${glass} p-4`}>
           <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Total</p>
           <p className="text-2xl font-bold mt-1" style={{ color: brand.primary }}>{applicants.length}</p>
@@ -119,63 +168,124 @@ export default function ApplicantsPage() {
           <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>In Pipeline</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#8B5CF6' }}>{applicants.filter((a) => a.stage !== 'ready').length}</p>
         </div>
+        <div className={`${glass} p-4`}>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Community</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: '#4338CA' }}>{communityCount}</p>
+        </div>
+      </div>
+
+      {/* Group filter */}
+      <div className="flex gap-1.5">
+        {(['all', 'crew', 'community'] as GroupFilter[]).map((g) => (
+          <button
+            key={g}
+            onClick={() => setGroup(g)}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+            style={
+              group === g
+                ? { background: brand.primary, color: 'white', borderColor: brand.primary }
+                : { background: 'white', color: brand.muted, borderColor: '#E5E7EB' }
+            }
+          >
+            {g === 'all' ? 'All' : g === 'crew' ? 'Crew' : 'Community'}
+          </button>
+        ))}
       </div>
 
       {loading ? (
         <div className="grid grid-cols-5 gap-3">{STAGES.map((s) => <div key={s} className="h-64 rounded-xl bg-white/50 animate-pulse" />)}</div>
       ) : view === 'kanban' ? (
         /* Kanban View */
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 overflow-x-auto">
-          {STAGES.map((stage) => {
-            const stageApplicants = applicants.filter((a) => a.stage === stage);
-            const sc = STAGE_COLORS[stage] || STAGE_COLORS.applied;
+        <div className={`grid gap-3 overflow-x-auto`} style={{ gridTemplateColumns: `repeat(${visibleStages.length}, minmax(200px, 1fr))` }}>
+          {visibleStages.map((stage) => {
+            const stageApplicants = filtered.filter((a) => {
+              if (group === 'community' && stage === 'verify') {
+                // "Contacted" bucket: any stage other than 'intake' for community
+                return !['intake'].includes(a.stage);
+              }
+              return a.stage === stage;
+            });
+            const sc = STAGE_COLORS[stage] || STAGE_COLORS.intake;
             const nextStage = STAGES[STAGES.indexOf(stage) + 1];
             return (
               <div key={stage} className="min-w-[200px]">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.fg }}>
-                    {STAGE_LABELS[stage]}
+                    {stageLabel(stage)}
                   </span>
                   <span className="text-xs text-slate-400">{stageApplicants.length}</span>
                 </div>
                 <div className="space-y-2">
-                  {stageApplicants.map((a) => (
-                    <div key={a.id} className={`${glass} p-3`}>
-                      <p className="text-sm font-medium" style={{ color: brand.text }}>{a.full_name}</p>
-                      <p className="text-[11px] mt-0.5" style={{ color: brand.muted }}>{ROLE_LABELS[a.role] || a.role}</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: brand.muted }}>
-                        {new Date(a.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-                      </p>
-                      {a.missing_docs && a.missing_docs.length > 0 && (
-                        <p className="text-[10px] mt-1" style={{ color: '#DC2626' }}>{a.missing_docs.length} missing docs</p>
-                      )}
-                      {nextStage && (
-                        <button
-                          onClick={() => updateStage(a.id, nextStage)}
-                          className="mt-2 w-full text-[11px] px-2 py-1 rounded-lg font-medium text-white"
-                          style={{ background: brand.primary }}
-                        >
-                          Move to {STAGE_LABELS[nextStage]}
-                        </button>
-                      )}
-                      {a.stage === 'ready' && !a.user_id && (
-                        <button
-                          onClick={() => activateApplicant(a)}
-                          disabled={activating === a.id}
-                          className="mt-1 w-full text-[11px] px-2 py-1 rounded-lg font-medium border disabled:opacity-50"
-                          style={{ background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' }}
-                        >
-                          {activating === a.id ? 'Sending...' : 'Convert to Staff'}
-                        </button>
-                      )}
-                      {a.user_id && (
-                        <p className="mt-1 text-[10px] text-center text-slate-400">Staff account active</p>
-                      )}
-                    </div>
-                  ))}
+                  {stageApplicants.map((a) => {
+                    const community = isCommunity(a.role);
+                    return (
+                      <div key={a.id} className={`${glass} p-3`}>
+                        <p className="text-sm font-medium" style={{ color: brand.text }}>{a.full_name}</p>
+                        <div className="mt-1">
+                          <RoleBadge role={a.role} />
+                        </div>
+                        <p className="text-[10px] mt-1" style={{ color: brand.muted }}>
+                          {new Date(a.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                        </p>
+                        {a.email && (
+                          <p className="text-[10px] truncate mt-0.5" style={{ color: brand.muted }}>{a.email}</p>
+                        )}
+                        {!a.missing_docs?.length && community && a.quality_business_name && (
+                          <p className="text-[10px] mt-0.5 truncate" style={{ color: brand.muted }}>{a.quality_business_name}</p>
+                        )}
+                        {a.missing_docs && a.missing_docs.length > 0 && (
+                          <p className="text-[10px] mt-1" style={{ color: '#DC2626' }}>{a.missing_docs.length} missing docs</p>
+                        )}
+
+                        {/* Community actions */}
+                        {community && a.stage === 'intake' && (
+                          <button
+                            onClick={() => updateStage(a.id, 'verify')}
+                            className="mt-2 w-full text-[11px] px-2 py-1 rounded-lg font-medium text-white"
+                            style={{ background: '#4338CA' }}
+                          >
+                            Mark contacted
+                          </button>
+                        )}
+                        {community && (
+                          <a
+                            href={`mailto:${a.email}`}
+                            className="mt-1 block w-full text-[11px] px-2 py-1 rounded-lg font-medium text-center border"
+                            style={{ borderColor: '#E5E7EB', color: brand.muted }}
+                          >
+                            Email →
+                          </a>
+                        )}
+
+                        {/* Crew actions */}
+                        {!community && nextStage && (
+                          <button
+                            onClick={() => updateStage(a.id, nextStage)}
+                            className="mt-2 w-full text-[11px] px-2 py-1 rounded-lg font-medium text-white"
+                            style={{ background: brand.primary }}
+                          >
+                            Move to {STAGE_LABELS[nextStage]}
+                          </button>
+                        )}
+                        {!community && a.stage === 'ready' && !a.user_id && (
+                          <button
+                            onClick={() => activateApplicant(a)}
+                            disabled={activating === a.id}
+                            className="mt-1 w-full text-[11px] px-2 py-1 rounded-lg font-medium border disabled:opacity-50"
+                            style={{ background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' }}
+                          >
+                            {activating === a.id ? 'Sending...' : 'Convert to Staff'}
+                          </button>
+                        )}
+                        {!community && a.user_id && (
+                          <p className="mt-1 text-[10px] text-center text-slate-400">Staff account active</p>
+                        )}
+                      </div>
+                    );
+                  })}
                   {stageApplicants.length === 0 && (
                     <div className="p-4 text-center rounded-xl border-2 border-dashed border-slate-200">
-                      <p className="text-[11px] text-slate-400">No applicants</p>
+                      <p className="text-[11px] text-slate-400">Empty</p>
                     </div>
                   )}
                 </div>
@@ -197,28 +307,58 @@ export default function ApplicantsPage() {
               </tr>
             </thead>
             <tbody>
-              {applicants.map((a) => {
-                const sc = STAGE_COLORS[a.stage] || STAGE_COLORS.applied;
+              {filtered.map((a) => {
+                const sc = STAGE_COLORS[a.stage] || STAGE_COLORS.intake;
                 const nextStage = STAGES[STAGES.indexOf(a.stage) + 1];
+                const community = isCommunity(a.role);
+                const displayStage = community && COMMUNITY_STAGE_LABELS[a.stage] ? COMMUNITY_STAGE_LABELS[a.stage] : STAGE_LABELS[a.stage];
                 return (
                   <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <p className="font-medium">{a.full_name}</p>
                       <p className="text-[11px] text-slate-500">{a.email}</p>
+                      {community && a.quality_business_name && (
+                        <p className="text-[11px] text-slate-400">{a.quality_business_name}</p>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{ROLE_LABELS[a.role] || a.role}</td>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.fg }}>{STAGE_LABELS[a.stage]}</span>
+                      <RoleBadge role={a.role} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.fg }}>
+                        {displayStage ?? a.stage}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{new Date(a.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {nextStage && (
+                        {/* Community actions */}
+                        {community && a.stage === 'intake' && (
+                          <button
+                            onClick={() => updateStage(a.id, 'verify')}
+                            className="text-xs px-2 py-1 rounded-lg text-white"
+                            style={{ background: '#4338CA' }}
+                          >
+                            Mark contacted
+                          </button>
+                        )}
+                        {community && (
+                          <a
+                            href={`mailto:${a.email}`}
+                            className="text-xs px-2 py-1 rounded-lg border"
+                            style={{ borderColor: '#E5E7EB', color: brand.muted }}
+                          >
+                            Email
+                          </a>
+                        )}
+
+                        {/* Crew actions */}
+                        {!community && nextStage && (
                           <button onClick={() => updateStage(a.id, nextStage)} className="text-xs px-2 py-1 rounded-lg text-white" style={{ background: brand.primary }}>
                             Advance
                           </button>
                         )}
-                        {a.stage === 'ready' && !a.user_id && (
+                        {!community && a.stage === 'ready' && !a.user_id && (
                           <button
                             onClick={() => activateApplicant(a)}
                             disabled={activating === a.id}
@@ -228,7 +368,7 @@ export default function ApplicantsPage() {
                             {activating === a.id ? 'Sending...' : 'Convert to Staff'}
                           </button>
                         )}
-                        {a.user_id && (
+                        {!community && a.user_id && (
                           <span className="text-[11px] text-slate-400">Staff active</span>
                         )}
                       </div>
@@ -236,6 +376,11 @@ export default function ApplicantsPage() {
                   </tr>
                 );
               })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400">No entries found</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

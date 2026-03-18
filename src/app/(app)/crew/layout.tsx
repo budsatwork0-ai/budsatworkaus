@@ -8,7 +8,9 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { brand } from '@/app/ui/theme';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
-import { useIdleSignOut } from '@/app/hooks/useIdleSignOut';
+import { useSessionManager } from '@/app/hooks/useSessionManager';
+import { SessionWarningModal } from '@/components/SessionWarningModal';
+import { SoftLockModal } from '@/components/SoftLockModal';
 
 const ALL_NAV = [
   { href: '/crew', label: 'Home', exact: true },
@@ -32,7 +34,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const { employee, isLoading, error: employeeError, needsSetup, refetch } = useEmployee();
   const [mobileOpen, setMobileOpen] = useState(false);
-  useIdleSignOut();
+  const { sessionState, user: sessionUser, extendSession, unlock } = useSessionManager();
 
   const onboarded = employee?.onboarding_complete === true;
   const employeeIsActive = !employee || employee.status === 'active';
@@ -59,6 +61,12 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
     window.location.href = '/';
+  };
+
+  const handleForceSignOut = async () => {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    window.location.href = '/account';
   };
 
   if (isLoading || employeeError) {
@@ -303,6 +311,13 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       <DevRoleSwitcher />
+
+      {sessionState === 'warning' && (
+        <SessionWarningModal onStaySignedIn={extendSession} />
+      )}
+      {sessionState === 'soft_locked' && (
+        <SoftLockModal user={sessionUser} onUnlock={unlock} onSignOut={handleForceSignOut} />
+      )}
     </div>
   );
 }

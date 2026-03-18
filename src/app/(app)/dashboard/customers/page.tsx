@@ -113,7 +113,7 @@ export default function CustomersPage() {
           placeholder="Search customers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 rounded-xl border px-4 py-2 text-sm focus:outline-none"
+          className="flex-1 rounded-xl border px-4 py-2 text-sm text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none"
           style={{ borderColor: brand.border }}
         />
       </div>

@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'role is required' }, { status: 400 });
   }
 
-  const validRoles = ['Casual crew', 'Support worker', 'Quality partner', 'Innovation partner'];
+  const validRoles = ['Casual crew', 'Support worker', 'Quality partner', 'Innovation partner', 'Sponsor'];
   if (!validRoles.includes(body.role)) {
     return NextResponse.json({ error: `role must be one of: ${validRoles.join(', ')}` }, { status: 400 });
   }
