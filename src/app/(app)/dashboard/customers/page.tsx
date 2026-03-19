@@ -202,7 +202,7 @@ export default function CustomersPage() {
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Add Customer</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Full Name *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
                   <input
                     type="text"
                     value={form.full_name}
@@ -214,7 +214,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={form.email}
@@ -225,7 +225,7 @@ export default function CustomersPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Phone</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                     <input
                       type="tel"
                       value={form.phone}
@@ -237,7 +237,7 @@ export default function CustomersPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Region</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Region</label>
                   <input
                     type="text"
                     value={form.region}
@@ -248,7 +248,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Address</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
                   <input
                     type="text"
                     value={form.default_address}

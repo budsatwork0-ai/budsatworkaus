@@ -115,7 +115,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
 
               <div className="px-6 py-4 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Customer Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -131,7 +131,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={formData.customer_email}
@@ -141,7 +141,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Phone</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                     <input
                       type="tel"
                       value={formData.customer_phone}
@@ -154,7 +154,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
                       Service Type <span className="text-red-500">*</span>
                     </label>
                     <select
@@ -171,7 +171,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
                       Context <span className="text-red-500">*</span>
                     </label>
                     <select
@@ -191,7 +191,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Frequency</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Frequency</label>
                     <select
                       value={formData.frequency}
                       onChange={(e) => handleChange('frequency', e.target.value)}
@@ -205,7 +205,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Scope</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Scope</label>
                     <input
                       type="text"
                       value={formData.scope || ''}
@@ -218,7 +218,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Scheduled Date</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Scheduled Date</label>
                     <input
                       type="date"
                       value={formData.scheduled_date || ''}
@@ -227,7 +227,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Scheduled Time</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Scheduled Time</label>
                     <input
                       type="text"
                       value={formData.scheduled_time || ''}
@@ -239,7 +239,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Price (AUD) <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -258,7 +258,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Notes</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                   <textarea
                     value={formData.notes || ''}
                     onChange={(e) => handleChange('notes', e.target.value)}

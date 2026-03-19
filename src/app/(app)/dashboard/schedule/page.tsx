@@ -75,12 +75,7 @@ export default function SchedulePage() {
 
   return (
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Schedule</h1>
-          <p className="text-sm text-slate-500">Weekly dispatch board for job scheduling.</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 justify-end">
           <button onClick={() => setWeekOffset((w) => w - 1)} className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50" style={{ borderColor: brand.border }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
           </button>
@@ -92,7 +87,6 @@ export default function SchedulePage() {
           </button>
           <span className="text-sm font-medium ml-2" style={{ color: brand.text }}>{weekLabel}</span>
         </div>
-      </div>
 
       {/* Week Grid */}
       {loading ? (
