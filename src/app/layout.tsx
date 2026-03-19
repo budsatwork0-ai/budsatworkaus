@@ -3,7 +3,13 @@ import "./globals.css";
 import { SkipLinks } from "@/components/SkipLinks";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
 import { GoogleAnalytics } from "@next/third-parties/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://budsatwork.com'),
