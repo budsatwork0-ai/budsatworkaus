@@ -51,7 +51,7 @@ type FeedbackType = 'bug_report' | 'feature_idea' | 'general';
 const inputCls = 'mt-1.5 w-full rounded-xl border bg-white/80 backdrop-blur px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-offset-1';
 const labelCls = 'text-sm font-medium text-slate-800';
 
-export default function FeedbackForm() {
+export default function FeedbackForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const [type, setType] = useState<FeedbackType>('general');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -104,6 +104,7 @@ export default function FeedbackForm() {
         throw new Error(err.error || 'Submission failed');
       }
       setSubmitted(true);
+      if (onSuccess) setTimeout(onSuccess, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {

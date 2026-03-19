@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { brand, ui, cx, glass, glassSoft } from '../../ui/theme';
 import QualityPartnerForm from './QualityPartnerForm';
 import SponsorModal from './SponsorModal';
-import FeedbackForm from './FeedbackForm';
+import FeedbackModal from './FeedbackModal';
 
 const STORAGE_KEY = 'getInvolvedForm.simplified.final2';
 
@@ -137,6 +137,7 @@ export default function GetInvolvedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSponsorModal, setShowSponsorModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   /* persistence */
   useEffect(() => {
@@ -584,39 +585,36 @@ export default function GetInvolvedPage() {
                 </p>
               </div>
             </div>
+
+            {/* Discreet feedback nudge */}
+            <div
+              className="mt-4 rounded-2xl border p-4"
+              style={{ borderColor: brand.border, backgroundColor: `${brand.primary}04` }}
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 flex-shrink-0" style={{ color: brand.muted }}>
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                <span className="text-xs font-semibold" style={{ color: brand.text }}>Got an idea?</span>
+              </div>
+              <p className="text-xs leading-relaxed mb-3" style={{ color: brand.muted }}>
+                Found something off or have a cool thing to trial? We read everything.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowFeedbackModal(true)}
+                className="text-xs font-semibold underline underline-offset-2"
+                style={{ color: brand.primary }}
+              >
+                Share feedback →
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Website Feedback & Ideas */}
-      <section className="mx-auto w-full max-w-2xl px-4 pb-16">
-        <div
-          className="rounded-3xl border bg-white/70 backdrop-blur-xl p-6 sm:p-8 shadow-[0_16px_48px_rgba(2,6,23,0.06)]"
-          style={{ borderColor: brand.border }}
-        >
-          <div className="flex items-start gap-4 mb-6">
-            <div
-              className="flex-shrink-0 grid place-items-center rounded-2xl p-3 border border-black/10 bg-white/70 backdrop-blur shadow-[0_10px_26px_rgba(2,6,23,0.06)]"
-              style={{ color: brand.primary }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: brand.text }}>
-                Share feedback or an idea
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: brand.muted }}>
-                Found something broken? Got a cool idea to trial? Send it through and we&apos;ll take a look.
-              </p>
-            </div>
-          </div>
-          <FeedbackForm />
-        </div>
-      </section>
-
       <SponsorModal open={showSponsorModal} onClose={() => setShowSponsorModal(false)} />
+      <FeedbackModal open={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
     </div>
   );
 }
