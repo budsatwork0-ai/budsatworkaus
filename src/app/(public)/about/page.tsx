@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { brand, cx, glass, glassSoft } from '../../ui/theme';
 import { getSiteSettings } from '@/lib/site-settings';
@@ -189,8 +190,8 @@ const timeline = [
 ];
 
 const team = [
-  { name: 'Jackson Taylor', role: 'Founder / Operations Director', initials: 'JT', color: brand.primary },
-  { name: 'Silvan', role: 'Field Lead / Community Representative', initials: 'S', color: '#0ea5e9' },
+  { name: 'Jackson Taylor', role: 'Founder / Operations Director', initials: 'JT', color: brand.primary, photo: null as string | null },
+  { name: 'Silvan', role: 'Field Lead / Community Representative', initials: 'S', color: '#0ea5e9', photo: null as string | null },
 ];
 
 export default async function AboutPage() {
@@ -420,28 +421,43 @@ export default async function AboutPage() {
 
           {/* Team */}
           <div className={cx('rounded-2xl p-6', glass)}>
-            <h3 className="font-semibold text-lg mb-4" style={{ color: brand.text }}>
+            <h3 className="font-semibold text-lg mb-5" style={{ color: brand.text }}>
               The team
             </h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
               {team.map((member, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-4 rounded-xl p-4 bg-white/60 border border-black/5"
+                  className="flex flex-col items-center text-center rounded-2xl p-5 bg-white/70 border border-black/5"
                 >
                   <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                    style={{ background: member.color }}
+                    className="relative w-24 h-24 rounded-full overflow-hidden mb-4 flex-shrink-0"
+                    style={{
+                      boxShadow: `0 0 0 3px #fff, 0 0 0 5px ${member.color}`,
+                    }}
                   >
-                    {member.initials}
+                    {member.photo ? (
+                      <Image
+                        src={member.photo}
+                        alt={member.name}
+                        fill
+                        sizes="96px"
+                        className="object-cover object-top"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-white text-xl font-semibold"
+                        style={{ background: member.color }}
+                      >
+                        {member.initials}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <div className="font-medium" style={{ color: brand.text }}>
-                      {member.name}
-                    </div>
-                    <div className="text-xs" style={{ color: brand.muted }}>
-                      {member.role}
-                    </div>
+                  <div className="font-semibold text-sm" style={{ color: brand.text }}>
+                    {member.name}
+                  </div>
+                  <div className="text-xs mt-1 leading-relaxed" style={{ color: brand.muted }}>
+                    {member.role}
                   </div>
                 </div>
               ))}
