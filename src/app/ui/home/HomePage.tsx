@@ -203,7 +203,7 @@ export default function HomePage() {
           width: '100vw',
         }}
       >
-        {/* Video Background - positioned to go behind header */}
+        {/* Video/Image Background - positioned to go behind header */}
         <div
           className="absolute z-0 bg-slate-900"
           style={{
@@ -213,13 +213,19 @@ export default function HomePage() {
             bottom: 0,
           }}
         >
+          {/* Mobile: static poster image — no video download */}
+          <div
+            className="md:hidden w-full h-full bg-cover bg-center"
+            style={{ backgroundImage: 'url(/images/hero-thumbnail.jpg)' }}
+          />
+          {/* Desktop: autoplay video */}
           <video
             autoPlay
             muted
             loop
             playsInline
             poster="/images/hero-thumbnail.jpg"
-            className="w-full h-full object-cover"
+            className="hidden md:block w-full h-full object-cover"
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
