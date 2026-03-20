@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
   const userAgent = req.headers.get('user-agent') ?? null;
 
+  // Vercel injects these automatically on all deployments — no API key needed
+  const rawCity = req.headers.get('x-vercel-ip-city');
+  const city = rawCity ? decodeURIComponent(rawCity) : null;
+  const country = req.headers.get('x-vercel-ip-country') ?? null;
+
   // Upsert visitor session — always update current_page and last_seen_at
   const { error: upsertError } = await (supabase as any)
     .from('site_visitors')
@@ -59,6 +64,8 @@ export async function POST(req: NextRequest) {
         page_title: typeof page_title === 'string' ? page_title : null,
         referrer: event_type === 'pageview' && typeof referrer === 'string' ? referrer : undefined,
         user_agent: userAgent,
+        city,
+        country,
         last_seen_at: now,
       },
       { onConflict: 'session_id', ignoreDuplicates: false }

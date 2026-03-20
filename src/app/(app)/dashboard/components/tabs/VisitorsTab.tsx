@@ -12,6 +12,8 @@ type SiteVisitor = {
   page_title: string | null;
   referrer: string | null;
   user_agent: string | null;
+  city: string | null;
+  country: string | null;
   first_seen_at: string;
   last_seen_at: string;
 };
@@ -53,6 +55,11 @@ const getDeviceHint = (ua: string | null): 'mobile' | 'tablet' | 'desktop' => {
 const cleanTitle = (title: string | null): string | null => {
   if (!title) return null;
   return title.replace(/\s*\|.*$/, '').trim() || null;
+};
+
+const formatLocation = (city: string | null, country: string | null): string | null => {
+  if (city && country) return `${city}, ${country}`;
+  return country ?? city ?? null;
 };
 
 const shortenReferrer = (ref: string | null): string | null => {
@@ -224,6 +231,7 @@ export default function VisitorsTab() {
             <div className="space-y-3">
               {activeVisitors.map(v => {
                 const referrer = shortenReferrer(v.referrer);
+                const location = formatLocation(v.city, v.country);
                 return (
                   <div key={v.session_id} className="flex gap-3 items-start py-2 border-b border-black/5 last:border-0">
                     <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
@@ -233,6 +241,9 @@ export default function VisitorsTab() {
                       <p className="text-sm font-medium text-slate-800 truncate">
                         {cleanTitle(v.page_title) ?? v.current_page}
                       </p>
+                      {location && (
+                        <p className="text-[11px] text-slate-400 truncate">{location}</p>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[11px] text-slate-400">
                           {formatDuration(v.first_seen_at, v.last_seen_at)}
