@@ -25,9 +25,16 @@ function getOrCreateSessionId(): string {
 }
 
 export default function VisitorTracker() {
-  const [sessionId] = useState<string>(getOrCreateSessionId);
+  // Initialize in useEffect so it always runs on the client, never during SSR.
+  // useState lazy initializers can receive the server-rendered '' value during
+  // hydration, which causes the !sessionId guard to silently bail out.
+  const [sessionId, setSessionId] = useState('');
   const pathname = usePathname();
   const lastTrackedPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    setSessionId(getOrCreateSessionId());
+  }, []);
 
   // Track page views on route change
   useEffect(() => {
