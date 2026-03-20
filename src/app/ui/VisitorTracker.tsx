@@ -1,0 +1,77 @@
+'use client';
+
+// Lightweight tracker injected into the root layout.
+// Fires pageview events on route changes and heartbeats every 30s.
+// Excluded from admin/crew/portal routes — only tracks the public marketing site.
+
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+
+const EXCLUDED_PREFIXES = ['/dashboard', '/crew', '/portal', '/api', '/account'];
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const SESSION_KEY = '_baw_sid';
+
+function shouldTrack(path: string): boolean {
+  return !EXCLUDED_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  const stored = sessionStorage.getItem(SESSION_KEY);
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  sessionStorage.setItem(SESSION_KEY, id);
+  return id;
+}
+
+export default function VisitorTracker() {
+  const [sessionId] = useState<string>(getOrCreateSessionId);
+  const pathname = usePathname();
+  const lastTrackedPath = useRef<string | null>(null);
+
+  // Track page views on route change
+  useEffect(() => {
+    if (!sessionId || !shouldTrack(pathname)) return;
+    if (lastTrackedPath.current === pathname) return;
+    lastTrackedPath.current = pathname;
+
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        page: pathname,
+        page_title: document.title,
+        referrer: document.referrer || undefined,
+        event_type: 'pageview',
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [pathname, sessionId]);
+
+  // Heartbeat — keeps session alive, updates current page
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const interval = setInterval(() => {
+      const currentPath = window.location.pathname;
+      if (!shouldTrack(currentPath)) return;
+
+      fetch('/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          page: currentPath,
+          page_title: document.title,
+          event_type: 'heartbeat',
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
+  return null;
+}

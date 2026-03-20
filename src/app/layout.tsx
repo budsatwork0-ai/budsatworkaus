@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import "./globals.css";
 import { SkipLinks } from "@/components/SkipLinks";
+import VisitorTracker from "@/app/ui/VisitorTracker";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       {gaId && <GoogleAnalytics gaId={gaId} />}
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
         <SkipLinks />
+        <VisitorTracker />
         <main id="main-content" className="flex-1">{children}</main>
       </body>
     </html>
