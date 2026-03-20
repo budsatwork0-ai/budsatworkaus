@@ -49,6 +49,12 @@ const getDeviceHint = (ua: string | null): 'mobile' | 'tablet' | 'desktop' => {
   return 'desktop';
 };
 
+// Strip the " | Buds At Work" suffix Next.js appends to every page title
+const cleanTitle = (title: string | null): string | null => {
+  if (!title) return null;
+  return title.replace(/\s*\|.*$/, '').trim() || null;
+};
+
 const shortenReferrer = (ref: string | null): string | null => {
   if (!ref) return null;
   try {
@@ -224,10 +230,10 @@ export default function VisitorsTab() {
                       <DeviceIcon ua={v.user_agent} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{v.current_page}</p>
-                      {v.page_title && (
-                        <p className="text-xs text-slate-400 truncate">{v.page_title}</p>
-                      )}
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {cleanTitle(v.page_title) ?? v.current_page}
+                      </p>
+                      <p className="text-[11px] font-mono text-slate-400 truncate">{v.current_page}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[11px] text-slate-400">
                           {formatDuration(v.first_seen_at, v.last_seen_at)}
@@ -267,10 +273,10 @@ export default function VisitorsTab() {
               {recentPageViews.map(pv => (
                 <div key={pv.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-black/5 last:border-0">
                   <div className="min-w-0 flex-1">
-                    <span className="text-sm font-mono text-slate-700 truncate block">{pv.page}</span>
-                    {pv.page_title && (
-                      <span className="text-[11px] text-slate-400 truncate block">{pv.page_title}</span>
-                    )}
+                    <span className="text-sm text-slate-700 truncate block">
+                      {cleanTitle(pv.page_title) ?? pv.page}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400 truncate block">{pv.page}</span>
                   </div>
                   <span className="text-[11px] text-slate-400 shrink-0">{formatRelativeTime(pv.viewed_at)}</span>
                 </div>
