@@ -5458,7 +5458,7 @@ function winSessionMinutes(S: WizardState) {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Exact price</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Price for this scope</div>
                 {isCalculating && (
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 border border-blue-600 border-t-transparent rounded-full animate-spin" />

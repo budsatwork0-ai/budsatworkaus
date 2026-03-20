@@ -758,7 +758,7 @@ export default function YardMap({
       {drawingEnabled && (
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             bottom: 16,
             left: 16,
             right: 16,
