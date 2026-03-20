@@ -18,7 +18,7 @@ export default function Page() {
     name: 'Buds At Work — Good people doing honest work',
     description:
       'Buds At Work is a local crew in Logan & South Brisbane handling home cleaning, window cleaning, yard care, dump runs, and car detailing.',
-    thumbnailUrl: 'https://budsatwork.com/images/hero-thumbnail.png',
+    thumbnailUrl: 'https://budsatwork.com/images/hero-thumbnail.jpg',
     uploadDate: '2024-01-01',
     contentUrl: 'https://budsatwork.com/videos/hero.mp4',
     publisher: {
