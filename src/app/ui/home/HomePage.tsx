@@ -218,6 +218,7 @@ export default function HomePage() {
             muted
             loop
             playsInline
+            poster="/images/hero-thumbnail.png"
             className="w-full h-full object-cover"
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
@@ -321,6 +322,16 @@ export default function HomePage() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-center">
+            <Link
+              href="/services"
+              className="rounded-full px-6 py-3 text-sm font-semibold shadow hover:shadow-md transition-shadow"
+              style={{ background: brand.primary, color: '#fff' }}
+            >
+              Get a free quote
+            </Link>
           </div>
         </section>
 

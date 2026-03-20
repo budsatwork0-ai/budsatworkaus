@@ -16,23 +16,16 @@ export function LocalBusinessSchema() {
       addressCountry: 'AU',
     },
     areaServed: [
-      {
-        '@type': 'City',
-        name: 'Logan',
-        containedInPlace: {
-          '@type': 'State',
-          name: 'Queensland',
-        },
-      },
-      {
-        '@type': 'City',
-        name: 'South Brisbane',
-        containedInPlace: {
-          '@type': 'State',
-          name: 'Queensland',
-        },
-      },
-    ],
+      'Logan', 'South Brisbane', 'Springwood', 'Beenleigh', 'Browns Plains',
+      'Loganholme', 'Daisy Hill', 'Slacks Creek',
+    ].map((name) => ({ '@type': 'City', name, containedInPlace: { '@type': 'State', name: 'Queensland' } })),
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5.0',
+      reviewCount: '24',
+      bestRating: '5',
+      worstRating: '1',
+    },
     priceRange: '$$',
     openingHoursSpecification: [
       {
@@ -90,6 +83,14 @@ export function LocalBusinessSchema() {
             '@type': 'Service',
             name: 'Car Detailing',
             description: 'Car cleaning and detailing packages',
+          },
+        },
+        {
+          '@type': 'Offer',
+          itemOffered: {
+            '@type': 'Service',
+            name: 'Laundry & Sneaker Care',
+            description: 'Wash, fold, and sneaker cleaning services',
           },
         },
       ],

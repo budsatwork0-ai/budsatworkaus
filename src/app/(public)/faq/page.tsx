@@ -136,9 +136,28 @@ function FAQItem({ q, a }: { q: string; a: React.ReactNode }) {
   );
 }
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.flatMap((section) =>
+    section.items.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: String(item.a),
+      },
+    }))
+  ),
+};
+
 export default function FAQPage() {
   return (
     <div className="relative overflow-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <div
         className="pointer-events-none absolute inset-0 -z-10"
         aria-hidden

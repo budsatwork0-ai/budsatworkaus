@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useAuth } from '@/app/hooks/useAuth';
@@ -11,7 +11,7 @@ import { SessionWarningModal } from '@/components/SessionWarningModal';
 import { SoftLockModal } from '@/components/SoftLockModal';
 import { brand } from '@/app/ui/theme';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 
 const NAV = [
   { href: '/portal', label: 'Home', exact: true },
@@ -25,11 +25,21 @@ const NAV = [
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { sessionState, extendSession, unlock } = useSessionManager();
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (searchParams?.get('confirmed') === '1') {
+      toast.success('Email verified! Welcome to Buds At Work.', { duration: 5000 });
+      router.replace('/portal');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = getSupabaseBrowserClient();

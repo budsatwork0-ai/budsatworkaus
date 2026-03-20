@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const rawRedirect = searchParams.get('redirect');
+  const type = searchParams.get('type');
 
   // Only allow same-origin relative paths to prevent open redirect attacks.
   const explicitRedirect = rawRedirect?.startsWith('/') ? rawRedirect : null;
@@ -74,6 +75,12 @@ export async function GET(req: NextRequest) {
       // Honour an explicit redirect (e.g. /account/update-password), otherwise
       // send the user to their role-based home.
       destination = explicitRedirect || homePathForRole(role);
+
+      // For email confirmation sign-ups, flag the destination so the portal
+      // can show a "email verified" success message.
+      if (type === 'signup' && !explicitRedirect) {
+        destination += '?confirmed=1';
+      }
     }
   }
 

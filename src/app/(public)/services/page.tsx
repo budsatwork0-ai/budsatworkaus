@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
+import { sendGAEvent } from '@next/third-parties/google';
 import StableMapSlot from '@/components/StableMapSlot';
 import {
   usePolygonQuote,
@@ -625,6 +626,11 @@ function ServicesPageContent() {
       // Ensure current scope has its preset applied so Step 2 UI starts consistent
       applyScopePreset(S.service, S.scope);
       setActiveServiceId(null);
+      sendGAEvent('event', 'quote_step_2', { service: S.service });
+    }
+
+    if (n === 3) {
+      sendGAEvent('event', 'quote_step_3', { service: S.service });
     }
 
     set('step', n);
@@ -1311,7 +1317,9 @@ function winSessionMinutes(S: WizardState) {
                     />
                   ))}
                 </div>
-                <div className="text-sm text-slate-600 whitespace-nowrap">Step {S.step} of 3</div>
+                <div className="text-sm text-slate-600 whitespace-nowrap">
+                  Step {S.step} of 3 — {(['Choose service', 'Customise', 'Book'] as const)[S.step - 1]}
+                </div>
               </div>
             </section>
             <div className="grid gap-6">
@@ -5202,6 +5210,7 @@ function winSessionMinutes(S: WizardState) {
                         const { quote } = await res.json();
 
                         if (quote?.id) {
+                          sendGAEvent('event', 'quote_submitted', { service: S.service, value: effectiveTotal });
                           window.location.href = `/services/checkout/success?quote_id=${encodeURIComponent(quote.id)}`;
                         } else {
                           throw new Error('No quote reference returned');
