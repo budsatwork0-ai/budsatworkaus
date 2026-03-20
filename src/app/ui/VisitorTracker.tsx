@@ -31,7 +31,7 @@ export default function VisitorTracker() {
 
   // Track page views on route change
   useEffect(() => {
-    if (!sessionId || !shouldTrack(pathname)) return;
+    if (!sessionId || !pathname || !shouldTrack(pathname)) return;
     if (lastTrackedPath.current === pathname) return;
     lastTrackedPath.current = pathname;
 
