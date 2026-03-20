@@ -40,6 +40,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
 
+  // Drop known bot/crawler traffic — Googlebot uses headless Chrome so it
+  // executes JS and would otherwise appear as real visitors from US data centres.
+  const ua = req.headers.get('user-agent') ?? '';
+  const BOT_RE = /bot|crawler|spider|googlebot|bingbot|slurp|duckduckbot|facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|WhatsApp|Discordbot|Applebot|AhrefsBot|SemrushBot|MJ12bot|DotBot/i;
+  if (BOT_RE.test(ua)) {
+    return NextResponse.json({ ok: true });
+  }
+
   const supabase = createServiceClientSafe();
   if (!supabase) {
     // DB unavailable — silently accept so tracker doesn't block the user
@@ -47,7 +55,6 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
-  const userAgent = req.headers.get('user-agent') ?? null;
 
   // Vercel injects these automatically on all deployments — no API key needed
   const rawCity = req.headers.get('x-vercel-ip-city');
@@ -63,7 +70,7 @@ export async function POST(req: NextRequest) {
         current_page: page,
         page_title: typeof page_title === 'string' ? page_title : null,
         referrer: event_type === 'pageview' && typeof referrer === 'string' ? referrer : undefined,
-        user_agent: userAgent,
+        user_agent: ua || null,
         city,
         country,
         last_seen_at: now,
