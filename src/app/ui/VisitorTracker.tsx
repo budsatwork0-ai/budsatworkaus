@@ -17,10 +17,10 @@ function shouldTrack(path: string): boolean {
 
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return '';
-  const stored = sessionStorage.getItem(SESSION_KEY);
+  const stored = localStorage.getItem(SESSION_KEY);
   if (stored) return stored;
   const id = crypto.randomUUID();
-  sessionStorage.setItem(SESSION_KEY, id);
+  localStorage.setItem(SESSION_KEY, id);
   return id;
 }
 

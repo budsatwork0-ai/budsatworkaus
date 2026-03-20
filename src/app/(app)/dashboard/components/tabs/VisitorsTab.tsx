@@ -233,7 +233,6 @@ export default function VisitorsTab() {
                       <p className="text-sm font-medium text-slate-800 truncate">
                         {cleanTitle(v.page_title) ?? v.current_page}
                       </p>
-                      <p className="text-[11px] font-mono text-slate-400 truncate">{v.current_page}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[11px] text-slate-400">
                           {formatDuration(v.first_seen_at, v.last_seen_at)}
