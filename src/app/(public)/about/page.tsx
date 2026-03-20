@@ -182,9 +182,10 @@ const credentials = [
 ];
 
 const timeline = [
-  { year: '2023', event: 'First jobs & early referrals' },
-  { year: '2024', event: 'Expanded to windows, yard care & dump runs' },
-  { year: '2025', event: 'NDIS-friendly workflows & simple online booking' },
+  { year: '2022', event: "That's where it all started — we met" },
+  { year: '2024', event: 'Hit a wall trying to find work' },
+  { year: '2025', event: 'So we built our own solution: Buds at Work' },
+  { year: '2026', event: 'And finally launched it to the world' },
 ];
 
 const team = [
