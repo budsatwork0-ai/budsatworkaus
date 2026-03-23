@@ -102,9 +102,12 @@ const DeviceIcon = ({ ua }: { ua: string | null }) => {
   return <DesktopIcon />;
 };
 
+type VisitorStats = { today: number; sevenDay: number; twentyEightDay: number };
+
 export default function VisitorsTab() {
   const [visitors, setVisitors] = useState<SiteVisitor[]>([]);
   const [recentPageViews, setRecentPageViews] = useState<PageView[]>([]);
+  const [stats, setStats] = useState<VisitorStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // Ticker to refresh relative timestamps every 10s
   const [tick, setTick] = useState(0);
@@ -116,8 +119,12 @@ export default function VisitorsTab() {
     async function loadInitialData() {
       setIsLoading(true);
       const fiveMinutesAgo = new Date(Date.now() - ACTIVE_THRESHOLD_MS).toISOString();
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const twentyEightDaysAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
 
-      const [{ data: visitorsData }, { data: pageViewsData }] = await Promise.all([
+      const [{ data: visitorsData }, { data: pageViewsData }, { data: historicalData }] = await Promise.all([
         (supabase as any)
           .from('site_visitors')
           .select('*')
@@ -128,7 +135,22 @@ export default function VisitorsTab() {
           .select('*')
           .order('viewed_at', { ascending: false })
           .limit(20),
+        (supabase as any)
+          .from('page_views')
+          .select('session_id, viewed_at')
+          .gte('viewed_at', twentyEightDaysAgo),
       ]);
+
+      // Count distinct sessions per window client-side
+      const rows: { session_id: string; viewed_at: string }[] = historicalData ?? [];
+      const toCount = (cutoff: string) =>
+        new Set(rows.filter(r => r.viewed_at >= cutoff).map(r => r.session_id)).size;
+
+      setStats({
+        today: toCount(todayStart),
+        sevenDay: toCount(sevenDaysAgo),
+        twentyEightDay: new Set(rows.map(r => r.session_id)).size,
+      });
 
       setVisitors(visitorsData ?? []);
       setRecentPageViews(pageViewsData ?? []);
@@ -190,6 +212,24 @@ export default function VisitorsTab() {
 
   return (
     <div className="grid gap-4">
+      {/* Historical visitor stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Today', value: stats?.today },
+          { label: 'Last 7 days', value: stats?.sevenDay },
+          { label: 'Last 28 days', value: stats?.twentyEightDay },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-2xl border border-black/5 bg-white/90 px-5 py-4 shadow-sm text-center">
+            {isLoading || value === undefined ? (
+              <div className="h-7 w-12 rounded animate-pulse bg-slate-100 mx-auto mb-1" />
+            ) : (
+              <p className="text-2xl font-bold text-slate-900">{value}</p>
+            )}
+            <p className="text-xs text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Hero stat */}
       <div className="rounded-2xl border border-black/5 bg-white/90 px-5 py-4 shadow-sm flex items-center gap-4">
         <div className="relative flex items-center justify-center h-10 w-10 rounded-full bg-emerald-50">
