@@ -102,7 +102,8 @@ const DeviceIcon = ({ ua }: { ua: string | null }) => {
   return <DesktopIcon />;
 };
 
-type VisitorStats = { today: number; sevenDay: number; twentyEightDay: number };
+type StatWindow = { current: number; previous: number };
+type VisitorStats = { today: StatWindow; sevenDay: StatWindow; twentyEightDay: StatWindow };
 
 export default function VisitorsTab() {
   const [visitors, setVisitors] = useState<SiteVisitor[]>([]);
@@ -121,8 +122,11 @@ export default function VisitorsTab() {
       const fiveMinutesAgo = new Date(Date.now() - ACTIVE_THRESHOLD_MS).toISOString();
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
       const twentyEightDaysAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
+      const fiftyySixDaysAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000).toISOString();
 
       const [{ data: visitorsData }, { data: pageViewsData }, { data: historicalData }] = await Promise.all([
         (supabase as any)
@@ -138,18 +142,18 @@ export default function VisitorsTab() {
         (supabase as any)
           .from('page_views')
           .select('session_id, viewed_at')
-          .gte('viewed_at', twentyEightDaysAgo),
+          .gte('viewed_at', fiftyySixDaysAgo),
       ]);
 
       // Count distinct sessions per window client-side
       const rows: { session_id: string; viewed_at: string }[] = historicalData ?? [];
-      const toCount = (cutoff: string) =>
-        new Set(rows.filter(r => r.viewed_at >= cutoff).map(r => r.session_id)).size;
+      const countBetween = (from: string, to?: string) =>
+        new Set(rows.filter(r => r.viewed_at >= from && (!to || r.viewed_at < to)).map(r => r.session_id)).size;
 
       setStats({
-        today: toCount(todayStart),
-        sevenDay: toCount(sevenDaysAgo),
-        twentyEightDay: new Set(rows.map(r => r.session_id)).size,
+        today:          { current: countBetween(todayStart),          previous: countBetween(yesterdayStart, todayStart) },
+        sevenDay:       { current: countBetween(sevenDaysAgo),        previous: countBetween(fourteenDaysAgo, sevenDaysAgo) },
+        twentyEightDay: { current: countBetween(twentyEightDaysAgo),  previous: countBetween(fiftyySixDaysAgo, twentyEightDaysAgo) },
       });
 
       setVisitors(visitorsData ?? []);
@@ -214,20 +218,34 @@ export default function VisitorsTab() {
     <div className="grid gap-4">
       {/* Historical visitor stats */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Today', value: stats?.today },
-          { label: 'Last 7 days', value: stats?.sevenDay },
-          { label: 'Last 28 days', value: stats?.twentyEightDay },
-        ].map(({ label, value }) => (
-          <div key={label} className="rounded-2xl border border-black/5 bg-white/90 px-5 py-4 shadow-sm text-center">
-            {isLoading || value === undefined ? (
-              <div className="h-7 w-12 rounded animate-pulse bg-slate-100 mx-auto mb-1" />
-            ) : (
-              <p className="text-2xl font-bold text-slate-900">{value}</p>
-            )}
-            <p className="text-xs text-slate-500">{label}</p>
-          </div>
-        ))}
+        {([
+          { label: 'Today', sub: 'vs. yesterday', window: stats?.today },
+          { label: 'Last 7 days', sub: 'vs. prev. 7 days', window: stats?.sevenDay },
+          { label: 'Last 28 days', sub: 'vs. prev. 28 days', window: stats?.twentyEightDay },
+        ] as const).map(({ label, sub, window }) => {
+          const delta = window ? window.current - window.previous : 0;
+          const isUp = delta > 0;
+          const isDown = delta < 0;
+          return (
+            <div key={label} className="rounded-2xl border border-black/5 bg-white/90 px-5 py-4 shadow-sm text-center">
+              {isLoading || !window ? (
+                <>
+                  <div className="h-7 w-12 rounded animate-pulse bg-slate-100 mx-auto mb-1" />
+                  <div className="h-3 w-16 rounded animate-pulse bg-slate-100 mx-auto mt-2" />
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-slate-900">{window.current}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+                  <p className={`text-[11px] mt-1.5 font-medium ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+                    {isUp ? '↑' : isDown ? '↓' : '—'}{' '}
+                    {delta === 0 ? 'same' : `${Math.abs(delta)} ${sub}`}
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Hero stat */}
