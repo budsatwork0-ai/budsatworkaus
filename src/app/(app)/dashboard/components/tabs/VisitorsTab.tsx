@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { brand } from '@/app/ui/theme';
-import { Panel } from '../shared';
+import { Panel, ArrowUpIcon, ArrowDownIcon } from '../shared';
 
 // Inline types until database.ts is regenerated
 type SiteVisitor = {
@@ -227,22 +227,27 @@ export default function VisitorsTab() {
           const isUp = delta > 0;
           const isDown = delta < 0;
           return (
-            <div key={label} className="rounded-2xl border border-black/5 bg-white/90 px-5 py-4 shadow-sm text-center">
-              {isLoading || !window ? (
-                <>
-                  <div className="h-7 w-12 rounded animate-pulse bg-slate-100 mx-auto mb-1" />
-                  <div className="h-3 w-16 rounded animate-pulse bg-slate-100 mx-auto mt-2" />
-                </>
-              ) : (
-                <>
-                  <p className="text-2xl font-bold text-slate-900">{window.current}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-                  <p className={`text-[11px] mt-1.5 font-medium ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-                    {isUp ? '↑' : isDown ? '↓' : '—'}{' '}
-                    {delta === 0 ? 'same' : `${Math.abs(delta)} ${sub}`}
-                  </p>
-                </>
-              )}
+            <div key={label} className="rounded-2xl border border-black/5 bg-white/90 shadow-[0_10px_28px_rgba(15,23,42,0.08)] overflow-hidden">
+              <div className="h-0.5 w-full" style={{ background: brand.primary }} />
+              <div className="px-5 py-4">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">{label}</p>
+                {isLoading || !window ? (
+                  <>
+                    <div className="h-8 w-14 rounded-lg animate-pulse bg-slate-100 mb-3" />
+                    <div className="h-5 w-24 rounded-full animate-pulse bg-slate-100" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold text-slate-900 mb-2">{window.current}</p>
+                    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      isUp ? 'bg-emerald-50 text-emerald-700' : isDown ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {isUp ? <ArrowUpIcon /> : isDown ? <ArrowDownIcon /> : null}
+                      {delta === 0 ? `Same ${sub}` : `${isUp ? '+' : ''}${delta} ${sub}`}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
