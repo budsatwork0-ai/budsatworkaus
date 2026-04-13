@@ -32,6 +32,7 @@ export function Tile({
   subtitle,
   icon,
   disabled,
+  popular,
 }: {
   active?: boolean;
   onClick?: () => void;

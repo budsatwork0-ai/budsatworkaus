@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { cls } from '../../utils/formatting';
 import { ACCENT } from '../../lib/pricing/constants';
 import { M } from '../../utils/motion';
@@ -11,7 +11,73 @@ const LIVE_ORDER_ITEMS = [
   { label: 'Bin clean', price: '$80', detail: '2 bins scrubbed', icon: <TruckIcon />, timeAgo: '12 min ago', location: 'Ipswich' },
 ] as const;
 
-export function LiveOrdersStrip({ className = '' }: { className?: string }) {
+/** Compact rotating ticker — Apple-style frosted pill, one booking at a time */
+function LiveOrdersCompact({ className = '' }: { className?: string }) {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % LIVE_ORDER_ITEMS.length);
+        setVisible(true);
+      }, 350);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const item = LIVE_ORDER_ITEMS[index];
+
+  return (
+    <div className={cls('flex justify-center', className)} aria-live="polite" aria-atomic="true">
+      <div
+        className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-white/70 backdrop-blur-xl border border-white/80 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+        style={{
+          transition: 'opacity 0.35s cubic-bezier(0.4,0,0.2,1)',
+          opacity: visible ? 1 : 0,
+        }}
+      >
+        {/* Live indicator */}
+        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+        </span>
+
+        {/* Location */}
+        <span className="text-[11px] text-slate-400 font-normal shrink-0">
+          {item.location}
+        </span>
+
+        {/* Divider */}
+        <span className="h-3 w-px bg-slate-200 shrink-0" aria-hidden />
+
+        {/* Service label */}
+        <span className="text-[11px] font-medium text-slate-700">
+          {item.label}
+        </span>
+
+        {/* Price */}
+        <span
+          className="text-[11px] font-semibold tabular-nums"
+          style={{ color: ACCENT }}
+        >
+          {item.price}
+        </span>
+
+        {/* Time */}
+        <span className="text-[10px] text-slate-400 shrink-0">{item.timeAgo}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Main LiveOrdersStrip — compact prop renders the inline rotating pill */
+export function LiveOrdersStrip({ className = '', compact = false }: { className?: string; compact?: boolean }) {
+  if (compact) {
+    return <LiveOrdersCompact className={className} />;
+  }
+
   return (
     <div className={cls('relative', className)}>
       {/* Section header */}
