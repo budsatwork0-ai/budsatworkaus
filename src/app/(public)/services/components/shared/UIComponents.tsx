@@ -40,6 +40,7 @@ export function Tile({
   subtitle?: string;
   icon: React.ReactNode;
   disabled?: boolean;
+  popular?: boolean;
 }) {
   return (
     <M.button
