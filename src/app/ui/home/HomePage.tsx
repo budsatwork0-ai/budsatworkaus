@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, useInView, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 import { brand, cx, glass, glassSoft } from '@/app/ui/theme';
 
 const iconProps = {
@@ -125,6 +126,14 @@ function StarIcon() {
   );
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5 opacity-70">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 const services = [
   { key: 'windows', title: 'Window cleaning', icon: <WindowIcon />, href: '/services?service=windows' },
   { key: 'cleaning', title: 'Home cleaning', icon: <HomeIcon />, href: '/services?service=cleaning' },
@@ -190,7 +199,64 @@ const trustBadges = [
   'No Surprise Fees',
 ];
 
+// --- Animated Counter ---
+function AnimatedStat({ target, suffix = '', prefix = '' }: { target: number; suffix?: string; prefix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true });
+  const motionValue = useMotionValue(0);
+  const springValue = useSpring(motionValue, { damping: 40, stiffness: 120 });
+  const [display, setDisplay] = useState('0');
+
+  useEffect(() => {
+    if (inView) motionValue.set(target);
+  }, [inView, motionValue, target]);
+
+  useEffect(() => {
+    const unsub = springValue.on('change', (v) => {
+      setDisplay(Math.round(v).toString());
+    });
+    return unsub;
+  }, [springValue]);
+
+  return (
+    <span ref={ref}>
+      {prefix}{display}{suffix}
+    </span>
+  );
+}
+
+// --- Section Fade-in Wrapper ---
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as any } },
+};
+
+function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-60px' });
+  return (
+    <motion.div
+      ref={ref}
+      variants={fadeUp}
+      initial="hidden"
+      animate={inView ? 'visible' : 'hidden'}
+      transition={{ delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function HomePage() {
+  const [heroVisible, setHeroVisible] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setHeroVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div className="relative">
       {/* HERO - Full screen with video */}
@@ -203,22 +269,15 @@ export default function HomePage() {
           width: '100vw',
         }}
       >
-        {/* Video/Image Background - positioned to go behind header */}
+        {/* Video/Image Background */}
         <div
           className="absolute z-0 bg-slate-900"
-          style={{
-            top: '-100px',
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
+          style={{ top: '-100px', left: 0, right: 0, bottom: 0 }}
         >
-          {/* Mobile: static poster image — no video download */}
           <div
             className="md:hidden w-full h-full bg-cover bg-center"
             style={{ backgroundImage: 'url(/images/hero-thumbnail.jpg)' }}
           />
-          {/* Desktop: autoplay video */}
           <video
             autoPlay
             muted
@@ -229,54 +288,151 @@ export default function HomePage() {
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/60" />
+          {/* Subtle animated overlay shimmer */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            animate={{ opacity: [0.08, 0.14, 0.08] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, transparent 60%)' }}
+          />
         </div>
 
         <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
-          <p className="text-sm font-medium text-white/90">
-            Serving Logan & South Brisbane
-          </p>
+          <AnimatePresence>
+            {heroVisible && (
+              <motion.div
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <motion.p
+                  className="text-sm font-medium text-white/90 tracking-wide"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                >
+                  Serving Logan & South Brisbane
+                </motion.p>
 
-          <h1 className="mt-4 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white drop-shadow-lg">
-            Good people doing
-            <br />
-            <span className="text-emerald-300">honest work.</span>
-          </h1>
+                <motion.h1
+                  className="mt-4 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white drop-shadow-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  Good people doing
+                  <br />
+                  <span className="text-emerald-300">honest work.</span>
+                </motion.h1>
 
-          <p className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-white/90">
-            We&apos;re Buds At Work — a local crew that handles cleaning, yard care, dump runs,
-            and car detailing. Get a real quote in minutes, not a callback next week.
-          </p>
+                <motion.p
+                  className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-white/90"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.38, duration: 0.55 }}
+                >
+                  We&apos;re Buds At Work — a local crew that handles cleaning, yard care, dump runs,
+                  and car detailing. Get a real quote in minutes, not a callback next week.
+                </motion.p>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Link
-              href="/services"
-              className="rounded-full px-7 py-3.5 text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
-              style={{ background: brand.primary, color: '#fff' }}
-            >
-              Get a free quote
-            </Link>
-            <Link
-              href="/about"
-              className="rounded-full px-7 py-3.5 text-base font-semibold bg-white/20 backdrop-blur text-white border border-white/30 hover:bg-white/30 transition-colors"
-            >
-              Meet the team
-            </Link>
-          </div>
+                <motion.div
+                  className="mt-8 flex flex-wrap justify-center gap-4"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, duration: 0.5 }}
+                >
+                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      href="/services"
+                      className="inline-block rounded-full px-7 py-3.5 text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
+                      style={{ background: brand.primary, color: '#fff' }}
+                    >
+                      Get a free quote
+                    </Link>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      href="/about"
+                      className="inline-block rounded-full px-7 py-3.5 text-base font-semibold bg-white/20 backdrop-blur text-white border border-white/30 hover:bg-white/30 transition-colors"
+                    >
+                      Meet the team
+                    </Link>
+                  </motion.div>
+                </motion.div>
 
-          {/* Trust badges */}
-          <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2">
-            {trustBadges.map((label) => (
-              <span key={label} className="flex items-center gap-1.5 text-sm text-white/80">
-                <span className="text-emerald-300"><CheckIcon /></span>
-                {label}
-              </span>
+                {/* Trust badges */}
+                <motion.div
+                  className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.65, duration: 0.5 }}
+                >
+                  {trustBadges.map((label, i) => (
+                    <motion.span
+                      key={label}
+                      className="flex items-center gap-1.5 text-sm text-white/80"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.65 + i * 0.07 }}
+                    >
+                      <span className="text-emerald-300"><CheckIcon /></span>
+                      {label}
+                    </motion.span>
+                  ))}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/50 text-xs"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2, duration: 0.6 }}
+        >
+          <span className="tracking-widest uppercase text-[10px]">Scroll</span>
+          <motion.div
+            animate={{ y: [0, 6, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <ChevronDownIcon />
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* Live stats bar */}
+      <FadeIn>
+        <div
+          className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8 -mt-6 relative z-10"
+        >
+          <div
+            className="rounded-2xl px-6 py-4 flex flex-wrap items-center justify-around gap-4 text-center"
+            style={{
+              background: brand.primary,
+              boxShadow: '0 20px 40px rgba(15,61,46,0.28)',
+            }}
+          >
+            {[
+              { value: 320, suffix: '+', label: 'Jobs completed' },
+              { value: 5, prefix: '', suffix: '.0★', label: 'Average rating' },
+              { value: 2, suffix: ' regions', label: 'Service areas' },
+              { value: 48, suffix: 'h', label: 'Quote response' },
+            ].map(({ value, suffix, prefix, label }, i) => (
+              <div key={label} className="flex flex-col items-center">
+                <span className="text-2xl font-bold text-white">
+                  <AnimatedStat target={value} suffix={suffix} prefix={prefix} />
+                </span>
+                <span className="text-xs text-white/65 mt-0.5">{label}</span>
+              </div>
             ))}
           </div>
         </div>
-      </section>
+      </FadeIn>
 
-      {/* Content sections with background */}
+      {/* Content sections */}
       <div className="relative">
         {/* Background gradient */}
         <div
@@ -289,213 +445,281 @@ export default function HomePage() {
         />
 
         <div className="mx-auto max-w-5xl space-y-20 pb-12 pt-16 px-4 sm:px-6 md:px-8">
-          {/* SERVICES GRID */}
-        <section>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-              What we do
-            </h2>
-            <p className="mt-2 text-base" style={{ color: brand.muted }}>
-              Pick a service to start building your quote
-            </p>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            {services.map((s) => (
-              <Link key={s.key} href={s.href} className="group min-w-0">
-                <div
-                  className={cx(
-                    'h-full rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-all',
-                    glass,
-                    'hover:shadow-lg hover:-translate-y-0.5'
-                  )}
-                >
-                  <div
-                    className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-3"
-                    style={{ background: `${brand.primary}15`, color: brand.primary }}
+          {/* SERVICES GRID */}
+          <section>
+            <FadeIn>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
+                  What we do
+                </h2>
+                <p className="mt-2 text-base" style={{ color: brand.muted }}>
+                  Pick a service to start building your quote
+                </p>
+              </div>
+            </FadeIn>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+              {services.map((s, i) => (
+                <FadeIn key={s.key} delay={i * 0.07}>
+                  <Link href={s.href} className="group min-w-0 block h-full">
+                    <motion.div
+                      whileHover={{ y: -4, boxShadow: '0 16px 36px rgba(15,61,46,0.14)' }}
+                      whileTap={{ scale: 0.97 }}
+                      className={cx(
+                        'h-full rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-colors cursor-pointer',
+                        glass
+                      )}
+                    >
+                      <motion.div
+                        className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-3"
+                        style={{ background: `${brand.primary}15`, color: brand.primary }}
+                        whileHover={{ scale: 1.12, background: `${brand.primary}25` }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        {s.icon}
+                      </motion.div>
+                      <div className="font-semibold" style={{ color: brand.text }}>
+                        {s.title}
+                      </div>
+                      <motion.div
+                        className="mt-2 text-sm font-medium flex items-center justify-center gap-1"
+                        style={{ color: brand.primary }}
+                        initial={{ opacity: 0, y: 4 }}
+                        whileHover={{ opacity: 1, y: 0 }}
+                      >
+                        Get quote <ArrowRightIcon />
+                      </motion.div>
+                    </motion.div>
+                  </Link>
+                </FadeIn>
+              ))}
+            </div>
+
+            <FadeIn delay={0.3}>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-center">
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                  <Link
+                    href="/services"
+                    className="rounded-full px-6 py-3 text-sm font-semibold shadow hover:shadow-md transition-shadow inline-block"
+                    style={{ background: brand.primary, color: '#fff' }}
                   >
-                    {s.icon}
-                  </div>
-                  <div className="font-semibold" style={{ color: brand.text }}>
-                    {s.title}
-                  </div>
-                  <div
-                    className="mt-2 text-sm font-medium flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    Get a free quote
+                  </Link>
+                </motion.div>
+              </div>
+            </FadeIn>
+          </section>
+
+          {/* HOW IT WORKS */}
+          <FadeIn>
+            <section className={cx('rounded-3xl p-8 md:p-10', glassSoft)}>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
+                  Quoting that actually makes sense
+                </h2>
+                <p className="mt-2 text-base max-w-xl mx-auto" style={{ color: brand.muted }}>
+                  We built tools that let you scope the job yourself — no phone tag, no vague estimates
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6">
+                {tools.map((tool, i) => (
+                  <motion.div
+                    key={i}
+                    className="text-center md:text-left"
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.12, duration: 0.5 }}
+                  >
+                    <motion.div
+                      className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
+                      style={{ background: `${brand.primary}15`, color: brand.primary }}
+                      whileHover={{ scale: 1.1, rotate: 4 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      {tool.icon}
+                    </motion.div>
+                    <h3 className="font-semibold text-lg mb-2" style={{ color: brand.text }}>
+                      {tool.title}
+                    </h3>
+                    <p className="text-sm leading-relaxed" style={{ color: brand.muted }}>
+                      {tool.description}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          </FadeIn>
+
+          {/* ABOUT SNIPPET */}
+          <FadeIn>
+            <section className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+              <div>
+                <motion.p
+                  className="text-sm font-medium mb-3"
+                  style={{ color: brand.primary }}
+                  initial={{ opacity: 0, x: -12 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4 }}
+                >
+                  Who are Buds?
+                </motion.p>
+                <h2 className="text-2xl md:text-3xl font-bold mb-4" style={{ color: brand.text }}>
+                  Your local crew,
+                  <br />
+                  not a faceless platform
+                </h2>
+                <p className="text-base leading-relaxed mb-6" style={{ color: brand.muted }}>
+                  We&apos;re a small team based in Logan. When you book with us, you&apos;re dealing with real
+                  people who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
+                </p>
+                <motion.div whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                  <Link
+                    href="/about"
+                    className="inline-flex items-center gap-2 text-base font-semibold transition-all"
                     style={{ color: brand.primary }}
                   >
-                    Get quote <ArrowRightIcon />
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                    Learn more about us <ArrowRightIcon />
+                  </Link>
+                </motion.div>
+              </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-center">
-            <Link
-              href="/services"
-              className="rounded-full px-6 py-3 text-sm font-semibold shadow hover:shadow-md transition-shadow"
-              style={{ background: brand.primary, color: '#fff' }}
-            >
-              Get a free quote
-            </Link>
-          </div>
-        </section>
-
-        {/* HOW IT WORKS */}
-        <section className={cx('rounded-3xl p-8 md:p-10', glassSoft)}>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-              Quoting that actually makes sense
-            </h2>
-            <p className="mt-2 text-base max-w-xl mx-auto" style={{ color: brand.muted }}>
-              We built tools that let you scope the job yourself — no phone tag, no vague estimates
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {tools.map((tool, i) => (
-              <div key={i} className="text-center md:text-left">
-                <div
-                  className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
-                  style={{ background: `${brand.primary}15`, color: brand.primary }}
-                >
-                  {tool.icon}
-                </div>
-                <h3 className="font-semibold text-lg mb-2" style={{ color: brand.text }}>
-                  {tool.title}
+              <div className={cx('rounded-2xl p-6', glass)}>
+                <h3 className="font-semibold mb-4" style={{ color: brand.text }}>
+                  What we promise
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: brand.muted }}>
-                  {tool.description}
-                </p>
+                <ul className="space-y-3">
+                  {values.map((v, i) => (
+                    <motion.li
+                      key={i}
+                      className="flex items-start gap-3"
+                      initial={{ opacity: 0, x: 12 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.1, duration: 0.4 }}
+                    >
+                      <motion.span
+                        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: `${brand.primary}20`, color: brand.primary }}
+                        whileHover={{ scale: 1.2 }}
+                      >
+                        <CheckIcon />
+                      </motion.span>
+                      <span className="text-sm" style={{ color: brand.text }}>
+                        {v}
+                      </span>
+                    </motion.li>
+                  ))}
+                </ul>
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          </FadeIn>
 
-        {/* ABOUT SNIPPET */}
-        <section className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-          <div>
-            <p className="text-sm font-medium mb-3" style={{ color: brand.primary }}>
-              Who are Buds?
-            </p>
-            <h2 className="text-2xl md:text-3xl font-bold mb-4" style={{ color: brand.text }}>
-              Your local crew,
-              <br />
-              not a faceless platform
-            </h2>
-            <p className="text-base leading-relaxed mb-6" style={{ color: brand.muted }}>
-              We&apos;re a small team based in Logan. When you book with us, you&apos;re dealing with real
-              people who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
-            </p>
-            <Link
-              href="/about"
-              className="inline-flex items-center gap-2 text-base font-semibold hover:gap-3 transition-all"
-              style={{ color: brand.primary }}
-            >
-              Learn more about us <ArrowRightIcon />
-            </Link>
-          </div>
-
-          <div className={cx('rounded-2xl p-6', glass)}>
-            <h3 className="font-semibold mb-4" style={{ color: brand.text }}>
-              What we promise
-            </h3>
-            <ul className="space-y-3">
-              {values.map((v, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span
-                    className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                    style={{ background: `${brand.primary}20`, color: brand.primary }}
-                  >
-                    <CheckIcon />
-                  </span>
-                  <span className="text-sm" style={{ color: brand.text }}>
-                    {v}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* TESTIMONIALS */}
-        <section>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-              What our customers say
-            </h2>
-            <div className="flex items-center justify-center gap-1 mt-2" style={{ color: '#F59E0B' }}>
-              {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
-              <span className="ml-2 text-sm font-medium" style={{ color: brand.muted }}>5.0 average rating</span>
-            </div>
-          </div>
-          <div className="grid md:grid-cols-3 gap-4">
-            {testimonials.map((t) => (
-              <div key={t.name} className={cx('rounded-2xl p-6', glass)}>
-                <div className="flex items-center gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
+          {/* TESTIMONIALS */}
+          <section>
+            <FadeIn>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
+                  What our customers say
+                </h2>
+                <div className="flex items-center justify-center gap-1 mt-2" style={{ color: '#F59E0B' }}>
                   {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
-                </div>
-                <p className="text-sm leading-relaxed mb-4" style={{ color: brand.text }}>
-                  &ldquo;{t.text}&rdquo;
-                </p>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: brand.text }}>{t.name}</p>
-                  <p className="text-xs" style={{ color: brand.muted }}>{t.suburb} &middot; {t.service}</p>
+                  <span className="ml-2 text-sm font-medium" style={{ color: brand.muted }}>5.0 average rating</span>
                 </div>
               </div>
-            ))}
-          </div>
-          <div className="mt-6 text-center">
-            <a
-              href="https://g.page/r/CYTORrk6H3xmEAI/review"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
-              style={{ color: brand.primary }}
+            </FadeIn>
+            <div className="grid md:grid-cols-3 gap-4">
+              {testimonials.map((t, i) => (
+                <FadeIn key={t.name} delay={i * 0.1}>
+                  <motion.div
+                    whileHover={{ y: -3, boxShadow: '0 14px 32px rgba(15,61,46,0.12)' }}
+                    className={cx('rounded-2xl p-6 h-full', glass)}
+                  >
+                    <div className="flex items-center gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
+                      {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
+                    </div>
+                    <p className="text-sm leading-relaxed mb-4" style={{ color: brand.text }}>
+                      &ldquo;{t.text}&rdquo;
+                    </p>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: brand.text }}>{t.name}</p>
+                      <p className="text-xs" style={{ color: brand.muted }}>{t.suburb} &middot; {t.service}</p>
+                    </div>
+                  </motion.div>
+                </FadeIn>
+              ))}
+            </div>
+            <FadeIn delay={0.2}>
+              <div className="mt-6 text-center">
+                <a
+                  href="https://g.page/r/CYTORrk6H3xmEAI/review"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+                  style={{ color: brand.primary }}
+                >
+                  Had a great experience? Leave us a review
+                  <ArrowRightIcon />
+                </a>
+              </div>
+            </FadeIn>
+          </section>
+
+          {/* JOIN CTA */}
+          <FadeIn>
+            <motion.section
+              className="rounded-3xl p-8 md:p-10 text-center relative overflow-hidden"
+              style={{ background: `${brand.primary}08` }}
+              whileHover={{ scale: 1.005 }}
+              transition={{ type: 'spring', stiffness: 200 }}
             >
-              Had a great experience? Leave us a review
-              <ArrowRightIcon />
-            </a>
-          </div>
-        </section>
+              {/* Decorative blob */}
+              <div
+                className="pointer-events-none absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-10"
+                style={{ background: brand.primary }}
+              />
+              <h2 className="text-2xl md:text-3xl font-bold mb-3 relative" style={{ color: brand.text }}>
+                Want to join the crew?
+              </h2>
+              <p className="text-base max-w-lg mx-auto mb-6 relative" style={{ color: brand.muted }}>
+                We&apos;re always looking for good people — whether you want to work with us,
+                partner up, or support workers looking for meaningful employment.
+              </p>
+              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="relative inline-block">
+                <Link
+                  href="/get-involved"
+                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold border-2 hover:bg-white/60 transition-colors"
+                  style={{ borderColor: brand.primary, color: brand.primary }}
+                >
+                  Get involved <ArrowRightIcon />
+                </Link>
+              </motion.div>
+            </motion.section>
+          </FadeIn>
 
-        {/* JOIN CTA */}
-        <section
-          className="rounded-3xl p-8 md:p-10 text-center"
-          style={{ background: `${brand.primary}08` }}
-        >
-          <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ color: brand.text }}>
-            Want to join the crew?
-          </h2>
-          <p className="text-base max-w-lg mx-auto mb-6" style={{ color: brand.muted }}>
-            We&apos;re always looking for good people — whether you want to work with us,
-            partner up, or support workers looking for meaningful employment.
-          </p>
-          <Link
-            href="/get-involved"
-            className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold border-2 hover:bg-white/60 transition-colors"
-            style={{ borderColor: brand.primary, color: brand.primary }}
-          >
-            Get involved <ArrowRightIcon />
-          </Link>
-        </section>
-
-        {/* FINAL CTA */}
-        <section className="text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ color: brand.text }}>
-            Ready to get started?
-          </h2>
-          <p className="text-base mb-6" style={{ color: brand.muted }}>
-            Pick a service and build your free quote. No payment until you confirm — we&apos;ll lock in your price for 7 days.
-          </p>
-          <Link
-            href="/services"
-            className="inline-flex rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
-            style={{ background: brand.primary, color: '#fff' }}
-          >
-            Get a free quote
-          </Link>
-        </section>
+          {/* FINAL CTA */}
+          <FadeIn>
+            <section className="text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ color: brand.text }}>
+                Ready to get started?
+              </h2>
+              <p className="text-base mb-6" style={{ color: brand.muted }}>
+                Pick a service and build your free quote. No payment until you confirm — we&apos;ll lock in your price for 7 days.
+              </p>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} className="inline-block">
+                <Link
+                  href="/services"
+                  className="inline-flex rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
+                  style={{ background: brand.primary, color: '#fff' }}
+                >
+                  Get a free quote
+                </Link>
+              </motion.div>
+            </section>
+          </FadeIn>
         </div>
       </div>
     </div>

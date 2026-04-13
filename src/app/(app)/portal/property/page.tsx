@@ -20,18 +20,22 @@ const EMPTY: PropertyInfo = {
 export default function PropertyPage() {
   const [info, setInfo] = useState<PropertyInfo>(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const res = await fetch('/api/portal/property');
       if (!res.ok) throw new Error('Failed to load property details');
       const { property } = await res.json();
       if (property) setInfo({ ...EMPTY, ...property });
     } catch {
-      // Non-fatal — user can still fill in and save
+      // Track load failure so we can warn the user before they accidentally
+      // overwrite their real data with blank fields.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -78,6 +82,22 @@ export default function PropertyPage() {
         </p>
       </div>
 
+      {loadFailed && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">Could not load your saved details</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Your existing data could not be retrieved. Please{' '}
+              <button onClick={load} className="underline font-medium">try reloading</button>{' '}
+              before saving to avoid overwriting your property info with blank fields.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className={`${glass} p-5 sm:p-6`}>
         {loading ? (
           <div className="space-y-5">
@@ -122,7 +142,8 @@ export default function PropertyPage() {
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={handleSave}
-            disabled={saving || loading}
+            disabled={saving || loading || loadFailed}
+            title={loadFailed ? 'Reload your saved details before saving' : undefined}
             className="px-6 py-2.5 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{ background: brand.primary }}
           >

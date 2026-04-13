@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState('');
 
@@ -43,23 +44,41 @@ export default function ProfilePage() {
     }
   }
 
+  // Sync form state whenever fresh employee data arrives (initial load or after refetch).
+  // We only update when NOT in edit mode to avoid clobbering in-progress edits.
   useEffect(() => {
-    if (employee) {
-      setForm({
-        full_name: employee.full_name,
-        email: employee.email,
-        phone: employee.phone || '',
-        suburb: employee.suburb || '',
-        photo_url: employee.photo_url || '',
-        bio: employee.bio || '',
-        emergency_contact_name: employee.emergency_contact_name || '',
-        emergency_contact_phone: employee.emergency_contact_phone || '',
-      });
+    if (employee && !editing) {
+      setForm(buildFormFromEmployee(employee));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee]);
+
+  // Build a clean form snapshot from the current employee data.
+  function buildFormFromEmployee(emp: typeof employee) {
+    if (!emp) return {};
+    return {
+      full_name: emp.full_name,
+      email: emp.email,
+      phone: emp.phone || '',
+      suburb: emp.suburb || '',
+      photo_url: emp.photo_url || '',
+      bio: emp.bio || '',
+      emergency_contact_name: emp.emergency_contact_name || '',
+      emergency_contact_phone: emp.emergency_contact_phone || '',
+    };
+  }
+
+  function handleCancel() {
+    // Reset form back to the last successfully loaded employee data so that
+    // re-opening edit mode doesn't show previously unsaved changes.
+    setForm(buildFormFromEmployee(employee));
+    setSaveError('');
+    setEditing(false);
+  }
 
   async function handleSave() {
     setSaving(true);
+    setSaveError('');
     try {
       const res = await fetch('/api/crew/me', {
         method: 'PATCH',
@@ -69,9 +88,12 @@ export default function ProfilePage() {
       if (res.ok) {
         setEditing(false);
         refetch();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setSaveError(body?.error || 'Could not save changes. Please try again.');
       }
     } catch {
-      // handle silently
+      setSaveError('Could not save changes. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -153,9 +175,12 @@ export default function ProfilePage() {
               </div>
             </div>
 
+            {saveError && (
+              <p className="text-xs text-red-600 pt-1">{saveError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setEditing(false)}
+                onClick={handleCancel}
                 className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
                 style={{ borderColor: brand.border, color: brand.muted }}
               >
@@ -164,10 +189,10 @@ export default function ProfilePage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90"
+                className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-60"
                 style={{ background: brand.primary }}
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>

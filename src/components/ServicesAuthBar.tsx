@@ -23,7 +23,9 @@ export function ServicesAuthBar({ onSignIn, inline }: ServicesAuthBarProps) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Load current session — block non-customer roles
+  // Load current session — block non-customer roles.
+  // We subscribe to onAuthStateChange only; the INITIAL_SESSION event fires
+  // immediately with the current session so getUser() is redundant.
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
@@ -39,7 +41,6 @@ export function ServicesAuthBar({ onSignIn, inline }: ServicesAuthBarProps) {
       setUser(u);
     };
 
-    supabase.auth.getUser().then(({ data }) => applyUser(data.user));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       applyUser(session?.user ?? null);
     });
@@ -94,7 +95,10 @@ export function ServicesAuthBar({ onSignIn, inline }: ServicesAuthBarProps) {
   };
 
   const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0];
-  const initials = firstName ? firstName.slice(0, 2).toUpperCase() : '';
+  // Fall back to first letter of email if the user has no display name (e.g. email-only sign-up)
+  const initials = firstName
+    ? firstName.slice(0, 2).toUpperCase()
+    : (user?.email ?? '').slice(0, 2).toUpperCase() || '?';
 
   return (
     <div ref={panelRef} className={inline ? 'relative' : 'fixed top-4 right-4 z-50'}>

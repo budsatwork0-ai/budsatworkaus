@@ -116,10 +116,11 @@ function migrateState(stored: any): any {
     stored.service = 'laundry_sneakers';
     // Map old sneaker scopes to new unified scope
     if (stored.scope === 'sneaker_basic' || stored.scope === 'sneaker_full' || stored.scope === 'sneaker_lot') {
+      const oldScope = stored.scope; // capture before overwriting
       stored.scope = 'sneaker_care';
-      // Set sneakerTier based on old scope
-      if (stored.scope === 'sneaker_basic') stored.sneakerTier = 'refresh';
-      else if (stored.scope === 'sneaker_lot') stored.sneakerTier = 'multi';
+      // Set sneakerTier based on the original scope
+      if (oldScope === 'sneaker_basic') stored.sneakerTier = 'refresh';
+      else if (oldScope === 'sneaker_lot') stored.sneakerTier = 'multi';
       else stored.sneakerTier = 'deep';
     }
   }
@@ -157,12 +158,20 @@ export function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T,
       first.current = false;
       return;
     }
+    let cancelled = false;
     const id = window.setTimeout(() => {
+      if (cancelled) return;
       try {
-        localStorage.setItem(key, JSON.stringify(state));
-      } catch {}
-    }, 200);
-    return () => clearTimeout(id);
+        const serialized = JSON.stringify(state);
+        localStorage.setItem(key, serialized);
+      } catch {
+        // Serialisation or quota failure — silently skip.
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
   }, [state, key]);
   return [state, dispatch] as const;
 }

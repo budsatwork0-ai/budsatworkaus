@@ -9,6 +9,11 @@ export function LocalBusinessSchema() {
     logo: 'https://budsatwork.com/logo.png',
     image: 'https://budsatwork.com/og-image.png',
     email: 'admin@budsatwork.com',
+    identifier: {
+      '@type': 'PropertyValue',
+      name: 'ABN',
+      value: '56 890 024 059',
+    },
     address: {
       '@type': 'PostalAddress',
       addressLocality: 'Logan',
@@ -96,9 +101,9 @@ export function LocalBusinessSchema() {
       ],
     },
     sameAs: [
-      // Add your social media URLs here when available
-      // 'https://www.facebook.com/budsatwork',
-      // 'https://www.instagram.com/budsatwork',
+      'https://www.facebook.com/people/Buds-At-Work/61579013228527/',
+      'https://www.instagram.com/budsatwork_aus',
+      'https://www.tiktok.com/@buds.at.work',
     ],
   };
 

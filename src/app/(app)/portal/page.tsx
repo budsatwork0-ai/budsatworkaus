@@ -85,28 +85,38 @@ export default function PortalHome() {
 
   useEffect(() => {
     setFetchError(null);
+
+    // Fetch each endpoint independently so a single failure doesn't blank the
+    // whole dashboard. Critical sections (orders, subs) set the error banner;
+    // quote endpoints degrade silently with empty arrays.
+    const safe = <T,>(promise: Promise<T>, fallback: T): Promise<T> =>
+      promise.catch(() => fallback);
+
+    const fetchOrders = fetch('/api/orders?limit=20')
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .catch(() => { setFetchError('Some data failed to load. Your dashboard may be incomplete.'); return { orders: [] }; });
+
+    const fetchSubs = fetch('/api/subscriptions?limit=10')
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .catch(() => { setFetchError('Some data failed to load. Your dashboard may be incomplete.'); return { subscriptions: [] }; });
+
     Promise.all([
-      fetch('/api/orders?limit=20').then((r) => {
-        if (!r.ok) throw new Error('Failed to load orders');
-        return r.json();
-      }),
-      fetch('/api/subscriptions?limit=10').then((r) => {
-        if (!r.ok) throw new Error('Failed to load subscriptions');
-        return r.json();
-      }),
-      fetch('/api/quotes?status=finalized&limit=10').then((r) => r.json()).catch(() => ({ quotes: [] })),
-      fetch('/api/quotes?status=submitted,in_review&limit=10').then((r) => r.json()).catch(() => ({ quotes: [] })),
+      fetchOrders,
+      fetchSubs,
+      safe(fetch('/api/quotes?status=finalized&limit=10').then((r) => r.json()), { quotes: [] }),
+      safe(fetch('/api/quotes?status=submitted,in_review&limit=10').then((r) => r.json()), { quotes: [] }),
     ]).then(([orderData, subData, quoteData, pendingData]) => {
       setOrders(orderData.orders || []);
       setSubs(subData.subscriptions || []);
       setFinalizedQuotes(quoteData.quotes || []);
       setPendingQuotes(pendingData.quotes || []);
-    }).catch(() => {
-      setFetchError('Some data failed to load. Your dashboard may be incomplete.');
     }).finally(() => setLoading(false));
   }, []);
 
-  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0] || 'there';
+  // Prefer display name; fall back to the local part of the email; last resort 'there'.
+  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0]
+    || user?.email?.split('@')[0]
+    || 'there';
   const today = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const activeOrders = orders.filter((o) => !['completed', 'cancelled'].includes(o.status));

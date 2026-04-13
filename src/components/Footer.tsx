@@ -149,7 +149,7 @@ export function Footer() {
 
         <div className="mt-8 border-t border-black/10 pt-8 text-center">
           <p className="text-sm text-slate-500">
-            &copy; {currentYear} Buds At Work. All rights reserved.
+            &copy; {currentYear} Buds At Work. All rights reserved. &middot; ABN 56 890 024 059
           </p>
         </div>
       </div>

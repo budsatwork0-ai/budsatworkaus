@@ -16,16 +16,15 @@ export function useAuth() {
   const [serverRole, setServerRole] = useState<UserRole | null>(null);
   const [serverRoleLoaded, setServerRoleLoaded] = useState(false);
 
+  // Subscribe to auth state only — INITIAL_SESSION fires immediately with the
+  // current session, so a separate getUser() call is redundant and causes a
+  // double state-set on every mount.
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setIsLoaded(true);
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setIsLoaded(true);
     });
 
     return () => subscription.unsubscribe();
@@ -48,13 +47,28 @@ export function useAuth() {
       return;
     }
 
-    fetch('/api/users/me')
+    // Fetch role from the profiles table with a 5-second timeout so a broken
+    // API endpoint can never cause the hook to hang in an unresolved state.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+
+    fetch('/api/users/me', { signal: controller.signal })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data?.role) setServerRole(resolveUserRole(data.role));
       })
-      .catch(() => {})
-      .finally(() => setServerRoleLoaded(true));
+      .catch(() => {
+        // Silently fall back to 'customer' — resolved below via serverRoleLoaded
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        setServerRoleLoaded(true);
+      });
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
   }, [user, isLoaded]);
 
   const role: UserRole = jwtRole ?? serverRole ?? 'customer';

@@ -21,8 +21,7 @@ function ConfirmedToast() {
       toast.success('Email verified! Welcome to Buds At Work.', { duration: 5000 });
       router.replace('/portal');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams, router]);
   return null;
 }
 
@@ -44,19 +43,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  const handleSignOut = async () => {
+  // Single sign-out helper — `redirectTo` defaults to '/' for voluntary sign-out,
+  // '/account' for forced sign-out (session lock/timeout).
+  const handleSignOut = async (redirectTo = '/') => {
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
-    window.location.href = '/';
+    window.location.href = redirectTo;
   };
 
-  const handleForceSignOut = async () => {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    window.location.href = '/account';
-  };
-
-  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0] || 'Account';
+  const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0]
+    || user?.email?.split('@')[0]
+    || 'Account';
   const initials = firstName.slice(0, 2).toUpperCase();
 
   const isActive = (href: string, exact?: boolean) =>
@@ -138,7 +135,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               </Link>
 
               <button
-                onClick={handleSignOut}
+                onClick={() => handleSignOut()}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-slate-100"
                 style={{ color: brand.muted }}
               >
@@ -221,7 +218,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   + Book Service
                 </Link>
                 <button
-                  onClick={handleSignOut}
+                  onClick={() => handleSignOut()}
                   className="px-3 py-2.5 rounded-lg text-sm text-left"
                   style={{ color: brand.muted }}
                 >
@@ -254,7 +251,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <SessionWarningModal onStaySignedIn={extendSession} />
       )}
       {sessionState === 'soft_locked' && (
-        <SoftLockModal user={user} onUnlock={unlock} onSignOut={handleForceSignOut} />
+        <SoftLockModal user={user} onUnlock={unlock} onSignOut={() => handleSignOut('/account')} />
       )}
     </div>
   );

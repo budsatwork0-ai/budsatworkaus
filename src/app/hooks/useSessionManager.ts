@@ -49,9 +49,9 @@ export function useSessionManager(): UseSessionManagerReturn {
   const tickRef          = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Auth subscription ────────────────────────────────────────────────────
+  // onAuthStateChange fires INITIAL_SESSION immediately, so getUser() is redundant.
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });

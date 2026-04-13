@@ -69,51 +69,57 @@ export default function CrewHomePage() {
   const [weekJobs, setWeekJobs] = useState<WeekJob[]>([]);
   const [expiringDocs, setExpiringDocs] = useState<DocAlert[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(), []);
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Memoised so it doesn't shift value between renders and is stable in the
+  // useEffect dependency array (no re-fetch until the next component mount).
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   useEffect(() => {
     if (!employee) return;
 
+    setStatsError(false);
+
     async function loadData() {
-      try {
-        // weekRes contains all my assignments — we derive today's count from it
-        // rather than making a separate date-filtered call.
-        const [availRes, earningsRes, docsRes, weekRes] = await Promise.all([
-          fetch('/api/crew/jobs?limit=0').then((r) => r.json()).catch(() => ({ total: 0 })),
-          fetch('/api/crew/earnings').then((r) => r.json()).catch(() => ({ thisWeek: 0, thisMonth: 0 })),
-          fetch('/api/crew/documents').then((r) => r.json()).catch(() => ({ documents: [] })),
-          fetch('/api/crew/my-jobs').then((r) => r.json()).catch(() => ({ assignments: [] })),
-        ]);
+      // Fetch each endpoint independently — a single failing API should not
+      // zero-out every stat card without any user feedback.
+      const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
+        p.catch(() => { setStatsError(true); return fallback; });
 
-        const allAssignments = weekRes.assignments || [];
-        const todayCount = allAssignments.filter(
-          (a: { orders?: { scheduled_date?: string | null } }) =>
-            a.orders?.scheduled_date === todayStr
-        ).length;
+      const [availRes, earningsRes, docsRes, weekRes] = await Promise.all([
+        safe(fetch('/api/crew/jobs?limit=0').then((r) => r.json()), { total: 0 }),
+        safe(fetch('/api/crew/earnings').then((r) => r.json()), { thisWeek: 0, thisMonth: 0, jobs: [] }),
+        safe(fetch('/api/crew/documents').then((r) => r.json()), { documents: [] }),
+        safe(fetch('/api/crew/my-jobs').then((r) => r.json()), { assignments: [] }),
+      ]);
 
-        setStats({
-          availableJobs: availRes.total ?? 0,
-          todayJobs: todayCount,
-          completedThisMonth: earningsRes.jobs?.length ?? 0,
-          weekEarnings: earningsRes.thisWeek ?? 0,
-        });
+      const allAssignments = weekRes.assignments || [];
+      const todayCount = allAssignments.filter(
+        (a: { orders?: { scheduled_date?: string | null } }) =>
+          a.orders?.scheduled_date === todayStr
+      ).length;
 
-        setWeekJobs(allAssignments);
+      setStats({
+        availableJobs: availRes.total ?? 0,
+        todayJobs: todayCount,
+        completedThisMonth: earningsRes.jobs?.length ?? 0,
+        weekEarnings: earningsRes.thisWeek ?? 0,
+      });
 
-        const thirtyDaysFromNow = new Date();
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-        const expiring = (docsRes.documents || []).filter((d: DocAlert) =>
-          d.expires_at && new Date(d.expires_at) <= thirtyDaysFromNow && d.status !== 'expired'
-        );
-        setExpiringDocs(expiring);
-      } catch { /* non-critical */ } finally {
-        setStatsLoading(false);
-      }
+      setWeekJobs(allAssignments);
+
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const expiring = (docsRes.documents || []).filter((d: DocAlert) =>
+        d.expires_at && new Date(d.expires_at) <= thirtyDaysFromNow && d.status !== 'expired'
+      );
+      setExpiringDocs(expiring);
+      setStatsLoading(false);
     }
+
     loadData();
-  }, [employee]);
+  }, [employee, todayStr]);
 
   // Group jobs by date for the mini-calendar
   const jobsByDate = useMemo(() => {
@@ -243,6 +249,15 @@ export default function CrewHomePage() {
               </Link>
             </div>
           </div>
+        </div>
+      )}
+
+      {statsError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800">
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+          </svg>
+          Some stats could not be loaded — figures below may be incomplete.
         </div>
       )}
 

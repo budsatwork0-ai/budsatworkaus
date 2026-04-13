@@ -63,7 +63,8 @@ export default function Header() {
   // Track auth state
   React.useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    // onAuthStateChange fires INITIAL_SESSION immediately with the current session,
+    // so a separate getUser() call is redundant and causes a double state-set on mount.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
@@ -99,7 +100,9 @@ export default function Header() {
 
   // Derived user display info (only used when not on /services)
   const firstName = (user?.user_metadata?.full_name as string)?.split(' ')[0];
-  const initials = firstName ? firstName.slice(0, 2).toUpperCase() : '?';
+  const initials = firstName
+    ? firstName.slice(0, 2).toUpperCase()
+    : (user?.email ?? '').slice(0, 2).toUpperCase() || '?';
   const portal = user ? portalLink(user) : null;
 
   return (

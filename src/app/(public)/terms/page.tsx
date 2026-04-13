@@ -41,7 +41,7 @@ export default function TermsPage() {
           </p>
           <p className="mt-3 text-xs" style={{ color: brand.muted }}>
             <strong>Business:</strong> Buds At Work &nbsp;|&nbsp;
-            <strong>ABN:</strong> [ABN: XX XXX XXX XXX] &nbsp;|&nbsp;
+            <strong>ABN:</strong> 56 890 024 059 &nbsp;|&nbsp;
             <strong>Location:</strong> Logan &amp; South Brisbane, QLD, Australia &nbsp;|&nbsp;
             <strong>Last updated:</strong> 20 March 2026
           </p>

@@ -37,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [newDropdownOpen, setNewDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
 
@@ -488,32 +489,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </AnimatePresence>
               </div>
 
-              {/* + New Dropdown */}
-              <div className="relative group">
+              {/* + New Dropdown — click-based (not hover) to avoid glitch */}
+              <div className="relative">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={() => setNewDropdownOpen((o) => !o)}
                   className="px-3 py-2 text-sm rounded-xl text-white"
                   style={{ background: brand.primary }}
                 >
                   + New
                 </motion.button>
-                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <button
-                    onClick={() => setCreateOrderOpen(true)}
-                    className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="font-medium text-slate-900">New Order</div>
-                    <div className="text-xs text-slate-500">One-time service</div>
-                  </button>
-                  <button
-                    onClick={() => setCreateSubscriptionOpen(true)}
-                    className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors border-t border-slate-100"
-                  >
-                    <div className="font-medium text-slate-900">New Subscription</div>
-                    <div className="text-xs text-slate-500">Recurring service</div>
-                  </button>
-                </div>
+                <AnimatePresence>
+                  {newDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setNewDropdownOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-48 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden z-50"
+                      >
+                        <button
+                          onClick={() => { setNewDropdownOpen(false); setCreateOrderOpen(true); }}
+                          className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="font-medium text-slate-900">New Order</div>
+                          <div className="text-xs text-slate-500">One-time service</div>
+                        </button>
+                        <button
+                          onClick={() => { setNewDropdownOpen(false); setCreateSubscriptionOpen(true); }}
+                          className="block w-full text-left text-sm px-4 py-2.5 hover:bg-slate-50 transition-colors border-t border-slate-100"
+                        >
+                          <div className="font-medium text-slate-900">New Subscription</div>
+                          <div className="text-xs text-slate-500">Recurring service</div>
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* User dropdown simplified */}
