@@ -18,6 +18,7 @@ import {
 } from './components/shared';
 import {
   ScheduleTab,
+  DispatchTab,
   OverviewTab,
   ReceivablesTab,
   PayablesTab,
@@ -156,6 +157,7 @@ export default function DashboardHome() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'schedule':    return <ScheduleTab />;
+      case 'dispatch':   return <DispatchTab />;
       case 'overview':   return <OverviewTab metrics={metrics} recentActivity={recentActivity} isLoading={isLoading} />;
       case 'receivables': return <ReceivablesTab receivables={receivables} isLoading={isLoading} onRowClick={handleRowClick} />;
       case 'payables':   return <PayablesTab payables={payables} isLoading={isLoading} onRowClick={handleRowClick} />;
@@ -255,7 +257,7 @@ export default function DashboardHome() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.28, duration: 0.35 }}
       >
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -315,7 +317,7 @@ export default function DashboardHome() {
       >
         <span>⌘K search</span>
         <span>•</span>
-        <span>1-7 tabs</span>
+        <span>1-8 tabs</span>
         <span>•</span>
         <span>R refresh</span>
         <span>•</span>

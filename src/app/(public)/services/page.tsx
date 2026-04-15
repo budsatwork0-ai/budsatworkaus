@@ -3102,6 +3102,7 @@ function ServicesPageContent() {
 
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaExpired, setCaptchaExpired] = useState(false);
   // Gate Turnstile render until the user first interacts with the contact form,
   // avoiding an eager network request on step-3 mount for users who abandon early.
   const [captchaReady, setCaptchaReady] = useState(false);
@@ -3177,7 +3178,7 @@ function ServicesPageContent() {
   }, [S.step, S.service, S.scope]);
   const [laundryIroningOpen, setLaundryIroningOpen] = useState(false);
   // Step 3: controls whether the optional Availability + Notes cards are expanded
-  const [s3DetailsOpen, setS3DetailsOpen] = useState(false);
+  const [s3DetailsOpen, setS3DetailsOpen] = useState(true);
 
   // Step 3: autofocus first empty required field on mount (skip if user is signed in and pre-filled)
   useEffect(() => {
@@ -3715,6 +3716,31 @@ function ServicesPageContent() {
     [selected]
   );
 
+  // Per-service minimum-work check: guards the Step 2 → Step 3 CTA.
+  const hasMinimumWork = useMemo(() => {
+    switch (S.service) {
+      case 'cleaning':
+        return hasWork;
+      case 'windows':
+        return S.winRows.some((r) => (r.int ?? 0) > 0 || (r.ext ?? 0) > 0);
+      case 'yard':
+        return (
+          (S.yardJobs?.length ?? 0) > 0 &&
+          (S.yardJobs ?? []).every((job: { polygon_geojson?: unknown[][] }) =>
+            (job.polygon_geojson ?? []).some((z) => z.length >= 3)
+          )
+        );
+      case 'auto':
+        return !!S.carModelType;
+      case 'dump':
+        return !!(S.dumpRun ?? S.dumpDelivery ?? S.dumpTransport);
+      case 'laundry_sneakers':
+        return (S.laundryLoads ?? 0) >= 1;
+      default:
+        return hasWork;
+    }
+  }, [S.service, S.winRows, S.yardJobs, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork]);
+
   const conditionMult = useMemo(() => {
     // Flags
     let bumps = 0;
@@ -4211,6 +4237,48 @@ function winSessionMinutes(S: WizardState) {
                   <p className="mt-2 text-slate-700">It's that simple every step of the way</p>
                 </div>
               </div>
+              {/* Step progress indicator */}
+              <div className="flex items-center gap-0 text-sm select-none" aria-label="Quote progress">
+                {([
+                  { n: 1, label: 'Choose service' },
+                  { n: 2, label: 'Configure' },
+                  { n: 3, label: 'Your details' },
+                ] as const).map(({ n, label }, i) => {
+                  const done = S.step > n;
+                  const active = S.step === n;
+                  return (
+                    <React.Fragment key={n}>
+                      {i > 0 && (
+                        <div
+                          className="flex-1 h-px mx-2"
+                          style={{ background: done ? 'var(--accent)' : '#cbd5e1' }}
+                        />
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                          style={{
+                            background: active || done ? 'var(--accent)' : '#e2e8f0',
+                            color: active || done ? '#fff' : '#94a3b8',
+                          }}
+                        >
+                          {done ? (
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                              <polyline points="2 6 5 9 10 3" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                          ) : n}
+                        </div>
+                        <span
+                          className="text-xs hidden sm:inline"
+                          style={{ color: active ? 'var(--accent)' : done ? '#64748b' : '#94a3b8', fontWeight: active ? 600 : 400 }}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
             </section>
             <div className="grid gap-6">
               <div className="space-y-8">
@@ -4265,7 +4333,8 @@ function winSessionMinutes(S: WizardState) {
                   title={s.label}
                   subtitle={s.subtitle}
                   icon={s.icon}
-                  popular={(s as any).popular}
+                  popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
+                  from={s.from}
                 />
               );
             })}
@@ -4425,7 +4494,7 @@ function winSessionMinutes(S: WizardState) {
                           const renderCard = (sc: any, idx: number, total: number, spanLastOdd = false) => {
                             // For commercial cleaning, check commercialCleaningType instead of scope
                             const isActive = S.context === 'commercial' && S.service === 'cleaning' && commercialNiches.includes(sc.key as CommercialCleaningType)
-                              ? S.commercialCleaningType === sc.key
+                              ? (S.commercialCleaningType ?? '') === sc.key
                               : S.scope === sc.key;
                             const hook =
                               (sc.desc && String(sc.desc)) ||
@@ -4859,6 +4928,8 @@ function winSessionMinutes(S: WizardState) {
                       onFocus={() => setCaptchaReady(true)}
                       onBlur={() => touchField('fullName')}
                       aria-label="Full name"
+                      required
+                      aria-required="true"
                     />
                     {fieldTouched.fullName && !S.fullName.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Full name is required.</div>
@@ -4884,6 +4955,8 @@ function winSessionMinutes(S: WizardState) {
                         set('email', (e.target.value || '').trim().toLowerCase());
                       }}
                       aria-label="Email"
+                      required
+                      aria-required="true"
                     />
                     {fieldTouched.email && !S.email.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Email is required.</div>
@@ -4909,16 +4982,19 @@ function winSessionMinutes(S: WizardState) {
                       onFocus={() => setCaptchaReady(true)}
                       onBlur={() => touchField('phone')}
                       value={S.phone}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        // Strip non-digits, then normalise +61 country code to leading 0
+                        const digits = e.target.value.replace(/\D+/g, '').replace(/^61/, '0');
                         set(
                           'phone',
-                          e.target.value
-                            .replace(/\D+/g, '')
+                          digits
                             .replace(/(\d{4})(\d{3})(\d{0,3}).*/, '$1 $2 $3')
                             .trim()
-                        )
-                      }
+                        );
+                      }}
                       aria-label="Phone"
+                      required
+                      aria-required="true"
                     />
                     {fieldTouched.phone && !S.phone.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Phone is required.</div>
@@ -5161,9 +5237,15 @@ function winSessionMinutes(S: WizardState) {
                   rows={3}
                   placeholder="Gate code, parking instructions, pets, anything specific…"
                   value={S.notes}
-                  onChange={(e) => set('notes', e.target.value)}
+                  maxLength={2000}
+                  onChange={(e) => set('notes', e.target.value.slice(0, 2000))}
                   aria-label="Notes"
                 />
+                <div className="flex justify-end mt-1">
+                  <span className={`text-[10px] ${S.notes.length > 1800 ? 'text-amber-600' : 'text-slate-400'}`}>
+                    {S.notes.length}/2000
+                  </span>
+                </div>
                 {/* Quick-add chips — tap to append a prompt to the notes field */}
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(['Gate code', 'Driveway access', 'Pool or spa', 'Extra mess', 'Fragile items', 'Key in lockbox'] as const).map((chip) => {
@@ -5449,9 +5531,9 @@ function winSessionMinutes(S: WizardState) {
                     TURNSTILE_SITE_KEY ? (
                       <Turnstile
                         siteKey={TURNSTILE_SITE_KEY}
-                        onVerify={(token) => setCaptchaToken(token)}
-                        onExpire={() => setCaptchaToken(null)}
-                        onError={() => setCaptchaToken(null)}
+                        onVerify={(token) => { setCaptchaToken(token); setCaptchaExpired(false); }}
+                        onExpire={() => { setCaptchaToken(null); setCaptchaExpired(true); }}
+                        onError={() => { setCaptchaToken(null); setCaptchaExpired(false); }}
                         theme="light"
                       />
                     ) : (
@@ -5467,7 +5549,12 @@ function winSessionMinutes(S: WizardState) {
                       Verification will appear when you start filling in your details.
                     </div>
                   )}
-                  {!captchaToken && !!TURNSTILE_SITE_KEY && (
+                  {!captchaToken && !!TURNSTILE_SITE_KEY && captchaExpired && (
+                    <div className="text-[11px] text-amber-600 mt-1">
+                      Verification expired — please re-verify above.
+                    </div>
+                  )}
+                  {!captchaToken && !!TURNSTILE_SITE_KEY && !captchaExpired && captchaReady && (
                     <div className="text-[11px] text-amber-600 mt-1">
                       Please complete the verification above to submit your quote.
                     </div>
@@ -5485,6 +5572,7 @@ function winSessionMinutes(S: WizardState) {
                 {/* Actions */}
                 <div className="mt-5 flex flex-col gap-2.5">
                   <M.button
+                    id="step3-submit-btn"
                     className={cls(
                       "px-4 py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(20,83,45,0.28)]",
                       ((!captchaToken && !!TURNSTILE_SITE_KEY) || isCheckoutLoading) && "opacity-60 cursor-not-allowed"
@@ -5497,17 +5585,18 @@ function winSessionMinutes(S: WizardState) {
                         return;
                       }
 
+                      const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
                       const okInputs =
                         S.fullName?.trim().length >= 2 &&
                         /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '') &&
-                        S.phone.replace(/\D+/g, '').length >= 10 &&
+                        normalisedPhone.length >= 10 &&
                         S.address.trim().length > 0;
 
                       if (!okInputs) {
                         const missingFields = [
                           (!S.fullName?.trim() || S.fullName.trim().length < 2) && 'name',
                           !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) && 'email',
-                          S.phone.replace(/\D+/g, '').length < 10 && 'phone',
+                          normalisedPhone.length < 10 && 'phone',
                           !S.address.trim() && 'address',
                         ].filter(Boolean).join(',');
                         sendGAEvent('event', 'quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
@@ -5518,7 +5607,7 @@ function winSessionMinutes(S: WizardState) {
                         const firstInvalid =
                           (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
                           : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
-                          : S.phone.replace(/\D+/g, '').length < 8 ? 's3-phone'
+                          : normalisedPhone.length < 10 ? 's3-phone'
                           : null;
                         if (firstInvalid) {
                           document.getElementById(firstInvalid)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -5564,7 +5653,7 @@ function winSessionMinutes(S: WizardState) {
                             service_type: S.service,
                             context: S.context,
                             scope: S.scope,
-                            frequency: (S as any).commFrequency || 'none',
+                            frequency: S.commFrequency || 'none',
                             submitted_total: effectiveTotal,
                             total: effectiveTotal,
                             service_address: S.address.trim(),
@@ -5649,6 +5738,22 @@ function winSessionMinutes(S: WizardState) {
                   </M.button>
                 </div>
 
+                {/* Trust signals */}
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-slate-500 mt-1">
+                  <span className="flex items-center gap-1">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Secure payment
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    No lock-in contracts
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Local Logan &amp; South Brisbane
+                  </span>
+                </div>
+
                 <p className="text-[11px] text-slate-500 text-center mt-2 leading-relaxed">
                   By submitting this request you agree to the{' '}
                   <a
@@ -5709,8 +5814,59 @@ function winSessionMinutes(S: WizardState) {
   <LiveOrdersStrip />
 </section>
 
-{/* Spacer for sticky footer */}
+{/* Spacer for sticky footers */}
 {(S.step === 2 || S.step === 3) && <div className="h-48 md:h-36" />}
+
+{/* ── Sticky quote-summary bar — STEP 3 (mobile-only: sidebar covers desktop) ── */}
+{S.step === 3 && (
+  <div
+    className="lg:hidden fixed left-0 right-0 pointer-events-none z-40"
+    style={{ bottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+    aria-live="polite"
+    aria-label="Step 3 quote summary"
+  >
+    <div className="mx-auto max-w-3xl px-4">
+      <div
+        className={`pointer-events-auto flex items-center justify-between rounded-2xl px-3 py-2.5 gap-3 ${glass}`}
+      >
+        {/* Quote summary */}
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">Your quote</div>
+          <div className="text-lg font-bold truncate" style={{ color: 'var(--accent)' }}>
+            {priceLabel}
+          </div>
+          {S.service && (
+            <div className="text-[11px] text-slate-500 truncate capitalize">
+              {S.service.replace('_', ' & ')}
+            </div>
+          )}
+        </div>
+        {/* Back + Submit */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <M.button
+            className="px-3 py-1.5 rounded-xl text-sm text-slate-600 border border-black/10 bg-white/70 hover:bg-white/90 transition-colors"
+            onClick={() => goToStep(2)}
+            aria-label="Back to step 2"
+          >
+            ← Back
+          </M.button>
+          <M.button
+            className="px-3 py-1.5 rounded-xl text-sm font-semibold text-white shadow-[0_6px_18px_rgba(20,83,45,0.25)]"
+            style={{ background: 'var(--accent)' }}
+            onClick={() => {
+              // Scroll to the submit button in the sidebar
+              document.getElementById('step3-submit-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              document.getElementById('step3-submit-btn')?.focus();
+            }}
+            aria-label="Go to submit"
+          >
+            Submit quote →
+          </M.button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
 {/* Sticky footer for STEP 2 */}
 {S.service !== 'yard' && S.step === 2 && (
@@ -5757,10 +5913,11 @@ function winSessionMinutes(S: WizardState) {
             Back
           </M.button>
           <M.button
-            className="px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white"
+            className={`px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
             style={{ background: 'var(--accent)' }}
-            onClick={() => goToStep(3)}
+            onClick={() => hasMinimumWork && goToStep(3)}
             aria-label="Get my quote"
+            title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
           >
             Get My Quote →
           </M.button>

@@ -2,246 +2,120 @@
 
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useInView, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
-import { brand, cx, glass, glassSoft } from '@/app/ui/theme';
+import { motion, useInView, useMotionValue, useSpring } from 'framer-motion';
 
-const iconProps = {
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.8,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-} as const;
+// ─── Brand tokens ──────────────────────────────────────────────────────────────
+const BRAND = {
+  primary:     '#0f3d2e',
+  accent:      '#10b981',
+  accentLight: '#d1fae5',
+  text:        '#0a0a0a',
+  muted:       '#6b7280',
+  border:      '#e5e7eb',
+  bg:          '#ffffff',
+  surface:     '#f9fafb',
+  surfaceAlt:  '#f0fdf4',
+};
 
-function WindowIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <rect x="4" y="4" width="16" height="16" rx="2.5" />
-      <path d="M12 4v16M4 12h16" />
-    </svg>
-  );
+// ─── Icons ─────────────────────────────────────────────────────────────────────
+const icoBase = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+function Icon({ children, size = 20 }: { children: React.ReactNode; size?: number }) {
+  return <svg {...icoBase} width={size} height={size} aria-hidden>{children}</svg>;
 }
 
-function HomeIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M3 10.5L12 3l9 7.5" />
-      <path d="M5.5 10v11h13V10" />
-    </svg>
-  );
-}
+const icons = {
+  windows:    <Icon><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M12 4v16M4 12h16"/></Icon>,
+  cleaning:   <Icon><path d="M3 10.5L12 3l9 7.5"/><path d="M5.5 10v11h13V10"/></Icon>,
+  yard:       <Icon><path d="M20 4c-7 0-12 5-12 12 0 2 1 4 3 4 7 0 11-7 9-16z"/><path d="M11 13l-6 6"/></Icon>,
+  dump:       <Icon><path d="M3 16V7a2 2 0 0 1 2-2h8v11"/><path d="M13 10h4l3 3v3h-3"/><circle cx="7" cy="17.5" r="1.2"/><circle cx="17" cy="17.5" r="1.2"/></Icon>,
+  auto:       <Icon><path d="M3 13l2-5a3 3 0 0 1 2.8-2h8.4A3 3 0 0 1 19 8l2 5"/><path d="M5 13h14"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M3 13v4M21 13v4"/></Icon>,
+  laundry:    <Icon><path d="M3 16c4 0 6-2 7-4l5 3c2 1 3 1 6 1v2H3z"/><path d="M10 12l1-2"/></Icon>,
+  check:      <Icon size={14}><path d="M5 12l5 5L20 7"/></Icon>,
+  arrowRight: <Icon size={16}><path d="M5 12h12"/><path d="M13 6l6 6-6 6"/></Icon>,
+  chevDown:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={20} height={20} aria-hidden><path d="M6 9l6 6 6-6"/></svg>,
+  star:       <svg viewBox="0 0 24 24" fill="currentColor" width={14} height={14} aria-hidden><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
+  ndis:       <Icon size={16}><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></Icon>,
+  shield:     <Icon size={16}><path d="M12 3l7 4v5c0 4.5-3.1 8.5-7 10-3.9-1.5-7-5.5-7-10V7l7-4z"/></Icon>,
+  users:      <Icon size={16}><circle cx="9" cy="7" r="3"/><path d="M3 20v-2a6 6 0 0 1 6-6h.5"/><circle cx="17" cy="7" r="3"/><path d="M21 20v-2a6 6 0 0 0-6-6h-.5"/></Icon>,
+  tag:        <Icon size={16}><path d="M12 2H7a2 2 0 0 0-2 2v5l8 8 7-7-8-8z"/><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/></Icon>,
+  map:        <Icon><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></Icon>,
+  calc:       <Icon><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2M14 14h2M14 18h2"/></Icon>,
+  car:        <Icon><rect x="2" y="6" width="14" height="8" rx="2"/><circle cx="18" cy="14" r="4"/><path d="M21 17l2 2"/></Icon>,
+};
 
-function LeafIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M20 4c-7 0-12 5-12 12 0 2 1 4 3 4 7 0 11-7 9-16z" />
-      <path d="M11 13l-6 6" />
-    </svg>
-  );
-}
-
-function TruckIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M3 16V7a2 2 0 0 1 2-2h8v11" />
-      <path d="M13 10h4l3 3v3h-3" />
-      <circle cx="7" cy="17.5" r="1.2" />
-      <circle cx="17" cy="17.5" r="1.2" />
-    </svg>
-  );
-}
-
-function CarIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M3 13l2-5a3 3 0 0 1 2.8-2h8.4A3 3 0 0 1 19 8l2 5" />
-      <path d="M5 13h14" />
-      <circle cx="7.5" cy="17.5" r="1.5" />
-      <circle cx="16.5" cy="17.5" r="1.5" />
-      <path d="M3 13v4M21 13v4" />
-    </svg>
-  );
-}
-
-function ShoeIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M3 16c4 0 6-2 7-4l5 3c2 1 3 1 6 1v2H3z" />
-      <path d="M10 12l1-2" />
-    </svg>
-  );
-}
-
-function MapIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-      <path d="M9 3v15M15 6v15" />
-    </svg>
-  );
-}
-
-function CarSearchIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <rect x="2" y="6" width="14" height="8" rx="2" />
-      <circle cx="18" cy="14" r="4" />
-      <path d="M21 17l2 2" />
-    </svg>
-  );
-}
-
-function CalculatorIcon() {
-  return (
-    <svg {...iconProps} className="h-6 w-6">
-      <rect x="4" y="2" width="16" height="20" rx="2" />
-      <path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2M14 14h2M14 18h2" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg {...iconProps} className="h-5 w-5">
-      <path d="M5 12l5 5L20 7" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg {...iconProps} className="h-4 w-4">
-      <path d="M5 12h12" />
-      <path d="M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function StarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5 opacity-70">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
-
-const services = [
-  { key: 'windows', title: 'Window cleaning', icon: <WindowIcon />, href: '/services?service=windows' },
-  { key: 'cleaning', title: 'Home cleaning', icon: <HomeIcon />, href: '/services?service=cleaning' },
-  { key: 'yard', title: 'Yard & garden', icon: <LeafIcon />, href: '/services?service=yard' },
-  { key: 'dump', title: 'Dump runs', icon: <TruckIcon />, href: '/services?service=dump' },
-  { key: 'auto', title: 'Car detailing', icon: <CarIcon />, href: '/services?service=auto' },
-  { key: 'laundry_sneakers', title: 'Laundry & Sneaker Care', icon: <ShoeIcon />, href: '/services?service=laundry_sneakers' },
+// ─── Data ──────────────────────────────────────────────────────────────────────
+const SERVICES = [
+  { key: 'windows',  label: 'Window cleaning',       icon: icons.windows,  from: 79,  popular: false, href: '/services?service=windows' },
+  { key: 'cleaning', label: 'Home cleaning',          icon: icons.cleaning, from: 99,  popular: true,  href: '/services?service=cleaning' },
+  { key: 'yard',     label: 'Yard & garden',          icon: icons.yard,     from: 79,  popular: true,  href: '/services?service=yard' },
+  { key: 'dump',     label: 'Dump runs',              icon: icons.dump,     from: 99,  popular: false, href: '/services?service=dump' },
+  { key: 'auto',     label: 'Car detailing',          icon: icons.auto,     from: 99,  popular: false, href: '/services?service=auto' },
+  { key: 'laundry',  label: 'Laundry & sneakers',    icon: icons.laundry,  from: 74,  popular: false, href: '/services?service=laundry_sneakers' },
 ];
 
-const tools = [
+const STEPS = [
   {
-    title: 'Draw your yard',
-    description: 'Use our map tool to outline your lawn area. We calculate the size and give you a quote range instantly.',
-    icon: <MapIcon />,
+    n: '01',
+    title: 'Pick your service',
+    body: 'Choose from 6 services. See live pricing as you configure — no hidden multipliers, no callbacks.',
+    tool: { icon: icons.map,  label: 'Draw your yard on Google Maps' },
   },
   {
-    title: 'Rego lookup',
-    description: "Pop in your number plate and we'll find your vehicle details. No guessing what size category you fall into.",
-    icon: <CarSearchIcon />,
+    n: '02',
+    title: 'Build your quote',
+    body: 'Map your yard, enter room counts, or look up your rego plate. Your exact price builds in real time.',
+    tool: { icon: icons.car,  label: 'Rego lookup — auto-detect your vehicle' },
   },
   {
-    title: 'Transparent pricing',
-    description: 'Every add-on and multiplier is visible. You can see exactly how your quote is calculated.',
-    icon: <CalculatorIcon />,
+    n: '03',
+    title: 'Confirm & pay',
+    body: 'Leave your details. We review within 2–4 hours on weekdays then send a secure payment link.',
+    tool: { icon: icons.calc, label: 'Every add-on is visible before you submit' },
   },
 ];
 
-const values = [
+const TESTIMONIALS = [
+  { name: 'Sarah M.',  suburb: 'Springwood',    service: 'Home cleaning',   text: 'Absolutely brilliant. Professional, on time, left the house spotless. Will definitely book again.' },
+  { name: 'James T.',  suburb: 'Beenleigh',     service: 'Yard & garden',   text: 'Transformed our yard in a few hours. The quote was fair and there were zero surprise charges.' },
+  { name: 'Linda K.',  suburb: 'Browns Plains',  service: 'Window cleaning', text: 'So easy to get a real price upfront. The crew were friendly and thorough — windows look brand new.' },
+];
+
+const TRUST = [
+  { icon: icons.ndis,   label: 'NDIS-ready' },
+  { icon: icons.shield, label: 'Fully insured' },
+  { icon: icons.users,  label: 'Vetted crew' },
+  { icon: icons.tag,    label: 'No surprise fees' },
+];
+
+const PROMISES = [
   'We show up when we say we will',
   'Quotes mean something — no surprise fees',
   'Local crew who actually care about the work',
   'We confirm everything before we start',
 ];
 
-const testimonials = [
-  {
-    name: 'Sarah M.',
-    suburb: 'Springwood',
-    service: 'Home Cleaning',
-    rating: 5,
-    text: 'Absolutely brilliant service. The team were professional, on time, and left the house spotless. Will definitely be booking again.',
-  },
-  {
-    name: 'James T.',
-    suburb: 'Beenleigh',
-    service: 'Yard & Garden',
-    rating: 5,
-    text: "Our yard was a mess after the wet season. These guys transformed it in a few hours. The quote was fair and there were no surprise charges.",
-  },
-  {
-    name: 'Linda K.',
-    suburb: 'Browns Plains',
-    service: 'Window Cleaning',
-    rating: 5,
-    text: 'So easy to book online and get a real price upfront. The crew were friendly and thorough — windows look brand new.',
-  },
-];
-
-const trustBadges = [
-  'NDIS-Ready',
-  'Fully Insured',
-  'Vetted Crew',
-  'No Surprise Fees',
-];
-
-// --- Animated Counter ---
+// ─── Animated counter ─────────────────────────────────────────────────────────
 function AnimatedStat({ target, suffix = '', prefix = '' }: { target: number; suffix?: string; prefix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
-  const motionValue = useMotionValue(0);
-  const springValue = useSpring(motionValue, { damping: 40, stiffness: 120 });
+  const mv = useMotionValue(0);
+  const spring = useSpring(mv, { damping: 40, stiffness: 120 });
   const [display, setDisplay] = useState('0');
-
-  useEffect(() => {
-    if (inView) motionValue.set(target);
-  }, [inView, motionValue, target]);
-
-  useEffect(() => {
-    const unsub = springValue.on('change', (v) => {
-      setDisplay(Math.round(v).toString());
-    });
-    return unsub;
-  }, [springValue]);
-
-  return (
-    <span ref={ref}>
-      {prefix}{display}{suffix}
-    </span>
-  );
+  useEffect(() => { if (inView) mv.set(target); }, [inView, mv, target]);
+  useEffect(() => { return spring.on('change', v => setDisplay(Math.round(v).toString())); }, [spring]);
+  return <span ref={ref}>{prefix}{display}{suffix}</span>;
 }
 
-// --- Section Fade-in Wrapper ---
-const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as any } },
-};
-
-function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+// ─── Fade-up on scroll ────────────────────────────────────────────────────────
+function FadeUp({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });
   return (
     <motion.div
       ref={ref}
-      variants={fadeUp}
-      initial="hidden"
-      animate={inView ? 'visible' : 'hidden'}
-      transition={{ delay }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -249,19 +123,38 @@ function FadeIn({ children, delay = 0, className = '' }: { children: React.React
   );
 }
 
-export default function HomePage() {
-  const [heroVisible, setHeroVisible] = useState(false);
+// ─── Eyebrow label ────────────────────────────────────────────────────────────
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3" style={{ color: BRAND.accent }}>
+      {children}
+    </p>
+  );
+}
 
-  useEffect(() => {
-    const t = setTimeout(() => setHeroVisible(true), 80);
-    return () => clearTimeout(t);
-  }, []);
+// ─── Section heading ──────────────────────────────────────────────────────────
+function SectionH2({ children, center = false }: { children: React.ReactNode; center?: boolean }) {
+  return (
+    <h2
+      className={`text-[clamp(1.7rem,3.8vw,2.5rem)] font-bold tracking-tight leading-tight${center ? ' text-center' : ''}`}
+      style={{ color: BRAND.text }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+// ─── Homepage ────────────────────────────────────────────────────────────────
+export default function HomePage() {
+  const [heroIn, setHeroIn] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setHeroIn(true), 60); return () => clearTimeout(t); }, []);
 
   return (
-    <div className="relative">
-      {/* HERO - Full screen with video */}
+    <div className="relative" style={{ background: BRAND.bg, color: BRAND.text }}>
+
+      {/* ════════════════════════════════════════════════ HERO — full-screen video ══ */}
       <section
-        className="relative flex items-center justify-center text-center -mt-8 md:-mt-10"
+        className="relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10"
         style={{
           minHeight: '100svh',
           marginLeft: 'calc(-50vw + 50%)',
@@ -269,457 +162,421 @@ export default function HomePage() {
           width: '100vw',
         }}
       >
-        {/* Video/Image Background */}
+        {/* Full-bleed video — extends behind header */}
         <div
-          className="absolute z-0 bg-slate-900"
+          className="absolute z-0"
           style={{ top: '-100px', left: 0, right: 0, bottom: 0 }}
         >
+          {/* Mobile: static thumbnail */}
           <div
             className="md:hidden w-full h-full bg-cover bg-center"
             style={{ backgroundImage: 'url(/images/hero-thumbnail.jpg)' }}
           />
+          {/* Desktop: looping video */}
           <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            poster="/images/hero-thumbnail.jpg"
+            autoPlay muted loop playsInline poster="/images/hero-thumbnail.jpg"
             className="hidden md:block w-full h-full object-cover"
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/60" />
-          {/* Subtle animated overlay shimmer */}
+
+          {/* Layer 1 — uniform base: ensures text is always legible regardless of video content */}
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.46)' }} />
+          {/* Layer 2 — directional vignette: darker at top (behind nav) and bottom edge */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 35%, transparent 65%, rgba(0,0,0,0.35) 100%)',
+            }}
+          />
+          {/* Layer 3 — subtle brand-green shimmer */}
           <motion.div
             className="absolute inset-0 pointer-events-none"
-            animate={{ opacity: [0.08, 0.14, 0.08] }}
-            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, transparent 60%)' }}
+            animate={{ opacity: [0.06, 0.12, 0.06] }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.20) 0%, transparent 55%)' }}
           />
         </div>
 
-        <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
-          <AnimatePresence>
-            {heroVisible && (
-              <motion.div
-                initial={{ opacity: 0, y: 32 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        {/* Hero text */}
+        <div className="relative z-10 px-5 sm:px-8 max-w-3xl mx-auto w-full">
+          {/* Location chip */}
+          <motion.span
+            className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-[12px] font-semibold border mb-7"
+            style={{
+              background: 'rgba(255,255,255,0.10)',
+              borderColor: 'rgba(255,255,255,0.22)',
+              color: '#fff',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={heroIn ? { opacity: 1, scale: 1 } : {}}
+            transition={{ delay: 0.14, duration: 0.4 }}
+          >
+            <span style={{ color: BRAND.accent }}>●</span>
+            Logan &amp; South Brisbane · Locally owned
+          </motion.span>
+
+          {/* Headline */}
+          <motion.h1
+            className="text-[clamp(3rem,8vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.02em] text-white"
+            initial={{ opacity: 0, y: 22 }}
+            animate={heroIn ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+          >
+            Your home,<br />
+            <span style={{ color: BRAND.accent }}>looked after.</span>
+          </motion.h1>
+
+          {/* Sub-headline */}
+          <motion.p
+            className="mt-5 text-[1.1rem] md:text-[1.2rem] max-w-lg mx-auto leading-relaxed"
+            style={{ color: 'rgba(255,255,255,0.80)' }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={heroIn ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.34, duration: 0.55 }}
+          >
+            Cleaning, yard care, dump runs, car detailing &amp; more.
+            Get a real price in minutes — not a callback next week.
+          </motion.p>
+
+          {/* CTAs */}
+          <motion.div
+            className="mt-9 flex flex-wrap justify-center gap-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={heroIn ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.45, duration: 0.5 }}
+          >
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/services"
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold shadow-lg transition-shadow hover:shadow-xl"
+                style={{ background: BRAND.accent, color: '#fff' }}
               >
-                <motion.p
-                  className="text-sm font-medium text-white/90 tracking-wide"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15, duration: 0.5 }}
-                >
-                  Serving Logan & South Brisbane
-                </motion.p>
+                Get a free quote {icons.arrowRight}
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/about"
+                className="inline-flex items-center rounded-full px-7 py-3.5 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
+                style={{ borderColor: 'rgba(255,255,255,0.30)', color: '#fff' }}
+              >
+                Meet the team
+              </Link>
+            </motion.div>
+          </motion.div>
 
-                <motion.h1
-                  className="mt-4 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white drop-shadow-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.25, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  Good people doing
-                  <br />
-                  <span className="text-emerald-300">honest work.</span>
-                </motion.h1>
-
-                <motion.p
-                  className="mt-5 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed text-white/90"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.38, duration: 0.55 }}
-                >
-                  We&apos;re Buds At Work — a local crew that handles cleaning, yard care, dump runs,
-                  and car detailing. Get a real quote in minutes, not a callback next week.
-                </motion.p>
-
-                <motion.div
-                  className="mt-8 flex flex-wrap justify-center gap-4"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5, duration: 0.5 }}
-                >
-                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                    <Link
-                      href="/services"
-                      className="inline-block rounded-full px-7 py-3.5 text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
-                      style={{ background: brand.primary, color: '#fff' }}
-                    >
-                      Get a free quote
-                    </Link>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                    <Link
-                      href="/about"
-                      className="inline-block rounded-full px-7 py-3.5 text-base font-semibold bg-white/20 backdrop-blur text-white border border-white/30 hover:bg-white/30 transition-colors"
-                    >
-                      Meet the team
-                    </Link>
-                  </motion.div>
-                </motion.div>
-
-                {/* Trust badges */}
-                <motion.div
-                  className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.65, duration: 0.5 }}
-                >
-                  {trustBadges.map((label, i) => (
-                    <motion.span
-                      key={label}
-                      className="flex items-center gap-1.5 text-sm text-white/80"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.65 + i * 0.07 }}
-                    >
-                      <span className="text-emerald-300"><CheckIcon /></span>
-                      {label}
-                    </motion.span>
-                  ))}
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Trust chips */}
+          <motion.div
+            className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2"
+            initial={{ opacity: 0 }}
+            animate={heroIn ? { opacity: 1 } : {}}
+            transition={{ delay: 0.60, duration: 0.5 }}
+          >
+            {TRUST.map(({ icon, label }, i) => (
+              <motion.span
+                key={label}
+                className="inline-flex items-center gap-1.5 text-[13px]"
+                style={{ color: 'rgba(255,255,255,0.76)' }}
+                initial={{ opacity: 0, y: 5 }}
+                animate={heroIn ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.60 + i * 0.06 }}
+              >
+                <span style={{ color: BRAND.accent }}>{icon}</span>
+                {label}
+              </motion.span>
+            ))}
+          </motion.div>
         </div>
 
-        {/* Scroll indicator */}
+        {/* Scroll cue */}
         <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/50 text-xs"
+          className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5"
+          style={{ color: 'rgba(255,255,255,0.40)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.6 }}
+          transition={{ delay: 1.4, duration: 0.6 }}
         >
-          <span className="tracking-widest uppercase text-[10px]">Scroll</span>
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <ChevronDownIcon />
+          <span className="text-[10px] uppercase tracking-widest font-medium">Scroll</span>
+          <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
+            {icons.chevDown}
           </motion.div>
         </motion.div>
       </section>
 
-      {/* Live stats bar */}
-      <FadeIn>
-        <div
-          className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8 -mt-6 relative z-10"
-        >
-          <div
-            className="rounded-2xl px-6 py-4 flex flex-wrap items-center justify-around gap-4 text-center"
-            style={{
-              background: brand.primary,
-              boxShadow: '0 20px 40px rgba(15,61,46,0.28)',
-            }}
-          >
-            {[
-              { value: 320, suffix: '+', label: 'Jobs completed' },
-              { value: 5, prefix: '', suffix: '.0★', label: 'Average rating' },
-              { value: 2, suffix: ' regions', label: 'Service areas' },
-              { value: 48, suffix: 'h', label: 'Quote response' },
-            ].map(({ value, suffix, prefix, label }, i) => (
-              <div key={label} className="flex flex-col items-center">
-                <span className="text-2xl font-bold text-white">
-                  <AnimatedStat target={value} suffix={suffix} prefix={prefix} />
-                </span>
-                <span className="text-xs text-white/65 mt-0.5">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </FadeIn>
-
-      {/* Content sections */}
+      {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
+      {/* Clean white below the hero — no overlap, no floating band */}
       <div className="relative">
-        {/* Background gradient */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          aria-hidden
-          style={{
-            background:
-              'radial-gradient(900px circle at 25% 10%, rgba(20,83,45,0.12) 0, transparent 55%), radial-gradient(1100px circle at 80% 0%, rgba(125,211,252,0.14) 0, transparent 55%), radial-gradient(900px circle at 50% 90%, rgba(191,232,209,0.18) 0, transparent 60%)',
-          }}
-        />
 
-        <div className="mx-auto max-w-5xl space-y-20 pb-12 pt-16 px-4 sm:px-6 md:px-8">
+        {/* Very subtle background tint */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
+          <div className="absolute top-0 right-0 w-[700px] h-[500px] rounded-full" style={{ background: `radial-gradient(circle, ${BRAND.accent}09, transparent 70%)` }} />
+          <div className="absolute top-[50%] left-0 w-[500px] h-[500px] rounded-full" style={{ background: `radial-gradient(circle, ${BRAND.primary}06, transparent 70%)` }} />
+        </div>
 
-          {/* SERVICES GRID */}
-          <section>
-            <FadeIn>
-              <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-                  What we do
-                </h2>
-                <p className="mt-2 text-base" style={{ color: brand.muted }}>
-                  Pick a service to start building your quote
-                </p>
-              </div>
-            </FadeIn>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {services.map((s, i) => (
-                <FadeIn key={s.key} delay={i * 0.07}>
-                  <Link href={s.href} className="group min-w-0 block h-full">
-                    <motion.div
-                      whileHover={{ y: -4, boxShadow: '0 16px 36px rgba(15,61,46,0.14)' }}
-                      whileTap={{ scale: 0.97 }}
-                      className={cx(
-                        'h-full rounded-2xl p-4 sm:p-5 md:p-6 text-center transition-colors cursor-pointer',
-                        glass
-                      )}
-                    >
-                      <motion.div
-                        className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-3"
-                        style={{ background: `${brand.primary}15`, color: brand.primary }}
-                        whileHover={{ scale: 1.12, background: `${brand.primary}25` }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                      >
-                        {s.icon}
-                      </motion.div>
-                      <div className="font-semibold" style={{ color: brand.text }}>
-                        {s.title}
-                      </div>
-                      <motion.div
-                        className="mt-2 text-sm font-medium flex items-center justify-center gap-1"
-                        style={{ color: brand.primary }}
-                        initial={{ opacity: 0, y: 4 }}
-                        whileHover={{ opacity: 1, y: 0 }}
-                      >
-                        Get quote <ArrowRightIcon />
-                      </motion.div>
-                    </motion.div>
-                  </Link>
-                </FadeIn>
+        {/* ── Stats band — flush below hero, no overlap ── */}
+        <FadeUp>
+          <div className="mx-auto max-w-5xl px-5 sm:px-8 pt-14">
+            <div
+              className="rounded-2xl px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-center"
+              style={{ background: BRAND.primary, boxShadow: '0 16px 44px rgba(15,61,46,0.22)' }}
+            >
+              {[
+                { val: 320, suf: '+',   pre: '',  lbl: 'Jobs completed' },
+                { val: 5,   suf: '.0★', pre: '',  lbl: 'Average rating' },
+                { val: 2,   suf: '',    pre: '',  lbl: 'Service regions' },
+                { val: 48,  suf: 'h',   pre: '<', lbl: 'Quote turnaround' },
+              ].map(({ val, suf, pre, lbl }) => (
+                <div key={lbl} className="flex flex-col items-center py-1">
+                  <span className="text-[1.6rem] font-bold text-white tabular-nums">
+                    <AnimatedStat target={val} suffix={suf} prefix={pre} />
+                  </span>
+                  <span className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.52)' }}>{lbl}</span>
+                </div>
               ))}
             </div>
+          </div>
+        </FadeUp>
 
-            <FadeIn delay={0.3}>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-center">
-                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                  <Link
-                    href="/services"
-                    className="rounded-full px-6 py-3 text-sm font-semibold shadow hover:shadow-md transition-shadow inline-block"
-                    style={{ background: brand.primary, color: '#fff' }}
-                  >
-                    Get a free quote
+        <div className="mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
+
+          {/* ── Services grid ─────────────────────────────────────────── */}
+          <section>
+            <FadeUp className="text-center mb-10">
+              <Eyebrow>Six services · One platform</Eyebrow>
+              <SectionH2 center>What we do</SectionH2>
+              <p className="mt-3 text-[15px] max-w-sm mx-auto" style={{ color: BRAND.muted }}>
+                Pick a service and your live quote builds instantly.
+              </p>
+            </FadeUp>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+              {SERVICES.map((s, i) => (
+                <FadeUp key={s.key} delay={i * 0.055}>
+                  <Link href={s.href} className="group block h-full">
+                    <motion.div
+                      whileHover={{ y: -5, boxShadow: '0 14px 36px rgba(15,61,46,0.11)' }}
+                      whileTap={{ scale: 0.97 }}
+                      className="relative h-full rounded-2xl p-5 md:p-6 border transition-shadow duration-200"
+                      style={{ background: BRAND.bg, borderColor: BRAND.border }}
+                    >
+                      {s.popular && (
+                        <span
+                          className="absolute top-3 right-3 text-[10px] font-semibold rounded-full px-2 py-0.5 select-none"
+                          style={{ background: BRAND.accentLight, color: BRAND.primary }}
+                        >
+                          Popular
+                        </span>
+                      )}
+                      <div
+                        className="inline-flex items-center justify-center w-11 h-11 rounded-xl mb-4"
+                        style={{ background: BRAND.surfaceAlt, color: BRAND.primary }}
+                      >
+                        {s.icon}
+                      </div>
+                      <p className="font-semibold text-[15px]" style={{ color: BRAND.text }}>{s.label}</p>
+                      <p className="mt-0.5 text-[13px] font-medium" style={{ color: BRAND.accent }}>from ${s.from}</p>
+                      <div
+                        className="mt-3 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        style={{ color: BRAND.primary }}
+                      >
+                        Get quote {icons.arrowRight}
+                      </div>
+                    </motion.div>
                   </Link>
-                </motion.div>
-              </div>
-            </FadeIn>
+                </FadeUp>
+              ))}
+            </div>
           </section>
 
-          {/* HOW IT WORKS */}
-          <FadeIn>
-            <section className={cx('rounded-3xl p-8 md:p-10', glassSoft)}>
-              <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-                  Quoting that actually makes sense
-                </h2>
-                <p className="mt-2 text-base max-w-xl mx-auto" style={{ color: brand.muted }}>
-                  We built tools that let you scope the job yourself — no phone tag, no vague estimates
-                </p>
-              </div>
+          {/* ── How it works ──────────────────────────────────────────── */}
+          <section>
+            <FadeUp className="text-center mb-12">
+              <Eyebrow>Three steps · Under two minutes to quote</Eyebrow>
+              <SectionH2 center>Quoting that makes sense</SectionH2>
+              <p className="mt-3 text-[15px] max-w-sm mx-auto" style={{ color: BRAND.muted }}>
+                No callbacks, no guesswork. Build it yourself — we confirm within hours.
+              </p>
+            </FadeUp>
 
-              <div className="grid md:grid-cols-3 gap-6">
-                {tools.map((tool, i) => (
-                  <motion.div
-                    key={i}
-                    className="text-center md:text-left"
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.12, duration: 0.5 }}
+            {/* Steps — equal-height bordered grid (Craft-style) */}
+            <div
+              className="grid md:grid-cols-3 rounded-2xl overflow-hidden border"
+              style={{ borderColor: BRAND.border }}
+            >
+              {STEPS.map((step, i) => (
+                <FadeUp key={step.n} delay={i * 0.09}>
+                  <div
+                    className="p-7 md:p-8 h-full border-b md:border-b-0 md:border-r last:border-0 flex flex-col"
+                    style={{ background: i === 1 ? BRAND.surfaceAlt : BRAND.bg, borderColor: BRAND.border }}
                   >
-                    <motion.div
-                      className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
-                      style={{ background: `${brand.primary}15`, color: brand.primary }}
-                      whileHover={{ scale: 1.1, rotate: 4 }}
-                      transition={{ type: 'spring', stiffness: 300 }}
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-[0.16em]"
+                      style={{ color: BRAND.accent }}
                     >
-                      {tool.icon}
-                    </motion.div>
-                    <h3 className="font-semibold text-lg mb-2" style={{ color: brand.text }}>
-                      {tool.title}
-                    </h3>
-                    <p className="text-sm leading-relaxed" style={{ color: brand.muted }}>
-                      {tool.description}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          </FadeIn>
+                      Step {step.n}
+                    </span>
+                    <h3 className="mt-2 text-[1.05rem] font-bold" style={{ color: BRAND.text }}>{step.title}</h3>
+                    <p className="mt-2 text-[13.5px] leading-relaxed flex-1" style={{ color: BRAND.muted }}>{step.body}</p>
 
-          {/* ABOUT SNIPPET */}
-          <FadeIn>
-            <section className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-              <div>
-                <motion.p
-                  className="text-sm font-medium mb-3"
-                  style={{ color: brand.primary }}
-                  initial={{ opacity: 0, x: -12 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4 }}
-                >
-                  Who are Buds?
-                </motion.p>
-                <h2 className="text-2xl md:text-3xl font-bold mb-4" style={{ color: brand.text }}>
-                  Your local crew,
-                  <br />
-                  not a faceless platform
-                </h2>
-                <p className="text-base leading-relaxed mb-6" style={{ color: brand.muted }}>
-                  We&apos;re a small team based in Logan. When you book with us, you&apos;re dealing with real
-                  people who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
-                </p>
-                <motion.div whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
-                  <Link
-                    href="/about"
-                    className="inline-flex items-center gap-2 text-base font-semibold transition-all"
-                    style={{ color: brand.primary }}
-                  >
-                    Learn more about us <ArrowRightIcon />
-                  </Link>
-                </motion.div>
-              </div>
-
-              <div className={cx('rounded-2xl p-6', glass)}>
-                <h3 className="font-semibold mb-4" style={{ color: brand.text }}>
-                  What we promise
-                </h3>
-                <ul className="space-y-3">
-                  {values.map((v, i) => (
-                    <motion.li
-                      key={i}
-                      className="flex items-start gap-3"
-                      initial={{ opacity: 0, x: 12 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.1, duration: 0.4 }}
-                    >
-                      <motion.span
-                        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: `${brand.primary}20`, color: brand.primary }}
-                        whileHover={{ scale: 1.2 }}
+                    {/* Tool hint — inline at bottom of each step card */}
+                    <div className="mt-5 pt-4 border-t flex items-center gap-2.5" style={{ borderColor: BRAND.border }}>
+                      <div
+                        className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg"
+                        style={{ background: BRAND.accentLight, color: BRAND.primary }}
                       >
-                        <CheckIcon />
-                      </motion.span>
-                      <span className="text-sm" style={{ color: brand.text }}>
-                        {v}
+                        {step.tool.icon}
+                      </div>
+                      <p className="text-[12px] leading-snug" style={{ color: BRAND.muted }}>{step.tool.label}</p>
+                    </div>
+                  </div>
+                </FadeUp>
+              ))}
+            </div>
+          </section>
+
+          {/* ── About split ───────────────────────────────────────────── */}
+          <section className="grid md:grid-cols-2 gap-8 md:gap-12 items-stretch">
+            {/* Left — text */}
+            <FadeUp className="flex flex-col justify-center">
+              <Eyebrow>Who are Buds?</Eyebrow>
+              <SectionH2>Your local crew,<br />not a faceless platform.</SectionH2>
+              <p className="mt-4 text-[15px] leading-relaxed" style={{ color: BRAND.muted }}>
+                We&apos;re a small team based in Logan. When you book with us you&apos;re dealing with real people
+                who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
+              </p>
+              <motion.div className="mt-6" whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                <Link
+                  href="/about"
+                  className="inline-flex items-center gap-2 text-[14px] font-semibold hover:opacity-75 transition-opacity"
+                  style={{ color: BRAND.primary }}
+                >
+                  Learn more about us {icons.arrowRight}
+                </Link>
+              </motion.div>
+            </FadeUp>
+
+            {/* Right — promises card, same visual weight */}
+            <FadeUp delay={0.1}>
+              <div
+                className="rounded-2xl p-7 border h-full flex flex-col justify-center"
+                style={{ background: BRAND.surface, borderColor: BRAND.border }}
+              >
+                <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-5" style={{ color: BRAND.accent }}>What we promise</p>
+                <ul className="space-y-4">
+                  {PROMISES.map((p, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span
+                        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: BRAND.accentLight, color: BRAND.accent }}
+                      >
+                        {icons.check}
                       </span>
-                    </motion.li>
+                      <span className="text-[14px] leading-snug" style={{ color: BRAND.text }}>{p}</span>
+                    </li>
                   ))}
                 </ul>
               </div>
-            </section>
-          </FadeIn>
-
-          {/* TESTIMONIALS */}
-          <section>
-            <FadeIn>
-              <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold" style={{ color: brand.text }}>
-                  What our customers say
-                </h2>
-                <div className="flex items-center justify-center gap-1 mt-2" style={{ color: '#F59E0B' }}>
-                  {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
-                  <span className="ml-2 text-sm font-medium" style={{ color: brand.muted }}>5.0 average rating</span>
-                </div>
-              </div>
-            </FadeIn>
-            <div className="grid md:grid-cols-3 gap-4">
-              {testimonials.map((t, i) => (
-                <FadeIn key={t.name} delay={i * 0.1}>
-                  <motion.div
-                    whileHover={{ y: -3, boxShadow: '0 14px 32px rgba(15,61,46,0.12)' }}
-                    className={cx('rounded-2xl p-6 h-full', glass)}
-                  >
-                    <div className="flex items-center gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
-                      {[1,2,3,4,5].map((i) => <StarIcon key={i} />)}
-                    </div>
-                    <p className="text-sm leading-relaxed mb-4" style={{ color: brand.text }}>
-                      &ldquo;{t.text}&rdquo;
-                    </p>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: brand.text }}>{t.name}</p>
-                      <p className="text-xs" style={{ color: brand.muted }}>{t.suburb} &middot; {t.service}</p>
-                    </div>
-                  </motion.div>
-                </FadeIn>
-              ))}
-            </div>
-            <FadeIn delay={0.2}>
-              <div className="mt-6 text-center">
-                <a
-                  href="https://g.page/r/CYTORrk6H3xmEAI/review"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
-                  style={{ color: brand.primary }}
-                >
-                  Had a great experience? Leave us a review
-                  <ArrowRightIcon />
-                </a>
-              </div>
-            </FadeIn>
+            </FadeUp>
           </section>
 
-          {/* JOIN CTA */}
-          <FadeIn>
-            <motion.section
-              className="rounded-3xl p-8 md:p-10 text-center relative overflow-hidden"
-              style={{ background: `${brand.primary}08` }}
-              whileHover={{ scale: 1.005 }}
-              transition={{ type: 'spring', stiffness: 200 }}
-            >
-              {/* Decorative blob */}
-              <div
-                className="pointer-events-none absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-10"
-                style={{ background: brand.primary }}
-              />
-              <h2 className="text-2xl md:text-3xl font-bold mb-3 relative" style={{ color: brand.text }}>
-                Want to join the crew?
-              </h2>
-              <p className="text-base max-w-lg mx-auto mb-6 relative" style={{ color: brand.muted }}>
-                We&apos;re always looking for good people — whether you want to work with us,
-                partner up, or support workers looking for meaningful employment.
-              </p>
-              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="relative inline-block">
-                <Link
-                  href="/get-involved"
-                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-semibold border-2 hover:bg-white/60 transition-colors"
-                  style={{ borderColor: brand.primary, color: brand.primary }}
-                >
-                  Get involved <ArrowRightIcon />
-                </Link>
-              </motion.div>
-            </motion.section>
-          </FadeIn>
+          {/* ── Testimonials ──────────────────────────────────────────── */}
+          <section>
+            <FadeUp className="text-center mb-10">
+              <Eyebrow>Reviews</Eyebrow>
+              <SectionH2 center>What our customers say</SectionH2>
+              <div className="flex items-center justify-center gap-0.5 mt-2" style={{ color: '#F59E0B' }}>
+                {[1,2,3,4,5].map(i => <span key={i}>{icons.star}</span>)}
+                <span className="ml-2 text-[13px]" style={{ color: BRAND.muted }}>5.0 average · 60+ reviews</span>
+              </div>
+            </FadeUp>
 
-          {/* FINAL CTA */}
-          <FadeIn>
-            <section className="text-center">
-              <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ color: brand.text }}>
-                Ready to get started?
-              </h2>
-              <p className="text-base mb-6" style={{ color: brand.muted }}>
-                Pick a service and build your free quote. No payment until you confirm — we&apos;ll lock in your price for 7 days.
-              </p>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} className="inline-block">
-                <Link
-                  href="/services"
-                  className="inline-flex rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"
-                  style={{ background: brand.primary, color: '#fff' }}
+            <div className="grid md:grid-cols-3 gap-4">
+              {TESTIMONIALS.map((t, i) => (
+                <FadeUp key={t.name} delay={i * 0.08}>
+                  <motion.div
+                    whileHover={{ y: -4, boxShadow: '0 12px 30px rgba(15,61,46,0.09)' }}
+                    className="rounded-2xl p-6 h-full border flex flex-col"
+                    style={{ background: BRAND.bg, borderColor: BRAND.border }}
+                  >
+                    {/* Stars */}
+                    <div className="flex gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
+                      {[1,2,3,4,5].map(i => <span key={i}>{icons.star}</span>)}
+                    </div>
+                    <p className="text-[14px] leading-relaxed flex-1" style={{ color: BRAND.text }}>
+                      &ldquo;{t.text}&rdquo;
+                    </p>
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: BRAND.border }}>
+                      <p className="text-[13px] font-semibold" style={{ color: BRAND.text }}>{t.name}</p>
+                      <p className="text-[12px]" style={{ color: BRAND.muted }}>{t.suburb} · {t.service}</p>
+                    </div>
+                  </motion.div>
+                </FadeUp>
+              ))}
+            </div>
+
+            <FadeUp delay={0.18} className="mt-6 text-center">
+              <a
+                href="https://g.page/r/CYTORrk6H3xmEAI/review"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline"
+                style={{ color: BRAND.primary }}
+              >
+                Had a great experience? Leave us a review {icons.arrowRight}
+              </a>
+            </FadeUp>
+          </section>
+
+          {/* ── Final CTA — dark, full-width ──────────────────────────── */}
+          <FadeUp>
+            <section
+              className="rounded-3xl px-8 py-14 md:py-20 text-center relative overflow-hidden"
+              style={{ background: BRAND.primary }}
+            >
+              {/* Orb decorations */}
+              <div className="pointer-events-none absolute -top-24 -left-24 w-80 h-80 rounded-full" style={{ background: `radial-gradient(circle, ${BRAND.accent}35, transparent 70%)` }} />
+              <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.06), transparent 70%)' }} />
+
+              <div className="relative">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] mb-5" style={{ color: BRAND.accent }}>
+                  No payment until you confirm
+                </p>
+                <h2
+                  className="text-[clamp(2.2rem,5vw,3.75rem)] font-bold tracking-tight leading-tight text-white"
                 >
-                  Get a free quote
-                </Link>
-              </motion.div>
+                  Ready to get<br />started?
+                </h2>
+                <p className="mt-4 text-[15px] max-w-sm mx-auto" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                  Pick a service and build your free quote.
+                  We&apos;ll lock in your price for 7 days.
+                </p>
+                <div className="mt-9 flex flex-wrap justify-center gap-3">
+                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      href="/services"
+                      className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[15px] font-semibold shadow-xl transition-shadow hover:shadow-2xl"
+                      style={{ background: BRAND.accent, color: '#fff' }}
+                    >
+                      Get a free quote {icons.arrowRight}
+                    </Link>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                    <Link
+                      href="/get-involved"
+                      className="inline-flex rounded-full px-8 py-4 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
+                      style={{ borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }}
+                    >
+                      Join the crew
+                    </Link>
+                  </motion.div>
+                </div>
+              </div>
             </section>
-          </FadeIn>
+          </FadeUp>
+
         </div>
       </div>
     </div>

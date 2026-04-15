@@ -31,6 +31,7 @@ type Quote = {
   payment_requested_at: string | null;
   paid_at: string | null;
   finalized_at: string | null;
+  stripe_checkout_url: string | null;
   notes: string | null;
   converted_order_id: string | null;
   created_at: string;
@@ -134,24 +135,86 @@ export default function QuotesPage() {
     }
   }, []);
 
-  const requestPayment = useCallback(async (quote: Quote) => {
+  const requestPayment = useCallback(async (
+    quote: Quote,
+    options?: {
+      openCheckout?: boolean;
+      successMessage?: string;
+    }
+  ) => {
     setActionLoadingId(quote.id);
     try {
       const res = await fetch(`/api/quotes/${quote.id}/checkout`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create payment session');
       await fetchQuotes();
-      if (data.url) {
+      if (data.url && options?.openCheckout) {
         window.open(data.url, '_blank', 'noopener,noreferrer');
-      } else {
+      } else if (!data.url) {
         throw new Error('No checkout URL returned');
       }
+      if (data.email_error) {
+        const sentTo = data.email_to ? ` (${data.email_to})` : '';
+        toast.error(`Payment link created, but email failed${sentTo}: ${data.email_error}`);
+      } else {
+        const baseMessage = options?.successMessage ?? 'Payment link sent to customer';
+        const sentTo = data.email_to ? ` to ${data.email_to}` : '';
+        const emailId = data.email_id ? ` · Resend ID: ${data.email_id}` : '';
+        toast.success(`${baseMessage}${sentTo}${emailId}`);
+      }
+      return data as {
+        url?: string;
+        email_to?: string | null;
+        email_id?: string | null;
+        email_error?: string | null;
+      };
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create payment link');
+      return null;
     } finally {
       setActionLoadingId(null);
     }
   }, [fetchQuotes]);
+
+  const copyPaymentLink = useCallback(async (quote: Quote) => {
+    setActionLoadingId(quote.id);
+    try {
+      const paymentUrl =
+        quote.stripe_checkout_url ||
+        (await requestPayment(quote, { successMessage: 'Payment link refreshed for manual sharing' }))?.url;
+
+      if (!paymentUrl) {
+        throw new Error('No payment link available to copy');
+      }
+
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard access is unavailable in this browser');
+      }
+
+      await navigator.clipboard.writeText(paymentUrl);
+      toast.success(`Payment link copied for ${quote.customer_email ?? quote.customer_name}`);
+      await fetchQuotes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to copy payment link');
+    } finally {
+      setActionLoadingId(null);
+    }
+  }, [fetchQuotes, requestPayment]);
+
+  const finalizeQuote = useCallback(async (quote: Quote) => {
+    try {
+      const finalized = await updateQuote(quote.id, {
+        status: 'finalized',
+        reviewed_total: quote.reviewed_total ?? quote.submitted_total ?? quote.total,
+      });
+
+      await requestPayment(finalized, {
+        successMessage: 'Quote finalized and payment link sent to customer',
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to finalize quote');
+    }
+  }, [requestPayment, updateQuote]);
 
   const handleAdjust = useCallback(async () => {
     if (!adjustModal) return;
@@ -187,7 +250,7 @@ export default function QuotesPage() {
         <div>
           <h1 className="text-2xl font-semibold" style={{ color: brand.primary }}>Quote Finalization</h1>
           <p className="text-sm text-slate-500">
-            Submitted pricing is preserved. Finalize reviewed totals before requesting payment.
+            Submitted pricing is preserved. Finalizing a reviewed quote now sends the Stripe payment link automatically.
           </p>
         </div>
         <button
@@ -207,7 +270,7 @@ export default function QuotesPage() {
         <>
           <Section
             title={`Needs Review (${grouped.review.length})`}
-            subtitle="Adjust totals as needed, then finalize."
+            subtitle="Adjust totals as needed, then finalize and send payment."
             quotes={grouped.review}
             actionLoadingId={actionLoadingId}
             onAdjust={(quote) => {
@@ -215,19 +278,15 @@ export default function QuotesPage() {
               setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
             }}
             onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
-            onFinalize={(quote) =>
-              updateQuote(quote.id, {
-                status: 'finalized',
-                reviewed_total: quote.reviewed_total ?? quote.submitted_total ?? quote.total,
-              })
-            }
+            onFinalize={finalizeQuote}
             onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
             onRequestPayment={requestPayment}
+            onCopyPaymentLink={copyPaymentLink}
           />
 
           <Section
             title={`Ready For Payment (${grouped.ready.length})`}
-            subtitle="Checkout links are created only after finalization."
+            subtitle="Use request payment to resend the existing checkout link."
             quotes={grouped.ready}
             actionLoadingId={actionLoadingId}
             onAdjust={(quote) => {
@@ -238,6 +297,7 @@ export default function QuotesPage() {
             onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
             onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
             onRequestPayment={requestPayment}
+            onCopyPaymentLink={copyPaymentLink}
           />
 
           <Section
@@ -253,6 +313,7 @@ export default function QuotesPage() {
             onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
             onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
             onRequestPayment={requestPayment}
+            onCopyPaymentLink={copyPaymentLink}
           />
         </>
       )}
@@ -312,6 +373,7 @@ function Section({
   onFinalize,
   onDeny,
   onRequestPayment,
+  onCopyPaymentLink,
 }: {
   title: string;
   subtitle: string;
@@ -322,6 +384,7 @@ function Section({
   onFinalize: (quote: Quote) => void;
   onDeny: (quote: Quote) => void;
   onRequestPayment: (quote: Quote) => void;
+  onCopyPaymentLink: (quote: Quote) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -407,7 +470,7 @@ function Section({
                       disabled={loading}
                       className="px-3 py-1.5 text-xs rounded-lg bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
                     >
-                      Finalize
+                      Finalize & send payment
                     </button>
                   )}
 
@@ -419,6 +482,16 @@ function Section({
                       style={{ background: brand.primary }}
                     >
                       {q.status === 'payment_pending' ? 'Resend payment link' : 'Request payment'}
+                    </button>
+                  )}
+
+                  {(q.status === 'finalized' || q.status === 'payment_pending') && (
+                    <button
+                      onClick={() => onCopyPaymentLink(q)}
+                      disabled={loading}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                    >
+                      Copy payment link
                     </button>
                   )}
 

@@ -109,61 +109,93 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     orderId = order.id;
   }
 
-  const stripe = createStripeClient();
+  let stripe;
+  try {
+    stripe = createStripeClient();
+  } catch (error) {
+    console.error('[checkout] Stripe client init failed:', error);
+    return NextResponse.json(
+      { error: 'Stripe is not configured on this environment' },
+      { status: 503 }
+    );
+  }
   const serviceLabel = SERVICE_LABELS[quote.service_type] || quote.service_type;
   const contextLabel = quote.context === 'commercial' ? 'Commercial' : 'Residential';
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const session = await (stripe.checkout.sessions.create as any)({
-    mode: 'payment',
-    currency: 'aud',
-    automatic_payment_methods: { enabled: true },
-    customer_email: quote.customer_email || undefined,
-    line_items: [
-      {
-        price_data: {
-          currency: 'aud',
-          unit_amount: Math.round(amount * 100),
-          product_data: {
-            name: `${contextLabel} ${serviceLabel}`,
-            description: `Buds At Work quote #${quote.id.slice(0, 8).toUpperCase()}`,
+  let session: any;
+  try {
+    session = await (stripe.checkout.sessions.create as any)({
+      mode: 'payment',
+      currency: 'aud',
+      customer_email: quote.customer_email || undefined,
+      line_items: [
+        {
+          price_data: {
+            currency: 'aud',
+            unit_amount: Math.round(amount * 100),
+            product_data: {
+              name: `${contextLabel} ${serviceLabel}`,
+              description: `Buds At Work quote #${quote.id.slice(0, 8).toUpperCase()}`,
+            },
           },
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      metadata: {
+        order_id: orderId,
+        quote_id: quote.id,
+        service_type: quote.service_type,
+        context: quote.context,
+        customer_name: (quote.customer_name ?? '').slice(0, 255),
+        customer_email: (quote.customer_email ?? '').slice(0, 255),
       },
-    ],
-    metadata: {
-      order_id: orderId,
-      quote_id: quote.id,
-      service_type: quote.service_type,
-      context: quote.context,
-      customer_name: quote.customer_name,
+      success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/services/checkout/cancel?order_id=${orderId}`,
     },
-    success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/services/checkout/cancel?order_id=${orderId}`,
-  });
+    // Idempotency key prevents duplicate sessions if request is retried
+    { idempotencyKey: `${quote.id}-checkout` });
+  } catch (stripeErr) {
+    console.error('[checkout] Stripe session creation failed:', stripeErr);
+    const message =
+      stripeErr instanceof Error && stripeErr.message
+        ? stripeErr.message
+        : 'Failed to create payment session';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (client as any)
+  const { error: orderUpdateErr } = await (client as any)
     .from('orders')
     .update({ stripe_checkout_session_id: session.id })
     .eq('id', orderId);
+  if (orderUpdateErr) {
+    console.error('[checkout] Failed to update order with session id:', orderUpdateErr.message);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (client as any)
+  const { error: quoteUpdateErr } = await (client as any)
     .from('quotes')
     .update({
       status: 'payment_pending',
       payment_status: 'pending_payment',
       payment_requested_at: new Date().toISOString(),
       stripe_checkout_session_id: session.id,
+      stripe_checkout_url: session.url ?? null,
       converted_order_id: orderId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', quote.id);
+  if (quoteUpdateErr) {
+    console.error('[checkout] Failed to update quote status:', quoteUpdateErr.message);
+  }
 
-  // Send "quote finalized" email — fire and forget
+  let emailSent = false;
+  let emailError: string | null = null;
+  let emailId: string | null = null;
+
+  // Send "quote finalized" email and report provider errors back to the caller.
   if (quote.customer_email && session.url) {
     const resend = getResendClient();
     if (resend) {
@@ -174,7 +206,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         quoteId: quote.id,
         paymentUrl: session.url,
       });
-      resend.emails.send({ from: FROM_ADDRESS, to: quote.customer_email, subject, html }).catch(() => {});
+      try {
+        const result = await resend.emails.send({
+          from: FROM_ADDRESS,
+          to: quote.customer_email,
+          subject,
+          html,
+        });
+        if (result.error) {
+          emailError = result.error.message;
+          console.error('[email] quote_finalized send failed:', result.error);
+        } else {
+          emailSent = true;
+          emailId = result.data?.id ?? null;
+          console.log('[email] quote_finalized sent:', {
+            quote_id: quote.id,
+            to: quote.customer_email,
+            resend_email_id: emailId,
+          });
+        }
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : 'Failed to send email';
+        console.error('[email] quote_finalized send failed:', err);
+      }
+    } else {
+      emailError = 'Email service unavailable';
+      console.error('[email] quote_finalized send failed: Resend client unavailable');
     }
   }
 
@@ -182,5 +239,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     url: session.url,
     session_id: session.id,
     order_id: orderId,
+    email_sent: emailSent,
+    email_error: emailError,
+    email_to: quote.customer_email ?? null,
+    email_id: emailId,
   });
 }

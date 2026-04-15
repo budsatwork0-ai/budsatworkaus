@@ -5,3 +5,4 @@ export { default as PayablesTab } from './PayablesTab';
 export { default as JobsTab } from './JobsTab';
 export { default as ReportsTab } from './ReportsTab';
 export { default as VisitorsTab } from './VisitorsTab';
+export { default as DispatchTab } from './DispatchTab';

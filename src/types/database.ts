@@ -858,6 +858,7 @@ export interface Database {
           finalized_at: string | null;
           finalized_by: string | null;
           stripe_checkout_session_id: string | null;
+          stripe_checkout_url: string | null;
           stripe_payment_intent_id: string | null;
           notes: string | null;
           converted_order_id: string | null;
@@ -885,6 +886,7 @@ export interface Database {
           finalized_at?: string | null;
           finalized_by?: string | null;
           stripe_checkout_session_id?: string | null;
+          stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;
           notes?: string | null;
           converted_order_id?: string | null;
@@ -912,6 +914,7 @@ export interface Database {
           finalized_at?: string | null;
           finalized_by?: string | null;
           stripe_checkout_session_id?: string | null;
+          stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;
           notes?: string | null;
           converted_order_id?: string | null;

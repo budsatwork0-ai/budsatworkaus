@@ -33,6 +33,7 @@ export function Tile({
   icon,
   disabled,
   popular,
+  from,
 }: {
   active?: boolean;
   onClick?: () => void;
@@ -41,6 +42,7 @@ export function Tile({
   icon: React.ReactNode;
   disabled?: boolean;
   popular?: boolean;
+  from?: string;
 }) {
   return (
     <M.button
@@ -63,6 +65,16 @@ export function Tile({
       }}
       aria-disabled={disabled || undefined}
     >
+      {/* Popular badge */}
+      {popular && !disabled && (
+        <div
+          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+          style={{ background: 'var(--accent)' }}
+        >
+          Popular
+        </div>
+      )}
+      {/* Active checkmark — shown when selected, replaces popular badge position */}
       {active && !disabled && (
         <div
           className="absolute top-2 right-2 grid place-items-center w-6 h-6 rounded-full"
@@ -87,6 +99,9 @@ export function Tile({
         <div>
           <div className="font-semibold text-slate-900">{title}</div>
           {subtitle ? <div className="text-xs text-slate-700">{subtitle}</div> : null}
+          {from && !disabled && (
+            <div className="text-[11px] text-emerald-700 font-medium mt-0.5">from {from}</div>
+          )}
           {disabled && <div className="text-[11px] text-slate-600 mt-1">Not covered in this context</div>}
         </div>
       </div>

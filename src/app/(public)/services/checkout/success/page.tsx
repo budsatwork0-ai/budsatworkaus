@@ -88,13 +88,13 @@ function SuccessContent() {
         </div>
 
         <h1 className="text-2xl font-semibold text-slate-800 mb-3">
-          {paymentCompleted ? 'Payment confirmed' : 'Quote request received'}
+          {paymentCompleted ? 'Payment confirmed' : "We've got your quote — nice one!"}
         </h1>
 
         <p className="text-slate-600 mb-6">
           {paymentCompleted
             ? 'Your payment has been received. Our team will confirm schedule details shortly.'
-            : 'Your quote has been saved with the submitted price. We will review and finalize it before payment is requested.'}
+            : "We'll review your details and email you a payment link within 2–4 business hours on weekdays. Check the inbox you provided."}
         </p>
 
         {loadingOrder && (
@@ -111,13 +111,20 @@ function SuccessContent() {
         {!loadingOrder && paymentCompleted && order && <OrderSummaryCard order={order} />}
 
         {quoteSubmitted && (
-          <div className="bg-white/60 backdrop-blur rounded-2xl p-6 border border-slate-200/50 mb-6 text-left">
+          <div className="bg-white/60 backdrop-blur rounded-2xl p-6 border border-slate-200/50 mb-4 text-left">
             <p className="text-sm font-medium text-slate-700 mb-2">What happens next</p>
             <ul className="text-sm text-slate-600 space-y-2">
               <li>1. Our team reviews your scope and submitted total.</li>
               <li>2. Any adjustments are finalized in your dashboard.</li>
               <li>3. You receive a payment-ready quote once approved.</li>
             </ul>
+          </div>
+        )}
+
+        {quoteSubmitted && (
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 mb-4">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Check your inbox — confirmation is on its way
           </div>
         )}
 
@@ -144,6 +151,27 @@ function SuccessContent() {
             </a>
           )}
         </div>
+
+        {paymentCompleted && (
+          <div className="mt-8 bg-amber-50 border border-amber-200 rounded-2xl px-6 py-5 text-center">
+            <p className="text-sm font-semibold text-amber-900 mb-1">Loving Buds At Work?</p>
+            <p className="text-xs text-amber-700 mb-3">
+              A quick Google review helps us reach more locals — it only takes 30 seconds.
+            </p>
+            <a
+              href="https://g.page/r/CYTORrk6H3xmEAI/review"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: '#0f3d2e' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+              Leave a Google review
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );

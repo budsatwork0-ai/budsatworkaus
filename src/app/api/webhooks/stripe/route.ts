@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
-import { bookingConfirmedEmail } from '@/lib/email/templates';
+import { bookingConfirmedEmail, checkoutExpiredEmail } from '@/lib/email/templates';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -93,6 +93,18 @@ export async function POST(req: NextRequest) {
           break;
         }
 
+        // Idempotency check — skip if order already confirmed to handle duplicate webhooks
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: currentOrder } = await (client as any)
+          .from('orders')
+          .select('status')
+          .eq('id', resolvedOrderId)
+          .maybeSingle();
+        if (currentOrder?.status === 'confirmed') {
+          console.log('[webhook] Order already confirmed, skipping duplicate processing:', resolvedOrderId);
+          break;
+        }
+
         // Update order with payment intent ID and confirm status
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (client as any)
@@ -161,15 +173,104 @@ export async function POST(req: NextRequest) {
               total: paymentAmount,
               orderId: resolvedOrderId,
             });
-            resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch(() => {});
+            resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
+              console.error('[email] booking_confirmed send failed:', err);
+            });
           }
         }
 
         break;
       }
 
+      case 'checkout.session.expired': {
+        // Reset quote back to finalized so the customer can retry payment
+        const expiredSession = event.data.object as Stripe.Checkout.Session;
+        const expiredQuoteId = expiredSession.metadata?.quote_id;
+        if (expiredQuoteId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: expiredQuote } = await (client as any)
+            .from('quotes')
+            .update({
+              status: 'finalized',
+              payment_status: 'not_requested',
+              stripe_checkout_url: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', expiredQuoteId)
+            .eq('status', 'payment_pending')
+            .select('customer_email, customer_name, service_type, submitted_total, total')
+            .maybeSingle();
+
+          logAudit(client, 'quote', expiredQuoteId, 'checkout_expired', {
+            stripe_session_id: expiredSession.id,
+          });
+
+          // Notify customer their payment link expired and invite them to re-request
+          if (expiredQuote?.customer_email) {
+            const resend = getResendClient();
+            if (resend) {
+              const expiredTotal = Number(expiredQuote.submitted_total ?? expiredQuote.total ?? 0);
+              const expiredServiceType = expiredQuote.service_type ?? '';
+              const { subject, html } = checkoutExpiredEmail({
+                customerName: expiredQuote.customer_name ?? 'there',
+                serviceLabel: SERVICE_LABELS[expiredServiceType] ?? expiredServiceType,
+                total: expiredTotal,
+                quoteId: expiredQuoteId,
+              });
+              resend.emails.send({
+                from: FROM_ADDRESS,
+                to: expiredQuote.customer_email,
+                subject,
+                html,
+              }).catch((err) => {
+                console.error('[email] checkout_expired notification failed:', err);
+              });
+            }
+          }
+        }
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        const failedPi = event.data.object as Stripe.PaymentIntent;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: failedOrder } = await (client as any)
+          .from('orders')
+          .select('id, quote_id')
+          .eq('stripe_payment_intent_id', failedPi.id)
+          .maybeSingle();
+
+        if (failedOrder) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (client as any)
+            .from('orders')
+            .update({ status: 'failed' })
+            .eq('id', failedOrder.id);
+
+          if (failedOrder.quote_id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (client as any)
+              .from('quotes')
+              .update({
+                status: 'finalized',
+                payment_status: 'not_requested',
+                stripe_checkout_url: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', failedOrder.quote_id);
+          }
+
+          logAudit(client, 'order', failedOrder.id, 'payment_failed', {
+            payment_intent_id: failedPi.id,
+            failure_message: failedPi.last_payment_error?.message,
+          });
+        }
+        break;
+      }
+
       case 'payment_intent.succeeded': {
-        // Backup handler — only insert payment if not already recorded
+        // Backup handler — only insert payment if not already recorded via checkout.session.completed
         const pi = event.data.object as Stripe.PaymentIntent;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,7 +278,7 @@ export async function POST(req: NextRequest) {
           .from('orders')
           .select('id')
           .eq('stripe_payment_intent_id', pi.id)
-          .single();
+          .maybeSingle();
 
         if (existingOrder) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,7 +287,7 @@ export async function POST(req: NextRequest) {
             .select('id')
             .eq('payment_reference', pi.id)
             .eq('status', 'completed')
-            .single();
+            .maybeSingle();
 
           if (!existingPayment) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -218,11 +319,11 @@ export async function POST(req: NextRequest) {
           .from('orders')
           .select('id')
           .eq('stripe_payment_intent_id', paymentIntentId)
-          .single();
+          .maybeSingle();
 
         if (refundOrder) {
           const refundAmount = (charge.amount_refunded || 0) / 100;
-          const isFullRefund = charge.refunded;
+          const isFullRefund = charge.amount_refunded === charge.amount;
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (client as any)

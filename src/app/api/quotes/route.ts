@@ -125,6 +125,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ALLOWED_SERVICE_TYPES = Object.keys(SERVICE_LABELS);
+  if (!ALLOWED_SERVICE_TYPES.includes(body.service_type as string)) {
+    return NextResponse.json({ error: 'Invalid service_type' }, { status: 400 });
+  }
+
+  if (!['home', 'commercial'].includes(body.context as string)) {
+    return NextResponse.json({ error: 'Invalid context' }, { status: 400 });
+  }
+
+  // Guard against context/service mismatch (e.g. auto detailing is home-only)
+  const SERVICES_BY_CONTEXT: Record<string, string[]> = {
+    home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
+    commercial: ['windows', 'cleaning', 'yard'],
+  };
+  if (!SERVICES_BY_CONTEXT[body.context as string]?.includes(body.service_type as string)) {
+    return NextResponse.json({ error: 'Service not available for this context' }, { status: 400 });
+  }
+
+  if (body.customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.customer_email as string)) {
+    return NextResponse.json({ error: 'Invalid customer_email format' }, { status: 400 });
+  }
+
   const submittedTotal = Number(body.submitted_total ?? body.total ?? body.final_price ?? 0);
   if (!Number.isFinite(submittedTotal) || submittedTotal <= 0) {
     return NextResponse.json({ error: 'Invalid quote total' }, { status: 400 });
@@ -175,7 +197,9 @@ export async function POST(request: NextRequest) {
         total: submittedTotal,
         quoteId: data.id,
       });
-      resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch(() => {});
+      resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
+        console.error('[email] quote_received send failed:', err);
+      });
     }
   }
 

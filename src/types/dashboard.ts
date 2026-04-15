@@ -5,7 +5,7 @@ export type ReceivableStatus = 'Draft' | 'Sent' | 'Part-paid' | 'Paid' | 'Overdu
 export type PayableStatus = 'Upcoming' | 'Paid' | 'Overdue';
 export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
-export type TabKey = 'schedule' | 'overview' | 'receivables' | 'payables' | 'jobs' | 'reports' | 'visitors';
+export type TabKey = 'schedule' | 'dispatch' | 'overview' | 'receivables' | 'payables' | 'jobs' | 'reports' | 'visitors';
 export type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 // Record types
@@ -173,12 +173,13 @@ export const jobStatusOptions: Array<'all' | JobStatus> = ['all', 'scheduled', '
 // Tab configuration
 export const tabs: { key: TabKey; label: string; shortcut: string }[] = [
   { key: 'schedule', label: 'Schedule', shortcut: '1' },
-  { key: 'overview', label: 'Overview', shortcut: '2' },
-  { key: 'receivables', label: 'Receivables', shortcut: '3' },
-  { key: 'payables', label: 'Payables', shortcut: '4' },
-  { key: 'jobs', label: 'Jobs', shortcut: '5' },
-  { key: 'reports', label: 'Reports', shortcut: '6' },
-  { key: 'visitors', label: 'Visitors', shortcut: '7' },
+  { key: 'dispatch', label: 'Dispatch', shortcut: '2' },
+  { key: 'overview', label: 'Overview', shortcut: '3' },
+  { key: 'receivables', label: 'Receivables', shortcut: '4' },
+  { key: 'payables', label: 'Payables', shortcut: '5' },
+  { key: 'jobs', label: 'Jobs', shortcut: '6' },
+  { key: 'reports', label: 'Reports', shortcut: '7' },
+  { key: 'visitors', label: 'Visitors', shortcut: '8' },
 ];
 
 export const dateRangeOptions: { value: DateRange; label: string }[] = [
