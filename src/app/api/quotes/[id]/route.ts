@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
+import { createStripeClientSafe } from '@/lib/stripe/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -10,7 +11,8 @@ type QuoteStatus =
   | 'finalized'
   | 'payment_pending'
   | 'paid'
-  | 'denied';
+  | 'denied'
+  | 'cancelled';
 
 const VALID_STATUSES: QuoteStatus[] = [
   'submitted',
@@ -19,7 +21,48 @@ const VALID_STATUSES: QuoteStatus[] = [
   'payment_pending',
   'paid',
   'denied',
+  'cancelled',
 ];
+
+function normalizeStatus(rawStatus: string): QuoteStatus {
+  if (rawStatus === 'pending') return 'submitted';
+  if (rawStatus === 'approved') return 'finalized';
+  if (rawStatus === 'adjusted') return 'in_review';
+  if (rawStatus === 'converted') return 'paid';
+  if (
+    rawStatus === 'submitted' ||
+    rawStatus === 'in_review' ||
+    rawStatus === 'finalized' ||
+    rawStatus === 'payment_pending' ||
+    rawStatus === 'paid' ||
+    rawStatus === 'denied' ||
+    rawStatus === 'cancelled'
+  ) {
+    return rawStatus;
+  }
+  return 'submitted';
+}
+
+async function logQuoteAudit(
+  client: ReturnType<typeof createServiceClientSafe>,
+  entityId: string,
+  action: string,
+  newValue: Record<string, unknown>
+) {
+  if (!client) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client as any).from('audit_log').insert([{
+      entity_type: 'quote',
+      entity_id: entityId,
+      action,
+      new_value: newValue,
+      source: 'dashboard',
+    }]);
+  } catch {
+    // Non-blocking
+  }
+}
 
 function canAccessQuote(
   authUser: { id: string; role: string } | null,
@@ -87,7 +130,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
   }
 
+  const currentStatus = normalizeStatus(currentQuote.status);
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  let auditAction: string | null = null;
+  let auditValue: Record<string, unknown> | null = null;
 
   if (body.status !== undefined) {
     const nextStatus = String(body.status) as QuoteStatus;
@@ -97,25 +143,80 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
-    updates.status = nextStatus;
 
-    if (nextStatus === 'finalized') {
-      // Finalizing a quote requires admin — employees may not set the final reviewed price.
+    if (nextStatus === 'cancelled') {
       if (authUser.role !== 'admin') {
-        return NextResponse.json({ error: 'Only admins may finalize quotes' }, { status: 403 });
+        return NextResponse.json({ error: 'Only admins may cancel approved quotes' }, { status: 403 });
       }
-      const reviewed = body.reviewed_total ?? currentQuote.reviewed_total ?? currentQuote.submitted_total;
-      const reviewedTotal = Number(reviewed);
-      if (!Number.isFinite(reviewedTotal) || reviewedTotal <= 0) {
-        return NextResponse.json({ error: 'Finalized quotes require a valid reviewed_total' }, { status: 400 });
+      if (!['finalized', 'payment_pending'].includes(currentStatus)) {
+        return NextResponse.json(
+          { error: 'Only approved quotes can be cancelled. Use denied for quotes still under review.' },
+          { status: 409 }
+        );
       }
-      updates.reviewed_total = reviewedTotal;
-      updates.finalized_at = new Date().toISOString();
-      updates.finalized_by = authUser.email || authUser.id;
-    }
 
-    if (nextStatus === 'denied') {
+      const cancellationReason =
+        typeof body.cancellation_reason === 'string' ? body.cancellation_reason.trim() : '';
+      if (!cancellationReason) {
+        return NextResponse.json({ error: 'cancellation_reason is required when cancelling a quote' }, { status: 400 });
+      }
+
+      const stripe = createStripeClientSafe();
+      if (stripe && currentQuote.stripe_checkout_session_id) {
+        try {
+          await stripe.checkout.sessions.expire(currentQuote.stripe_checkout_session_id);
+        } catch (stripeError) {
+          console.warn('[api/quotes] Failed to expire checkout session during quote cancellation:', stripeError);
+        }
+      }
+
+      if (currentQuote.converted_order_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: linkedOrderError } = await (client as any)
+          .from('orders')
+          .update({ status: 'cancelled' })
+          .eq('id', currentQuote.converted_order_id);
+
+        if (linkedOrderError) {
+          console.error('[api/quotes] Failed to cancel linked order:', linkedOrderError.message);
+          return NextResponse.json({ error: 'Failed to cancel the linked order' }, { status: 500 });
+        }
+      }
+
+      updates.status = 'cancelled';
       updates.payment_status = 'cancelled';
+      updates.cancellation_reason = cancellationReason;
+      updates.cancelled_at = new Date().toISOString();
+      updates.cancelled_by = authUser.email || authUser.id;
+      updates.stripe_checkout_url = null;
+      auditAction = 'cancelled';
+      auditValue = {
+        from_status: currentStatus,
+        cancellation_reason: cancellationReason,
+        cancelled_by: authUser.email || authUser.id,
+        converted_order_id: currentQuote.converted_order_id ?? null,
+      };
+    } else {
+      updates.status = nextStatus;
+
+      if (nextStatus === 'finalized') {
+        // Finalizing a quote requires admin — employees may not set the final reviewed price.
+        if (authUser.role !== 'admin') {
+          return NextResponse.json({ error: 'Only admins may finalize quotes' }, { status: 403 });
+        }
+        const reviewed = body.reviewed_total ?? currentQuote.reviewed_total ?? currentQuote.submitted_total;
+        const reviewedTotal = Number(reviewed);
+        if (!Number.isFinite(reviewedTotal) || reviewedTotal <= 0) {
+          return NextResponse.json({ error: 'Finalized quotes require a valid reviewed_total' }, { status: 400 });
+        }
+        updates.reviewed_total = reviewedTotal;
+        updates.finalized_at = new Date().toISOString();
+        updates.finalized_by = authUser.email || authUser.id;
+      }
+
+      if (nextStatus === 'denied') {
+        updates.payment_status = 'cancelled';
+      }
     }
   }
 
@@ -129,7 +230,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'reviewed_total must be greater than 0' }, { status: 400 });
     }
     updates.reviewed_total = reviewedTotal;
-    if (currentQuote.status === 'submitted') {
+    if (currentStatus === 'submitted') {
       updates.status = 'in_review';
     }
   }
@@ -149,6 +250,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (error) {
     console.error('[api/quotes] PATCH failed:', error.message);
     return NextResponse.json({ error: 'Failed to update quote' }, { status: 500 });
+  }
+
+  if (auditAction && auditValue) {
+    logQuoteAudit(client, id, auditAction, auditValue);
   }
   return NextResponse.json({ quote: data });
 }

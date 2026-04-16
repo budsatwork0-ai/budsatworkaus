@@ -102,12 +102,24 @@ export type PayableRecord = {
   notes: string;
 };
 
+export type PayoutRecord = {
+  id: string;
+  stripe_payout_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'failed' | 'canceled';
+  arrival_date: string | null;
+  created_at: string;
+  failure_message: string | null;
+};
+
 export type DashboardData = {
   metrics: DashboardMetrics;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
+  payouts: PayoutRecord[];
   lastUpdated: string;
 };
 
@@ -194,7 +206,8 @@ function generateRevenueTrend(
 // Generate recent activity items
 function generateRecentActivity(
   orders: Order[],
-  payables: Payable[]
+  payables: Payable[],
+  recentPayments: { order_id: string | null; amount: number; paid_at: string }[]
 ): ActivityItem[] {
   const activities: ActivityItem[] = [];
 
@@ -227,6 +240,19 @@ function generateRecentActivity(
         timestamp: order.created_at,
       });
     });
+
+  // Add recent confirmed payments
+  recentPayments.forEach(p => {
+    if (!p.order_id) return;
+    activities.push({
+      id: `payment-${p.order_id}`,
+      type: 'payment',
+      title: 'Payment confirmed',
+      description: 'Stripe payment received',
+      amount: p.amount,
+      timestamp: p.paid_at,
+    });
+  });
 
   // Add recent expenses
   payables
@@ -275,6 +301,8 @@ export async function GET() {
       lastMonthOrdersResult,
       payablesResult,
       paymentsResult,
+      recentPaymentsResult,
+      payoutsResult,
     ] = await Promise.all([
       // All non-cancelled orders for receivables
       client
@@ -310,6 +338,23 @@ export async function GET() {
         .from('payments')
         .select('order_id, amount, status')
         .eq('status', 'completed'),
+
+      // Recent completed payments for activity feed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('payments')
+        .select('order_id, amount, paid_at')
+        .eq('status', 'completed')
+        .order('paid_at', { ascending: false })
+        .limit(5),
+
+      // Recent Stripe payouts to NAB
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('payouts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10),
     ]);
 
     // Handle errors
@@ -321,6 +366,8 @@ export async function GET() {
     const allCompletedOrders: Order[] = completedOrdersResult.data || [];
     const lastMonthOrders: Order[] = lastMonthOrdersResult.data || [];
     const payables: Payable[] = payablesResult.data || [];
+    const recentPaymentsData: { order_id: string | null; amount: number; paid_at: string }[] = recentPaymentsResult?.data || [];
+    const payoutsData: PayoutRecord[] = payoutsResult?.data || [];
 
     // Build a map of order_id -> total paid amount from completed payments
     const paymentsData: { order_id: string | null; amount: number; status: string }[] = paymentsResult?.data || [];
@@ -482,7 +529,7 @@ export async function GET() {
     const revenueTrend = generateRevenueTrend(allCompletedOrders, paidPayables);
 
     // Generate recent activity
-    const recentActivity = generateRecentActivity(orders, payables);
+    const recentActivity = generateRecentActivity(orders, payables, recentPaymentsData);
 
     // Build jobs list
     const jobs: JobRecord[] = orders
@@ -494,32 +541,22 @@ export async function GET() {
         scheduledDate: order.scheduled_date || '',
         scheduledTime: order.scheduled_time || '',
         address: '',
-        status: order.status as 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
+        status: order.status === 'in_progress' ? 'in_progress' : 'scheduled',
         amount: order.final_price || 0,
         notes: order.notes || '',
       }));
 
-    // Fetch goals and cash balance from site settings (with defaults)
+    // Fetch goals from site settings (with defaults)
     let monthlyRevenueTarget = 15000;
     let monthlyJobsTarget = 30;
-    let cashBalance = 0;
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const [goalsResult, cashResult] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (client as any)
-          .from('site_settings')
-          .select('value')
-          .eq('key', 'goals')
-          .single(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (client as any)
-          .from('site_settings')
-          .select('value')
-          .eq('key', 'cashBalance')
-          .single(),
-      ]);
+      const goalsResult = await (client as any)
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'goals')
+        .single();
 
       if (goalsResult.data?.value) {
         const goals = typeof goalsResult.data.value === 'string'
@@ -528,15 +565,13 @@ export async function GET() {
         monthlyRevenueTarget = goals.monthlyRevenueTarget || 15000;
         monthlyJobsTarget = goals.monthlyJobsTarget || 30;
       }
-
-      if (cashResult.data?.value !== undefined && cashResult.data?.value !== null) {
-        cashBalance = typeof cashResult.data.value === 'number'
-          ? cashResult.data.value
-          : parseFloat(cashResult.data.value) || 0;
-      }
     } catch {
       // Use defaults if settings fetch fails
     }
+
+    // Cash balance = this month's confirmed revenue minus this month's paid expenses
+    // This is what should be in the bank / Stripe balance after outgoings
+    const cashBalance = totalRevenue - totalExpenses;
 
     // Build response
     const data: DashboardData = {
@@ -585,6 +620,7 @@ export async function GET() {
       payables: payableRecords,
       jobs,
       recentActivity,
+      payouts: payoutsData,
       lastUpdated: now.toISOString(),
     };
 

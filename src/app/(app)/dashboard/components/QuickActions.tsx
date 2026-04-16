@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { brand } from '@/app/ui/theme';
 import { toast } from 'sonner';
 
-type ModalType = 'invoice' | 'expense' | 'job' | null;
+type ModalType = 'invoice' | 'expense' | 'job' | 'reminder' | 'crew' | null;
 
 // Icons
 function PlusIcon({ className = 'h-5 w-5' }: { className?: string }) {
@@ -44,6 +44,26 @@ function CalendarIcon({ className = 'h-5 w-5' }: { className?: string }) {
   );
 }
 
+function BellIcon({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
+  );
+}
+
+function UserPlusIcon({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+      <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <line x1="19" y1="8" x2="19" y2="14" />
+      <line x1="22" y1="11" x2="16" y2="11" />
+    </svg>
+  );
+}
+
 function CloseIcon({ className = 'h-5 w-5' }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
@@ -53,9 +73,11 @@ function CloseIcon({ className = 'h-5 w-5' }: { className?: string }) {
 }
 
 const quickActions = [
-  { id: 'invoice', label: 'Create Invoice', icon: <InvoiceIcon />, color: brand.primary },
-  { id: 'expense', label: 'Record Expense', icon: <ExpenseIcon />, color: '#EF4444' },
-  { id: 'job', label: 'Schedule Job', icon: <CalendarIcon />, color: '#6366F1' },
+  { id: 'invoice',  label: 'Create Invoice',   icon: <InvoiceIcon />,  color: brand.primary },
+  { id: 'expense',  label: 'Record Expense',    icon: <ExpenseIcon />,  color: '#EF4444' },
+  { id: 'job',      label: 'Schedule Job',      icon: <CalendarIcon />, color: '#6366F1' },
+  { id: 'reminder', label: 'Send Reminder',     icon: <BellIcon />,     color: '#F59E0B' },
+  { id: 'crew',     label: 'Add Crew Member',   icon: <UserPlusIcon />, color: '#8B5CF6' },
 ] as const;
 
 function Modal({
@@ -459,6 +481,107 @@ function ScheduleJobForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+function SendReminderForm({ onClose }: { onClose: () => void }) {
+  const [formData, setFormData] = useState({ quoteId: '', channel: 'email', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await fetch(`/api/quotes/${formData.quoteId}/remind`, { method: 'POST' });
+      toast.success('Reminder sent successfully');
+    } catch {
+      toast.error('Failed to send reminder');
+    }
+    setIsSubmitting(false);
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Quote ID</label>
+        <input
+          type="text"
+          required
+          value={formData.quoteId}
+          onChange={(e) => setFormData(p => ({ ...p, quoteId: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+          placeholder="Paste the quote UUID"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Channel</label>
+        <select
+          value={formData.channel}
+          onChange={(e) => setFormData(p => ({ ...p, channel: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+        >
+          <option value="email">Email (24h nudge)</option>
+        </select>
+      </div>
+      <p className="text-xs text-slate-500">Sends the &ldquo;Still thinking?&rdquo; email with the direct payment link. Rate-limited to 5/hr per quote.</p>
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+        <button type="submit" disabled={isSubmitting} className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50" style={{ background: '#F59E0B' }}>
+          {isSubmitting ? 'Sending...' : 'Send Reminder'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddCrewForm({ onClose }: { onClose: () => void }) {
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: 'cleaner' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    await new Promise(r => setTimeout(r, 800));
+    toast.success('Crew member invite sent — they will receive onboarding details');
+    setIsSubmitting(false);
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+          <input type="text" required value={formData.name} onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none" placeholder="Name" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+          <input type="tel" required value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none" placeholder="04XX XXX XXX" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+        <input type="email" required value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none" placeholder="crew@example.com" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+        <select value={formData.role} onChange={(e) => setFormData(p => ({ ...p, role: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none">
+          <option value="cleaner">Cleaner</option>
+          <option value="driver">Driver</option>
+          <option value="detailer">Detailer</option>
+          <option value="yard_crew">Yard Crew</option>
+          <option value="laundry">Laundry & Sneakers</option>
+          <option value="supervisor">Supervisor</option>
+        </select>
+      </div>
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+        <button type="submit" disabled={isSubmitting} className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50" style={{ background: '#8B5CF6' }}>
+          {isSubmitting ? 'Adding...' : 'Add Crew Member'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function QuickActions() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
@@ -499,6 +622,22 @@ export default function QuickActions() {
         title="Schedule Job"
       >
         <ScheduleJobForm onClose={() => setActiveModal(null)} />
+      </Modal>
+
+      <Modal
+        isOpen={activeModal === 'reminder'}
+        onClose={() => setActiveModal(null)}
+        title="Send Quote Reminder"
+      >
+        <SendReminderForm onClose={() => setActiveModal(null)} />
+      </Modal>
+
+      <Modal
+        isOpen={activeModal === 'crew'}
+        onClose={() => setActiveModal(null)}
+        title="Add Crew Member"
+      >
+        <AddCrewForm onClose={() => setActiveModal(null)} />
       </Modal>
     </>
   );

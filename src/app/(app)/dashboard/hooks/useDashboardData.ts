@@ -5,16 +5,18 @@ import type {
   DashboardMetrics,
   ReceivableRecord,
   PayableRecord,
+  PayoutRecord,
   JobRecord,
   ActivityItem,
 } from '@/types/dashboard';
 
-export type { DashboardMetrics, ReceivableRecord, PayableRecord, JobRecord, ActivityItem };
+export type { DashboardMetrics, ReceivableRecord, PayableRecord, PayoutRecord, JobRecord, ActivityItem };
 
 type UseDashboardDataResult = {
   metrics: DashboardMetrics | null;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
+  payouts: PayoutRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
   lastUpdated: string | null;
@@ -79,6 +81,7 @@ export function useDashboardData(): UseDashboardDataResult {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
   const [payables, setPayables] = useState<PayableRecord[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function useDashboardData(): UseDashboardDataResult {
     setMetrics(data.metrics);
     setReceivables(data.receivables);
     setPayables(data.payables);
+    setPayouts(data.payouts || []);
     setJobs(data.jobs || []);
     setRecentActivity(data.recentActivity || []);
     setLastUpdated(data.lastUpdated || null);
@@ -138,6 +142,7 @@ export function useDashboardData(): UseDashboardDataResult {
     metrics: metrics ?? defaultMetrics,
     receivables,
     payables,
+    payouts,
     jobs,
     recentActivity,
     lastUpdated,

@@ -76,16 +76,37 @@ export async function POST(req: NextRequest) {
         }
 
         let resolvedOrderId = orderId;
+        let currentQuoteStatus: string | null = null;
 
         if (!resolvedOrderId && quoteId) {
           // Resolve order from quote fallback when metadata is quote-only.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: quoteOrder } = await (client as any)
             .from('quotes')
-            .select('converted_order_id')
+            .select('converted_order_id, status')
             .eq('id', quoteId)
             .maybeSingle();
           resolvedOrderId = quoteOrder?.converted_order_id || undefined;
+          currentQuoteStatus = quoteOrder?.status || null;
+        } else if (quoteId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: quoteSnapshot } = await (client as any)
+            .from('quotes')
+            .select('status')
+            .eq('id', quoteId)
+            .maybeSingle();
+          currentQuoteStatus = quoteSnapshot?.status || null;
+        }
+
+        if (currentQuoteStatus === 'cancelled') {
+          console.warn('[webhook] Ignoring payment for a cancelled quote:', quoteId);
+          if (quoteId) {
+            logAudit(client, 'quote', quoteId, 'payment_received_after_cancellation', {
+              stripe_session_id: session.id,
+              payment_intent: session.payment_intent,
+            });
+          }
+          break;
         }
 
         if (!resolvedOrderId) {
@@ -354,6 +375,154 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        break;
+      }
+
+      case 'payout.created': {
+        // Stripe has initiated a payout to the NAB business account
+        const payout = event.data.object as Stripe.Payout;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('payouts')
+          .upsert([{
+            stripe_payout_id: payout.id,
+            amount: payout.amount / 100,
+            currency: payout.currency,
+            status: 'pending',
+            arrival_date: payout.arrival_date
+              ? new Date(payout.arrival_date * 1000).toISOString()
+              : null,
+            description: payout.description ?? null,
+          }], { onConflict: 'stripe_payout_id' });
+
+        logAudit(client, 'payout', payout.id, 'payout_initiated', {
+          amount: payout.amount / 100,
+          currency: payout.currency,
+          arrival_date: payout.arrival_date,
+        });
+        break;
+      }
+
+      case 'payout.paid': {
+        // Funds have landed in the NAB account
+        const paidPayout = event.data.object as Stripe.Payout;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('payouts')
+          .upsert([{
+            stripe_payout_id: paidPayout.id,
+            amount: paidPayout.amount / 100,
+            currency: paidPayout.currency,
+            status: 'paid',
+            arrival_date: paidPayout.arrival_date
+              ? new Date(paidPayout.arrival_date * 1000).toISOString()
+              : null,
+            description: paidPayout.description ?? null,
+          }], { onConflict: 'stripe_payout_id' });
+
+        logAudit(client, 'payout', paidPayout.id, 'payout_completed', {
+          amount: paidPayout.amount / 100,
+          currency: paidPayout.currency,
+        });
+        break;
+      }
+
+      case 'payout.failed': {
+        // Payout to NAB failed — funds stay in Stripe balance
+        const failedPayout = event.data.object as Stripe.Payout;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('payouts')
+          .upsert([{
+            stripe_payout_id: failedPayout.id,
+            amount: failedPayout.amount / 100,
+            currency: failedPayout.currency,
+            status: 'failed',
+            arrival_date: failedPayout.arrival_date
+              ? new Date(failedPayout.arrival_date * 1000).toISOString()
+              : null,
+            description: failedPayout.description ?? null,
+            failure_code: failedPayout.failure_code ?? null,
+            failure_message: failedPayout.failure_message ?? null,
+          }], { onConflict: 'stripe_payout_id' });
+
+        logAudit(client, 'payout', failedPayout.id, 'payout_failed', {
+          amount: failedPayout.amount / 100,
+          failure_code: failedPayout.failure_code,
+          failure_message: failedPayout.failure_message,
+        });
+        break;
+      }
+
+      case 'payout.canceled': {
+        const canceledPayout = event.data.object as Stripe.Payout;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('payouts')
+          .upsert([{
+            stripe_payout_id: canceledPayout.id,
+            amount: canceledPayout.amount / 100,
+            currency: canceledPayout.currency,
+            status: 'canceled',
+            arrival_date: canceledPayout.arrival_date
+              ? new Date(canceledPayout.arrival_date * 1000).toISOString()
+              : null,
+            description: canceledPayout.description ?? null,
+          }], { onConflict: 'stripe_payout_id' });
+
+        logAudit(client, 'payout', canceledPayout.id, 'payout_canceled', {
+          amount: canceledPayout.amount / 100,
+          currency: canceledPayout.currency,
+        });
+        break;
+      }
+
+      case 'payout.updated': {
+        const updatedPayout = event.data.object as Stripe.Payout;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('payouts')
+          .upsert([{
+            stripe_payout_id: updatedPayout.id,
+            amount: updatedPayout.amount / 100,
+            currency: updatedPayout.currency,
+            status: updatedPayout.status,
+            arrival_date: updatedPayout.arrival_date
+              ? new Date(updatedPayout.arrival_date * 1000).toISOString()
+              : null,
+            description: updatedPayout.description ?? null,
+            failure_code: updatedPayout.failure_code ?? null,
+            failure_message: updatedPayout.failure_message ?? null,
+          }], { onConflict: 'stripe_payout_id' });
+
+        logAudit(client, 'payout', updatedPayout.id, 'payout_updated', {
+          amount: updatedPayout.amount / 100,
+          status: updatedPayout.status,
+        });
+        break;
+      }
+
+      case 'payout.reconciliation_completed': {
+        // Stripe has finished reconciling an automatic payout — balance transactions are now queryable
+        const reconPayout = event.data.object as Stripe.Payout;
+        logAudit(client, 'payout', reconPayout.id, 'payout_reconciliation_completed', {
+          amount: reconPayout.amount / 100,
+          currency: reconPayout.currency,
+          arrival_date: reconPayout.arrival_date,
+        });
+        break;
+      }
+
+      case 'charge.dispute.created': {
+        // A customer has disputed a charge — Stripe will debit the NAB account
+        const dispute = event.data.object as Stripe.Dispute;
+        logAudit(client, 'dispute', dispute.id, 'dispute_created', {
+          amount: dispute.amount / 100,
+          currency: dispute.currency,
+          charge_id: dispute.charge,
+          reason: dispute.reason,
+          status: dispute.status,
+        });
         break;
       }
 

@@ -5,7 +5,7 @@ export type ReceivableStatus = 'Draft' | 'Sent' | 'Part-paid' | 'Paid' | 'Overdu
 export type PayableStatus = 'Upcoming' | 'Paid' | 'Overdue';
 export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
-export type TabKey = 'schedule' | 'dispatch' | 'overview' | 'receivables' | 'payables' | 'jobs' | 'reports' | 'visitors';
+export type TabKey = 'today' | 'money' | 'jobs' | 'analytics' | 'domains';
 export type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 // Record types
@@ -135,12 +135,24 @@ export type DashboardMetrics = {
   };
 };
 
+export type PayoutRecord = {
+  id: string;
+  stripe_payout_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'failed' | 'canceled';
+  arrival_date: string | null;
+  created_at: string;
+  failure_message: string | null;
+};
+
 export type DashboardData = {
   metrics: DashboardMetrics;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
+  payouts: PayoutRecord[];
   lastUpdated: string;
 };
 
@@ -170,16 +182,15 @@ export const receivableStatusOptions: Array<'all' | ReceivableStatus> = ['all', 
 export const payableStatusOptions: Array<'all' | PayableStatus> = ['all', 'Upcoming', 'Paid', 'Overdue'];
 export const jobStatusOptions: Array<'all' | JobStatus> = ['all', 'scheduled', 'in_progress', 'completed', 'cancelled'];
 
-// Tab configuration
-export const tabs: { key: TabKey; label: string; shortcut: string }[] = [
-  { key: 'schedule', label: 'Schedule', shortcut: '1' },
-  { key: 'dispatch', label: 'Dispatch', shortcut: '2' },
-  { key: 'overview', label: 'Overview', shortcut: '3' },
-  { key: 'receivables', label: 'Receivables', shortcut: '4' },
-  { key: 'payables', label: 'Payables', shortcut: '5' },
-  { key: 'jobs', label: 'Jobs', shortcut: '6' },
-  { key: 'reports', label: 'Reports', shortcut: '7' },
-  { key: 'visitors', label: 'Visitors', shortcut: '8' },
+// Tab configuration — 5 grouped tabs replacing the original 8 flat tabs.
+// Each tab may contain sub-navigation for the views it consolidates.
+// Shortcuts: 1–5 for tab switching via keyboard.
+export const tabs: { key: TabKey; label: string; shortcut: string; description: string }[] = [
+  { key: 'today',     label: 'Today',     shortcut: '1', description: 'Schedule & Dispatch' },
+  { key: 'money',     label: 'Money',     shortcut: '2', description: 'Overview, Receivables & Payables' },
+  { key: 'jobs',      label: 'Jobs',      shortcut: '3', description: 'Job log with filters' },
+  { key: 'analytics', label: 'Analytics', shortcut: '4', description: 'Reports & Live Visitors' },
+  { key: 'domains',   label: 'Domains',   shortcut: '5', description: 'Command Centre — all 12 domains' },
 ];
 
 export const dateRangeOptions: { value: DateRange; label: string }[] = [

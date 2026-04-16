@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth';
 import { createStripeClient } from '@/lib/stripe/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteFinalizedEmail } from '@/lib/email/templates';
+import type Stripe from 'stripe';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -49,7 +50,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const quoteStatus =
-    quote.status === 'approved' || quote.status === 'adjusted' ? 'finalized' : quote.status;
+    quote.status === 'approved'
+      ? 'finalized'
+      : quote.status === 'adjusted'
+        ? 'in_review'
+        : quote.status;
+
+  if (quoteStatus === 'cancelled' || quoteStatus === 'denied') {
+    return NextResponse.json(
+      { error: 'Cancelled or denied quotes cannot request payment' },
+      { status: 400 }
+    );
+  }
 
   if (!['finalized', 'payment_pending'].includes(quoteStatus)) {
     return NextResponse.json(
@@ -123,10 +135,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const contextLabel = quote.context === 'commercial' ? 'Commercial' : 'Residential';
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let session: any;
+  let session: Stripe.Checkout.Session;
   try {
-    session = await (stripe.checkout.sessions.create as any)({
+    session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'aud',
       customer_email: quote.customer_email || undefined,

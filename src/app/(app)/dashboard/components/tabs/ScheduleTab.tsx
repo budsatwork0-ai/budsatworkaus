@@ -50,7 +50,7 @@ export default function ScheduleTab() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/orders?scheduled_date_from=${weekStart}&scheduled_date_to=${weekEnd}&limit=200`)
+    fetch(`/api/orders?date_from=${weekStart}&date_to=${weekEnd}&limit=200`)
       .then((r) => r.json())
       .then((data) => setOrders(data.orders || []))
       .catch(() => {})

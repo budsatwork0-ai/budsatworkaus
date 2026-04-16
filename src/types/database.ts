@@ -847,6 +847,7 @@ export interface Database {
           service_type: string;
           context: string;
           scope: string | null;
+          service_address: string | null;
           frequency: string;
           total: number;
           submitted_total: number;
@@ -857,6 +858,9 @@ export interface Database {
           paid_at: string | null;
           finalized_at: string | null;
           finalized_by: string | null;
+          cancellation_reason: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
           stripe_checkout_session_id: string | null;
           stripe_checkout_url: string | null;
           stripe_payment_intent_id: string | null;
@@ -875,6 +879,7 @@ export interface Database {
           service_type: string;
           context?: string;
           scope?: string | null;
+          service_address?: string | null;
           frequency?: string;
           total?: number;
           submitted_total?: number;
@@ -885,6 +890,9 @@ export interface Database {
           paid_at?: string | null;
           finalized_at?: string | null;
           finalized_by?: string | null;
+          cancellation_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;
@@ -903,6 +911,7 @@ export interface Database {
           service_type?: string;
           context?: string;
           scope?: string | null;
+          service_address?: string | null;
           frequency?: string;
           total?: number;
           submitted_total?: number;
@@ -913,6 +922,9 @@ export interface Database {
           paid_at?: string | null;
           finalized_at?: string | null;
           finalized_by?: string | null;
+          cancellation_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;

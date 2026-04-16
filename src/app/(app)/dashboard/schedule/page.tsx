@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { brand } from '@/app/ui/theme';
+import { useDashboardData } from '../hooks/useDashboardData';
+import JobsTab from '../components/tabs/JobsTab';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -39,10 +41,15 @@ function getWeekDates(offset: number): Date[] {
   });
 }
 
+type View = 'calendar' | 'list';
+
 export default function SchedulePage() {
+  const [view, setView] = useState<View>('calendar');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+
+  const { jobs, isLoading: jobsLoading } = useDashboardData();
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const weekStart = weekDates[0].toISOString().split('T')[0];
@@ -50,7 +57,7 @@ export default function SchedulePage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/orders?scheduled_date_from=${weekStart}&scheduled_date_to=${weekEnd}&limit=200`)
+    fetch(`/api/orders?date_from=${weekStart}&date_to=${weekEnd}&limit=200`)
       .then((r) => r.json())
       .then((data) => setOrders(data.orders || []))
       .catch(() => {})
@@ -70,85 +77,114 @@ export default function SchedulePage() {
 
   const unscheduled = orders.filter((o) => !o.scheduled_date);
   const today = new Date().toISOString().split('T')[0];
-
   const weekLabel = `${weekDates[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} — ${weekDates[6].toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   return (
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
-      <div className="flex items-center gap-2 justify-end">
-          <button onClick={() => setWeekOffset((w) => w - 1)} className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50" style={{ borderColor: brand.border }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5">
+          <button
+            onClick={() => setView('calendar')}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={view === 'calendar' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
+          >
+            Calendar
           </button>
-          <button onClick={() => setWeekOffset(0)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={weekOffset === 0 ? { background: brand.primary, color: 'white' } : { border: `1px solid ${brand.border}`, color: brand.muted }}>
-            Today
+          <button
+            onClick={() => setView('list')}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={view === 'list' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
+          >
+            List
           </button>
-          <button onClick={() => setWeekOffset((w) => w + 1)} className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50" style={{ borderColor: brand.border }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-          </button>
-          <span className="text-sm font-medium ml-2" style={{ color: brand.text }}>{weekLabel}</span>
         </div>
 
-      {/* Week Grid */}
-      {loading ? (
-        <div className="grid grid-cols-7 gap-2">{DAYS.map((d) => <div key={d} className="h-48 rounded-xl bg-white/50 animate-pulse" />)}</div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
-          {weekDates.map((date, i) => {
-            const dateStr = date.toISOString().split('T')[0];
-            const dayOrders = ordersByDate[dateStr] || [];
-            const isToday = dateStr === today;
-            return (
-              <div key={dateStr} className={`rounded-2xl border p-3 min-h-[200px] ${isToday ? 'border-2' : 'border-black/5'} bg-white/80`} style={isToday ? { borderColor: brand.primary } : undefined}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold" style={{ color: isToday ? brand.primary : brand.muted }}>{DAYS[i]}</span>
-                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${isToday ? 'text-white' : ''}`} style={isToday ? { background: brand.primary } : { color: brand.muted }}>
-                    {date.getDate()}
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {dayOrders.map((order) => {
-                    const color = SERVICE_COLORS[order.service_type] || '#6B7280';
-                    return (
-                      <div key={order.id} className="rounded-lg p-2 text-[11px]" style={{ background: `${color}15`, borderLeft: `3px solid ${color}` }}>
-                        <p className="font-medium truncate" style={{ color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</p>
-                        <p className="truncate text-slate-600">{order.customer_name}</p>
-                        {order.scheduled_time && <p className="text-slate-400">{order.scheduled_time}</p>}
-                      </div>
-                    );
-                  })}
-                  {dayOrders.length === 0 && (
-                    <p className="text-[10px] text-center py-4 text-slate-300">No jobs</p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Unscheduled Jobs */}
-      {unscheduled.length > 0 && (
-        <div className={`${glass} p-5`}>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>
-            Unscheduled Jobs ({unscheduled.length})
-          </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {unscheduled.slice(0, 9).map((order) => {
-              const color = SERVICE_COLORS[order.service_type] || '#6B7280';
-              return (
-                <div key={order.id} className="rounded-xl border border-black/5 p-3 bg-white/60">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: `${color}15`, color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</span>
-                      <p className="text-sm font-medium mt-1" style={{ color: brand.text }}>{order.customer_name}</p>
-                    </div>
-                    <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.final_price.toFixed(0)}</p>
-                  </div>
-                </div>
-              );
-            })}
+        {view === 'calendar' && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekOffset((w) => w - 1)} className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50" style={{ borderColor: brand.border }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <button
+              onClick={() => setWeekOffset(0)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={weekOffset === 0 ? { background: brand.primary, color: 'white' } : { border: `1px solid ${brand.border}`, color: brand.muted }}
+            >
+              Today
+            </button>
+            <button onClick={() => setWeekOffset((w) => w + 1)} className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50" style={{ borderColor: brand.border }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+            <span className="text-sm font-medium" style={{ color: brand.text }}>{weekLabel}</span>
           </div>
-        </div>
+        )}
+      </div>
+
+      {view === 'list' ? (
+        <JobsTab jobs={jobs} isLoading={jobsLoading} onRowClick={() => {}} />
+      ) : (
+        <>
+          {loading ? (
+            <div className="grid grid-cols-7 gap-2">{DAYS.map((d) => <div key={d} className="h-48 rounded-xl bg-white/50 animate-pulse" />)}</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+              {weekDates.map((date, i) => {
+                const dateStr = date.toISOString().split('T')[0];
+                const dayOrders = ordersByDate[dateStr] || [];
+                const isToday = dateStr === today;
+                return (
+                  <div key={dateStr} className={`rounded-2xl border p-3 min-h-[200px] ${isToday ? 'border-2' : 'border-black/5'} bg-white/80`} style={isToday ? { borderColor: brand.primary } : undefined}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold" style={{ color: isToday ? brand.primary : brand.muted }}>{DAYS[i]}</span>
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${isToday ? 'text-white' : ''}`} style={isToday ? { background: brand.primary } : { color: brand.muted }}>
+                        {date.getDate()}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {dayOrders.map((order) => {
+                        const color = SERVICE_COLORS[order.service_type] || '#6B7280';
+                        return (
+                          <div key={order.id} className="rounded-lg p-2 text-[11px]" style={{ background: `${color}15`, borderLeft: `3px solid ${color}` }}>
+                            <p className="font-medium truncate" style={{ color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</p>
+                            <p className="truncate text-slate-600">{order.customer_name}</p>
+                            {order.scheduled_time && <p className="text-slate-400">{order.scheduled_time}</p>}
+                          </div>
+                        );
+                      })}
+                      {dayOrders.length === 0 && (
+                        <p className="text-[10px] text-center py-4 text-slate-300">No jobs</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {unscheduled.length > 0 && (
+            <div className={`${glass} p-5`}>
+              <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>
+                Unscheduled Jobs ({unscheduled.length})
+              </h2>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {unscheduled.slice(0, 9).map((order) => {
+                  const color = SERVICE_COLORS[order.service_type] || '#6B7280';
+                  return (
+                    <div key={order.id} className="rounded-xl border border-black/5 p-3 bg-white/60">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: `${color}15`, color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</span>
+                          <p className="text-sm font-medium mt-1" style={{ color: brand.text }}>{order.customer_name}</p>
+                        </div>
+                        <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.final_price.toFixed(0)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

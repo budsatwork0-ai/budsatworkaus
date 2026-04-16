@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status') as OrderStatus | 'all' | null;
   const serviceType = searchParams.get('service_type') as ServiceType | 'all' | null;
   const search = searchParams.get('search');
-  const dateFrom = searchParams.get('date_from');
-  const dateTo = searchParams.get('date_to');
+  const dateFrom = searchParams.get('date_from') || searchParams.get('scheduled_date_from');
+  const dateTo = searchParams.get('date_to') || searchParams.get('scheduled_date_to');
   const limit = parseInt(searchParams.get('limit') || '100', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 

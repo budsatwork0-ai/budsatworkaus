@@ -12,7 +12,8 @@ type QuoteStatus =
   | 'finalized'
   | 'payment_pending'
   | 'paid'
-  | 'denied';
+  | 'denied'
+  | 'cancelled';
 
 type Quote = {
   id: string;
@@ -31,18 +32,31 @@ type Quote = {
   payment_requested_at: string | null;
   paid_at: string | null;
   finalized_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   stripe_checkout_url: string | null;
   notes: string | null;
   converted_order_id: string | null;
   created_at: string;
 };
 
+type WorkspaceTab = 'review' | 'approved' | 'archive';
+
 function normalizeStatus(rawStatus: string): QuoteStatus {
   if (rawStatus === 'pending') return 'submitted';
   if (rawStatus === 'approved') return 'finalized';
   if (rawStatus === 'adjusted') return 'in_review';
   if (rawStatus === 'converted') return 'paid';
-  if (rawStatus === 'submitted' || rawStatus === 'in_review' || rawStatus === 'finalized' || rawStatus === 'payment_pending' || rawStatus === 'paid' || rawStatus === 'denied') {
+  if (
+    rawStatus === 'submitted' ||
+    rawStatus === 'in_review' ||
+    rawStatus === 'finalized' ||
+    rawStatus === 'payment_pending' ||
+    rawStatus === 'paid' ||
+    rawStatus === 'denied' ||
+    rawStatus === 'cancelled'
+  ) {
     return rawStatus;
   }
   return 'submitted';
@@ -51,10 +65,11 @@ function normalizeStatus(rawStatus: string): QuoteStatus {
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   submitted: 'Submitted',
   in_review: 'In review',
-  finalized: 'Finalized',
+  finalized: 'Approved',
   payment_pending: 'Payment pending',
   paid: 'Paid',
   denied: 'Denied',
+  cancelled: 'Cancelled',
 };
 
 const STATUS_CLASS: Record<QuoteStatus, string> = {
@@ -64,6 +79,7 @@ const STATUS_CLASS: Record<QuoteStatus, string> = {
   payment_pending: 'bg-blue-100 text-blue-800',
   paid: 'bg-emerald-100 text-emerald-800',
   denied: 'bg-rose-100 text-rose-700',
+  cancelled: 'bg-orange-100 text-orange-800',
 };
 
 function toCurrency(value: number | null | undefined) {
@@ -84,17 +100,40 @@ function toDate(value: string | null | undefined) {
   });
 }
 
+function quoteMatchesSearch(quote: Quote, search: string) {
+  const term = search.trim().toLowerCase();
+  if (!term) return true;
+
+  return [
+    quote.id,
+    quote.customer_name,
+    quote.customer_email,
+    quote.customer_phone,
+    quote.service_type,
+    quote.context,
+    quote.notes,
+    quote.scope,
+    quote.cancellation_reason,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(term));
+}
+
 export default function QuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('review');
+  const [search, setSearch] = useState('');
   const [adjustModal, setAdjustModal] = useState<Quote | null>(null);
   const [adjustPrice, setAdjustPrice] = useState('');
+  const [cancelModal, setCancelModal] = useState<Quote | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/quotes?limit=200');
+      const res = await fetch('/api/quotes?limit=400');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load quotes');
       setQuotes(
@@ -128,7 +167,7 @@ export default function QuotesPage() {
         ...(data.quote as Quote),
         status: normalizeStatus((data.quote as Quote).status),
       };
-      setQuotes((prev) => prev.map((q) => (q.id === id ? normalized : q)));
+      setQuotes((prev) => prev.map((quote) => (quote.id === id ? normalized : quote)));
       return normalized;
     } finally {
       setActionLoadingId(null);
@@ -209,7 +248,7 @@ export default function QuotesPage() {
       });
 
       await requestPayment(finalized, {
-        successMessage: 'Quote finalized and payment link sent to customer',
+        successMessage: 'Quote approved and payment link sent to customer',
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to finalize quote');
@@ -237,29 +276,150 @@ export default function QuotesPage() {
     }
   }, [adjustModal, adjustPrice, updateQuote]);
 
+  const handleCancelQuote = useCallback(async () => {
+    if (!cancelModal) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error('Add a cancellation reason before cancelling the quote');
+      return;
+    }
+
+    try {
+      await updateQuote(cancelModal.id, {
+        status: 'cancelled',
+        cancellation_reason: reason,
+      });
+      toast.success('Approved quote cancelled and moved to archive');
+      setCancelModal(null);
+      setCancelReason('');
+      setWorkspaceTab('archive');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel quote');
+    }
+  }, [cancelModal, cancelReason, updateQuote]);
+
+  const filteredQuotes = useMemo(
+    () => quotes.filter((quote) => quoteMatchesSearch(quote, search)),
+    [quotes, search]
+  );
+
   const grouped = useMemo(() => {
-    const review = quotes.filter((q) => q.status === 'submitted' || q.status === 'in_review');
-    const ready = quotes.filter((q) => q.status === 'finalized' || q.status === 'payment_pending');
-    const closed = quotes.filter((q) => q.status === 'paid' || q.status === 'denied');
-    return { review, ready, closed };
-  }, [quotes]);
+    const review = filteredQuotes.filter((quote) => quote.status === 'submitted' || quote.status === 'in_review');
+    const approved = filteredQuotes.filter((quote) => quote.status === 'finalized' || quote.status === 'payment_pending');
+    const archive = filteredQuotes.filter((quote) => quote.status === 'paid' || quote.status === 'denied' || quote.status === 'cancelled');
+
+    return {
+      review: {
+        submitted: review.filter((quote) => quote.status === 'submitted'),
+        inReview: review.filter((quote) => quote.status === 'in_review'),
+      },
+      approved: {
+        ready: approved.filter((quote) => quote.status === 'finalized'),
+        paymentPending: approved.filter((quote) => quote.status === 'payment_pending'),
+      },
+      archive: {
+        cancelled: archive.filter((quote) => quote.status === 'cancelled'),
+        closed: archive.filter((quote) => quote.status === 'paid' || quote.status === 'denied'),
+      },
+    };
+  }, [filteredQuotes]);
+
+  const counts = useMemo(() => ({
+    review: quotes.filter((quote) => quote.status === 'submitted' || quote.status === 'in_review').length,
+    approved: quotes.filter((quote) => quote.status === 'finalized' || quote.status === 'payment_pending').length,
+    archive: quotes.filter((quote) => quote.status === 'paid' || quote.status === 'denied' || quote.status === 'cancelled').length,
+    paymentPending: quotes.filter((quote) => quote.status === 'payment_pending').length,
+  }), [quotes]);
+
+  const tabConfig: Array<{ key: WorkspaceTab; label: string; description: string; count: number }> = [
+    {
+      key: 'review',
+      label: 'Needs Review',
+      description: 'Incoming quotes to review and price.',
+      count: counts.review,
+    },
+    {
+      key: 'approved',
+      label: 'Approved',
+      description: 'Approved quotes waiting on payment or follow-up.',
+      count: counts.approved,
+    },
+    {
+      key: 'archive',
+      label: 'Archive',
+      description: 'Paid, denied, and cancelled history.',
+      count: counts.archive,
+    },
+  ];
 
   return (
-    <main className="max-w-6xl mx-auto py-8 px-4 space-y-8">
-      <div className="flex items-center justify-between gap-3">
+    <main className="max-w-7xl mx-auto py-8 px-4 space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: brand.primary }}>Quote Finalization</h1>
+          <h1 className="text-2xl font-semibold" style={{ color: brand.primary }}>Quote Console</h1>
           <p className="text-sm text-slate-500">
-            Submitted pricing is preserved. Finalizing a reviewed quote now sends the Stripe payment link automatically.
+            Review, approve, cancel, and archive quotes without letting historical items clog the active queue.
           </p>
         </div>
-        <button
-          onClick={fetchQuotes}
-          className="px-3 py-2 rounded-lg text-xs border"
-          style={{ borderColor: brand.border, color: brand.muted }}
-        >
-          Refresh
-        </button>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={fetchQuotes}
+            className="px-3 py-2 rounded-lg text-xs border"
+            style={{ borderColor: brand.border, color: brand.muted }}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricCard label="Needs review" value={String(counts.review)} tone="slate" />
+        <MetricCard label="Approved" value={String(counts.approved)} tone="indigo" />
+        <MetricCard label="Payment pending" value={String(counts.paymentPending)} tone="blue" />
+        <MetricCard label="Archive" value={String(counts.archive)} tone="emerald" />
+      </div>
+
+      <div className="rounded-3xl border border-black/8 bg-white/80 p-3 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {tabConfig.map((tab) => {
+              const isActive = workspaceTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setWorkspaceTab(tab.key)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${isActive ? 'shadow-sm' : 'hover:bg-slate-50/80'}`}
+                  style={{
+                    borderColor: isActive ? 'rgba(15,61,46,0.18)' : 'rgba(15,23,42,0.08)',
+                    background: isActive ? 'rgba(15,61,46,0.06)' : 'rgba(255,255,255,0.8)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-900">{tab.label}</span>
+                    <span className="rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                      {tab.count}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{tab.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="w-full lg:w-80">
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+              Search quotes
+            </label>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, email, service, reason, ID"
+              className="w-full rounded-2xl border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none"
+              style={{ borderColor: brand.border }}
+            />
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -268,53 +428,143 @@ export default function QuotesPage() {
         </div>
       ) : (
         <>
-          <Section
-            title={`Needs Review (${grouped.review.length})`}
-            subtitle="Adjust totals as needed, then finalize and send payment."
-            quotes={grouped.review}
-            actionLoadingId={actionLoadingId}
-            onAdjust={(quote) => {
-              setAdjustModal(quote);
-              setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
-            }}
-            onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
-            onFinalize={finalizeQuote}
-            onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
-            onRequestPayment={requestPayment}
-            onCopyPaymentLink={copyPaymentLink}
-          />
+          {workspaceTab === 'review' && (
+            <div className="space-y-6">
+              <Section
+                title={`Submitted (${grouped.review.submitted.length})`}
+                subtitle="Fresh quote requests waiting for triage."
+                emptyLabel="No newly submitted quotes."
+                quotes={grouped.review.submitted}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={finalizeQuote}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
 
-          <Section
-            title={`Ready For Payment (${grouped.ready.length})`}
-            subtitle="Use request payment to resend the existing checkout link."
-            quotes={grouped.ready}
-            actionLoadingId={actionLoadingId}
-            onAdjust={(quote) => {
-              setAdjustModal(quote);
-              setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
-            }}
-            onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
-            onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
-            onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
-            onRequestPayment={requestPayment}
-            onCopyPaymentLink={copyPaymentLink}
-          />
+              <Section
+                title={`In Review (${grouped.review.inReview.length})`}
+                subtitle="Quotes with adjusted pricing still waiting for final approval."
+                emptyLabel="No quotes currently in review."
+                quotes={grouped.review.inReview}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={finalizeQuote}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
+            </div>
+          )}
 
-          <Section
-            title={`Closed (${grouped.closed.length})`}
-            subtitle="Paid and denied outcomes."
-            quotes={grouped.closed}
-            actionLoadingId={actionLoadingId}
-            onAdjust={(quote) => {
-              setAdjustModal(quote);
-              setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
-            }}
-            onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
-            onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
-            onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
-            onRequestPayment={requestPayment}
-            onCopyPaymentLink={copyPaymentLink}
-          />
+          {workspaceTab === 'approved' && (
+            <div className="space-y-6">
+              <Section
+                title={`Ready To Send (${grouped.approved.ready.length})`}
+                subtitle="Approved quotes that still need the payment link sent."
+                emptyLabel="No approved quotes waiting for payment."
+                quotes={grouped.approved.ready}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
+
+              <Section
+                title={`Payment Requested (${grouped.approved.paymentPending.length})`}
+                subtitle="Payment links are already active for these approved quotes."
+                emptyLabel="No quotes currently waiting on customer payment."
+                quotes={grouped.approved.paymentPending}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
+            </div>
+          )}
+
+          {workspaceTab === 'archive' && (
+            <div className="space-y-6">
+              <Section
+                title={`Cancelled (${grouped.archive.cancelled.length})`}
+                subtitle="Approved quotes that were cancelled and moved out of the active queue."
+                emptyLabel="No cancelled approved quotes."
+                quotes={grouped.archive.cancelled}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
+
+              <Section
+                title={`Closed (${grouped.archive.closed.length})`}
+                subtitle="Paid and denied history kept separate from the working queue."
+                emptyLabel="No closed quote history."
+                quotes={grouped.archive.closed}
+                actionLoadingId={actionLoadingId}
+                onAdjust={(quote) => {
+                  setAdjustModal(quote);
+                  setAdjustPrice(String(quote.reviewed_total ?? quote.submitted_total ?? quote.total));
+                }}
+                onStartReview={(quote) => updateQuote(quote.id, { status: 'in_review' })}
+                onFinalize={(quote) => updateQuote(quote.id, { status: 'finalized' })}
+                onDeny={(quote) => updateQuote(quote.id, { status: 'denied' })}
+                onRequestPayment={requestPayment}
+                onCopyPaymentLink={copyPaymentLink}
+                onCancelApproved={(quote) => {
+                  setCancelModal(quote);
+                  setCancelReason('');
+                }}
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -324,7 +574,6 @@ export default function QuotesPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
             className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 p-6"
           >
             <h2 className="text-lg font-semibold text-slate-900 mb-2">Adjust reviewed total</h2>
@@ -336,7 +585,7 @@ export default function QuotesPage() {
               min="0"
               step="0.01"
               value={adjustPrice}
-              onChange={(e) => setAdjustPrice(e.target.value)}
+              onChange={(event) => setAdjustPrice(event.target.value)}
               className="w-full rounded-xl border px-4 py-2.5 text-sm mb-4"
               style={{ borderColor: brand.border }}
               placeholder="Reviewed total"
@@ -359,13 +608,93 @@ export default function QuotesPage() {
           </motion.div>
         </div>
       )}
+
+      {cancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCancelModal(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
+          >
+            <h2 className="text-lg font-semibold text-slate-900">Cancel approved quote</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {cancelModal.customer_name} · {SERVICE_TYPE_LABELS[cancelModal.service_type as keyof typeof SERVICE_TYPE_LABELS] || cancelModal.service_type}
+            </p>
+            <p className="mt-3 text-sm text-slate-600">
+              This will cancel the approved quote, close any linked pending order, and move it into the archive.
+            </p>
+
+            <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Cancellation reason
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+              rows={5}
+              className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 outline-none"
+              style={{ borderColor: brand.border }}
+              placeholder="Customer withdrew, scope changed, duplicate quote, unable to service address..."
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => {
+                  setCancelModal(null);
+                  setCancelReason('');
+                }}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600"
+              >
+                Keep quote
+              </button>
+              <button
+                onClick={handleCancelQuote}
+                className="flex-1 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
+                style={{ background: '#C2410C' }}
+              >
+                Cancel and archive
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'slate' | 'indigo' | 'blue' | 'emerald';
+}) {
+  const tones = {
+    slate: { bg: 'rgba(148,163,184,0.12)', fg: '#334155' },
+    indigo: { bg: 'rgba(99,102,241,0.12)', fg: '#4338CA' },
+    blue: { bg: 'rgba(59,130,246,0.12)', fg: '#1D4ED8' },
+    emerald: { bg: 'rgba(16,185,129,0.12)', fg: '#047857' },
+  } as const;
+
+  return (
+    <div className="rounded-3xl border border-black/8 bg-white/85 p-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <div
+        className="mt-2 inline-flex rounded-full px-3 py-1 text-sm font-semibold"
+        style={{ background: tones[tone].bg, color: tones[tone].fg }}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
 
 function Section({
   title,
   subtitle,
+  emptyLabel,
   quotes,
   actionLoadingId,
   onAdjust,
@@ -374,9 +703,11 @@ function Section({
   onDeny,
   onRequestPayment,
   onCopyPaymentLink,
+  onCancelApproved,
 }: {
   title: string;
   subtitle: string;
+  emptyLabel: string;
   quotes: Quote[];
   actionLoadingId: string | null;
   onAdjust: (quote: Quote) => void;
@@ -385,6 +716,7 @@ function Section({
   onDeny: (quote: Quote) => void;
   onRequestPayment: (quote: Quote) => void;
   onCopyPaymentLink: (quote: Quote) => void;
+  onCancelApproved: (quote: Quote) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -395,119 +727,147 @@ function Section({
 
       {quotes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white/50 px-4 py-6 text-sm text-slate-500">
-          No quotes in this stage.
+          {emptyLabel}
         </div>
       ) : (
         <div className="space-y-3">
-          {quotes.map((q) => {
-            const effective = q.reviewed_total ?? q.submitted_total ?? q.total;
-            const loading = actionLoadingId === q.id;
+          {quotes.map((quote) => {
+            const effective = quote.reviewed_total ?? quote.submitted_total ?? quote.total;
+            const loading = actionLoadingId === quote.id;
+
             return (
               <div
-                key={q.id}
-                className="rounded-2xl border border-black/10 bg-white/85 backdrop-blur p-4 shadow-sm"
+                key={quote.id}
+                className="rounded-2xl border border-black/10 bg-white/85 p-4 shadow-sm backdrop-blur"
               >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-slate-900">{q.customer_name}</div>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-1">
+                    <div className="font-semibold text-slate-900">{quote.customer_name}</div>
                     <div className="text-sm text-slate-600">
-                      {SERVICE_TYPE_LABELS[q.service_type as keyof typeof SERVICE_TYPE_LABELS] || q.service_type}
+                      {SERVICE_TYPE_LABELS[quote.service_type as keyof typeof SERVICE_TYPE_LABELS] || quote.service_type}
                       {' · '}
-                      {q.context}
-                      {q.frequency !== 'none' && (
-                        <span className="ml-2 inline-flex text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                          {FREQUENCY_LABELS[q.frequency as keyof typeof FREQUENCY_LABELS] || q.frequency}
+                      {quote.context}
+                      {quote.frequency !== 'none' && (
+                        <span className="ml-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700">
+                          {FREQUENCY_LABELS[quote.frequency as keyof typeof FREQUENCY_LABELS] || quote.frequency}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      Submitted {toDate(q.created_at)}{q.customer_email ? ` · ${q.customer_email}` : ''}
+                    <div className="text-xs text-slate-500">
+                      Submitted {toDate(quote.created_at)}
+                      {quote.customer_email ? ` · ${quote.customer_email}` : ''}
                     </div>
-                    {q.notes && <div className="text-xs text-slate-500 mt-1 italic">{q.notes}</div>}
+                    {quote.scope && (
+                      <div className="text-xs text-slate-500">Scope: {quote.scope}</div>
+                    )}
+                    {quote.notes && (
+                      <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        {quote.notes}
+                      </div>
+                    )}
+                    {quote.status === 'cancelled' && quote.cancellation_reason && (
+                      <div className="rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-900">
+                        <span className="font-semibold">Reason:</span> {quote.cancellation_reason}
+                        {quote.cancelled_at ? ` · ${toDate(quote.cancelled_at)}` : ''}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-col md:items-end gap-1">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CLASS[q.status]}`}>
-                      {STATUS_LABELS[q.status]}
+                  <div className="flex flex-col gap-1 lg:items-end">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CLASS[quote.status]}`}>
+                      {STATUS_LABELS[quote.status]}
                     </span>
-                    <div className="text-xs text-slate-500">Submitted: {toCurrency(q.submitted_total)}</div>
+                    <div className="text-xs text-slate-500">Submitted: {toCurrency(quote.submitted_total)}</div>
                     <div className="text-sm font-semibold text-slate-900">
                       Final: {toCurrency(effective)}
                     </div>
-                    {q.status === 'paid' && q.paid_at && (
-                      <div className="text-xs text-emerald-700">Paid {toDate(q.paid_at)}</div>
+                    {quote.status === 'payment_pending' && quote.payment_requested_at && (
+                      <div className="text-xs text-blue-700">Link sent {toDate(quote.payment_requested_at)}</div>
                     )}
-                    {q.status === 'payment_pending' && q.payment_requested_at && (
-                      <div className="text-xs text-blue-700">Requested {toDate(q.payment_requested_at)}</div>
+                    {quote.status === 'paid' && quote.paid_at && (
+                      <div className="text-xs text-emerald-700">Paid {toDate(quote.paid_at)}</div>
+                    )}
+                    {quote.status === 'cancelled' && quote.cancelled_by && (
+                      <div className="text-xs text-orange-700">Cancelled by {quote.cancelled_by}</div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {(q.status === 'submitted' || q.status === 'in_review' || q.status === 'finalized') && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(quote.status === 'submitted' || quote.status === 'in_review' || quote.status === 'finalized') && (
                     <button
-                      onClick={() => onAdjust(q)}
+                      onClick={() => onAdjust(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:opacity-60"
+                      className="rounded-lg bg-yellow-100 px-3 py-1.5 text-xs text-yellow-800 hover:bg-yellow-200 disabled:opacity-60"
                     >
                       Adjust
                     </button>
                   )}
 
-                  {q.status === 'submitted' && (
+                  {quote.status === 'submitted' && (
                     <button
-                      onClick={() => onStartReview(q)}
+                      onClick={() => onStartReview(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-60"
                     >
                       Start review
                     </button>
                   )}
 
-                  {(q.status === 'submitted' || q.status === 'in_review') && (
+                  {(quote.status === 'submitted' || quote.status === 'in_review') && (
                     <button
-                      onClick={() => onFinalize(q)}
+                      onClick={() => onFinalize(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
+                      className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
                     >
-                      Finalize & send payment
+                      Approve & send payment
                     </button>
                   )}
 
-                  {(q.status === 'finalized' || q.status === 'payment_pending') && (
+                  {(quote.status === 'finalized' || quote.status === 'payment_pending') && (
                     <button
-                      onClick={() => onRequestPayment(q)}
+                      onClick={() => onRequestPayment(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-60"
+                      className="rounded-lg px-3 py-1.5 text-xs text-white disabled:opacity-60"
                       style={{ background: brand.primary }}
                     >
-                      {q.status === 'payment_pending' ? 'Resend payment link' : 'Request payment'}
+                      {quote.status === 'payment_pending' ? 'Resend payment link' : 'Send payment link'}
                     </button>
                   )}
 
-                  {(q.status === 'finalized' || q.status === 'payment_pending') && (
+                  {(quote.status === 'finalized' || quote.status === 'payment_pending') && (
                     <button
-                      onClick={() => onCopyPaymentLink(q)}
+                      onClick={() => onCopyPaymentLink(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-60"
                     >
                       Copy payment link
                     </button>
                   )}
 
-                  {(q.status === 'submitted' || q.status === 'in_review' || q.status === 'finalized') && (
+                  {(quote.status === 'submitted' || quote.status === 'in_review') && (
                     <button
-                      onClick={() => onDeny(q)}
+                      onClick={() => onDeny(quote)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-60"
+                      className="rounded-lg bg-rose-100 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-200 disabled:opacity-60"
                     >
                       Deny
                     </button>
                   )}
 
-                  {q.status === 'paid' && q.converted_order_id && (
-                    <span className="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 text-emerald-700">
-                      Order {q.converted_order_id.slice(0, 8).toUpperCase()}
+                  {(quote.status === 'finalized' || quote.status === 'payment_pending') && (
+                    <button
+                      onClick={() => onCancelApproved(quote)}
+                      disabled={loading}
+                      className="rounded-lg bg-orange-100 px-3 py-1.5 text-xs text-orange-800 hover:bg-orange-200 disabled:opacity-60"
+                    >
+                      Cancel quote
+                    </button>
+                  )}
+
+                  {quote.status === 'paid' && quote.converted_order_id && (
+                    <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+                      Order {quote.converted_order_id.slice(0, 8).toUpperCase()}
                     </span>
                   )}
                 </div>

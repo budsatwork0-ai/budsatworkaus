@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 import { brand } from '@/app/ui/theme';
-import ApplicantsPage from '../applicants/page';
-import OnboardingPage from '../onboarding/page';
+import ReportsPage from '../reports/page';
+import VisitorsTab from '../components/tabs/VisitorsTab';
 
-type Tab = 'applicants' | 'onboarding';
+type Tab = 'reports' | 'visitors';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'applicants', label: 'Applicants' },
-  { key: 'onboarding', label: 'Onboarding' },
+  { key: 'reports',  label: 'Reports'  },
+  { key: 'visitors', label: 'Visitors' },
 ];
 
-export default function CrewPage() {
-  const [tab, setTab] = useState<Tab>('applicants');
+export default function InsightsPage() {
+  const [tab, setTab] = useState<Tab>('reports');
 
   return (
     <div>
@@ -36,8 +36,16 @@ export default function CrewPage() {
         </div>
       </div>
 
-      {tab === 'applicants' && <ApplicantsPage />}
-      {tab === 'onboarding' && <OnboardingPage />}
+      {tab === 'reports' && (
+        <div className="px-4 md:px-10 lg:px-12 pb-14">
+          <ReportsPage />
+        </div>
+      )}
+      {tab === 'visitors' && (
+        <div className="px-4 md:px-10 lg:px-12 pb-14">
+          <VisitorsTab />
+        </div>
+      )}
     </div>
   );
 }

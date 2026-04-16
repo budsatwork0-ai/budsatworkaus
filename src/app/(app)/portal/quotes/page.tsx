@@ -14,6 +14,8 @@ type Quote = {
   status: string;
   payment_status: string;
   notes: string | null;
+  cancellation_reason: string | null;
+  cancelled_at: string | null;
   created_at: string;
   finalized_at: string | null;
   stripe_checkout_session_id: string | null;
@@ -57,6 +59,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     color: '#DC2626',
     bg: '#FEF2F2',
     desc: "We couldn't proceed with this quote. Contact us for alternatives.",
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: '#C2410C',
+    bg: '#FFF7ED',
+    desc: 'This approved quote was cancelled and is no longer available for payment.',
   },
 };
 
@@ -241,7 +249,7 @@ function PayConfirmModal({
               Cancel
             </button>
             <Link href="/contact" className="hover:underline">
-              Something's not right? Contact us
+              Something&apos;s not right? Contact us
             </Link>
           </div>
         </div>
@@ -409,6 +417,7 @@ export default function PortalQuotesPage() {
             const isFinalized = quote.status === 'finalized';
             const isPaid = quote.status === 'paid' || quote.payment_status === 'paid';
             const isPending = quote.status === 'payment_pending';
+            const isCancelled = quote.status === 'cancelled';
             const priceChanged =
               quote.reviewed_total !== null &&
               Math.abs(quote.reviewed_total - quote.submitted_total) > 0.01;
@@ -504,6 +513,14 @@ export default function PortalQuotesPage() {
                     </div>
                   )}
 
+                  {isCancelled && quote.cancellation_reason && (
+                    <div className="mt-3 p-3 rounded-xl text-sm" style={{ background: '#FFF7ED', color: '#9A3412' }}>
+                      <span className="font-medium text-xs uppercase tracking-wider">Cancellation reason: </span>
+                      {quote.cancellation_reason}
+                      {quote.cancelled_at ? ` · ${fmtDate(quote.cancelled_at)}` : ''}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   {isFinalized && (
                     <div className="mt-4">
@@ -518,7 +535,7 @@ export default function PortalQuotesPage() {
                         Review & Pay {fmt(quote.reviewed_total!)}
                       </button>
                       <p className="text-[11px] mt-2" style={{ color: brand.muted }}>
-                        You'll confirm the details before any payment is taken.
+                        You&apos;ll confirm the details before any payment is taken.
                       </p>
                     </div>
                   )}
