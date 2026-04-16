@@ -3,7 +3,8 @@ export type Brand = {
   bg: string;
   card: string;
   border: string;
-  primary: string; // Accent used for filled buttons & highlights
+  primary: string;
+  accent: string;
   text: string;
   muted: string;
   focus: string;
@@ -13,7 +14,8 @@ export const brand: Brand = {
   bg: '#F7F7F5',
   card: '#FFFFFF',
   border: '#E5E7EB',
-  primary: '#0F3D2E',   // deep green accent (kept as-is)
+  primary: '#0F3D2E',   // deep green
+  accent: '#10b981',    // emerald / light green
   text: '#111827',      // slate-900-ish
   muted: '#475569',     // slate-600-ish
   focus: '#7DD3FC',     // subtle focus ring / glow

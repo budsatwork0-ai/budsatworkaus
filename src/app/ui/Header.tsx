@@ -47,7 +47,6 @@ export default function Header() {
   const [scrolled, setScrolled] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [user, setUser] = React.useState<User | null>(null);
-
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
@@ -111,10 +110,13 @@ export default function Header() {
         className={cx(
           'sticky top-0 z-50 transition-all',
           scrolled || menuOpen
-            ? 'bg-white/80 backdrop-blur border-b border-white/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)]'
-            : 'bg-transparent border-b border-transparent'
+            ? 'bg-white/90 backdrop-blur'
+            : 'bg-transparent'
         )}
-        style={{ color: showLight && !menuOpen ? '#fff' : brand.text }}
+        style={{
+          color: showLight && !menuOpen ? '#fff' : brand.text,
+          background: showLight && !menuOpen ? 'rgba(0,0,0,0.12)' : undefined,
+        }}
       >
         <div className="mx-auto max-w-6xl px-6 md:px-8 py-5 flex items-center justify-between">
           <Link
@@ -166,38 +168,28 @@ export default function Header() {
                 </Link>
               </div>
             ) : (
-              /* Not authenticated: Log in + Sign up */
-              <>
+              /* Not authenticated: Log in pill */
+              <div className="hidden md:flex items-center gap-3">
                 <Link
                   href="/account"
                   aria-label="Log in"
-                  className={cx(
-                    'hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors',
-                    showLight && !menuOpen ? 'border-white/40 hover:bg-white/20 text-white' : 'hover:bg-gray-50'
-                  )}
+                  className="inline-flex items-center justify-center font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:rounded-full"
                   onClick={() => handleNavClick('/account')}
-                  style={{ borderColor: showLight && !menuOpen ? undefined : brand.border, color: showLight && !menuOpen ? '#fff' : brand.muted }}
+                  style={{
+                    height: '38px',
+                    padding: '0 18px',
+                    fontSize: '14px',
+                    borderRadius: '999px',
+                    border: showLight && !menuOpen
+                      ? '1.5px solid rgba(255,255,255,0.45)'
+                      : `1.5px solid ${brand.border}`,
+                    color: showLight && !menuOpen ? '#fff' : brand.text,
+                    background: 'transparent',
+                  }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-                  </svg>
                   Log in
                 </Link>
-                <Link
-                  href="/account/sign-up"
-                  className={cx(
-                    'hidden md:inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold transition-colors',
-                    showLight && !menuOpen
-                      ? 'bg-white/20 hover:bg-white/30 text-white border border-white/40'
-                      : 'text-white hover:opacity-90'
-                  )}
-                  onClick={() => handleNavClick('/account/sign-up')}
-                  style={showLight && !menuOpen ? undefined : { background: brand.primary }}
-                >
-                  Sign up
-                </Link>
-              </>
+              </div>
             )}
 
             {/* Hamburger — mobile only */}
@@ -264,22 +256,17 @@ export default function Header() {
                   <Link
                     href="/account"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2 text-base font-medium transition-colors"
-                    style={{ color: brand.muted }}
+                    className="inline-flex items-center justify-center font-semibold transition-colors"
+                    style={{
+                      height: '40px',
+                      padding: '0 20px',
+                      fontSize: '14px',
+                      borderRadius: '999px',
+                      border: `1.5px solid ${brand.border}`,
+                      color: brand.text,
+                    }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth={1.8}>
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-                    </svg>
                     Log in
-                  </Link>
-                  <Link
-                    href="/account/sign-up"
-                    onClick={() => setMenuOpen(false)}
-                    className="ml-auto inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
-                    style={{ background: brand.primary }}
-                  >
-                    Sign up
                   </Link>
                 </>
               )}

@@ -149,6 +149,24 @@ export default function HomePage() {
   const [heroIn, setHeroIn] = useState(false);
   useEffect(() => { const t = setTimeout(() => setHeroIn(true), 60); return () => clearTimeout(t); }, []);
 
+  // Signal to the floating CTA widget to hide when the page's own CTA is visible
+  const ctaSectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ctaSectionRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        window.dispatchEvent(new CustomEvent(entry.isIntersecting ? 'home:cta-enter' : 'home:cta-leave'));
+      },
+      { threshold: 0.15 }
+    );
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      window.dispatchEvent(new CustomEvent('home:cta-leave'));
+    };
+  }, []);
+
   return (
     <div className="relative" style={{ background: BRAND.bg, color: BRAND.text }}>
 
@@ -380,7 +398,7 @@ export default function HomePage() {
                       <p className="mt-0.5 text-[13px] font-medium" style={{ color: BRAND.accent }}>from ${s.from}</p>
                       <div
                         className="mt-3 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                        style={{ color: BRAND.primary }}
+                        style={{ color: BRAND.accent }}
                       >
                         Get quote {icons.arrowRight}
                       </div>
@@ -531,6 +549,7 @@ export default function HomePage() {
           </section>
 
           {/* ── Final CTA — dark, full-width ──────────────────────────── */}
+          <div ref={ctaSectionRef}>
           <FadeUp>
             <section
               className="rounded-3xl px-8 py-14 md:py-20 text-center relative overflow-hidden"
@@ -576,6 +595,7 @@ export default function HomePage() {
               </div>
             </section>
           </FadeUp>
+          </div>
 
         </div>
       </div>
