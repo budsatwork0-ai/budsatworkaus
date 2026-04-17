@@ -274,9 +274,9 @@ export default function HomePage() {
             </span>
             ,<br />
             <span style={{
-              color: BRAND.primary,
-              background: BRAND.accentSoft,
-              borderRadius: '6px',
+              color: '#7BBFA0',
+              background: 'rgba(15,61,46,0.07)',
+              borderRadius: '5px',
               padding: '0 10px 4px',
               display: 'inline-block',
             }}>looked after.</span>
@@ -304,8 +304,8 @@ export default function HomePage() {
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/services"
-                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold shadow-lg transition-shadow hover:shadow-xl"
-                style={{ background: BRAND.accent, color: '#fff' }}
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
+                style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
                 Get a free quote {icons.arrowRight}
               </Link>
