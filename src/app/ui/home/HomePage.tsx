@@ -275,8 +275,6 @@ export default function HomePage() {
             ,<br />
             <span style={{
               color: '#7BBFA0',
-              background: 'rgba(15,61,46,0.07)',
-              borderRadius: '5px',
               padding: '0 10px 4px',
               display: 'inline-block',
             }}>looked after.</span>
