@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useInView, useMotionValue, useSpring } from 'framer-motion';
+import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { brand } from '../theme';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
@@ -12,6 +12,9 @@ const BRAND = {
   mutedOnDark: 'rgba(248,252,249,0.82)',
   subtleOnDark: 'rgba(248,252,249,0.62)',
 };
+
+// ─── Rotating headline words ───────────────────────────────────────────────────
+const ROTATING_WORDS = ['home', 'garden', 'car', 'yard', 'laundry', 'bins', 'delivery', 'shoes'];
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
 const icoBase = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -145,6 +148,12 @@ export default function HomePage() {
   const [heroIn, setHeroIn] = useState(false);
   useEffect(() => { const t = setTimeout(() => setHeroIn(true), 60); return () => clearTimeout(t); }, []);
 
+  const [wordIndex, setWordIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setWordIndex(i => (i + 1) % ROTATING_WORDS.length), 2600);
+    return () => clearInterval(id);
+  }, []);
+
   // Signal to the floating CTA widget to hide when the page's own CTA is visible
   const ctaSectionRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -240,8 +249,31 @@ export default function HomePage() {
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
           >
-            Your home,<br />
-            <span style={{ color: BRAND.primary }}>looked after.</span>
+            Your{' '}
+            {/* Rotating word — clipped vertical slide */}
+            <span
+              style={{
+                display: 'inline-block',
+                overflow: 'hidden',
+                verticalAlign: 'bottom',
+                lineHeight: 'inherit',
+              }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={ROTATING_WORDS[wordIndex]}
+                  style={{ display: 'inline-block', color: BRAND.onDark }}
+                  initial={{ y: '100%', opacity: 0 }}
+                  animate={{ y: '0%', opacity: 1 }}
+                  exit={{ y: '-100%', opacity: 0 }}
+                  transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {ROTATING_WORDS[wordIndex]}
+                </motion.span>
+              </AnimatePresence>
+            </span>
+            ,<br />
+            <span style={{ color: BRAND.accent }}>looked after.</span>
           </motion.h1>
 
           {/* Sub-headline */}
