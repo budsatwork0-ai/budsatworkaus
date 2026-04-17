@@ -29,7 +29,32 @@
 
 ---
 
+## Update — 2026-04-17 (Session 2)
+
+### "looked after" headline colour
+- Changed from `BRAND.accentSoft` (`#DDF3E4` — too pale, invisible on light bg) → `BRAND.primary` (`#0F3D2E` — too dark/heavy) → `BRAND.accent` (`#1C7C54` — final, accessible medium green)
+- Matches the CTA button colour — creates a cohesive visual echo across the hero
+
+### Rotating headline words
+- The word "home" in "Your home, looked after." now cycles through a word list every 2.6s
+- **Word list:** home → garden → car → yard → laundry → bins → delivery → shoes
+- **Animation:** vertical clip slide — old word exits upward, new word enters from below, clipped by `overflow: hidden` wrapper
+- **Easing:** `[0.22, 1, 0.36, 1]` — same iOS spring used on the hero entrance animation
+- **Duration:** 380ms per transition
+- **Implementation:** `AnimatePresence mode="wait"` + `motion.span` with `y: 100% → 0% → -100%`
+- Rotating word colour matches "Your" (`BRAND.onDark`) — same white, no colour accent on the noun
+- `AnimatePresence` added to framer-motion import (was missing)
+- `ROTATING_WORDS` constant defined at module scope above `HomePage`
+
+### Key files
+| File | Change |
+|------|--------|
+| `src/app/ui/home/HomePage.tsx` | Rotating words, colour fix, AnimatePresence import |
+
+---
+
 ## Design Decisions
-- CTA buttons site-wide use `brand.accent` (#10b981). `brand.primary` (#0F3D2E) is for text, logo, and structural elements only.
+- CTA buttons site-wide use `brand.accent` (#1C7C54 / `#10b981`). `brand.primary` (#0F3D2E) is for text, logo, and structural elements only.
 - Header has no visible border/shadow — glass blur is sufficient separation.
 - No sticky quote button in the nav — the floating FeedbackWidget handles persistent CTA on scroll.
+- Rotating headline noun reinforces the breadth of services without needing a list — each word maps to a real service offered.
