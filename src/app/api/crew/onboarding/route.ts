@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { buildEmployeeOnboardingSnapshot } from '@/lib/crew-onboarding';
 
 // GET /api/crew/onboarding - Get all onboarding sections with completion status
 export async function GET() {
@@ -21,7 +22,7 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: employee } = await (client as any)
     .from('employees')
-    .select('id, ndis_worker, onboarding_complete')
+    .select('id, ndis_worker, onboarding_complete, crew_access_approved, status')
     .eq('user_id', authUser.id)
     .maybeSingle();
 
@@ -33,40 +34,25 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: sections } = await (client as any)
     .from('employee_onboarding')
-    .select('*')
+    .select('section, completed')
     .eq('employee_id', employee.id);
 
   // Get document count
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: docs } = await (client as any)
     .from('employee_documents')
-    .select('id, doc_type, status')
-    .eq('employee_id', employee.id);
+    .select('id, doc_type, file_url, file_name, status, created_at, expires_at')
+    .eq('employee_id', employee.id)
+    .order('created_at', { ascending: false });
 
-  // Build section status map
-  const allSections = ['personal', 'emergency', 'availability', 'services', 'documents'];
-  if (employee.ndis_worker) allSections.push('ndis');
-
-  const sectionMap = new Map(
-    (sections || []).map((s: { section: string; completed: boolean; responses: unknown }) => [
-      s.section,
-      { completed: s.completed, responses: s.responses },
-    ])
-  );
-
-  const result = allSections.map((section) => ({
-    section,
-    completed: sectionMap.has(section) ? (sectionMap.get(section) as { completed: boolean }).completed : false,
-  }));
-
-  const completedCount = result.filter((s) => s.completed).length;
-  const totalCount = result.length;
+  const snapshot = buildEmployeeOnboardingSnapshot({
+    employee,
+    sections: sections || [],
+    documents: docs || [],
+  });
 
   return NextResponse.json({
-    sections: result,
+    ...snapshot,
     documents: docs || [],
-    progress: { completed: completedCount, total: totalCount },
-    ndisWorker: employee.ndis_worker,
-    onboardingComplete: employee.onboarding_complete,
   });
 }

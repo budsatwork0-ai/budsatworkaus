@@ -96,8 +96,9 @@ export async function POST(req: NextRequest) {
     user_id: userId,
     full_name,
     email,
-    status: 'active',
+    status: 'inactive',
     onboarding_complete: false,
+    crew_access_approved: false,
   }).select().single();
 
   if (empError && !empError.message.includes('duplicate')) {

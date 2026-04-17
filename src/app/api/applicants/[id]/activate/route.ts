@@ -85,6 +85,7 @@ export async function POST(_req: NextRequest, context: RouteContext) {
       services: applicant.services || [],
       ndis_worker: applicant.ndis_participant || false,
       onboarding_complete: false,
+      crew_access_approved: false,
       status: 'inactive',
     })
     .select()

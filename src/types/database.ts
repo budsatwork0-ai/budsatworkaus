@@ -583,6 +583,7 @@ export interface Database {
           emergency_contact_name: string | null;
           emergency_contact_phone: string | null;
           onboarding_complete: boolean;
+          crew_access_approved: boolean;
           ndis_worker: boolean;
           hourly_rate: number;
           status: string;
@@ -603,6 +604,7 @@ export interface Database {
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
           onboarding_complete?: boolean;
+          crew_access_approved?: boolean;
           ndis_worker?: boolean;
           hourly_rate?: number;
           status?: string;
@@ -623,6 +625,7 @@ export interface Database {
           emergency_contact_name?: string | null;
           emergency_contact_phone?: string | null;
           onboarding_complete?: boolean;
+          crew_access_approved?: boolean;
           ndis_worker?: boolean;
           hourly_rate?: number;
           status?: string;

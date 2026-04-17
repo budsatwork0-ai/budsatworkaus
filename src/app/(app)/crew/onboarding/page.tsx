@@ -18,6 +18,8 @@ interface OnboardingData {
   progress: { completed: number; total: number };
   ndisWorker: boolean;
   onboardingComplete: boolean;
+  crewAccessApproved: boolean;
+  awaitingApproval: boolean;
 }
 
 const SECTION_DESCRIPTIONS: Record<string, string> = {
@@ -118,7 +120,7 @@ export default function OnboardingPage() {
     );
   }
 
-  const { sections, progress, onboardingComplete } = data;
+  const { sections, progress, onboardingComplete, crewAccessApproved, awaitingApproval } = data;
   const progressPct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
   const nextSection = sections.find((s) => !s.completed);
 
@@ -167,29 +169,41 @@ export default function OnboardingPage() {
             <div className="flex items-start gap-4 flex-1">
               <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 text-2xl">🎉</div>
               <div>
-                <p className="text-xl font-bold text-white">Profile complete!</p>
+                <p className="text-xl font-bold text-white">
+                  {crewAccessApproved ? 'Crew access approved!' : 'Profile submitted!'}
+                </p>
                 <p className="text-white/80 text-sm mt-1 leading-relaxed">
-                  Your application is under review. You&apos;ll hear from us within 1–2 business days.
+                  {crewAccessApproved
+                    ? 'Your crew portal is unlocked. You can now browse jobs, manage your schedule, and start working.'
+                    : 'Your onboarding is now with the admin team for approval. You’ll get crew access once they convert you to staff.'}
                 </p>
               </div>
             </div>
             <div className="flex gap-3 shrink-0 flex-wrap">
-              <Link
-                href="/crew"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-sm font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
-                style={{ color: brand.primary }}
-              >
-                Crew dashboard
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
-              <Link
-                href="/crew/jobs"
-                className="inline-flex items-center px-4 py-2.5 rounded-xl bg-white/15 text-sm font-semibold text-white hover:bg-white/25 transition-all"
-              >
-                Browse jobs
-              </Link>
+              {crewAccessApproved ? (
+                <>
+                  <Link
+                    href="/crew"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-sm font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
+                    style={{ color: brand.primary }}
+                  >
+                    Crew dashboard
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                  <Link
+                    href="/crew/jobs"
+                    className="inline-flex items-center px-4 py-2.5 rounded-xl bg-white/15 text-sm font-semibold text-white hover:bg-white/25 transition-all"
+                  >
+                    Browse jobs
+                  </Link>
+                </>
+              ) : (
+                <span className="inline-flex items-center px-4 py-2.5 rounded-xl bg-white/15 text-sm font-semibold text-white">
+                  {awaitingApproval ? 'Awaiting admin approval' : 'Submitted for review'}
+                </span>
+              )}
             </div>
           </div>
         </motion.div>

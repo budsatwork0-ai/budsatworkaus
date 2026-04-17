@@ -1,400 +1,294 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { brand } from '@/app/ui/theme';
-import { useAuth } from '@/app/hooks/useAuth';
-import type { Applicant } from '@/types/database';
 
-type StageKey = 'intake' | 'verify' | 'paperwork' | 'induct' | 'ready';
-
-type Onboardee = {
+type EmployeeCard = {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
-  role: string;
-  suburb: string;
-  services: string[];
-  owner?: string;
-  missingDocs?: string[];
-  slaHoursLeft: number;
-  stage: StageKey;
-  selected?: boolean;
-  activated?: boolean;
-  userId?: string;
+  suburb: string | null;
+  services: string[] | null;
+  status: string;
+  onboarding_complete: boolean;
+  crew_access_approved: boolean;
+  created_at: string;
+  progress: {
+    completed: number;
+    total: number;
+    currentStep: number;
+  };
+  currentSection: string | null;
+  currentSectionLabel: string | null;
+  sections: Array<{
+    section: string;
+    label: string;
+    completed: boolean;
+  }>;
+  requiredDocuments: Array<{
+    docType: string;
+    label: string;
+    submitted: boolean;
+    fileUrl: string | null;
+  }>;
+  awaitingApproval: boolean;
+  canApproveCrewAccess: boolean;
+  crewPortalEnabled: boolean;
 };
+
+type FilterKey = 'all' | 'in_progress' | 'awaiting_approval' | 'approved';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 
-const STAGES: { key: StageKey; label: string; hint?: string }[] = [
-  { key: 'intake', label: 'Intake', hint: 'New form captured' },
-  { key: 'verify', label: 'Verify', hint: 'ID / refs / checks' },
-  { key: 'paperwork', label: 'Paperwork', hint: 'ABN / insurance' },
-  { key: 'induct', label: 'Induct', hint: 'Onboarding & shadow' },
-  { key: 'ready', label: 'Ready', hint: 'Assignable' },
-];
-
-const ROLE_MAP: Record<string, string> = {
-  'Casual crew': 'Crew',
-  'Support worker': 'Support Worker',
-  'Quality partner': 'Quality Partner',
-  'Innovation partner': 'Innovation Partner',
-};
-
-function mapApiToOnboardee(row: Applicant): Onboardee {
-  const slaHoursLeft = row.sla_deadline
-    ? Math.max(0, Math.round((new Date(row.sla_deadline).getTime() - Date.now()) / 3600000))
-    : 72;
-  return {
-    id: row.id,
-    name: row.full_name,
-    email: row.email || '',
-    role: ROLE_MAP[row.role] || row.role,
-    suburb: row.suburb || '',
-    services: row.services || [],
-    owner: row.owner || undefined,
-    missingDocs: row.missing_docs || undefined,
-    slaHoursLeft,
-    stage: row.stage as StageKey,
-    activated: !!row.user_id,
-    userId: row.user_id || undefined,
-  };
-}
-
-function SLA({ hours }: { hours: number }) {
-  const bg =
-    hours <= 0 ? '#FEE2E2'
-    : hours <= 24 ? '#FEF3C7'
-    : '#ECFDF5';
-  const fg =
-    hours <= 0 ? '#991B1B'
-    : hours <= 24 ? '#92400E'
-    : brand.primary;
-  return (
-    <span className="px-2 py-0.5 rounded-md text-xs" style={{ background: bg, color: fg }}>
-      {hours > 0 ? `${hours}h left` : 'Overdue'}
-    </span>
-  );
+function statusMeta(employee: EmployeeCard) {
+  if (employee.crewPortalEnabled) {
+    return { label: 'Crew active', bg: '#ECFDF5', fg: '#047857' };
+  }
+  if (employee.awaitingApproval) {
+    return { label: 'Awaiting approval', bg: '#DBEAFE', fg: '#1D4ED8' };
+  }
+  return { label: 'In progress', bg: '#FEF3C7', fg: '#92400E' };
 }
 
 export default function OnboardingPipelinePage() {
-  const { user } = useAuth();
-  const adminName = ((user?.user_metadata?.full_name as string) || user?.email || 'Admin').split(' ')[0];
-
-  const [items, setItems] = useState<Onboardee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'needs_docs' | 'mine' | 'aging'>('all');
-  const [bulkMode, setBulkMode] = useState(false);
-  const [activating, setActivating] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [approving, setApproving] = useState<string | null>(null);
 
-  const fetchApplicants = useCallback(async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
-      const res = await fetch('/api/applicants');
+      const res = await fetch('/api/crew/employees');
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setItems((data.applicants || []).map(mapApiToOnboardee));
+      setEmployees(data.employees || []);
       setError(null);
     } catch {
-      setError('Could not load applicants');
+      setError('Could not load onboarding progress');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchApplicants();
-  }, [fetchApplicants]);
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   const filtered = useMemo(() => {
     switch (filter) {
-      case 'needs_docs': return items.filter(i => (i.missingDocs?.length ?? 0) > 0);
-      case 'mine': return items.filter(i => i.owner === adminName);
-      case 'aging': return items.filter(i => i.slaHoursLeft <= 24);
-      default: return items;
+      case 'in_progress':
+        return employees.filter((employee) => !employee.awaitingApproval && !employee.crewPortalEnabled);
+      case 'awaiting_approval':
+        return employees.filter((employee) => employee.awaitingApproval);
+      case 'approved':
+        return employees.filter((employee) => employee.crewPortalEnabled);
+      default:
+        return employees;
     }
-  }, [items, filter, adminName]);
+  }, [employees, filter]);
 
-  async function move(id: string, dir: -1 | 1) {
-    const item = items.find(i => i.id === id);
-    if (!item) return;
-    const idx = STAGES.findIndex(s => s.key === item.stage);
-    const nextIdx = Math.min(STAGES.length - 1, Math.max(0, idx + dir));
-    const nextStage = STAGES[nextIdx].key;
-    if (nextStage === item.stage) return;
+  const sorted = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const aRank = a.awaitingApproval ? 0 : a.crewPortalEnabled ? 2 : 1;
+        const bRank = b.awaitingApproval ? 0 : b.crewPortalEnabled ? 2 : 1;
+        if (aRank !== bRank) return aRank - bRank;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    [filtered],
+  );
 
-    // Optimistic update
-    setItems(prev => prev.map(i => i.id === id ? { ...i, stage: nextStage } : i));
-
+  async function approveEmployee(id: string) {
+    setApproving(id);
     try {
-      const res = await fetch(`/api/applicants/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: nextStage }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      // Revert on failure
-      setItems(prev => prev.map(i => i.id === id ? { ...i, stage: item.stage } : i));
-    }
-  }
-
-  function toggleSelect(id: string) {
-    setItems(prev => prev.map(i => i.id === id ? ({ ...i, selected: !i.selected }) : i));
-  }
-
-  async function bulkAssign(owner: string) {
-    const selected = items.filter(i => i.selected);
-    setItems(prev => prev.map(i => i.selected ? ({ ...i, owner }) : i));
-    await Promise.allSettled(
-      selected.map(i =>
-        fetch(`/api/applicants/${i.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ owner }),
-        })
-      )
-    );
-  }
-
-  async function bulkMove(target: StageKey) {
-    const selected = items.filter(i => i.selected);
-    setItems(prev => prev.map(i => i.selected ? ({ ...i, stage: target }) : i));
-    await Promise.allSettled(
-      selected.map(i =>
-        fetch(`/api/applicants/${i.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stage: target }),
-        })
-      )
-    );
-  }
-
-  async function activateApplicant(id: string) {
-    setActivating(id);
-    try {
-      const res = await fetch(`/api/applicants/${id}/activate`, { method: 'POST' });
-      const data = await res.json();
+      const res = await fetch(`/api/crew/employees/${id}/approve`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || 'Activation failed');
-        return;
+        throw new Error((data as { error?: string }).error || 'Unable to approve employee');
       }
-      setItems(prev =>
-        prev.map(i => i.id === id ? { ...i, activated: true, userId: data.userId, stage: 'induct' } : i)
-      );
-    } catch {
-      alert('Failed to activate applicant');
+      await fetchEmployees();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to approve employee');
     } finally {
-      setActivating(null);
+      setApproving(null);
     }
   }
+
+  const summary = {
+    total: employees.length,
+    inProgress: employees.filter((employee) => !employee.awaitingApproval && !employee.crewPortalEnabled).length,
+    awaitingApproval: employees.filter((employee) => employee.awaitingApproval).length,
+    activeCrew: employees.filter((employee) => employee.crewPortalEnabled).length,
+  };
 
   return (
     <div className="min-h-screen" style={{ background: brand.bg }}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Onboarding</h1>
+          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Crew onboarding</h1>
           <p className="text-sm md:text-base mt-1" style={{ color: brand.muted }}>
-            Pipeline for new crew, support workers, and partners.
+            Live onboarding progress from each employee’s actual crew onboarding steps.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/onboarding/new" className="px-3 py-2 rounded-lg border"
-                style={{ borderColor: brand.border, color: brand.primary }}>
-            + New Onboardee
-          </Link>
-          <button className="px-3 py-2 rounded-lg border"
-                  style={{ borderColor: brand.border, color: brand.muted }}
-                  onClick={() => setBulkMode(v => !v)}>
-            {bulkMode ? 'Exit Bulk' : 'Bulk Select'}
-          </button>
-          <button className="px-3 py-2 rounded-lg border"
-                  style={{ borderColor: brand.border, color: brand.muted }}
-                  onClick={() => { setLoading(true); fetchApplicants(); }}>
-            Refresh
-          </button>
-        </div>
+        <button
+          className="px-3 py-2 rounded-lg border"
+          style={{ borderColor: brand.border, color: brand.muted }}
+          onClick={() => {
+            setLoading(true);
+            fetchEmployees();
+          }}
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Saved views */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {[
-          {k:'all', label:'All'},
-          {k:'needs_docs', label:'Needs Docs'},
-          {k:'mine', label:'My Onboardees'},
-          {k:'aging', label:'Aging (<24h)'},
-        ].map(t => (
-          <button key={t.k}
-            className={`px-3 py-1.5 rounded-lg border ${filter===t.k ? 'bg-black/5' : ''}`}
-            style={{ borderColor: brand.border, color: filter===t.k ? brand.primary : brand.muted }}
-            onClick={() => setFilter(t.k as typeof filter)}>
-            {t.label}
+          { label: 'Total', value: summary.total, color: brand.primary },
+          { label: 'In progress', value: summary.inProgress, color: '#92400E' },
+          { label: 'Awaiting approval', value: summary.awaitingApproval, color: '#1D4ED8' },
+          { label: 'Crew active', value: summary.activeCrew, color: '#047857' },
+        ].map((item) => (
+          <div key={item.label} className={`${glass} rounded-2xl p-4`} style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}>
+            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: brand.muted }}>{item.label}</p>
+            <p className="text-2xl font-bold mt-2" style={{ color: item.color }}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 mb-5">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'in_progress', label: 'In Progress' },
+          { key: 'awaiting_approval', label: 'Awaiting Approval' },
+          { key: 'approved', label: 'Approved' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            className={`px-3 py-1.5 rounded-lg border ${filter === item.key ? 'bg-black/5' : ''}`}
+            style={{ borderColor: brand.border, color: filter === item.key ? brand.primary : brand.muted }}
+            onClick={() => setFilter(item.key as FilterKey)}
+          >
+            {item.label}
           </button>
         ))}
       </div>
 
-      {/* Bulk bar */}
-      {bulkMode && filtered.some(i => i.selected) && (
-        <div className={`${glass} rounded-xl px-4 py-3 mb-4 flex items-center gap-3`}
-             style={{ borderColor: 'rgba(0,0,0,0.08)', background: '#fff' }}>
-          <span className="text-sm" style={{ color: brand.muted }}>
-            {filtered.filter(i=>i.selected).length} selected
-          </span>
-          <button className="px-3 py-1.5 rounded-lg border"
-                  style={{ borderColor: brand.border, color: brand.primary }}
-                  onClick={() => bulkAssign(adminName)}>
-            Assign to me
-          </button>
-          <div className="flex items-center gap-1">
-            <span className="text-sm" style={{ color: brand.muted }}>Move to:</span>
-            {STAGES.map(s => (
-              <button key={s.key} className="px-2 py-1 rounded border text-xs"
-                      style={{ borderColor: brand.border, color: brand.primary }}
-                      onClick={() => bulkMove(s.key)}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Loading */}
       {loading && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {STAGES.map(stage => (
-            <div key={stage.key} className={`${glass} rounded-2xl p-4`}
-                 style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}>
-              <div className="mb-3">
-                <div className="h-4 w-16 rounded bg-slate-200 animate-pulse" />
-                <div className="h-3 w-24 rounded bg-slate-100 animate-pulse mt-1" />
-              </div>
-              <div className="space-y-3">
-                {[1, 2].map(n => (
-                  <div key={n} className="rounded-xl border p-3" style={{ borderColor: brand.border }}>
-                    <div className="h-4 w-28 rounded bg-slate-200 animate-pulse" />
-                    <div className="h-3 w-20 rounded bg-slate-100 animate-pulse mt-2" />
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className={`${glass} rounded-2xl p-5 h-44 animate-pulse`} style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }} />
           ))}
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
         <div className="text-center py-12">
           <p className="text-sm" style={{ color: brand.muted }}>{error}</p>
-          <button className="mt-2 text-sm underline" style={{ color: brand.primary }}
-                  onClick={() => { setLoading(true); fetchApplicants(); }}>
+          <button className="mt-2 text-sm underline" style={{ color: brand.primary }} onClick={() => { setLoading(true); fetchEmployees(); }}>
             Try again
           </button>
         </div>
       )}
 
-      {/* Columns */}
       {!loading && !error && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {STAGES.map(stage => (
-            <div key={stage.key} className={`${glass} rounded-2xl p-4`}
-                 style={{ background: brand.card, color: brand.text, borderColor: 'rgba(0,0,0,0.08)' }}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h2 className="text-sm font-semibold" style={{ color: brand.primary }}>{stage.label}</h2>
-                  {stage.hint && <div className="text-xs" style={{ color: brand.muted }}>{stage.hint}</div>}
-                </div>
-                <span className="px-2 py-0.5 rounded-md text-xs"
-                      style={{ background: '#F3F4F6', color: brand.muted }}>
-                  {filtered.filter(i => i.stage === stage.key).length}
-                </span>
-              </div>
+        <div className="space-y-4">
+          {sorted.map((employee) => {
+            const meta = statusMeta(employee);
+            const progressPct = employee.progress.total > 0
+              ? Math.round((employee.progress.completed / employee.progress.total) * 100)
+              : 0;
 
-              <div className="space-y-3">
-                {filtered.filter(i => i.stage === stage.key).map(card => (
-                  <div key={card.id} className="rounded-xl border p-3"
-                       style={{ borderColor: brand.border, background: '#fff' }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-medium">{card.name} <span className="opacity-60">· {card.role}</span></div>
-                        <div className="text-xs opacity-70">
-                          {card.suburb}{card.services.length > 0 ? ` · ${card.services.join(', ')}` : ''}
-                        </div>
-                      </div>
-                      {bulkMode ? (
-                        <input type="checkbox" checked={!!card.selected} onChange={() => toggleSelect(card.id)} />
-                      ) : (
-                        <SLA hours={card.slaHoursLeft} />
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs px-2 py-0.5 rounded-md border" style={{ borderColor: brand.border }}>
-                        Owner: {card.owner ?? '—'}
+            return (
+              <div
+                key={employee.id}
+                className={`${glass} rounded-3xl p-5 md:p-6`}
+                style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-xl font-semibold" style={{ color: brand.text }}>{employee.full_name}</h2>
+                      <span
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                        style={{ background: meta.bg, color: meta.fg }}
+                      >
+                        {meta.label}
                       </span>
-                      {(card.missingDocs?.length ?? 0) > 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-md border"
-                              style={{ borderColor: brand.border, background:'#FFF4E5', color:'#8B5E00' }}>
-                          Docs: {card.missingDocs?.join(', ')}
+                    </div>
+                    <p className="text-sm mt-1" style={{ color: brand.muted }}>
+                      {employee.email}
+                      {employee.suburb ? ` · ${employee.suburb}` : ''}
+                      {employee.services?.length ? ` · ${employee.services.join(', ')}` : ''}
+                    </p>
+
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <p style={{ color: brand.text }}>
+                          {employee.currentSectionLabel
+                            ? `Step ${employee.progress.currentStep} of ${employee.progress.total}: ${employee.currentSectionLabel}`
+                            : 'All onboarding steps completed'}
+                        </p>
+                        <span style={{ color: brand.muted }}>
+                          {employee.progress.completed}/{employee.progress.total}
                         </span>
-                      )}
+                      </div>
+                      <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(15,61,46,0.08)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${progressPct}%`, background: brand.primary }} />
+                      </div>
                     </div>
 
-                    {!bulkMode && (
-                      <div className="mt-3 space-y-2">
-                        {/* Activate button for ready-stage cards */}
-                        {card.stage === 'ready' && !card.activated && (
-                          <button
-                            className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-60"
-                            style={{ background: brand.primary }}
-                            disabled={activating === card.id}
-                            onClick={() => activateApplicant(card.id)}
-                          >
-                            {activating === card.id ? 'Activating...' : 'Activate as Employee'}
-                          </button>
-                        )}
-                        {card.stage === 'ready' && card.activated && (
-                          <div className="px-3 py-2 rounded-lg text-xs font-medium text-center"
-                               style={{ background: '#ECFDF5', color: brand.primary }}>
-                            Invite sent to {card.email}
-                          </div>
-                        )}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {employee.sections.map((section) => (
+                        <span
+                          key={section.section}
+                          className="px-2.5 py-1 rounded-full text-xs font-medium"
+                          style={{
+                            background: section.completed ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.12)',
+                            color: section.completed ? '#047857' : '#475569',
+                          }}
+                        >
+                          {section.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <button className="px-2 py-1 rounded-lg border text-xs"
-                                    style={{ borderColor: brand.border, color: brand.muted }}
-                                    onClick={() => move(card.id, -1)}>
-                              &larr;
-                            </button>
-                            {card.stage !== 'ready' && (
-                              <button className="px-2 py-1 rounded-lg border text-xs"
-                                      style={{ borderColor: brand.border, color: brand.primary }}
-                                      onClick={() => move(card.id, +1)}>
-                                &rarr;
-                              </button>
-                            )}
-                          </div>
-                          <Link href={`/dashboard/onboarding/${card.id}`} className="text-xs hover:underline"
-                                style={{ color: brand.primary }}>
-                            Open
-                          </Link>
+                  <div className="w-full lg:w-[320px] rounded-2xl border p-4" style={{ borderColor: brand.border, background: '#fff' }}>
+                    <p className="text-sm font-semibold" style={{ color: brand.text }}>Required documents</p>
+                    <div className="mt-3 space-y-2">
+                      {employee.requiredDocuments.map((document) => (
+                        <div key={document.docType} className="flex items-center justify-between gap-3 text-sm">
+                          <span style={{ color: brand.muted }}>{document.label}</span>
+                          <span style={{ color: document.submitted ? '#047857' : '#B45309' }}>
+                            {document.submitted ? 'Submitted' : 'Missing'}
+                          </span>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+
+                    {employee.canApproveCrewAccess && (
+                      <button
+                        onClick={() => approveEmployee(employee.id)}
+                        disabled={approving === employee.id}
+                        className="mt-4 w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                        style={{ background: brand.primary }}
+                      >
+                        {approving === employee.id ? 'Approving...' : 'Convert to staff'}
+                      </button>
                     )}
                   </div>
-                ))}
-
-                {/* Empty state */}
-                {filtered.filter(i => i.stage === stage.key).length === 0 && (
-                  <div className="text-xs px-3 py-6 text-center rounded-lg border"
-                       style={{ borderColor: brand.border, color: brand.muted }}>
-                    No items
-                  </div>
-                )}
+                </div>
               </div>
+            );
+          })}
+
+          {sorted.length === 0 && (
+            <div className="text-xs px-3 py-8 text-center rounded-lg border" style={{ borderColor: brand.border, color: brand.muted }}>
+              No employees match this filter.
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

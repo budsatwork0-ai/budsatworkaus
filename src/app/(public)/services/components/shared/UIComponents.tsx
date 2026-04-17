@@ -1,7 +1,6 @@
 import React from 'react';
 import { M } from '../../utils/motion';
 import { cls } from '../../utils/formatting';
-import { IconWrap } from '../../utils/icons';
 import { glass } from '../../lib/pricing/constants';
 
 // Helper for glass card styling
@@ -24,7 +23,7 @@ export function Disclaimer({ className = '' }: { className?: string }) {
   );
 }
 
-// Tile component for service selection
+// Tile component for service selection — Apple-style vertical card
 export function Tile({
   active,
   onClick,
@@ -48,10 +47,12 @@ export function Tile({
     <M.button
       onClick={() => !disabled && onClick?.()}
       className={cls(
-        'relative w-full min-w-0 text-left rounded-2xl p-4 transition',
-        glass,
-        active ? 'ring-2 ring-[var(--accent)]' : 'ring-1 ring-black/10',
-        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+        'relative w-full min-w-0 text-left rounded-3xl py-6 px-5 transition-all duration-200',
+        'bg-white border',
+        active
+          ? 'border-[color:var(--accent)] shadow-[0_4px_24px_rgba(15,61,46,0.14)]'
+          : 'border-black/[0.07] shadow-[0_2px_8px_rgba(2,6,23,0.05)] hover:shadow-[0_4px_20px_rgba(2,6,23,0.10)] hover:border-black/[0.12]',
+        disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
       )}
       aria-label={`Select ${title}`}
       title={disabled ? 'Not available in this context' : `Select ${title}`}
@@ -66,43 +67,41 @@ export function Tile({
       aria-disabled={disabled || undefined}
     >
       {/* Popular badge */}
-      {popular && !disabled && (
+      {popular && !disabled && !active && (
         <div
-          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+          className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
           style={{ background: 'var(--accent)' }}
         >
           Popular
         </div>
       )}
-      {/* Active checkmark — shown when selected, replaces popular badge position */}
+      {/* Active checkmark */}
       {active && !disabled && (
         <div
-          className="absolute top-2 right-2 grid place-items-center w-6 h-6 rounded-full"
+          className="absolute top-3 right-3 grid place-items-center w-6 h-6 rounded-full"
           style={{ background: 'var(--accent)' }}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6L9 17l-5-5" />
           </svg>
         </div>
       )}
-      <div className="flex items-center gap-4">
-        <IconWrap>{icon}</IconWrap>
-        <div>
-          <div className="font-semibold text-slate-900">{title}</div>
-          {subtitle ? <div className="text-xs text-slate-700">{subtitle}</div> : null}
+      {/* Vertical layout: icon → title → subtitle → price */}
+      <div className="flex flex-col items-start gap-3">
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
+          style={{
+            background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : '#f4f6f8',
+          }}
+        >
+          {icon}
+        </div>
+        <div className="space-y-0.5">
+          <div className="font-semibold text-[15px] text-slate-900 leading-snug">{title}</div>
+          {subtitle && <div className="text-[12px] text-slate-500 leading-snug">{subtitle}</div>}
           {from && !disabled && (
-            <div className="text-[11px] text-emerald-700 font-medium mt-0.5">from {from}</div>
+            <div className="text-[12px] font-medium pt-1" style={{ color: 'var(--accent)' }}>from {from}</div>
           )}
-          {disabled && <div className="text-[11px] text-slate-600 mt-1">Not covered in this context</div>}
         </div>
       </div>
     </M.button>

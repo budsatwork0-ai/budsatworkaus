@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,24 +36,25 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const { sessionState, user: sessionUser, extendSession, unlock } = useSessionManager();
 
-  const onboarded = employee?.onboarding_complete === true;
-  const employeeIsActive = !employee || employee.status === 'active';
-  const navItems = onboarded ? ALL_NAV : ONBOARDING_NAV;
+  const onboardingComplete = employee?.onboarding_complete === true;
+  const crewAccessApproved = employee?.crew_access_approved === true;
+  const crewPortalReady = onboardingComplete && crewAccessApproved;
+  const employeeIsSuspended = employee?.status === 'suspended';
+  const navItems = crewPortalReady ? ALL_NAV : ONBOARDING_NAV;
 
   useEffect(() => {
     if (isLoading) return;
-    // Suspended or inactive employees are blocked from the crew portal.
-    if (employee && !employeeIsActive) {
+    if (employee && employeeIsSuspended) {
       router.replace('/account/wrong-portal?from=crew&reason=suspended');
       return;
     }
-    if (needsSetup || !onboarded) {
+    if (needsSetup || !crewPortalReady) {
       const allowed = ONBOARDING_ALLOWED.some(
         (p) => pathname === p || pathname.startsWith(p + '/')
       );
       if (!allowed) router.replace('/crew/onboarding');
     }
-  }, [isLoading, employeeIsActive, needsSetup, onboarded, pathname, router, employee]);
+  }, [crewPortalReady, employee, employeeIsSuspended, isLoading, needsSetup, pathname, router]);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -169,22 +170,25 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
 
             {/* Right */}
             <div className="ml-auto flex items-center gap-2">
-              {!employeeIsActive && employee && (
+              {employeeIsSuspended && employee && (
                 <span
                   className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
                   style={{ background: 'rgba(239,68,68,0.12)', color: '#991B1B' }}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  {employee.status === 'suspended' ? 'Suspended' : 'Inactive'}
+                  Suspended
                 </span>
               )}
-              {employeeIsActive && !onboarded && (
+              {!employeeIsSuspended && !crewPortalReady && (
                 <span
                   className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-                  style={{ background: 'rgba(251,191,36,0.15)', color: '#92400E' }}
+                  style={{
+                    background: onboardingComplete ? 'rgba(59,130,246,0.12)' : 'rgba(251,191,36,0.15)',
+                    color: onboardingComplete ? '#1D4ED8' : '#92400E',
+                  }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  Onboarding
+                  <span className={`w-1.5 h-1.5 rounded-full ${onboardingComplete ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                  {onboardingComplete ? 'Pending Approval' : 'Onboarding'}
                 </span>
               )}
 
@@ -214,25 +218,37 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
       </header>
 
       {/* ── Onboarding Progress Banner ── */}
-      {!onboarded && (
+      {!crewPortalReady && (
         <div
           className="border-b"
           style={{
-            background: 'rgba(251,191,36,0.08)',
-            borderColor: 'rgba(251,191,36,0.25)',
+            background: onboardingComplete ? 'rgba(59,130,246,0.08)' : 'rgba(251,191,36,0.08)',
+            borderColor: onboardingComplete ? 'rgba(59,130,246,0.18)' : 'rgba(251,191,36,0.25)',
           }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={onboardingComplete ? '#1D4ED8' : '#92400E'}
+              strokeWidth="2"
+            >
               <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
             </svg>
-            <p className="text-xs font-medium flex-1" style={{ color: '#92400E' }}>
-              Complete your onboarding to unlock jobs, schedule, and earnings.
+            <p
+              className="text-xs font-medium flex-1"
+              style={{ color: onboardingComplete ? '#1D4ED8' : '#92400E' }}
+            >
+              {onboardingComplete
+                ? 'Your onboarding has been submitted. Crew access unlocks once an admin approves you.'
+                : 'Complete your onboarding to submit your profile for crew approval.'}
             </p>
             <Link
               href="/crew/onboarding"
               className="text-xs font-semibold shrink-0 underline underline-offset-2"
-              style={{ color: '#92400E' }}
+              style={{ color: onboardingComplete ? '#1D4ED8' : '#92400E' }}
             >
               Continue →
             </Link>

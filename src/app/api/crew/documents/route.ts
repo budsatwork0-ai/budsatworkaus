@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAuthServerClient } from '@/lib/supabase/server-client';
 import { getAuthUser } from '@/lib/auth';
+import { isGoogleDriveUrl, syncEmployeeOnboardingState } from '@/lib/crew-onboarding';
 
 const VALID_DOC_TYPES = [
   'wwcc',
@@ -47,7 +48,12 @@ export async function GET() {
     return NextResponse.json({ error: docError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ documents: documents || [] });
+  const snapshot = await syncEmployeeOnboardingState(db, employee.id);
+
+  return NextResponse.json({
+    documents: documents || [],
+    onboarding: snapshot,
+  });
 }
 
 export async function POST(request: Request) {
@@ -72,6 +78,9 @@ export async function POST(request: Request) {
   if (!body.file_url || body.file_url.trim().length === 0) {
     return NextResponse.json({ error: 'file_url is required' }, { status: 400 });
   }
+  if (!isGoogleDriveUrl(body.file_url)) {
+    return NextResponse.json({ error: 'Please provide a Google Drive share link.' }, { status: 400 });
+  }
 
   const supabase = await createAuthServerClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,21 +96,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
   }
 
-  const { data: document, error } = await db
+  const { data: existing } = await db
     .from('employee_documents')
-    .insert({
-      employee_id: employee.id,
-      doc_type: body.doc_type,
-      file_url: body.file_url,
-      file_name: body.file_name || null,
-      status: 'pending',
-    })
-    .select()
-    .single();
+    .select('id')
+    .eq('employee_id', employee.id)
+    .eq('doc_type', body.doc_type)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const payload = {
+    employee_id: employee.id,
+    doc_type: body.doc_type,
+    file_url: body.file_url.trim(),
+    file_name: body.file_name || null,
+    status: 'pending',
+    reviewed_by: null,
+    reviewed_at: null,
+    notes: null,
+  };
+
+  const query = existing
+    ? db.from('employee_documents').update(payload).eq('id', existing.id)
+    : db.from('employee_documents').insert(payload);
+
+  const { data: document, error } = await query.select().single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ document }, { status: 201 });
+  const snapshot = await syncEmployeeOnboardingState(db, employee.id);
+
+  return NextResponse.json({ document, onboarding: snapshot }, { status: existing ? 200 : 201 });
 }

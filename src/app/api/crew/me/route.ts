@@ -82,6 +82,8 @@ export async function POST(req: NextRequest) {
         full_name: body.full_name,
         email: body.email,
         phone: body.phone || null,
+        status: 'inactive',
+        crew_access_approved: false,
       },
     ])
     .select()

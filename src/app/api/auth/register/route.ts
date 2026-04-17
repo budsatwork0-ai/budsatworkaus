@@ -122,7 +122,14 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: employee } = await (client as any)
       .from('employees')
-      .insert({ user_id: userId, full_name, email, status: 'active', onboarding_complete: false })
+      .insert({
+        user_id: userId,
+        full_name,
+        email,
+        status: 'inactive',
+        onboarding_complete: false,
+        crew_access_approved: false,
+      })
       .select()
       .single();
 

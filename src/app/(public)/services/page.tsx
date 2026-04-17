@@ -4230,47 +4230,42 @@ function winSessionMinutes(S: WizardState) {
               }}
             />
           )}
-            <section className="mb-6 space-y-3">
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-baseline">
-                <div>
-                  <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">Build your quote</h1>
-                  <p className="mt-2 text-slate-700">It's that simple every step of the way</p>
-                </div>
+            <section className="mb-10">
+              <div>
+                  <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">Build your quote</h1>
+                  <p className="mt-2 text-slate-500 text-base">Instant pricing. No surprises.</p>
               </div>
               {/* Step progress indicator */}
-              <div className="flex items-center gap-0 text-sm select-none" aria-label="Quote progress">
+              <div className="flex items-center gap-3 mt-5 select-none" aria-label="Quote progress">
                 {([
-                  { n: 1, label: 'Choose service' },
-                  { n: 2, label: 'Configure' },
-                  { n: 3, label: 'Your details' },
+                  { n: 1, label: 'Service' },
+                  { n: 2, label: 'Details' },
+                  { n: 3, label: 'Contact' },
                 ] as const).map(({ n, label }, i) => {
                   const done = S.step > n;
                   const active = S.step === n;
                   return (
                     <React.Fragment key={n}>
                       {i > 0 && (
-                        <div
-                          className="flex-1 h-px mx-2"
-                          style={{ background: done ? 'var(--accent)' : '#cbd5e1' }}
-                        />
+                        <div className="flex-1 h-px rounded-full" style={{ background: done ? 'var(--accent)' : '#e2e8f0' }} />
                       )}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
                           style={{
-                            background: active || done ? 'var(--accent)' : '#e2e8f0',
+                            background: active ? 'var(--accent)' : done ? 'var(--accent)' : '#e2e8f0',
                             color: active || done ? '#fff' : '#94a3b8',
                           }}
                         >
                           {done ? (
-                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                              <polyline points="2 6 5 9 10 3" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                            <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                              <polyline points="1.5 5 4 7.5 8.5 2.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           ) : n}
                         </div>
                         <span
-                          className="text-xs hidden sm:inline"
-                          style={{ color: active ? 'var(--accent)' : done ? '#64748b' : '#94a3b8', fontWeight: active ? 600 : 400 }}
+                          className="text-[11px] font-medium"
+                          style={{ color: active ? 'var(--accent)' : done ? '#64748b' : '#94a3b8' }}
                         >
                           {label}
                         </span>
@@ -4290,64 +4285,64 @@ function winSessionMinutes(S: WizardState) {
             <>
               <section className="mb-8" aria-labelledby="step1-heading">
                 <h2 id="step1-heading" className="sr-only">Step 1: Choose context and service</h2>
-                <div className={`rounded-2xl p-6 md:p-7 ${glass}`}>
-                  {/* Context buttons */}
-                  <fieldset className="mb-5">
-                    <legend className="text-sm text-slate-700 mb-3">Context</legend>
-                    <div className="flex gap-2 flex-wrap" role="tablist" aria-label="Context">
-                      {(['home', 'commercial'] as const).map((c) => (
-                    <M.button
-                      key={c}
-                      className={cls(
-                        'px-3 py-1.5 rounded-full text-sm border',
-                        S.context === c
-                          ? 'bg-[color:var(--accent)] border-[color:var(--accent)] text-white shadow-[0_6px_18px_rgba(20,83,45,0.35)]'
-                          : 'border-black/10'
-                      )}
-                      onClick={() => {
-                        if (S.context !== c) {
-                          sendGAEvent('event', 'context_switched', { from: S.context, to: c });
-                        }
-                        set('context', c as Context);
-                      }}
-                      aria-label={`Select ${c} context`}
-                    >
-                      {c[0].toUpperCase() + c.slice(1)}
-                    </M.button>
-                      ))}
-                    </div>
-                  </fieldset>
 
-          {/* Service tiles */}
-          <div className="text-sm text-slate-700 mb-3">Service</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {SERVICES.map((s) => {
-              const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
-              const isActive = S.service === s.key && allowed;
-              return (
-                <Tile
-                  key={s.key}
-                  active={isActive}
-                  disabled={!allowed}
-                  onClick={() => allowed && selectService(s.key)}
-                  title={s.label}
-                  subtitle={s.subtitle}
-                  icon={s.icon}
-                  popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
-                  from={s.from}
-                />
-              );
-            })}
-          </div>
+                {/* Context segmented control */}
+                <div className="mb-8">
+                  <div
+                    className="inline-flex items-center rounded-full p-1"
+                    style={{ background: '#f0f2f4' }}
+                    role="tablist"
+                    aria-label="Context"
+                  >
+                    {(['home', 'commercial'] as const).map((c) => (
+                      <button
+                        key={c}
+                        role="tab"
+                        aria-selected={S.context === c}
+                        className="relative px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 focus-visible:outline-none"
+                        style={{
+                          background: S.context === c ? '#fff' : 'transparent',
+                          color: S.context === c ? '#0f3d2e' : '#6b7280',
+                          boxShadow: S.context === c ? '0 1px 4px rgba(2,6,23,0.10)' : 'none',
+                        }}
+                        onClick={() => {
+                          if (S.context !== c) {
+                            sendGAEvent('event', 'context_switched', { from: S.context, to: c });
+                          }
+                          set('context', c as Context);
+                        }}
+                        aria-label={`Select ${c} context`}
+                      >
+                        {c[0].toUpperCase() + c.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <div className="mt-4 text-xs text-slate-500 text-center">
-            Tap a service above to configure your quote
-          </div>
-        </div>
-      </section>
+                {/* Service tiles */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {SERVICES.map((s) => {
+                    const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
+                    const isActive = S.service === s.key && allowed;
+                    return (
+                      <Tile
+                        key={s.key}
+                        active={isActive}
+                        disabled={!allowed}
+                        onClick={() => allowed && selectService(s.key)}
+                        title={s.label}
+                        subtitle={s.subtitle}
+                        icon={s.icon}
+                        popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
+                        from={s.from}
+                      />
+                    );
+                  })}
+                </div>
 
-    </>
-  )}
+              </section>
+            </>
+          )}
 
                 </div>
       {/* ===== STEP 2 ===== */}

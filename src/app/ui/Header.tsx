@@ -123,7 +123,7 @@ export default function Header() {
             href="/"
             className={cx('font-bold text-2xl transition-colors', showLight && !menuOpen && 'drop-shadow-md')}
             onClick={() => handleNavClick('/')}
-            style={{ color: showLight && !menuOpen ? '#fff' : brand.primary }}
+            style={{ color: showLight && !menuOpen ? '#fff' : brand.accent }}
           >
             Buds At Work
           </Link>

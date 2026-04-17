@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
@@ -17,6 +18,19 @@ type Applicant = {
   created_at: string;
   missing_docs: string[] | null;
   user_id: string | null;
+  employee_id?: string | null;
+  onboarding?: {
+    onboardingComplete: boolean;
+    crewAccessApproved: boolean;
+    awaitingApproval: boolean;
+    currentSectionLabel: string | null;
+    progress: {
+      completed: number;
+      total: number;
+      currentStep: number;
+    };
+    crewPortalEnabled: boolean;
+  } | null;
   quality_message?: string | null;
   quality_business_name?: string | null;
   quality_contribution_types?: string[] | null;
@@ -123,11 +137,41 @@ export default function ApplicantsPage() {
   }).length;
 
   const communityCount = applicants.filter((a) => COMMUNITY_ROLES.includes(a.role)).length;
+  const linkedCrewOnboarding = applicants.filter((a) => CREW_ROLES.includes(a.role) && a.user_id && a.onboarding).length;
 
   // Stages to show depend on active filter
   const visibleStages = group === 'community' ? COMMUNITY_STAGES : STAGES;
   const stageLabel = (stage: string) =>
     group === 'community' ? (COMMUNITY_STAGE_LABELS[stage] ?? STAGE_LABELS[stage]) : STAGE_LABELS[stage];
+
+  function crewJourneyMeta(applicant: Applicant) {
+    const onboarding = applicant.onboarding;
+    if (!onboarding) return null;
+    if (onboarding.crewPortalEnabled) {
+      return {
+        label: 'Crew active',
+        detail: 'This applicant is now approved and has crew portal access.',
+        bg: '#ECFDF5',
+        fg: '#047857',
+      };
+    }
+    if (onboarding.awaitingApproval) {
+      return {
+        label: 'Awaiting approval',
+        detail: 'Onboarding is complete and ready for final admin approval.',
+        bg: '#DBEAFE',
+        fg: '#1D4ED8',
+      };
+    }
+    return {
+      label: `Onboarding step ${onboarding.progress.currentStep}/${onboarding.progress.total}`,
+      detail: onboarding.currentSectionLabel
+        ? `Currently on ${onboarding.currentSectionLabel}.`
+        : 'Onboarding is in progress.',
+      bg: '#FEF3C7',
+      fg: '#92400E',
+    };
+  }
 
   function RoleBadge({ role }: { role: string }) {
     const rc = ROLE_COLORS[role];
@@ -171,6 +215,10 @@ export default function ApplicantsPage() {
         <div className={`${glass} p-4`}>
           <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Community</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#4338CA' }}>{communityCount}</p>
+        </div>
+        <div className={`${glass} p-4`}>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Linked onboarding</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: '#1D4ED8' }}>{linkedCrewOnboarding}</p>
         </div>
       </div>
 
@@ -218,6 +266,7 @@ export default function ApplicantsPage() {
                 <div className="space-y-2">
                   {stageApplicants.map((a) => {
                     const community = isCommunity(a.role);
+                    const onboardingMeta = !community ? crewJourneyMeta(a) : null;
                     return (
                       <div key={a.id} className={`${glass} p-3`}>
                         <p className="text-sm font-medium" style={{ color: brand.text }}>{a.full_name}</p>
@@ -235,6 +284,15 @@ export default function ApplicantsPage() {
                         )}
                         {a.missing_docs && a.missing_docs.length > 0 && (
                           <p className="text-[10px] mt-1" style={{ color: '#DC2626' }}>{a.missing_docs.length} missing docs</p>
+                        )}
+                        {onboardingMeta && (
+                          <div
+                            className="mt-2 rounded-lg px-2.5 py-2"
+                            style={{ background: onboardingMeta.bg, color: onboardingMeta.fg }}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em]">{onboardingMeta.label}</p>
+                            <p className="text-[10px] mt-0.5">{onboardingMeta.detail}</p>
+                          </div>
                         )}
 
                         {/* Community actions */}
@@ -258,7 +316,7 @@ export default function ApplicantsPage() {
                         )}
 
                         {/* Crew actions */}
-                        {!community && nextStage && (
+                        {!community && !a.user_id && nextStage && (
                           <button
                             onClick={() => updateStage(a.id, nextStage)}
                             className="mt-2 w-full text-[11px] px-2 py-1 rounded-lg font-medium text-white"
@@ -278,7 +336,13 @@ export default function ApplicantsPage() {
                           </button>
                         )}
                         {!community && a.user_id && (
-                          <p className="mt-1 text-[10px] text-center text-slate-400">Staff account active</p>
+                          <Link
+                            href="/dashboard/onboarding"
+                            className="mt-2 block w-full text-[11px] px-2 py-1 rounded-lg font-medium text-center border"
+                            style={{ borderColor: '#BFDBFE', background: '#EFF6FF', color: '#1D4ED8' }}
+                          >
+                            Open linked onboarding
+                          </Link>
                         )}
                       </div>
                     );
@@ -312,6 +376,7 @@ export default function ApplicantsPage() {
                 const nextStage = STAGES[STAGES.indexOf(a.stage) + 1];
                 const community = isCommunity(a.role);
                 const displayStage = community && COMMUNITY_STAGE_LABELS[a.stage] ? COMMUNITY_STAGE_LABELS[a.stage] : STAGE_LABELS[a.stage];
+                const onboardingMeta = !community ? crewJourneyMeta(a) : null;
                 return (
                   <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="px-4 py-3">
@@ -325,9 +390,16 @@ export default function ApplicantsPage() {
                       <RoleBadge role={a.role} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.fg }}>
-                        {displayStage ?? a.stage}
-                      </span>
+                      <div className="space-y-1">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.fg }}>
+                          {displayStage ?? a.stage}
+                        </span>
+                        {onboardingMeta && (
+                          <div className="text-[11px]" style={{ color: onboardingMeta.fg }}>
+                            {onboardingMeta.label}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{new Date(a.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</td>
                     <td className="px-4 py-3">
@@ -353,7 +425,7 @@ export default function ApplicantsPage() {
                         )}
 
                         {/* Crew actions */}
-                        {!community && nextStage && (
+                        {!community && !a.user_id && nextStage && (
                           <button onClick={() => updateStage(a.id, nextStage)} className="text-xs px-2 py-1 rounded-lg text-white" style={{ background: brand.primary }}>
                             Advance
                           </button>
@@ -369,7 +441,13 @@ export default function ApplicantsPage() {
                           </button>
                         )}
                         {!community && a.user_id && (
-                          <span className="text-[11px] text-slate-400">Staff active</span>
+                          <Link
+                            href="/dashboard/onboarding"
+                            className="text-xs px-2 py-1 rounded-lg border"
+                            style={{ borderColor: '#BFDBFE', background: '#EFF6FF', color: '#1D4ED8' }}
+                          >
+                            Open onboarding
+                          </Link>
                         )}
                       </div>
                     </td>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { syncEmployeeOnboardingState } from '@/lib/crew-onboarding';
 
 type RouteParams = { params: Promise<{ section: string }> };
 
@@ -224,28 +225,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   }
 
   // Recompute onboarding completion strictly from required sections.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: allSections } = await (client as any)
-    .from('employee_onboarding')
-    .select('section, completed')
-    .eq('employee_id', employee.id);
+  const snapshot = await syncEmployeeOnboardingState(client, employee.id);
 
-  const completedBySection = new Map(
-    (allSections || []).map((s: { section: string; completed: boolean }) => [s.section, s.completed])
-  );
-  const requiredSections = ['personal', 'emergency', 'availability', 'services', 'documents'];
-  if (ndisWorkerFlag) requiredSections.push('ndis');
-
-  const onboardingComplete = requiredSections.every((requiredSection) => completedBySection.get(requiredSection));
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (client as any)
-    .from('employees')
-    .update({
-      onboarding_complete: onboardingComplete,
-      status: onboardingComplete ? 'active' : 'inactive',
-    })
-    .eq('id', employee.id);
-
-  return NextResponse.json({ onboarding: data, onboardingComplete });
+  return NextResponse.json({
+    onboarding: data,
+    onboardingComplete: snapshot?.onboardingComplete ?? false,
+    crewAccessApproved: snapshot?.crewAccessApproved ?? false,
+  });
 }
