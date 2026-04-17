@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     description: 'Shop cleaning supplies, gift cards, and service bundles. Coming soon.',
   },
   alternates: { canonical: 'https://budsatwork.com/shop' },
+  robots: { index: false, follow: false },
 };
 
 const upcomingItems = [
