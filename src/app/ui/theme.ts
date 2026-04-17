@@ -5,20 +5,26 @@ export type Brand = {
   border: string;
   primary: string;
   accent: string;
+  accentSoft: string;
+  surface: string;
+  surfaceAlt: string;
   text: string;
   muted: string;
   focus: string;
 };
 
 export const brand: Brand = {
-  bg: '#F7F7F5',
+  bg: '#F6FBF7',
   card: '#FFFFFF',
-  border: '#E5E7EB',
+  border: '#D7E7DD',
   primary: '#0F3D2E',   // deep green
-  accent: '#10b981',    // emerald / light green
-  text: '#111827',      // slate-900-ish
-  muted: '#475569',     // slate-600-ish
-  focus: '#7DD3FC',     // subtle focus ring / glow
+  accent: '#1C7C54',    // action green with accessible contrast on white
+  accentSoft: '#DDF3E4',
+  surface: '#F1F7F3',
+  surfaceAlt: '#EAF6EE',
+  text: '#12261E',
+  muted: '#4C6157',
+  focus: '#8BC8A8',
 };
 
 // Handy exports for components (optional to use)

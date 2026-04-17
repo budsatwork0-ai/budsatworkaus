@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { brand } from "@/app/ui/theme";
 
 function FacebookIcon() {
   return (
@@ -28,13 +29,19 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto border-t border-black/10 bg-white/80 backdrop-blur-sm">
+    <footer
+      className="mt-auto border-t backdrop-blur-sm"
+      style={{
+        borderColor: brand.border,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(241,247,243,0.96) 100%)",
+      }}
+    >
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Buds At Work</h3>
-            <p className="mt-2 text-sm text-slate-600">
+            <h3 className="text-lg font-semibold" style={{ color: brand.primary }}>Buds At Work</h3>
+            <p className="mt-2 text-sm" style={{ color: brand.muted }}>
               Professional services you can trust.
             </p>
             {/* Social links */}
@@ -44,7 +51,8 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Buds At Work on Facebook"
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                className="transition-opacity hover:opacity-75"
+                style={{ color: brand.accent }}
               >
                 <FacebookIcon />
               </a>
@@ -53,7 +61,8 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Buds At Work on Instagram"
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                className="transition-opacity hover:opacity-75"
+                style={{ color: brand.accent }}
               >
                 <InstagramIcon />
               </a>
@@ -62,7 +71,8 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Buds At Work on TikTok"
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                className="transition-opacity hover:opacity-75"
+                style={{ color: brand.accent }}
               >
                 <TikTokIcon />
               </a>
@@ -71,25 +81,25 @@ export function Footer() {
 
           {/* Explore */}
           <div>
-            <h4 className="font-medium text-slate-900">Explore</h4>
+            <h4 className="font-medium" style={{ color: brand.primary }}>Explore</h4>
             <ul className="mt-2 space-y-2">
               <li>
-                <Link href="/services" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/services" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Services
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/pricing" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Pricing
                 </Link>
               </li>
               <li>
-                <Link href="/faq" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/faq" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   FAQ
                 </Link>
               </li>
               <li>
-                <Link href="/shop" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/shop" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Shop
                 </Link>
               </li>
@@ -98,20 +108,20 @@ export function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="font-medium text-slate-900">Company</h4>
+            <h4 className="font-medium" style={{ color: brand.primary }}>Company</h4>
             <ul className="mt-2 space-y-2">
               <li>
-                <Link href="/about" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/about" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   About
                 </Link>
               </li>
               <li>
-                <Link href="/get-involved" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/get-involved" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Get involved
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/contact" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Contact
                 </Link>
               </li>
@@ -120,26 +130,26 @@ export function Footer() {
 
           {/* Legal & Contact */}
           <div>
-            <h4 className="font-medium text-slate-900">Legal & Contact</h4>
+            <h4 className="font-medium" style={{ color: brand.primary }}>Legal & Contact</h4>
             <ul className="mt-2 space-y-2">
               <li>
-                <Link href="/privacy" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/privacy" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <Link href="/terms" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   Terms of Service
                 </Link>
               </li>
               <li className="pt-1">
-                <a href="tel:0474766703" className="text-sm text-slate-600 hover:text-slate-900 transition">
+                <a href="tel:0474766703" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   0474 766 703
                 </a>
               </li>
-              <li className="text-sm text-slate-600">admin@budsatwork.com</li>
+              <li className="text-sm" style={{ color: brand.muted }}>admin@budsatwork.com</li>
               <li>
-                <Link href="/account" className="text-sm text-slate-400 hover:text-slate-600 transition">
+                <Link href="/account" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.accent }}>
                   Staff login
                 </Link>
               </li>
@@ -147,8 +157,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 border-t border-black/10 pt-8 text-center">
-          <p className="text-sm text-slate-500">
+        <div className="mt-8 border-t pt-8 text-center" style={{ borderColor: brand.border }}>
+          <p className="text-sm" style={{ color: brand.muted }}>
             &copy; {currentYear} Buds At Work. All rights reserved. &middot; ABN 56 890 024 059
           </p>
         </div>

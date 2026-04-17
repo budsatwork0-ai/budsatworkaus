@@ -14,7 +14,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   return (
     <div
       className="min-h-screen"
-      style={{ background: '#ffffff', color: brand.text }}
+      style={{ background: brand.bg, color: brand.text }}
     >
       <Header />
       <main className="px-4 md:px-8 py-8 md:py-10">{children}</main>

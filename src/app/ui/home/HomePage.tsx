@@ -3,18 +3,14 @@
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useInView, useMotionValue, useSpring } from 'framer-motion';
+import { brand } from '../theme';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const BRAND = {
-  primary:     '#0f3d2e',
-  accent:      '#10b981',
-  accentLight: '#d1fae5',
-  text:        '#0a0a0a',
-  muted:       '#6b7280',
-  border:      '#e5e7eb',
-  bg:          '#ffffff',
-  surface:     '#f9fafb',
-  surfaceAlt:  '#f0fdf4',
+  ...brand,
+  onDark: '#F8FCF9',
+  mutedOnDark: 'rgba(248,252,249,0.82)',
+  subtleOnDark: 'rgba(248,252,249,0.62)',
 };
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
@@ -222,9 +218,9 @@ export default function HomePage() {
           <motion.span
             className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-[12px] font-semibold border mb-7"
             style={{
-              background: 'rgba(255,255,255,0.10)',
-              borderColor: 'rgba(255,255,255,0.22)',
-              color: '#fff',
+              background: 'rgba(248,252,249,0.12)',
+              borderColor: 'rgba(221,243,228,0.28)',
+              color: BRAND.onDark,
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
             }}
@@ -232,25 +228,26 @@ export default function HomePage() {
             animate={heroIn ? { opacity: 1, scale: 1 } : {}}
             transition={{ delay: 0.14, duration: 0.4 }}
           >
-            <span style={{ color: BRAND.accent }}>●</span>
+            <span style={{ color: BRAND.accentSoft }}>●</span>
             Logan &amp; South Brisbane · Locally owned
           </motion.span>
 
           {/* Headline */}
           <motion.h1
-            className="text-[clamp(3rem,8vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.02em] text-white"
+            className="text-[clamp(3rem,8vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.02em]"
+            style={{ color: BRAND.onDark }}
             initial={{ opacity: 0, y: 22 }}
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
           >
             Your home,<br />
-            <span style={{ color: BRAND.accent }}>looked after.</span>
+            <span style={{ color: BRAND.accentSoft }}>looked after.</span>
           </motion.h1>
 
           {/* Sub-headline */}
           <motion.p
             className="mt-5 text-[1.1rem] md:text-[1.2rem] max-w-lg mx-auto leading-relaxed"
-            style={{ color: 'rgba(255,255,255,0.80)' }}
+            style={{ color: BRAND.mutedOnDark }}
             initial={{ opacity: 0, y: 16 }}
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.34, duration: 0.55 }}
@@ -279,7 +276,7 @@ export default function HomePage() {
               <Link
                 href="/about"
                 className="inline-flex items-center rounded-full px-7 py-3.5 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
-                style={{ borderColor: 'rgba(255,255,255,0.30)', color: '#fff' }}
+                style={{ borderColor: 'rgba(221,243,228,0.28)', color: BRAND.onDark }}
               >
                 Meet the team
               </Link>
@@ -297,12 +294,12 @@ export default function HomePage() {
               <motion.span
                 key={label}
                 className="inline-flex items-center gap-1.5 text-[13px]"
-                style={{ color: 'rgba(255,255,255,0.76)' }}
+                style={{ color: BRAND.mutedOnDark }}
                 initial={{ opacity: 0, y: 5 }}
                 animate={heroIn ? { opacity: 1, y: 0 } : {}}
                 transition={{ delay: 0.60 + i * 0.06 }}
               >
-                <span style={{ color: BRAND.accent }}>{icon}</span>
+                <span style={{ color: BRAND.accentSoft }}>{icon}</span>
                 {label}
               </motion.span>
             ))}
@@ -312,7 +309,7 @@ export default function HomePage() {
         {/* Scroll cue */}
         <motion.div
           className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5"
-          style={{ color: 'rgba(255,255,255,0.40)' }}
+          style={{ color: BRAND.subtleOnDark }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.4, duration: 0.6 }}
@@ -348,10 +345,10 @@ export default function HomePage() {
                 { val: 48,  suf: 'h',   pre: '<', lbl: 'Quote turnaround' },
               ].map(({ val, suf, pre, lbl }) => (
                 <div key={lbl} className="flex flex-col items-center py-1">
-                  <span className="text-[1.6rem] font-bold text-white tabular-nums">
+                  <span className="text-[1.6rem] font-bold tabular-nums" style={{ color: BRAND.onDark }}>
                     <AnimatedStat target={val} suffix={suf} prefix={pre} />
                   </span>
-                  <span className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.52)' }}>{lbl}</span>
+                  <span className="text-[11px] mt-0.5" style={{ color: BRAND.subtleOnDark }}>{lbl}</span>
                 </div>
               ))}
             </div>
@@ -378,12 +375,12 @@ export default function HomePage() {
                       whileHover={{ y: -5, boxShadow: '0 14px 36px rgba(15,61,46,0.11)' }}
                       whileTap={{ scale: 0.97 }}
                       className="relative h-full rounded-2xl p-5 md:p-6 border transition-shadow duration-200"
-                      style={{ background: BRAND.bg, borderColor: BRAND.border }}
+                      style={{ background: BRAND.card, borderColor: BRAND.border }}
                     >
                       {s.popular && (
                         <span
                           className="absolute top-3 right-3 text-[10px] font-semibold rounded-full px-2 py-0.5 select-none"
-                          style={{ background: BRAND.accentLight, color: BRAND.primary }}
+                          style={{ background: BRAND.accentSoft, color: BRAND.primary }}
                         >
                           Popular
                         </span>
@@ -428,7 +425,7 @@ export default function HomePage() {
                 <FadeUp key={step.n} delay={i * 0.09}>
                   <div
                     className="p-7 md:p-8 h-full border-b md:border-b-0 md:border-r last:border-0 flex flex-col"
-                    style={{ background: i === 1 ? BRAND.surfaceAlt : BRAND.bg, borderColor: BRAND.border }}
+                    style={{ background: i === 1 ? BRAND.surfaceAlt : BRAND.card, borderColor: BRAND.border }}
                   >
                     <span
                       className="text-[10px] font-bold uppercase tracking-[0.16em]"
@@ -443,7 +440,7 @@ export default function HomePage() {
                     <div className="mt-5 pt-4 border-t flex items-center gap-2.5" style={{ borderColor: BRAND.border }}>
                       <div
                         className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg"
-                        style={{ background: BRAND.accentLight, color: BRAND.primary }}
+                        style={{ background: BRAND.accentSoft, color: BRAND.primary }}
                       >
                         {step.tool.icon}
                       </div>
@@ -488,7 +485,7 @@ export default function HomePage() {
                     <li key={i} className="flex items-start gap-3">
                       <span
                         className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: BRAND.accentLight, color: BRAND.accent }}
+                        style={{ background: BRAND.accentSoft, color: BRAND.primary }}
                       >
                         {icons.check}
                       </span>
@@ -517,7 +514,7 @@ export default function HomePage() {
                   <motion.div
                     whileHover={{ y: -4, boxShadow: '0 12px 30px rgba(15,61,46,0.09)' }}
                     className="rounded-2xl p-6 h-full border flex flex-col"
-                    style={{ background: BRAND.bg, borderColor: BRAND.border }}
+                    style={{ background: BRAND.card, borderColor: BRAND.border }}
                   >
                     {/* Stars */}
                     <div className="flex gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
@@ -560,15 +557,16 @@ export default function HomePage() {
               <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.06), transparent 70%)' }} />
 
               <div className="relative">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] mb-5" style={{ color: BRAND.accent }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] mb-5" style={{ color: BRAND.accentSoft }}>
                   No payment until you confirm
                 </p>
                 <h2
-                  className="text-[clamp(2.2rem,5vw,3.75rem)] font-bold tracking-tight leading-tight text-white"
+                  className="text-[clamp(2.2rem,5vw,3.75rem)] font-bold tracking-tight leading-tight"
+                  style={{ color: BRAND.onDark }}
                 >
                   Ready to get<br />started?
                 </h2>
-                <p className="mt-4 text-[15px] max-w-sm mx-auto" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                <p className="mt-4 text-[15px] max-w-sm mx-auto" style={{ color: BRAND.subtleOnDark }}>
                   Pick a service and build your free quote.
                   We&apos;ll lock in your price for 7 days.
                 </p>
@@ -586,7 +584,7 @@ export default function HomePage() {
                     <Link
                       href="/get-involved"
                       className="inline-flex rounded-full px-8 py-4 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
-                      style={{ borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }}
+                      style={{ borderColor: 'rgba(221,243,228,0.24)', color: BRAND.onDark }}
                     >
                       Join the crew
                     </Link>
