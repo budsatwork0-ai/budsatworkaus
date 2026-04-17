@@ -46,10 +46,20 @@
 - `AnimatePresence` added to framer-motion import (was missing)
 - `ROTATING_WORDS` constant defined at module scope above `HomePage`
 
+### Rotating word capitalisation
+- Each rotating word is capitalised on render: `word.charAt(0).toUpperCase() + word.slice(1)`
+- Renders as: Home, Garden, Car, Yard, Laundry, Bins, Delivery, Shoes
+
+### "looked after" highlight treatment
+- Final approach: **mint highlight block** — dark green text (`BRAND.primary` `#0F3D2E`) on mint background (`BRAND.accentSoft` `#DDF3E4`)
+- Implemented as `display: inline-block` span with `background`, `borderRadius: 6px`, `padding: 0 10px 4px`
+- Colour journey: accentSoft (too pale on dark) → primary (too dark) → accent (still dark on dark bg) → highlight block ✓
+- The block treatment works because it brings its own background, so the video overlay behind it is irrelevant
+
 ### Key files
 | File | Change |
 |------|--------|
-| `src/app/ui/home/HomePage.tsx` | Rotating words, colour fix, AnimatePresence import |
+| `src/app/ui/home/HomePage.tsx` | Rotating words, capitalisation, highlight treatment, AnimatePresence import |
 
 ---
 
