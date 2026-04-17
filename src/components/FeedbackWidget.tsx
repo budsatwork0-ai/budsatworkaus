@@ -49,6 +49,7 @@ export function FeedbackWidget() {
   const [pastHero, setPastHero] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [ctaHidden, setCtaHidden] = useState(false);
+  const [footerVisible, setFooterVisible] = useState(false);
   const ctaRef = useRef<HTMLAnchorElement>(null);
 
   // On the homepage: track scroll so the CTA only appears after passing the hero
@@ -95,6 +96,19 @@ export function FeedbackWidget() {
     };
   }, [isHome]);
 
+  // Hide mobile bar when the global footer is visible
+  useEffect(() => {
+    if (!isHome) return;
+    const footer = document.querySelector('footer');
+    if (!footer) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setFooterVisible(entry.isIntersecting),
+      { threshold: 0.01 }
+    );
+    obs.observe(footer);
+    return () => obs.disconnect();
+  }, [isHome]);
+
   // Fire cta_view once when the desktop CTA enters the viewport
   useEffect(() => {
     const el = ctaRef.current;
@@ -135,7 +149,7 @@ export function FeedbackWidget() {
       {/* ─────────────────────────────────────────────────────────────────────
           1. Primary floating CTA — desktop (fixed right, vertically centred)
          ───────────────────────────────────────────────────────────────────── */}
-      {!onServices && (
+      {isHome && (
         <div
           className="hidden md:block fixed right-4 z-40"
           style={{
@@ -171,7 +185,7 @@ export function FeedbackWidget() {
       {/* ─────────────────────────────────────────────────────────────────────
           2. Primary floating CTA — mobile full-width bottom sticky bar
          ───────────────────────────────────────────────────────────────────── */}
-      {!onServices && shouldShow && (
+      {isHome && shouldShow && !footerVisible && (
         <div
           className="md:hidden fixed bottom-0 inset-x-0 z-40"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
