@@ -241,7 +241,7 @@ export default function HomePage() {
             transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
           >
             Your home,<br />
-            <span style={{ color: BRAND.accentSoft }}>looked after.</span>
+            <span style={{ color: BRAND.primary }}>looked after.</span>
           </motion.h1>
 
           {/* Sub-headline */}
