@@ -47,13 +47,16 @@ export function Tile({
     <M.button
       onClick={() => !disabled && onClick?.()}
       className={cls(
-        'relative w-full min-w-0 text-left rounded-3xl py-6 px-5 transition-all duration-200',
-        'bg-white border',
+        'relative w-full min-w-0 text-left rounded-3xl py-6 px-5 border',
         active
-          ? 'border-[color:var(--accent)] shadow-[0_4px_24px_rgba(15,61,46,0.14)]'
-          : 'border-black/[0.07] shadow-[0_2px_8px_rgba(2,6,23,0.05)] hover:shadow-[0_4px_20px_rgba(2,6,23,0.10)] hover:border-black/[0.12]',
+          ? 'border-[color:var(--accent)] shadow-[0_4px_20px_rgba(15,61,46,0.12)]'
+          : 'border-black/[0.07] shadow-[0_2px_8px_rgba(2,6,23,0.04)] hover:shadow-[0_6px_22px_rgba(2,6,23,0.09)] hover:border-black/[0.11]',
         disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
       )}
+      style={{
+        background: active ? 'color-mix(in srgb, var(--accent) 5%, #fff)' : '#fff',
+        transition: 'box-shadow 180ms cubic-bezier(0.25,0.46,0.45,0.94), border-color 180ms cubic-bezier(0.25,0.46,0.45,0.94), background 180ms cubic-bezier(0.25,0.46,0.45,0.94)',
+      }}
       aria-label={`Select ${title}`}
       title={disabled ? 'Not available in this context' : `Select ${title}`}
       role="button"
@@ -91,16 +94,17 @@ export function Tile({
         <div
           className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
           style={{
-            background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : '#f4f6f8',
+            background: active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : '#f3f4f6',
+            transition: 'background 180ms ease-in-out',
           }}
         >
           {icon}
         </div>
         <div className="space-y-0.5">
           <div className="font-semibold text-[15px] text-slate-900 leading-snug">{title}</div>
-          {subtitle && <div className="text-[12px] text-slate-500 leading-snug">{subtitle}</div>}
+          {subtitle && <div className="text-[12px] leading-snug" style={{ color: 'rgba(100,116,139,0.75)' }}>{subtitle}</div>}
           {from && !disabled && (
-            <div className="text-[12px] font-medium pt-1" style={{ color: 'var(--accent)' }}>from {from}</div>
+            <div className="text-[12px] font-semibold pt-1" style={{ color: 'var(--accent)' }}>from {from}</div>
           )}
         </div>
       </div>

@@ -4230,13 +4230,13 @@ function winSessionMinutes(S: WizardState) {
               }}
             />
           )}
-            <section className="mb-10">
+            <section className="mb-12">
               <div>
                   <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">Build your quote</h1>
-                  <p className="mt-2 text-slate-500 text-base">Instant pricing. No surprises.</p>
+                  <p className="mt-2 text-slate-400 text-base">Instant pricing. No surprises.</p>
               </div>
               {/* Step progress indicator */}
-              <div className="flex items-center gap-3 mt-5 select-none" aria-label="Quote progress">
+              <div className="flex items-center gap-3 mt-6 select-none" aria-label="Quote progress">
                 {([
                   { n: 1, label: 'Service' },
                   { n: 2, label: 'Details' },
@@ -4247,14 +4247,24 @@ function winSessionMinutes(S: WizardState) {
                   return (
                     <React.Fragment key={n}>
                       {i > 0 && (
-                        <div className="flex-1 h-px rounded-full" style={{ background: done ? 'var(--accent)' : '#e2e8f0' }} />
+                        <div
+                          className="flex-1 h-px rounded-full"
+                          style={{
+                            background: done ? 'var(--accent)' : '#e8eaed',
+                            transition: 'background 300ms ease-in-out',
+                          }}
+                        />
                       )}
                       <div className="flex items-center gap-1.5 shrink-0">
                         <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+                          className="rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
                           style={{
-                            background: active ? 'var(--accent)' : done ? 'var(--accent)' : '#e2e8f0',
-                            color: active || done ? '#fff' : '#94a3b8',
+                            width: active ? '22px' : '18px',
+                            height: active ? '22px' : '18px',
+                            background: active ? 'var(--accent)' : done ? 'var(--accent)' : '#dde1e7',
+                            color: active || done ? '#fff' : '#9ca3af',
+                            boxShadow: active ? '0 2px 8px rgba(15,61,46,0.25)' : 'none',
+                            transition: 'all 200ms cubic-bezier(0.25,0.46,0.45,0.94)',
                           }}
                         >
                           {done ? (
@@ -4264,8 +4274,12 @@ function winSessionMinutes(S: WizardState) {
                           ) : n}
                         </div>
                         <span
-                          className="text-[11px] font-medium"
-                          style={{ color: active ? 'var(--accent)' : done ? '#64748b' : '#94a3b8' }}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: active ? 600 : 400,
+                            color: active ? 'var(--accent)' : done ? '#64748b' : '#b0b8c4',
+                            transition: 'color 200ms ease-in-out, font-weight 200ms ease-in-out',
+                          }}
                         >
                           {label}
                         </span>
@@ -4287,40 +4301,45 @@ function winSessionMinutes(S: WizardState) {
                 <h2 id="step1-heading" className="sr-only">Step 1: Choose context and service</h2>
 
                 {/* Context segmented control */}
-                <div className="mb-8">
+                <div className="mb-10">
                   <div
-                    className="inline-flex items-center rounded-full p-1"
-                    style={{ background: '#f0f2f4' }}
+                    className="inline-flex items-center rounded-full p-1 gap-0.5"
+                    style={{ background: '#eff0f2' }}
                     role="tablist"
                     aria-label="Context"
                   >
-                    {(['home', 'commercial'] as const).map((c) => (
-                      <button
-                        key={c}
-                        role="tab"
-                        aria-selected={S.context === c}
-                        className="relative px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 focus-visible:outline-none"
-                        style={{
-                          background: S.context === c ? '#fff' : 'transparent',
-                          color: S.context === c ? '#0f3d2e' : '#6b7280',
-                          boxShadow: S.context === c ? '0 1px 4px rgba(2,6,23,0.10)' : 'none',
-                        }}
-                        onClick={() => {
-                          if (S.context !== c) {
-                            sendGAEvent('event', 'context_switched', { from: S.context, to: c });
-                          }
-                          set('context', c as Context);
-                        }}
-                        aria-label={`Select ${c} context`}
-                      >
-                        {c[0].toUpperCase() + c.slice(1)}
-                      </button>
-                    ))}
+                    {(['home', 'commercial'] as const).map((c) => {
+                      const isActive = S.context === c;
+                      return (
+                        <button
+                          key={c}
+                          role="tab"
+                          aria-selected={isActive}
+                          className="relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"
+                          style={{
+                            background: isActive ? 'var(--accent)' : 'transparent',
+                            color: isActive ? '#fff' : 'rgba(75,85,99,0.85)',
+                            boxShadow: isActive ? '0 2px 8px rgba(15,61,46,0.22)' : 'none',
+                            transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                            transition: 'background 160ms ease-in-out, color 160ms ease-in-out, box-shadow 160ms ease-in-out, transform 160ms ease-in-out',
+                          }}
+                          onClick={() => {
+                            if (S.context !== c) {
+                              sendGAEvent('event', 'context_switched', { from: S.context, to: c });
+                            }
+                            set('context', c as Context);
+                          }}
+                          aria-label={`Select ${c} context`}
+                        >
+                          {c[0].toUpperCase() + c.slice(1)}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Service tiles */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                   {SERVICES.map((s) => {
                     const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
                     const isActive = S.service === s.key && allowed;
@@ -5872,50 +5891,51 @@ function winSessionMinutes(S: WizardState) {
   >
     <div className="mx-auto max-w-3xl px-4">
       <div
-        className={`pointer-events-auto flex items-center justify-between rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
+        className={`pointer-events-auto rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
         role="region"
         aria-label="Step 2 price bar"
       >
-          <div>
-            <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-600">
-              Price for this scope
+        {/* Row 1: price info + buttons */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-baseline gap-3">
+            <div>
+              <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-500">
+                Price for this scope
+              </div>
+              <div className="text-xl md:text-2xl font-bold leading-none mt-0.5">{priceLabelBase}</div>
             </div>
-            <div className="text-xl md:text-2xl font-bold">{priceLabelBase}</div>
-            <div className="text-[11px] md:text-xs text-slate-600 mt-0.5 md:mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <div className="text-[11px] md:text-xs text-slate-500" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {timeLabel}
             </div>
             {usesRoutePricing && (
-              <div className="hidden md:block text-xs text-slate-600 mt-1" aria-live="polite">
+              <div className="hidden md:block text-xs text-slate-500" aria-live="polite">
                 {routeDistanceLabel ??
                   (routeLookupLoading ? 'Calculating travel details…' : 'Add both addresses for travel info.')}
               </div>
             )}
-            <div className="hidden md:block text-[11px] text-slate-600 mt-1">
-              {PRICE_SCOPE_DISCLAIMER}
-            </div>
-          <div className="hidden md:block text-[11px] text-slate-600">
-            {FAIRNESS_PROMISE_COPY}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <M.button
+              className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
+              onClick={() => goToStep(1)}
+              aria-label="Back to step 1"
+            >
+              Back
+            </M.button>
+            <M.button
+              className={`h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
+              style={{ background: 'var(--accent)' }}
+              onClick={() => hasMinimumWork && goToStep(3)}
+              aria-label="Get my quote"
+              title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
+            >
+              Get My Quote →
+            </M.button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <M.button
-            className="px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white"
-            style={{ background: 'var(--accent)' }}
-            onClick={() => goToStep(1)}
-            aria-label="Back to step 1"
-          >
-            Back
-          </M.button>
-          <M.button
-            className={`px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-sm text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
-            style={{ background: 'var(--accent)' }}
-            onClick={() => hasMinimumWork && goToStep(3)}
-            aria-label="Get my quote"
-            title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
-          >
-            Get My Quote →
-          </M.button>
+        {/* Row 2: disclaimer text — spans full width */}
+        <div className="hidden md:block text-[11px] text-slate-500 mt-2 leading-relaxed">
+          {PRICE_SCOPE_DISCLAIMER} {FAIRNESS_PROMISE_COPY}
         </div>
       </div>
     </div>

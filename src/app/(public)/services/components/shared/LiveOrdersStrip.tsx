@@ -45,15 +45,15 @@ function LiveOrdersCompact({ className = '' }: { className?: string }) {
         </span>
 
         {/* Location */}
-        <span className="text-[11px] text-slate-400 font-normal shrink-0">
+        <span className="text-[11px] shrink-0" style={{ color: 'rgba(148,163,184,0.9)' }}>
           {item.location}
         </span>
 
         {/* Divider */}
-        <span className="h-3 w-px bg-slate-200 shrink-0" aria-hidden />
+        <span className="h-3 w-px bg-slate-200/70 shrink-0" aria-hidden />
 
         {/* Service label */}
-        <span className="text-[11px] font-medium text-slate-700">
+        <span className="text-[11px] font-medium text-slate-600">
           {item.label}
         </span>
 
@@ -66,7 +66,7 @@ function LiveOrdersCompact({ className = '' }: { className?: string }) {
         </span>
 
         {/* Time */}
-        <span className="text-[10px] text-slate-400 shrink-0">{item.timeAgo}</span>
+        <span className="text-[10px] shrink-0" style={{ color: 'rgba(148,163,184,0.8)' }}>{item.timeAgo}</span>
       </div>
     </div>
   );
@@ -88,7 +88,7 @@ export function LiveOrdersStrip({ className = '', compact = false }: { className
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
-          <span className="text-xs font-medium text-slate-700 tracking-wide uppercase">Live orders</span>
+          <span className="text-[11px] font-medium text-slate-500 tracking-normal">Live orders</span>
         </div>
         <div className="h-px flex-1 bg-gradient-to-l from-transparent via-slate-300/60 to-transparent" />
       </div>
@@ -104,8 +104,8 @@ export function LiveOrdersStrip({ className = '', compact = false }: { className
                 Popular services booked by customers near you
               </p>
             </div>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>Updated in real-time</span>
