@@ -268,12 +268,18 @@ export default function HomePage() {
                   exit={{ y: '-100%', opacity: 0 }}
                   transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {ROTATING_WORDS[wordIndex]}
+                  {ROTATING_WORDS[wordIndex].charAt(0).toUpperCase() + ROTATING_WORDS[wordIndex].slice(1)}
                 </motion.span>
               </AnimatePresence>
             </span>
             ,<br />
-            <span style={{ color: BRAND.accent }}>looked after.</span>
+            <span style={{
+              color: BRAND.primary,
+              background: BRAND.accentSoft,
+              borderRadius: '6px',
+              padding: '0 10px 4px',
+              display: 'inline-block',
+            }}>looked after.</span>
           </motion.h1>
 
           {/* Sub-headline */}
