@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { full_name: string; email: string; password: string; role: string; turnstileToken?: string };
+  let body: { full_name: string; email: string; password: string; role: string; turnstileToken?: string; phone?: string };
   try {
     body = await req.json();
   } catch {
@@ -107,11 +107,20 @@ export async function POST(req: NextRequest) {
   await (client as any).from('profiles').upsert({ id: userId, full_name, email, role });
 
   if (role === 'customer') {
-    // Create a customers row linked to the auth user so that RLS policies
-    // (customer_id IN SELECT id FROM customers WHERE user_id = auth.uid())
-    // can correctly scope orders, quotes, and subscriptions to this user.
+    // Upsert the customers row linked to this auth user. The DB trigger
+    // (handle_new_auth_user) may have already inserted a row during signUp,
+    // so we use upsert to avoid a unique-constraint failure and to ensure
+    // any extra fields (e.g. phone) are persisted correctly.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (client as any).from('customers').insert({ full_name, email, user_id: userId });
+    await (client as any).from('customers').upsert(
+      {
+        full_name,
+        email,
+        user_id: userId,
+        ...(body.phone?.trim() ? { phone: body.phone.trim() } : {}),
+      },
+      { onConflict: 'user_id' }
+    );
 
     // Claim any anonymous quotes submitted with this email via Postgres RPC.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

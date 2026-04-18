@@ -3048,6 +3048,10 @@ function ServicesPageContent() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
   const [urlServiceHandled, setUrlServiceHandled] = useState(false);
+  // Detect rebook mode from URL before params are cleared (read once at mount).
+  const [isRebook] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('rebook')
+  );
   usePolygonQuote();
   const carSelector = useCarModelSelector();
   const { carType: carSelectorType, dirtLevel: carSelectorDirt, zones: carSelectorZones, derived: carSelectorDerived, setCarType: carSelectorSetType, setDirtLevel: carSelectorSetDirt, toggleZone: carSelectorToggleZone } = carSelector;
@@ -3107,6 +3111,10 @@ function ServicesPageContent() {
   // avoiding an eager network request on step-3 mount for users who abandon early.
   const [captchaReady, setCaptchaReady] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [saveToProfile, setSaveToProfile] = useState(true);
+  // True once the /api/portal/profile fetch has settled (success or failure).
+  // Used to gate autofocus and validation errors so they never fire before hydration.
+  const [profileHydrated, setProfileHydrated] = useState(false);
   // Track which contact fields have been blurred so we can show "required" on empty touched fields.
   const [fieldTouched, setFieldTouched] = useState<Record<string, boolean>>({});
   const touchField = useCallback((name: string) => setFieldTouched(prev => ({ ...prev, [name]: true })), []);
@@ -3180,9 +3188,12 @@ function ServicesPageContent() {
   // Step 3: controls whether the optional Availability + Notes cards are expanded
   const [s3DetailsOpen, setS3DetailsOpen] = useState(true);
 
-  // Step 3: autofocus first empty required field on mount (skip if user is signed in and pre-filled)
+  // Step 3: autofocus first empty required field on mount (skip if user is signed in and pre-filled).
+  // For authenticated users, wait until profile hydration completes so we never autofocus a field
+  // that is about to be filled, which would trigger blur → validation error before the user acts.
   useEffect(() => {
     if (S.step !== 3) return;
+    if (authedUser && !profileHydrated) return;
     const alreadyFilled = authedUser && S.fullName?.trim() && S.email?.trim() && S.phone?.trim();
     if (!alreadyFilled) {
       const firstEmpty =
@@ -3194,7 +3205,7 @@ function ServicesPageContent() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [S.step]);
+  }, [S.step, profileHydrated]);
 
   // Step 3: saved property address for signed-in users (fetched once on step-3 mount)
   const [savedPropertyAddress, setSavedPropertyAddress] = useState<string | null>(null);
@@ -3206,10 +3217,15 @@ function ServicesPageContent() {
       .then((data) => {
         if (!cancelled && data?.property?.address) {
           setSavedPropertyAddress(data.property.address);
+          // Auto-apply address when arriving via rebook and field is still empty.
+          if (isRebook && !S.address?.trim()) {
+            dispatch({ type: 'merge', value: { address: data.property.address, region: data.property.address } });
+          }
         }
       })
       .catch(() => {});
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.step, authedUser]);
   const [routeExpanded, setRouteExpanded] = useState(false);
   const [transportRouteExpanded, setTransportRouteExpanded] = useState(false);
@@ -3324,6 +3340,24 @@ function ServicesPageContent() {
       // Pre-fill contact fields even if the user didn't just sign in here —
       // e.g. they were already signed in when they navigated to /services.
       handleAuthSignIn(data.user);
+
+      // Fetch the customer profile to fill in any fields not in user_metadata
+      // (most importantly: phone, which is never stored in user_metadata).
+      fetch('/api/portal/profile')
+        .then((r) => r.ok ? r.json() : null)
+        .then((profileData) => {
+          if (profileData?.profile) {
+            const p = profileData.profile as { full_name?: string; email?: string; phone?: string };
+            const cur = wizardContactRef.current; // reads latest wizard values via stable ref
+            const extra: Partial<WizardState> = {};
+            if (!cur.fullName?.trim() && p.full_name) extra.fullName = p.full_name;
+            if (!cur.email?.trim() && p.email) extra.email = p.email;
+            if (!cur.phone?.trim() && p.phone) extra.phone = p.phone;
+            if (Object.keys(extra).length > 0) dispatch({ type: 'merge', value: extra });
+          }
+          setProfileHydrated(true);
+        })
+        .catch(() => { setProfileHydrated(true); });
 
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -3630,6 +3664,35 @@ function ServicesPageContent() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, urlServiceHandled]);
+
+  // Handle rebook URL params — pre-fill service, context, and scope from a previous order/subscription.
+  // Runs once on mount; clears params from the URL immediately so back-navigation doesn't re-trigger.
+  useEffect(() => {
+    if (!isRebook) return;
+    const params = new URLSearchParams(window.location.search);
+    const rebookService = params.get('rebook') as ServiceType | null;
+    const rebookContext = params.get('context') as 'home' | 'commercial' | null;
+    const rebookScope = params.get('scope');
+
+    const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'];
+    if (!rebookService || !validServices.includes(rebookService)) return;
+
+    // Strip rebook params from URL
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('rebook');
+      url.searchParams.delete('context');
+      url.searchParams.delete('scope');
+      window.history.replaceState({}, '', url.pathname + (url.search || ''));
+    }
+
+    const prefill: Partial<WizardState> = { service: rebookService };
+    if (rebookContext) prefill.context = rebookContext;
+    if (rebookScope) prefill.scope = rebookScope as ScopeKey;
+    dispatch({ type: 'merge', value: prefill });
+    set('step', 2);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // -------------------------
   // Derived values
@@ -4909,7 +4972,9 @@ function winSessionMinutes(S: WizardState) {
                   Request your booking
                 </h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  We&apos;ll confirm times and any changes before work proceeds.
+                  {authedUser
+                    ? 'Review your details below and confirm your service address.'
+                    : 'We\u2019ll confirm times and any changes before work proceeds.'}
                 </p>
               </div>
 
@@ -4921,10 +4986,19 @@ function winSessionMinutes(S: WizardState) {
                     Contact details
                   </span>
                 </S3_Title>
-                {authedUser && (
+                {authedUser && !profileHydrated && (
+                  <div className="mt-2 mb-1 text-[11px] text-slate-400">Loading your details&hellip;</div>
+                )}
+                {authedUser && profileHydrated && S.phone.trim() && (
                   <div className="mt-2 mb-1 flex items-center gap-1.5 text-[11px] font-medium" style={{ color: '#15803d' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                    Signed in as {authedUser.email} &middot; Quote will be saved to your account
+                    We&apos;ve filled this from your account &mdash; edit below to change
+                  </div>
+                )}
+                {authedUser && profileHydrated && !S.phone.trim() && (
+                  <div className="mt-2 mb-1 flex items-center gap-1.5 text-[11px] font-medium text-amber-600">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    We filled what we could from your account &mdash; add your phone to continue.
                   </div>
                 )}
                 <div className="grid sm:grid-cols-2 gap-4 mt-3">
@@ -4934,7 +5008,7 @@ function winSessionMinutes(S: WizardState) {
                       id="s3-fullname"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
-                        fieldTouched.fullName && !S.fullName.trim() ? "border-red-400" : "border-black/10"
+                        fieldTouched.fullName && (!authedUser || profileHydrated) && !S.fullName.trim() ? "border-red-400" : "border-black/10"
                       )}
                       placeholder="Jane Smith"
                       value={S.fullName}
@@ -4945,7 +5019,7 @@ function winSessionMinutes(S: WizardState) {
                       required
                       aria-required="true"
                     />
-                    {fieldTouched.fullName && !S.fullName.trim() && (
+                    {fieldTouched.fullName && (!authedUser || profileHydrated) && !S.fullName.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Full name is required.</div>
                     )}
                     {S.fullName.trim().length > 0 && S.fullName.trim().length < 2 && (
@@ -4958,7 +5032,7 @@ function winSessionMinutes(S: WizardState) {
                       id="s3-email"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
-                        fieldTouched.email && !S.email.trim() ? "border-red-400" : "border-black/10"
+                        fieldTouched.email && (!authedUser || profileHydrated) && !S.email.trim() ? "border-red-400" : "border-black/10"
                       )}
                       placeholder="jane@example.com"
                       value={S.email}
@@ -4972,7 +5046,7 @@ function winSessionMinutes(S: WizardState) {
                       required
                       aria-required="true"
                     />
-                    {fieldTouched.email && !S.email.trim() && (
+                    {fieldTouched.email && (!authedUser || profileHydrated) && !S.email.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Email is required.</div>
                     )}
                     {S.email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email) && (
@@ -4990,7 +5064,7 @@ function winSessionMinutes(S: WizardState) {
                       id="s3-phone"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
-                        fieldTouched.phone && !S.phone.trim() ? "border-red-400" : "border-black/10"
+                        fieldTouched.phone && (!authedUser || profileHydrated) && !S.phone.trim() ? "border-red-400" : "border-black/10"
                       )}
                       placeholder="04XX XXX XXX"
                       onFocus={() => setCaptchaReady(true)}
@@ -5010,7 +5084,7 @@ function winSessionMinutes(S: WizardState) {
                       required
                       aria-required="true"
                     />
-                    {fieldTouched.phone && !S.phone.trim() && (
+                    {fieldTouched.phone && (!authedUser || profileHydrated) && !S.phone.trim() && (
                       <div className="text-[11px] text-red-600 mt-1">Phone is required.</div>
                     )}
                     {S.phone.replace(/\D+/g, '').length > 0 && S.phone.replace(/\D+/g, '').length < 10 && (
@@ -5018,6 +5092,20 @@ function winSessionMinutes(S: WizardState) {
                     )}
                   </div>
                 </div>
+                {authedUser && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="s3-save-profile"
+                      checked={saveToProfile}
+                      onChange={(e) => setSaveToProfile(e.target.checked)}
+                      className="rounded border-black/20 accent-[color:var(--accent)]"
+                    />
+                    <label htmlFor="s3-save-profile" className="text-[11px] text-slate-500 cursor-pointer select-none">
+                      Save these details to my account
+                    </label>
+                  </div>
+                )}
               </S3_Card>
 
               {/* Location & access */}
@@ -5698,6 +5786,28 @@ function winSessionMinutes(S: WizardState) {
                             value: effectiveTotal,
                             ...(timeToSubmit !== null ? { time_to_submit_seconds: timeToSubmit } : {}),
                           });
+
+                          // Await profile sync before navigating so it cannot be silently dropped.
+                          if (authedUser && saveToProfile) {
+                            const profileUpdate: Record<string, string> = {
+                              full_name: S.fullName.trim(),
+                              phone: S.phone.trim(),
+                            };
+                            if (S.address.trim()) {
+                              profileUpdate.default_address = S.address.trim();
+                              if (S.region?.trim()) profileUpdate.region = S.region.trim();
+                            }
+                            try {
+                              await fetch('/api/portal/profile', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(profileUpdate),
+                              });
+                            } catch (e) {
+                              console.warn('[profile-save] failed silently:', e);
+                            }
+                          }
+
                           window.location.href = `/services/checkout/success?quote_id=${encodeURIComponent(quote.id)}`;
                         } else {
                           throw new Error('No quote reference returned');

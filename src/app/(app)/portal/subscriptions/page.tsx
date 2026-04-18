@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { brand } from '@/app/ui/theme';
 
 type Subscription = {
@@ -145,7 +146,7 @@ export default function PortalSubscriptionsPage() {
 
                 {/* Actions */}
                 {sub.status !== 'cancelled' && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {isActive && (
                       <button
                         onClick={() => updateStatus(sub.id, 'paused')}
@@ -193,6 +194,17 @@ export default function PortalSubscriptionsPage() {
                         Cancel
                       </button>
                     )}
+                    <Link
+                      href={`/services?rebook=${sub.service_type}&context=${sub.context}${sub.scope ? `&scope=${encodeURIComponent(sub.scope)}` : ''}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                      style={{ background: brand.primary }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/>
+                        <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+                      </svg>
+                      Book Again
+                    </Link>
                   </div>
                 )}
               </div>
