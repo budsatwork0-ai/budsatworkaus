@@ -33,6 +33,7 @@ const NAV = [
   { href: '/portal/subscriptions', label: 'Subscriptions' },
   { href: '/portal/payments', label: 'Payments' },
   { href: '/portal/property', label: 'Property' },
+  { href: '/portal/profile', label: 'Profile' },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

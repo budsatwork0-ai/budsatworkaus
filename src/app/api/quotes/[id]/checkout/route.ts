@@ -135,12 +135,52 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const contextLabel = quote.context === 'commercial' ? 'Commercial' : 'Residential';
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
 
+  // Resolve or create a Stripe Customer so returning customers see their saved cards.
+  // Falls back to customer_email only if the DB lookup fails or no customer row exists.
+  let stripeCustomerId: string | undefined;
+  if (quote.customer_email) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: customerRow } = await (client as any)
+        .from('customers')
+        .select('id, stripe_customer_id')
+        .eq('email', quote.customer_email)
+        .maybeSingle();
+
+      if (customerRow?.stripe_customer_id) {
+        stripeCustomerId = customerRow.stripe_customer_id;
+      } else if (customerRow?.id) {
+        // No Stripe Customer yet — create one and persist the ID for future checkouts.
+        const stripeCustomer = await stripe.customers.create({
+          email: quote.customer_email,
+          name: quote.customer_name || undefined,
+          metadata: { supabase_customer_id: customerRow.id },
+        });
+        stripeCustomerId = stripeCustomer.id;
+        // Persist in background — don't block the checkout session creation.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (client as any)
+          .from('customers')
+          .update({ stripe_customer_id: stripeCustomerId })
+          .eq('id', customerRow.id)
+          .then(() => {})
+          .catch((e: unknown) => console.warn('[checkout] Failed to save stripe_customer_id:', e));
+      }
+    } catch (e) {
+      console.warn('[checkout] Stripe customer lookup/create failed, falling back to email:', e);
+    }
+  }
+
   let session: Stripe.Checkout.Session;
   try {
     session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'aud',
-      customer_email: quote.customer_email || undefined,
+      // Use Stripe Customer when available (enables saved cards for returning customers),
+      // otherwise fall back to customer_email so Stripe can prefill the form.
+      ...(stripeCustomerId
+        ? { customer: stripeCustomerId }
+        : { customer_email: quote.customer_email || undefined }),
       line_items: [
         {
           price_data: {

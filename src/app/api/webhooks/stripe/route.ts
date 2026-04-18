@@ -181,8 +181,23 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // Store the Stripe Customer ID on the customers row so future checkouts reuse it.
+        // This handles the case where checkout was created without a prior customer row.
+        const stripeCustomerId = typeof session.customer === 'string' ? session.customer : null;
+        const paymentEmail = session.customer_email || session.customer_details?.email;
+        if (stripeCustomerId && paymentEmail) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (client as any)
+            .from('customers')
+            .update({ stripe_customer_id: stripeCustomerId })
+            .eq('email', paymentEmail)
+            .is('stripe_customer_id', null) // only write if not already set
+            .then(() => {})
+            .catch((e: unknown) => console.warn('[webhook] Failed to persist stripe_customer_id:', e));
+        }
+
         // Send booking confirmed email — fire and forget
-        const customerEmail = session.customer_email || session.customer_details?.email;
+        const customerEmail = paymentEmail;
         if (customerEmail) {
           const resend = getResendClient();
           if (resend) {

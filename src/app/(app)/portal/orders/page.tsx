@@ -378,7 +378,7 @@ export default function PortalOrdersPage() {
 
                     {order.status === 'completed' && (
                       <Link
-                        href={`/services?rebook=${order.service_type}&context=${order.context}${order.scope ? `&scope=${encodeURIComponent(order.scope)}` : ''}`}
+                        href={`/services?rebook=${order.service_type}&context=${order.context}${order.scope ? `&scope=${encodeURIComponent(order.scope)}` : ''}${order.notes ? `&notes=${encodeURIComponent(order.notes)}` : ''}`}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
                         style={{ background: brand.primary }}
                       >

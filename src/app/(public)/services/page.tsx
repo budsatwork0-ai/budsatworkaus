@@ -3207,19 +3207,45 @@ function ServicesPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [S.step, profileHydrated]);
 
-  // Step 3: saved property address for signed-in users (fetched once on step-3 mount)
+  // Step 3: saved property address + access details for signed-in users (fetched once on step-3 mount)
   const [savedPropertyAddress, setSavedPropertyAddress] = useState<string | null>(null);
+  const [savedPropertyAccess, setSavedPropertyAccess] = useState<{
+    gate_code?: string | null;
+    pet_warnings?: string | null;
+    parking?: string | null;
+    special_instructions?: string | null;
+  } | null>(null);
   useEffect(() => {
     if (S.step !== 3 || !authedUser) return;
     let cancelled = false;
     fetch('/api/portal/property')
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (!cancelled && data?.property?.address) {
-          setSavedPropertyAddress(data.property.address);
-          // Auto-apply address when arriving via rebook and field is still empty.
+        if (cancelled || !data?.property) return;
+        const prop = data.property;
+        if (prop.address) {
+          setSavedPropertyAddress(prop.address);
           if (isRebook && !S.address?.trim()) {
-            dispatch({ type: 'merge', value: { address: data.property.address, region: data.property.address } });
+            dispatch({ type: 'merge', value: { address: prop.address, region: prop.address } });
+          }
+        }
+        const access = {
+          gate_code: prop.gate_code ?? null,
+          pet_warnings: prop.pet_warnings ?? null,
+          parking: prop.parking ?? null,
+          special_instructions: prop.special_instructions ?? null,
+        };
+        const hasAccess = Object.values(access).some((v) => v?.trim());
+        if (hasAccess) {
+          setSavedPropertyAccess(access);
+          // On rebook, auto-compose notes from saved access details if notes field is empty.
+          if (isRebook && !S.notes?.trim()) {
+            const parts: string[] = [];
+            if (access.gate_code?.trim()) parts.push(`Gate code: ${access.gate_code.trim()}`);
+            if (access.pet_warnings?.trim()) parts.push(`Pets: ${access.pet_warnings.trim()}`);
+            if (access.parking?.trim()) parts.push(`Parking: ${access.parking.trim()}`);
+            if (access.special_instructions?.trim()) parts.push(access.special_instructions.trim());
+            if (parts.length > 0) dispatch({ type: 'merge', value: { notes: parts.join('\n') } });
           }
         }
       })
@@ -3665,7 +3691,7 @@ function ServicesPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, urlServiceHandled]);
 
-  // Handle rebook URL params — pre-fill service, context, and scope from a previous order/subscription.
+  // Handle rebook URL params — pre-fill service, context, scope, and notes from a previous order/subscription.
   // Runs once on mount; clears params from the URL immediately so back-navigation doesn't re-trigger.
   useEffect(() => {
     if (!isRebook) return;
@@ -3673,6 +3699,7 @@ function ServicesPageContent() {
     const rebookService = params.get('rebook') as ServiceType | null;
     const rebookContext = params.get('context') as 'home' | 'commercial' | null;
     const rebookScope = params.get('scope');
+    const rebookNotes = params.get('notes');
 
     const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'];
     if (!rebookService || !validServices.includes(rebookService)) return;
@@ -3683,12 +3710,15 @@ function ServicesPageContent() {
       url.searchParams.delete('rebook');
       url.searchParams.delete('context');
       url.searchParams.delete('scope');
+      url.searchParams.delete('notes');
       window.history.replaceState({}, '', url.pathname + (url.search || ''));
     }
 
     const prefill: Partial<WizardState> = { service: rebookService };
     if (rebookContext) prefill.context = rebookContext;
     if (rebookScope) prefill.scope = rebookScope as ScopeKey;
+    // Pre-fill notes from the previous order (only if no notes already in local storage)
+    if (rebookNotes?.trim() && !S.notes?.trim()) prefill.notes = rebookNotes.trim();
     dispatch({ type: 'merge', value: prefill });
     set('step', 2);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5334,6 +5364,25 @@ function winSessionMinutes(S: WizardState) {
                     Anything else?
                   </span>
                 </S3_Title>
+                {savedPropertyAccess && !S.notes?.trim() && (
+                  <div className="mt-3 mb-2 flex items-center justify-between p-2.5 rounded-xl border border-black/10 bg-white/70">
+                    <span className="text-[11px] text-slate-600 truncate">Saved access details available</span>
+                    <button
+                      type="button"
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[color:var(--accent)] text-[color:var(--accent)] hover:bg-emerald-50 transition-colors flex-shrink-0 ml-2"
+                      onClick={() => {
+                        const parts: string[] = [];
+                        if (savedPropertyAccess.gate_code?.trim()) parts.push(`Gate code: ${savedPropertyAccess.gate_code.trim()}`);
+                        if (savedPropertyAccess.pet_warnings?.trim()) parts.push(`Pets: ${savedPropertyAccess.pet_warnings.trim()}`);
+                        if (savedPropertyAccess.parking?.trim()) parts.push(`Parking: ${savedPropertyAccess.parking.trim()}`);
+                        if (savedPropertyAccess.special_instructions?.trim()) parts.push(savedPropertyAccess.special_instructions.trim());
+                        set('notes', parts.join('\n'));
+                      }}
+                    >
+                      Use saved
+                    </button>
+                  </div>
+                )}
                 <textarea
                   className="mt-3 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)] resize-none"
                   rows={3}

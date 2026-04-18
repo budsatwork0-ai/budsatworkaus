@@ -18,6 +18,7 @@ type FinalizedQuote = {
   service_type: string;
   reviewed_total: number | null;
   submitted_total: number;
+  stripe_checkout_url?: string | null;
 };
 
 type OrderSummary = {
@@ -82,6 +83,8 @@ export default function PortalHome() {
   const [pendingQuotes, setPendingQuotes] = useState<PendingQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  // null = still loading, '' = loaded but empty, value = phone is set
+  const [profilePhone, setProfilePhone] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     setFetchError(null);
@@ -103,13 +106,18 @@ export default function PortalHome() {
     Promise.all([
       fetchOrders,
       fetchSubs,
-      safe(fetch('/api/quotes?status=finalized&limit=10').then((r) => r.json()), { quotes: [] }),
+      // Fetch both finalized (awaiting checkout creation) and payment_pending (checkout exists, direct pay link available)
+      safe(fetch('/api/quotes?status=finalized&limit=5').then((r) => r.json()), { quotes: [] }),
+      safe(fetch('/api/quotes?status=payment_pending&limit=5').then((r) => r.json()), { quotes: [] }),
       safe(fetch('/api/quotes?status=submitted,in_review&limit=10').then((r) => r.json()), { quotes: [] }),
-    ]).then(([orderData, subData, quoteData, pendingData]) => {
+      safe(fetch('/api/portal/profile').then((r) => r.ok ? r.json() : null), null),
+    ]).then(([orderData, subData, finalizedData, paymentPendingData, pendingData, profileData]) => {
       setOrders(orderData.orders || []);
       setSubs(subData.subscriptions || []);
-      setFinalizedQuotes(quoteData.quotes || []);
+      // Merge finalized + payment_pending; payment_pending ones carry stripe_checkout_url for direct Pay Now
+      setFinalizedQuotes([...(finalizedData.quotes || []), ...(paymentPendingData.quotes || [])]);
       setPendingQuotes(pendingData.quotes || []);
+      setProfilePhone((profileData?.profile?.phone as string | null | undefined) ?? null);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -227,35 +235,82 @@ export default function PortalHome() {
       )}
 
       {/* Finalized quotes awaiting payment */}
-      {!loading && finalizedQuotes.length > 0 && (
-        <Link
-          href="/portal/quotes"
-          className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
-          style={{ borderLeftColor: brand.primary }}
-        >
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: 'rgba(15,61,46,0.10)' }}
+      {!loading && finalizedQuotes.length > 0 && (() => {
+        // Prefer a quote that already has a Stripe checkout URL (payment_pending status) for direct Pay Now
+        const directPayQuote = finalizedQuotes.find((q) => q.stripe_checkout_url);
+        const label = finalizedQuotes.length === 1
+          ? `${SERVICE_LABELS[finalizedQuotes[0].service_type] || 'A quote'} is ready for payment`
+          : `${finalizedQuotes.length} quotes are ready for payment`;
+        const amount = directPayQuote
+          ? (directPayQuote.reviewed_total ?? directPayQuote.submitted_total)
+          : null;
+        if (directPayQuote?.stripe_checkout_url) {
+          return (
+            <a
+              href={directPayQuote.stripe_checkout_url}
+              className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
+              style={{ borderLeftColor: brand.primary }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(15,61,46,0.10)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
+                  <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: brand.text }}>{label}</p>
+                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  {amount ? `$${amount.toFixed(0)} — tap to pay now and confirm your booking` : 'Tap to pay and confirm your booking'}
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: brand.primary }}>
+                Pay Now
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            </a>
+          );
+        }
+        return (
+          <Link
+            href="/portal/quotes"
+            className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
+            style={{ borderLeftColor: brand.primary }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
-              <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(15,61,46,0.10)' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
+                <rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: brand.text }}>{label}</p>
+              <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Review and confirm before your spot is booked</p>
+            </div>
+            <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: brand.primary }}>
+              Review
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+            </div>
+          </Link>
+        );
+      })()}
+
+      {/* Profile completeness nudge — only shown after profile loads and phone is missing */}
+      {profilePhone === null && !loading && (
+        <Link
+          href="/portal/profile"
+          className={`${glass} p-4 flex items-center gap-4 hover:shadow-lg transition-shadow border-l-4`}
+          style={{ borderLeftColor: '#F59E0B' }}
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.10)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold" style={{ color: brand.text }}>
-              {finalizedQuotes.length === 1
-                ? `${SERVICE_LABELS[finalizedQuotes[0].service_type] || 'A quote'} is ready for payment`
-                : `${finalizedQuotes.length} quotes are ready for payment`}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
-              Review and confirm before your spot is booked
-            </p>
+            <p className="text-sm font-semibold" style={{ color: brand.text }}>Add your phone number</p>
+            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Speeds up future bookings — pre-fills Step 3 automatically</p>
           </div>
-          <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: brand.primary }}>
-            Review
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
+          <div className="shrink-0 flex items-center gap-1 text-sm font-semibold" style={{ color: '#F59E0B' }}>
+            Update
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
           </div>
         </Link>
       )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
 
 type Subscription = {
@@ -33,11 +34,22 @@ const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> =
   cancelled: { bg: '#FEE2E2', fg: '#991B1B', label: 'Cancelled' },
 };
 
+const CHANGE_OPTIONS = [
+  { value: 'frequency', label: 'Change frequency' },
+  { value: 'scope', label: 'Change scope / size' },
+  { value: 'addon', label: 'Add or remove an add-on' },
+  { value: 'pause', label: 'Pause or hold service' },
+  { value: 'other', label: 'Something else' },
+];
+
+type ChangeRequest = { subId: string; changeType: string; message: string; sending: boolean };
+
 export default function PortalSubscriptionsPage() {
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [changeRequest, setChangeRequest] = useState<ChangeRequest | null>(null);
 
   useEffect(() => {
     fetch('/api/subscriptions?limit=50')
@@ -62,6 +74,24 @@ export default function PortalSubscriptionsPage() {
     } catch { /* ignore */ } finally {
       setActionLoading(null);
       setConfirmCancel(null);
+    }
+  };
+
+  const submitChangeRequest = async () => {
+    if (!changeRequest) return;
+    setChangeRequest((r) => r && { ...r, sending: true });
+    try {
+      const res = await fetch(`/api/portal/subscriptions/${changeRequest.subId}/request-change`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ change_type: changeRequest.changeType, message: changeRequest.message }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      toast.success("Change request sent — we'll be in touch shortly.");
+      setChangeRequest(null);
+    } catch {
+      toast.error('Something went wrong. Please try again or contact us directly.');
+      setChangeRequest((r) => r && { ...r, sending: false });
     }
   };
 
@@ -92,6 +122,7 @@ export default function PortalSubscriptionsPage() {
             const style = STATUS_STYLES[sub.status] || STATUS_STYLES.active;
             const isActive = sub.status === 'active';
             const isPaused = sub.status === 'paused';
+            const isRequestingChange = changeRequest?.subId === sub.id;
 
             return (
               <div key={sub.id} className={`${glass} p-5`}>
@@ -194,6 +225,19 @@ export default function PortalSubscriptionsPage() {
                         Cancel
                       </button>
                     )}
+                    <button
+                      onClick={() =>
+                        setChangeRequest(
+                          isRequestingChange
+                            ? null
+                            : { subId: sub.id, changeType: 'frequency', message: '', sending: false }
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:bg-slate-50"
+                      style={{ borderColor: brand.border, color: brand.text }}
+                    >
+                      Request a change
+                    </button>
                     <Link
                       href={`/services?rebook=${sub.service_type}&context=${sub.context}${sub.scope ? `&scope=${encodeURIComponent(sub.scope)}` : ''}`}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
@@ -205,6 +249,57 @@ export default function PortalSubscriptionsPage() {
                       </svg>
                       Book Again
                     </Link>
+                  </div>
+                )}
+
+                {/* Change request form — inline, shown below actions */}
+                {isRequestingChange && (
+                  <div className="mt-4 pt-4 border-t border-black/5 space-y-3">
+                    <p className="text-xs font-semibold" style={{ color: brand.text }}>What would you like to change?</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {CHANGE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setChangeRequest((r) => r && { ...r, changeType: opt.value })}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border text-left transition-colors"
+                          style={{
+                            borderColor: changeRequest.changeType === opt.value ? brand.primary : 'rgba(0,0,0,0.10)',
+                            background: changeRequest.changeType === opt.value ? 'rgba(15,61,46,0.07)' : 'white',
+                            color: changeRequest.changeType === opt.value ? brand.primary : brand.text,
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)] resize-none"
+                      rows={3}
+                      placeholder="Describe what you'd like to change and we'll get back to you…"
+                      maxLength={1000}
+                      value={changeRequest.message}
+                      onChange={(e) => setChangeRequest((r) => r && { ...r, message: e.target.value })}
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setChangeRequest(null)}
+                        className="px-3 py-1.5 rounded-lg text-xs border"
+                        style={{ borderColor: brand.border, color: brand.muted }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={submitChangeRequest}
+                        disabled={!changeRequest.message.trim() || changeRequest.sending}
+                        className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: brand.primary }}
+                      >
+                        {changeRequest.sending ? 'Sending…' : 'Send request'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
