@@ -1,5 +1,5 @@
 /**
- * Transport / Move Assistance + Delivery Services pricing
+ * Transport & Haul + Delivery Services pricing
  *
  * Formula:
  *   Transport: base + loadSize + distance + access + helpers + extras

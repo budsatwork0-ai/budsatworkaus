@@ -47,7 +47,7 @@ const SERVICES = [
   { key: 'windows',  label: 'Window cleaning',       icon: icons.windows,  from: 79,  popular: false, href: '/services?service=windows' },
   { key: 'cleaning', label: 'Home cleaning',          icon: icons.cleaning, from: 99,  popular: true,  href: '/services?service=cleaning' },
   { key: 'yard',     label: 'Yard & garden',          icon: icons.yard,     from: 79,  popular: true,  href: '/services?service=yard' },
-  { key: 'dump',     label: 'Dump runs',              icon: icons.dump,     from: 99,  popular: false, href: '/services?service=dump' },
+  { key: 'dump',     label: 'Dump runs',              icon: icons.dump,     from: 200, popular: false, href: '/services?service=dump' },
   { key: 'auto',     label: 'Car detailing',          icon: icons.auto,     from: 99,  popular: false, href: '/services?service=auto' },
   { key: 'laundry',  label: 'Laundry & sneakers',    icon: icons.laundry,  from: 74,  popular: false, href: '/services?service=laundry_sneakers' },
 ];

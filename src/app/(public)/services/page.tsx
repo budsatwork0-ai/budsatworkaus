@@ -141,6 +141,11 @@ import {
   emailHrefForContext,
 } from './lib/estimation';
 
+// Quote Assistant
+import { useAssistant } from './assistant/useAssistant';
+import { QuoteAssistantPanel } from './assistant/QuoteAssistantPanel';
+import { QuoteAssistantTrigger } from './assistant/QuoteAssistantTrigger';
+
 // Transport / Delivery dedicated pricing
 import {
   calcTransportQuote,
@@ -1588,15 +1593,10 @@ const ScopeCard = React.memo(function ScopeCard({
 
             {/* Focus Zones Selection */}
             <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3">
                 <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                  Extra focus areas <span className="text-slate-500">(optional)</span>
+                  Any areas to focus on? <span className="text-slate-500">(optional)</span>
                 </div>
-                {carSelector.zones.size > 0 && (
-                  <div className="text-xs font-semibold text-emerald-400">
-                    +${carSelector.derived.priceImpact}
-                  </div>
-                )}
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {([
@@ -2222,8 +2222,8 @@ const ScopeCard = React.memo(function ScopeCard({
             onTouchStart={stopCardBubble}
           >
             <div>
-              <div className="font-semibold text-slate-900">Move Assistance Details</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Tell us about your move</div>
+              <div className="font-semibold text-slate-900">Transport & Haul Details</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Tell us about the move</div>
             </div>
 
             {/* Step 1: Type of move */}
@@ -3047,6 +3047,7 @@ function ServicesPageContent() {
   const motionEnabled = !yardActive;
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
+  const assistant = useAssistant({ dispatch, wizardStep: S.step, wizardHasInteracted: hasInteractedStep2 });
   const [urlServiceHandled, setUrlServiceHandled] = useState(false);
   // Detect rebook mode from URL before params are cleared (read once at mount).
   const [isRebook] = useState(() =>
@@ -3489,9 +3490,8 @@ function ServicesPageContent() {
     if (S.carModelType !== d.carType) set('carModelType', d.carType);
     if (S.carModelZones.length !== d.zones.length || d.zones.some((z, i) => z !== S.carModelZones[i])) set('carModelZones', d.zones);
     if (S.carDirtLevel !== d.dirtLevel) set('carDirtLevel', d.dirtLevel);
-    if (S.carModelPriceImpact !== d.priceImpact) set('carModelPriceImpact', d.priceImpact);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carSelector.derived.carType, carSelector.derived.zones.length, carSelector.derived.dirtLevel, carSelector.derived.priceImpact]);
+  }, [carSelector.derived.carType, carSelector.derived.zones.length, carSelector.derived.dirtLevel]);
 
   useEffect(() => {
     if (AUTO_SIZE_CATEGORIES.includes(S.carModelType as VehicleSizeCategory)) {
@@ -6298,6 +6298,13 @@ function winSessionMinutes(S: WizardState) {
         `}</style>
       )}
       </div>
+
+      {/* Quote Assistant — floating trigger + slide-in panel */}
+      <QuoteAssistantTrigger
+        onOpen={assistant.handlers.onOpen}
+        visible={!assistant.open && !assistant.dismissed && !hasInteractedStep2 && S.step === 1}
+      />
+      <QuoteAssistantPanel assistant={assistant} />
     </MotionContext.Provider>
   );
 }

@@ -11,6 +11,16 @@ import {
 
 export * from './yardPricing';
 
+/**
+ * Polygon-driven quote hook.
+ *
+ * All pricing delegates to yardPricing.ts (priceYardJob) via priceFromArea /
+ * estimateRange with an explicit `scope` on the options. This keeps the
+ * polygon map, assistant wizard, and admin revision on identical numbers.
+ *
+ * Callers SHOULD pass `opts.scope` — otherwise the quote defaults to lawn
+ * pricing, which is only correct for mowing jobs.
+ */
 export function usePolygonQuote() {
   const computeQuote = (path: LatLng[], opts?: YardPricingOptions): PolygonQuote => {
     const rawArea = computeAreaFromPath(path);
@@ -40,9 +50,12 @@ export function usePolygonQuote() {
   const updateAdminRevision = async (
     supabase: SupabaseClient,
     quoteId: string,
-    adjustedArea: number
+    adjustedArea: number,
+    opts?: YardPricingOptions,
   ) => {
-    const finalPrice = Math.round(priceFromArea(adjustedArea));
+    // Admin revisions go through the same priceFromArea path the live quote
+    // uses, so the final billed price can't drift from the quoted range.
+    const finalPrice = Math.round(priceFromArea(adjustedArea, opts));
     return supabase
       .from('yard_quotes')
       .update({

@@ -36,7 +36,8 @@ type UseYardMappingProps = {
   computeYardQuote: (params: any, options: any) => { cost: number };
 };
 
-// Debounce utility
+// Debounce utility — kept for legacy callers, but useYardMapping now uses a
+// ref-based stable debounce (see below) so renders don't drop pending updates.
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
@@ -136,9 +137,16 @@ export function useYardMapping({
     return { area, perimeter };
   }, []);
 
-  // Optimized polygon change handler with debouncing and batched updates
-  // Now accepts an array of zones (multi-polygon support)
-  const handlePolygonChangeImmediate = useCallback(
+  // ── Canonical compute-and-commit pipeline ──────────────────────────────────
+  //
+  // Single path for turning a set of zones into (measurement → params → price →
+  // state commit). Called by the debounced message handler AND by the
+  // scope-sync effect, so there's no race between the two.
+  //
+  // The function reads every piece of state from refs so its identity never
+  // has to change — that's what makes the debounced wrapper below safe to
+  // build once for the life of the hook.
+  const computeAndCommit = useCallback(
     (zones: LatLng[][]) => {
       setIsCalculating(true);
 
@@ -150,9 +158,14 @@ export function useYardMapping({
       const nextYardParams = {
         ...currentYardParams,
         [measurement.field]: measurementValue,
+        // yard_area is a fallback the engine also accepts. Always stamp it so
+        // a scope switch (e.g. mow → blast) still has an area to read from.
         ...(measurement.mode === 'area' ? { yard_area: measurementValue } : {}),
       };
 
+      // Condition level is passed through as a string; engine.ts maps it to
+      // the DifficultyFlags shape. (The old numeric `conditionMultiplier`
+      // pathway is kept for back-compat but no longer drives pricing.)
       const yardCondMap: Record<YardConditionLevel, number> = {
         light: 0.9,
         standard: 1,
@@ -169,24 +182,16 @@ export function useYardMapping({
       });
 
       const price = Math.max(0, yardQuote.cost);
+      const activeId = yardActiveJobIdRef.current || yardJobsRef.current[0]?.job_id || null;
 
-      // Batch all state updates together
-      const updates: Record<string, any> = {
-        paramsByService: {
-          ...paramsRef.current,
-          yard: nextYardParams,
-        },
-        yardPolygon: zones,
-        yardArea: area || null,
-        yardPerimeter: perimeter || null,
-      };
+      // Batch: params + geometry state
+      set('paramsByService', { ...paramsRef.current, yard: nextYardParams });
+      set('yardPolygon', zones);
+      set('yardArea', area || null);
+      set('yardPerimeter', perimeter || null);
 
-      Object.entries(updates).forEach(([key, value]) => {
-        set(key as any, value);
-      });
-
-      if (activeYardJob?.job_id) {
-        updateYardJob(activeYardJob.job_id, (job) => ({
+      if (activeId) {
+        updateYardJob(activeId, (job) => ({
           ...job,
           polygon_geojson: zones,
           area_m2: area || null,
@@ -197,14 +202,61 @@ export function useYardMapping({
 
       setIsCalculating(false);
     },
-    [activeYardJob?.job_id, set, updateYardJob, getYardMeasurementConfig, computeYardQuote, computeMeasurements]
+    // `set`, `updateYardJob`, `getYardMeasurementConfig`, `computeYardQuote`
+    // and `computeMeasurements` are the only deps that are actually used at
+    // call-time. Everything that varies per-render (scope, params, flags,
+    // active job) is read from refs, so identity stays stable as long as the
+    // parent passes stable versions of these props.
+    [set, updateYardJob, getYardMeasurementConfig, computeYardQuote, computeMeasurements]
   );
 
-  // Debounced version for real-time updates
-  const handlePolygonChange = useMemo(
-    () => debounce(handlePolygonChangeImmediate, 150),
-    [handlePolygonChangeImmediate]
-  );
+  // ── Ref-based debounce ─────────────────────────────────────────────────────
+  //
+  // The previous implementation used useMemo(() => debounce(fn, 150), [fn]).
+  // That looks fine until you notice that `fn` was recreated on every render
+  // (its deps included `set`, which the parent often passes as a fresh
+  // reference). A fresh `fn` meant a fresh debounced wrapper with a fresh
+  // internal timeout — so any in-flight pending call was silently dropped
+  // the moment React re-rendered. That's the "price jumps / doesn't update
+  // on redraw" symptom.
+  //
+  // We fix it by holding the latest computeAndCommit in a ref and building
+  // one stable debouncer for the life of the component.
+  const latestComputeRef = useRef(computeAndCommit);
+  useEffect(() => {
+    latestComputeRef.current = computeAndCommit;
+  }, [computeAndCommit]);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastZonesRef = useRef<LatLng[][] | null>(null);
+
+  const handlePolygonChange = useCallback((zones: LatLng[][]) => {
+    lastZonesRef.current = zones;
+
+    // Leading-edge: fire immediately on the first change so the price moves
+    // the moment the polygon is drawn. Subsequent rapid changes coalesce on
+    // the trailing edge.
+    if (!debounceTimerRef.current) {
+      latestComputeRef.current(zones);
+    }
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      const pending = lastZonesRef.current;
+      if (pending) latestComputeRef.current(pending);
+    }, 150);
+  }, []);
+
+  // Clean up any pending timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  // Kept for legacy imports — direct synchronous commit, no debounce.
+  const handlePolygonChangeImmediate = computeAndCommit;
 
   const addYardJob = useCallback(() => {
     const createYardJob = (): YardJob => ({
@@ -334,70 +386,39 @@ export function useYardMapping({
     return () => window.removeEventListener('message', handler);
   }, [handlePolygonChange, set]);
 
-  // Sync zones when active job or scope changes
+  // Sync zones to the iframe when active job or scope changes, and trigger a
+  // single canonical recompute through computeAndCommit.
+  //
+  // NOTE: previously this effect ran its own parallel price calculation. When
+  // it fired mid-drag it would race with the debounced polygon handler and
+  // produce the "price jumps / goes stale" symptom. Now it delegates to
+  // computeAndCommit so there is exactly one code path that owns pricing.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
 
-    // All zones for the active job
     const zones = activeYardJob?.polygon_geojson || [];
     postZonesToIframe(zones);
     postMessageToIframe({ type: 'YARD_SET_SCOPE', scope });
 
-    const { area, perimeter } = computeMeasurements(zones);
-    const measurement = getYardMeasurementConfig(scope);
-    const measurementValue = measurement.mode === 'perimeter' ? perimeter : area;
-
-    const currentYardParams = paramsRef.current.yard || {};
-    const nextYardParams = {
-      ...currentYardParams,
-      [measurement.field]: measurementValue,
-      ...(measurement.mode === 'area' ? { yard_area: measurementValue } : {}),
-    };
-
-    const needsUpdate =
-      currentYardParams[measurement.field] !== measurementValue ||
-      (measurement.mode === 'area' && currentYardParams.yard_area !== measurementValue);
-
-    if (needsUpdate) {
-      set('paramsByService', {
-        ...paramsRef.current,
-        yard: nextYardParams,
-      });
+    // If there's nothing drawn, just clear geometry state — no price to compute.
+    if (!zones.some((z) => z.length >= 3)) {
+      set('yardPolygon', zones);
+      set('yardArea', null);
+      set('yardPerimeter', null);
+      return;
     }
 
-    set('yardPolygon', zones);
-    set('yardArea', area || null);
-    set('yardPerimeter', perimeter || null);
-
-    // Recalculate job price when scope changes
-    if (activeYardJob?.job_id && zones.some((z) => z.length >= 3)) {
-      const yardCondMap: Record<YardConditionLevel, number> = {
-        light: 0.9,
-        standard: 1,
-        heavy: 1.18,
-      };
-
-      const yardQuote = computeYardQuote(nextYardParams, {
-        scope,
-        isTwoStoreyGutter: secondStoreyRef.current,
-        conditionMultiplier: yardCondMap[conditionLevelRef.current] ?? 1,
-        accessTight: clutterAccessRef.current,
-        conditionLevel: conditionLevelRef.current,
-        context: contextRef.current,
-      });
-
-      const price = Math.max(0, yardQuote.cost);
-
-      updateYardJob(activeYardJob.job_id, (job) => ({
-        ...job,
-        area_m2: area || null,
-        price,
-      }));
+    // Cancel any pending debounced update so we don't overwrite this one,
+    // then recompute synchronously for the new scope/job.
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
+    computeAndCommit(zones);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeYardJob?.job_id, scope, postZonesToIframe, set, getYardMeasurementConfig, computeMeasurements, computeYardQuote, updateYardJob]);
+  }, [activeYardJob?.job_id, scope, postZonesToIframe, postMessageToIframe, computeAndCommit, set]);
 
   return {
     iframeRef,

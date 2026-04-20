@@ -34,6 +34,24 @@ export type YardPricingOptions = {
   condition?: YardCondition;
   terrain?: YardTerrain;
   serviceProfile?: 'lawn' | 'garden' | 'generic';
+  /**
+   * Preferred over serviceProfile. When supplied, priceFromArea / estimateRange
+   * route through priceYardJob so all entry points share identical tier logic.
+   */
+  scope?:
+    | 'yard_mow'
+    | 'yard_leaves'
+    | 'blast_and_shine'
+    | 'yard_hedge'
+    | 'gutter_clean';
+  /** Optional difficulty flags forwarded to priceYardJob when scope is set. */
+  flags?: {
+    overgrown?: boolean;
+    steepSlope?: boolean;
+    tightAccess?: boolean;
+    urgent?: boolean;
+    twoStorey?: boolean;
+  };
 };
 
 const EARTH_RADIUS_METERS = 6378137;
@@ -79,9 +97,71 @@ export function computePerimeterFromPath(path: LatLng[]): number {
   return Math.max(0, Math.round(perimeter));
 }
 
-// Residential yard pricing (per brief)
-const RES_BASE_RATE = 2; // per m² (garden/reset default)
-const RES_MIN_CHARGE = 120;
+// ─── Brisbane / SE-QLD yard pricing (2025/26) ─────────────────────────────────
+//
+// Single source of truth. Every yard quote in the app — polygon map, assistant
+// wizard, admin revision — funnels through priceYardJob() below.
+//
+// Model: tiered per-m² (or per-metre for hedge/gutter) rates, then difficulty
+// multipliers, then a universal $79 callout floor so tiny jobs still cover the
+// van/tools/travel. Commercial kinds add a surcharge multiplier on top.
+//
+// Rates are benchmarked against public Brisbane 2025 quotes from hipages,
+// Airtasker, ServiceSeeking and competitor sites (YardPro, Jim's Mowing).
+
+/** Minimum chargeable yard job — matches "Yard Care from $79" site copy. */
+export const YARD_CALLOUT_FLOOR = 79;
+
+/**
+ * Tiers use MARGINAL rates (like income-tax brackets). For a size S, the
+ * first tier's rate applies up to its limit, the next tier's rate applies
+ * to the segment between the previous limit and its own limit, and so on.
+ * This guarantees a monotonically-increasing price curve — no boundary
+ * cliffs (the old flat-rate-at-size model could make a 801 m² lawn cheaper
+ * than an 800 m² one).
+ */
+type Tier = { limit?: number; rate: number };
+
+// Lawn mowing — calibrated to ~$100 @ 500 m², ~$160 @ 1000 m², ~$260 @ 2000 m².
+const LAWN_TIERS: Tier[] = [
+  { limit: 200, rate: 0.3 },    // first 200 m²
+  { limit: 800, rate: 0.14 },   // 200 → 800 m²
+  { limit: 2000, rate: 0.1 },   // 800 → 2000 m²
+  { rate: 0.08 },               // > 2000 m² (acreage)
+];
+
+// Garden tidy — calibrated to ~$170 @ 200 m², ~$310 @ 400 m², ~$610 @ 1000 m².
+const GARDEN_TIERS: Tier[] = [
+  { limit: 100, rate: 1.0 },
+  { limit: 400, rate: 0.7 },
+  { limit: 1000, rate: 0.5 },
+  { rate: 0.28 },
+];
+
+// Pressure washing — calibrated to ~$205 @ 40 m², ~$445 @ 100 m², ~$945 @ 300 m².
+const PRESSURE_TIERS: Tier[] = [
+  { limit: 30, rate: 5.5 },
+  { limit: 100, rate: 4.0 },
+  { limit: 300, rate: 2.5 },
+  { rate: 2.2 },
+];
+
+// Hedge trim — metres of perimeter. ~$135 @ 15 m, ~$380 @ 50 m, ~$780 @ 150 m.
+const HEDGE_TIERS: Tier[] = [
+  { limit: 15, rate: 9.0 },
+  { limit: 50, rate: 7.0 },
+  { limit: 150, rate: 4.0 },
+  { rate: 2.5 },
+];
+
+// Gutter clean — metres of perimeter. ~$160 @ 20 m, ~$360 @ 60 m, ~$630 @ 150 m.
+const GUTTER_TIERS: Tier[] = [
+  { limit: 20, rate: 8.0 },
+  { limit: 60, rate: 5.0 },
+  { limit: 150, rate: 3.0 },
+  { rate: 2.5 },
+];
+
 const RES_CONDITION: Record<YardCondition, number> = {
   maintained: 1,
   overgrown: 1.25,
@@ -93,47 +173,88 @@ const RES_TERRAIN: Record<YardTerrain, number> = {
   steep_obstacles: 1.3,
 };
 
-function priceFromAreaResidential(area: number, opts?: YardPricingOptions): number {
-  const m2 = Math.max(0, area);
-  const condition = opts?.condition ?? 'maintained';
-  const terrain = opts?.terrain ?? 'flat';
-  const conditionMult = RES_CONDITION[condition] ?? 1;
-  const terrainMult = RES_TERRAIN[terrain] ?? 1;
-  const profile = opts?.serviceProfile ?? 'garden';
-  const baseRate = profile === 'lawn' ? 1 : RES_BASE_RATE;
-  const minCharge = profile === 'lawn' ? 80 : RES_MIN_CHARGE;
-  const price = m2 * baseRate * conditionMult * terrainMult;
-  return Math.max(minCharge, Math.round(price));
-}
+// Commercial surcharge on top of residential tiers (labour/insurance overhead).
+const COMMERCIAL_MULT: Record<YardCommercialKind, number> = {
+  office: 1.15,
+  event: 1.2,
+  accommodation: 1.15,
+  medical: 1.35,
+  fitness: 1.25,
+  hospitality: 1.3,
+  education: 1.25,
+};
 
-function priceFromAreaCommercial(area: number, kind?: YardCommercialKind): number {
-  const commercialRate: Record<YardCommercialKind, number> = {
-    office: 2.4,
-    event: 2.4,
-    accommodation: 2.4,
-    medical: 2.8,
-    fitness: 2.6,
-    hospitality: 2.8,
-    education: 2.6,
-  };
-  const rate = kind ? commercialRate[kind] ?? 2.4 : 2.4;
-  const price = Math.max(0, area) * rate;
-  return Math.round(price);
-}
-
-export function priceFromArea(area: number, opts?: YardPricingOptions): number {
-  const propertyType = opts?.propertyType ?? 'residential';
-  if (propertyType === 'commercial') {
-    return priceFromAreaCommercial(area, opts?.commercialKind);
+/** Marginal rate in effect at `size` — used for "per m² at this size" UI copy. */
+const pickTierRate = (size: number, tiers: Tier[]): number => {
+  for (const tier of tiers) {
+    if (tier.limit == null || size <= tier.limit) return tier.rate;
   }
-  return priceFromAreaResidential(area, opts);
+  return tiers[tiers.length - 1].rate;
+};
+
+/**
+ * Accumulate price across tier brackets (marginal rate math). Guarantees a
+ * monotonically-increasing, continuous curve over size.
+ *
+ *   size 500 on LAWN_TIERS
+ *   = 200 * 0.30            // first 200 m²
+ *   + 300 * 0.14            // the 300 m² that fall in the 200–800 bracket
+ *   = 60 + 42
+ *   = $102
+ */
+function priceFromTiers(size: number, tiers: Tier[]): number {
+  const safeSize = Math.max(0, size);
+  let total = 0;
+  let covered = 0;
+  for (const tier of tiers) {
+    const cap = tier.limit ?? Infinity;
+    const segment = Math.min(safeSize, cap) - covered;
+    if (segment <= 0) break;
+    total += segment * tier.rate;
+    covered = cap;
+    if (safeSize <= cap) break;
+  }
+  return total;
 }
 
-export function estimateRange(area: number, opts?: YardPricingOptions): { low: number; high: number } {
+function applyResidentialMultipliers(base: number, opts?: YardPricingOptions): number {
+  const condition = RES_CONDITION[opts?.condition ?? 'maintained'] ?? 1;
+  const terrain = RES_TERRAIN[opts?.terrain ?? 'flat'] ?? 1;
+  return base * condition * terrain;
+}
+
+function applyPropertyTypeMultiplier(base: number, opts?: YardPricingOptions): number {
+  if (opts?.propertyType !== 'commercial') return base;
+  const kind = opts.commercialKind ?? 'office';
+  return base * (COMMERCIAL_MULT[kind] ?? 1.15);
+}
+
+/**
+ * Back-compat entry point — delegates to priceYardJob when `scope` is set,
+ * otherwise uses the legacy lawn/garden profile split. Prefer priceYardJob.
+ */
+export function priceFromArea(area: number, opts?: YardPricingOptions): number {
+  if (opts?.scope) {
+    return priceYardJob(opts.scope, area, opts.flags, opts).finalPrice;
+  }
+  const profile = opts?.serviceProfile ?? 'lawn';
+  const tiers =
+    profile === 'lawn' ? LAWN_TIERS : profile === 'garden' ? GARDEN_TIERS : LAWN_TIERS;
+  let price = priceFromTiers(area, tiers);
+  price = applyResidentialMultipliers(price, opts);
+  price = applyPropertyTypeMultiplier(price, opts);
+  return Math.max(YARD_CALLOUT_FLOOR, Math.round(price));
+}
+
+export function estimateRange(
+  area: number,
+  opts?: YardPricingOptions,
+): { low: number; high: number } {
   const price = priceFromArea(area, opts);
+  // ±12% uncertainty band until the polygon is confirmed.
   return {
-    low: price,
-    high: price,
+    low: Math.max(YARD_CALLOUT_FLOOR, Math.round(price * 0.9)),
+    high: Math.max(YARD_CALLOUT_FLOOR, Math.round(price * 1.15)),
   };
 }
 
@@ -166,14 +287,22 @@ export type DifficultyFlags = {
   steepSlope?: boolean;
   tightAccess?: boolean;
   urgent?: boolean;
+  /** Gutter-only: two-storey height multiplier (applied in priceGutters). */
+  twoStorey?: boolean;
 };
 
 export type PricingResult = {
+  /** Raw input size (m² for area services, m for perimeter services). */
   size: number;
+  /** Tier rate selected for this size. */
   rate: number;
+  /** size × rate, before multipliers and before the $79 floor. */
   basePrice: number;
+  /** True when the $79 callout floor kicked in (small jobs). */
   minimumApplied: boolean;
+  /** Combined difficulty multiplier (1 means no adjustments). */
   difficultyMultiplier: number;
+  /** Final quoted price (integer dollars). */
   finalPrice: number;
 };
 
@@ -182,42 +311,45 @@ const DIFFICULTY_MULTIPLIERS: Record<keyof DifficultyFlags, number> = {
   steepSlope: 1.25,
   tightAccess: 1.15,
   urgent: 1.2,
+  twoStorey: 1.6, // only applied for gutters; ignored elsewhere
 };
 
-const applyDifficultyMultiplier = (flags?: DifficultyFlags) => {
+const applyDifficultyMultiplier = (
+  flags: DifficultyFlags | undefined,
+  allowed: (keyof DifficultyFlags)[],
+): number => {
   if (!flags) return 1;
-  return (Object.keys(flags) as (keyof DifficultyFlags)[]).reduce((mult, flag) => {
-    if (flags[flag]) {
-      return mult * (DIFFICULTY_MULTIPLIERS[flag] ?? 1);
-    }
+  return allowed.reduce((mult, flag) => {
+    if (flags[flag]) return mult * (DIFFICULTY_MULTIPLIERS[flag] ?? 1);
     return mult;
   }, 1);
 };
 
-const pickRate = (size: number, tiers: { limit?: number; rate: number }[]): number => {
-  for (const tier of tiers) {
-    if (tier.limit == null || size <= tier.limit) {
-      return tier.rate;
-    }
-  }
-  return tiers[tiers.length - 1].rate;
-};
-
 const buildPricingResult = (
   size: number,
-  tiers: { limit?: number; rate: number }[],
-  minimum: number,
-  flags?: DifficultyFlags
+  tiers: Tier[],
+  flags: DifficultyFlags | undefined,
+  allowed: (keyof DifficultyFlags)[],
+  opts?: YardPricingOptions,
 ): PricingResult => {
-  const rate = pickRate(size, tiers);
-  const basePrice = size * rate;
-  const minimumApplied = basePrice < minimum;
-  const priceBeforeMultiplier = minimumApplied ? minimum : basePrice;
-  const difficultyMultiplier = applyDifficultyMultiplier(flags);
-  const finalPrice = Math.round(priceBeforeMultiplier * difficultyMultiplier);
+  const safeSize = Math.max(0, size);
+  // rate = marginal rate in effect at this size (for display / debug).
+  // basePrice = full marginal-rate accumulation across tiers.
+  const rate = pickTierRate(safeSize, tiers);
+  const basePrice = priceFromTiers(safeSize, tiers);
+
+  const difficultyMultiplier = applyDifficultyMultiplier(flags, allowed);
+  const residentialMultiplier =
+    applyResidentialMultipliers(1, opts) * (opts?.propertyType === 'commercial'
+      ? (COMMERCIAL_MULT[opts.commercialKind ?? 'office'] ?? 1.15)
+      : 1);
+
+  const priceBeforeFloor = basePrice * difficultyMultiplier * residentialMultiplier;
+  const minimumApplied = priceBeforeFloor < YARD_CALLOUT_FLOOR;
+  const finalPrice = Math.max(YARD_CALLOUT_FLOOR, Math.round(priceBeforeFloor));
 
   return {
-    size,
+    size: safeSize,
     rate,
     basePrice,
     minimumApplied,
@@ -226,68 +358,94 @@ const buildPricingResult = (
   };
 };
 
-export function priceLawn(areaM2: number, flags?: DifficultyFlags): PricingResult {
-  return buildPricingResult(
-    areaM2,
-    [
-      { limit: 300, rate: 0.14 },
-      { limit: 800, rate: 0.1 },
-      { limit: 2000, rate: 0.07 },
-      { rate: 0.05 },
-    ],
-    60,
-    flags
-  );
+export function priceLawn(
+  areaM2: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  return buildPricingResult(areaM2, LAWN_TIERS, flags, ['overgrown', 'steepSlope', 'tightAccess', 'urgent'], opts);
 }
 
-export function priceGarden(areaM2: number, flags?: DifficultyFlags): PricingResult {
-  return buildPricingResult(
-    areaM2,
-    [
-      { limit: 300, rate: 0.22 },
-      { limit: 800, rate: 0.18 },
-      { rate: 0.14 },
-    ],
-    90,
-    flags
-  );
+export function priceGarden(
+  areaM2: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  return buildPricingResult(areaM2, GARDEN_TIERS, flags, ['overgrown', 'steepSlope', 'tightAccess', 'urgent'], opts);
 }
 
-export function pricePressure(areaM2: number, flags?: DifficultyFlags): PricingResult {
-  return buildPricingResult(
-    areaM2,
-    [
-      { limit: 100, rate: 0.35 },
-      { limit: 250, rate: 0.28 },
-      { rate: 0.22 },
-    ],
-    120,
-    flags
-  );
+export function pricePressure(
+  areaM2: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  return buildPricingResult(areaM2, PRESSURE_TIERS, flags, ['overgrown', 'tightAccess', 'urgent'], opts);
 }
 
-export function priceHedges(perimeterM: number, flags?: DifficultyFlags): PricingResult {
+export function priceHedges(
+  perimeterM: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  return buildPricingResult(perimeterM, HEDGE_TIERS, flags, ['overgrown', 'tightAccess', 'urgent'], opts);
+}
+
+export function priceGutters(
+  perimeterM: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  // Gutters support the two-storey multiplier in addition to the standard flags.
   return buildPricingResult(
     perimeterM,
-    [
-      { limit: 40, rate: 4.5 },
-      { limit: 120, rate: 3.6 },
-      { rate: 3 },
-    ],
-    150,
-    flags
+    GUTTER_TIERS,
+    flags,
+    ['overgrown', 'tightAccess', 'urgent', 'twoStorey'],
+    opts,
   );
 }
 
-export function priceGutters(perimeterM: number, flags?: DifficultyFlags): PricingResult {
-  return buildPricingResult(
-    perimeterM,
-    [
-      { limit: 40, rate: 4 },
-      { limit: 120, rate: 3.2 },
-      { rate: 2.6 },
-    ],
-    140,
-    flags
-  );
+// ─── Unified entry point ──────────────────────────────────────────────────────
+
+export type YardScope =
+  | 'yard_mow'
+  | 'yard_leaves'
+  | 'blast_and_shine'
+  | 'yard_hedge'
+  | 'gutter_clean';
+
+/** Maps engine.ts scope keys to their measurement mode + pricing function. */
+export const YARD_MEASUREMENT_MODE: Record<YardScope, 'area' | 'perimeter'> = {
+  yard_mow: 'area',
+  yard_leaves: 'area',
+  blast_and_shine: 'area',
+  yard_hedge: 'perimeter',
+  gutter_clean: 'perimeter',
+};
+
+/**
+ * Single source-of-truth for every yard quote in the app.
+ * `size` is m² for mow/leaves/blast, metres for hedge/gutter.
+ */
+export function priceYardJob(
+  scope: YardScope,
+  size: number,
+  flags?: DifficultyFlags,
+  opts?: YardPricingOptions,
+): PricingResult {
+  switch (scope) {
+    case 'yard_mow':
+      return priceLawn(size, flags, opts);
+    case 'yard_leaves':
+      return priceGarden(size, flags, opts);
+    case 'blast_and_shine':
+      return pricePressure(size, flags, opts);
+    case 'yard_hedge':
+      return priceHedges(size, flags, opts);
+    case 'gutter_clean':
+      return priceGutters(size, flags, opts);
+    default:
+      // Unknown scope → treat as lawn so we never silently return $0.
+      return priceLawn(size, flags, opts);
+  }
 }

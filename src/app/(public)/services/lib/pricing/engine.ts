@@ -33,6 +33,12 @@ import { TASK_MAP } from '../service-data';
 import type { CarType } from '@/app/ui/car/useCarModelSelector';
 import type { VehicleSizeCategory } from '@/lib/rego/types';
 import { calculatePrice } from '@/lib/rego/pricing';
+import {
+  priceYardJob,
+  YARD_CALLOUT_FLOOR,
+  type DifficultyFlags as YardDifficultyFlags,
+  type YardScope,
+} from '@/app/ui/yard/yardPricing';
 
 /* ===== SS Cleaning (scope-style minutes) ===== */
 
@@ -375,99 +381,90 @@ type YardQuoteOpts = {
   context?: Context;
 };
 
-const YARD_HOURLY_RATE = 60;
-const YARD_ACCESS_EXTRA_HOURS = 0.5;
-const YARD_GUTTER_TWO_STOREY_MULT = 1.6;
-const YARD_MIN_CONDITION_MULT = 0.7;
-const YARD_MAX_CONDITION_MULT = 1.6;
+// ─── Yard quote — delegates to the single source of truth in yardPricing.ts ──
 
 const YARD_SCOPE_KEYS = ['yard_mow', 'yard_hedge', 'yard_leaves', 'blast_and_shine', 'gutter_clean'] as const;
 type YardScopeKey = (typeof YARD_SCOPE_KEYS)[number];
 const YARD_SCOPE_SET = new Set<YardScopeKey>(YARD_SCOPE_KEYS);
 
-const YARD_SERVICE_RULES: Record<
+/**
+ * Hour estimates are informational only (scheduling / "about X hours" UI).
+ * The cost is determined by priceYardJob, not by hours × hourly rate.
+ */
+const YARD_HOUR_RULES: Record<
   YardScopeKey,
   { denominator: number; minHours: number; maxHours: number }
 > = {
-  yard_mow: { denominator: 500, minHours: 1, maxHours: 7 },
-  yard_hedge: { denominator: 35, minHours: 1, maxHours: 7 },
-  yard_leaves: { denominator: 300, minHours: 1, maxHours: 7 },
-  blast_and_shine: { denominator: 140, minHours: 1, maxHours: 6 },
-  gutter_clean: { denominator: 30, minHours: 1, maxHours: 6 },
+  yard_mow: { denominator: 500, minHours: 0.75, maxHours: 7 },
+  yard_hedge: { denominator: 35, minHours: 0.75, maxHours: 7 },
+  yard_leaves: { denominator: 300, minHours: 0.75, maxHours: 7 },
+  blast_and_shine: { denominator: 140, minHours: 0.75, maxHours: 6 },
+  gutter_clean: { denominator: 30, minHours: 0.75, maxHours: 6 },
 };
 
 const resolveYardScope = (scope?: ScopeKey): YardScopeKey =>
   scope && YARD_SCOPE_SET.has(scope as YardScopeKey) ? (scope as YardScopeKey) : 'yard_mow';
 
+/**
+ * Translate useYardMapping's condition level + access flag into the
+ * difficulty-flag shape that priceYardJob expects.
+ */
+function flagsFromOpts(opts: YardQuoteOpts, scope: YardScopeKey): YardDifficultyFlags {
+  const flags: YardDifficultyFlags = {};
+  // Condition level: 'heavy' triggers the overgrown multiplier.
+  // 'light' and 'standard' do not — they're meant to *reduce* price, and
+  // that's now handled by the tier rates themselves.
+  if (opts.conditionLevel === 'heavy') flags.overgrown = true;
+  if (opts.accessTight) flags.tightAccess = true;
+  if (scope === 'gutter_clean' && opts.isTwoStoreyGutter) flags.twoStorey = true;
+  return flags;
+}
+
 export function computeYardQuote(params: NumericParams, opts: YardQuoteOpts = {}) {
   const scope = resolveYardScope(opts.scope);
   const areaOverride = toNumber((params as any).yard_area ?? (params as any).area_m2, 0);
 
-  const areaBuckets: Record<'lawn' | 'garden' | 'blast', number> = {
-    lawn: toNumber(params.lawn_m2 ?? 0, 0),
-    garden: toNumber(params.leaves_area ?? 0, 0),
-    blast: toNumber(params.blast_m2 ?? 0, 0),
-  };
-
-  const areaScopeMap: Partial<Record<YardScopeKey, keyof typeof areaBuckets>> = {
-    yard_mow: 'lawn',
-    yard_leaves: 'garden',
-    blast_and_shine: 'blast',
-  };
-
-  const primaryAreaKey = areaScopeMap[scope];
-  if (primaryAreaKey) {
-    const overrideValue = areaOverride > 0 ? areaOverride : areaBuckets[primaryAreaKey];
-    (Object.keys(areaBuckets) as (keyof typeof areaBuckets)[]).forEach((key) => {
-      areaBuckets[key] = key === primaryAreaKey ? overrideValue : 0;
-    });
-  } else {
-    const nonZeroAreaKeys = (Object.entries(areaBuckets) as [keyof typeof areaBuckets, number][])
-      .filter(([, value]) => value > 0)
-      .map(([key]) => key);
-    if (nonZeroAreaKeys.length > 1) {
-      const keepKey = nonZeroAreaKeys[0];
-      (Object.keys(areaBuckets) as (keyof typeof areaBuckets)[]).forEach((key) => {
-        if (key !== keepKey) areaBuckets[key] = 0;
-      });
+  // Pull per-service measurement. Only the scope-relevant field matters;
+  // yard_area is accepted as a fallback from the polygon map.
+  const measurement = (() => {
+    switch (scope) {
+      case 'yard_mow':
+        return areaOverride > 0 ? areaOverride : toNumber(params.lawn_m2 ?? 0, 0);
+      case 'yard_leaves':
+        return areaOverride > 0 ? areaOverride : toNumber(params.leaves_area ?? 0, 0);
+      case 'blast_and_shine':
+        return areaOverride > 0 ? areaOverride : toNumber(params.blast_m2 ?? 0, 0);
+      case 'yard_hedge':
+        return areaOverride > 0 ? areaOverride : toNumber(params.hedge_m ?? 0, 0);
+      case 'gutter_clean':
+        return areaOverride > 0 ? areaOverride : toNumber(params.gutter_m ?? 0, 0);
     }
-  }
+  })();
 
-  const measurementValues: Record<YardScopeKey, number> = {
-    yard_mow: areaBuckets.lawn,
-    yard_hedge: toNumber(params.hedge_m ?? 0, 0),
-    yard_leaves: areaBuckets.garden,
-    blast_and_shine: areaBuckets.blast,
-    gutter_clean: toNumber(params.gutter_m ?? 0, 0),
-  };
+  const units = Math.max(0, measurement);
 
-  const serviceRule = YARD_SERVICE_RULES[scope];
-  const rawUnits = Math.max(0, measurementValues[scope] ?? 0);
-  const rawHours = rawUnits / serviceRule.denominator;
+  // ── Price: delegate to the single source of truth ──
+  const flags = flagsFromOpts(opts, scope);
+  const result = priceYardJob(scope as YardScope, units, flags);
+  const price = result.finalPrice;
 
-  const conditionMult = clamp(
-    opts.conditionMultiplier ?? 1,
-    YARD_MIN_CONDITION_MULT,
-    YARD_MAX_CONDITION_MULT
-  );
-
-  let adjustedHours = rawHours * conditionMult;
-  if (opts.accessTight) {
-    adjustedHours += YARD_ACCESS_EXTRA_HOURS;
-  }
-  if (scope === 'gutter_clean' && opts.isTwoStoreyGutter) {
-    adjustedHours *= YARD_GUTTER_TWO_STOREY_MULT;
-  }
-
-  const clampedHours = clamp(adjustedHours, serviceRule.minHours, serviceRule.maxHours);
+  // ── Hours: independent rough estimate, used only for UI ──
+  const rule = YARD_HOUR_RULES[scope];
+  const rawHours = units / rule.denominator;
+  // A light "difficulty stretches the clock" factor — doesn't affect price.
+  const hourMultiplier =
+    (flags.overgrown ? 1.2 : 1) *
+    (flags.tightAccess ? 1.1 : 1) *
+    (flags.twoStorey ? 1.3 : 1);
+  const clampedHours = clamp(rawHours * hourMultiplier, rule.minHours, rule.maxHours);
   const minutes = Math.round(clampedHours * 60);
-  const price = Math.round(clampedHours * YARD_HOURLY_RATE);
 
   return {
     hours: clampedHours,
     minutes,
     cost: price,
-    labourFloor: price,
+    // labourFloor is the $79 callout when the tier math came in under it.
+    labourFloor: result.minimumApplied ? YARD_CALLOUT_FLOOR : price,
   };
 }
 

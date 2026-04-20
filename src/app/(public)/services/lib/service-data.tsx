@@ -14,7 +14,7 @@ export const SERVICES = [
   { key: 'windows',  label: 'Window Cleaning',      icon: <WindowIcon />, subtitle: 'Panes · Tracks',           from: '$79' },
   { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · Deep · EoL',      from: '$99',  popular: true },
   { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · Hedge · Tidy',       from: '$79',  popular: true },
-  { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · Delivery',          from: '$99' },
+  { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · Delivery',          from: '$200' },
   { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full',           from: '$99' },
   { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · Fold · Sneakers', from: '$74' },
 ] as const;
@@ -352,7 +352,7 @@ export const SCOPES_BY_SERVICE: Record<ServiceType, ScopeDef[]> = {
     { key: 'dump_runs', label: 'Dump runs', inclusions: ['Pickup & dispose', 'Load assistance'], desc: 'Pickup runs to disposal facility.' },
     { key: 'bin_cleans', label: 'Bin cleans', inclusions: ['Wash & deodorise bins'], desc: 'Bin cleaning and deodorising.' },
     { key: 'dump_delivery', label: 'Delivery services', inclusions: ['Pickup items', 'Deliver to location', 'Load/unload help'], desc: 'Small deliveries or drop-offs with load assistance.' },
-    { key: 'dump_transport', label: 'Transport / move assistance', inclusions: ['Move goods between sites', 'Load / unload help', 'Protect items in transit'], desc: 'Helping transport or move items from A to B.' },
+    { key: 'dump_transport', label: 'Transport & Haul', inclusions: ['Move goods between sites', 'Load / unload help', 'Protect items in transit'], desc: 'Move or haul items between locations — furniture, gear, or a single-room move.' },
   ],
   auto: [
     {

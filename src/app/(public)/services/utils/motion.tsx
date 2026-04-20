@@ -1,36 +1,38 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+'use client';
 
-// SSR-safe motion toggle
-export const WITH_MOTION = (() => {
-  try {
-    if (typeof window === 'undefined') return true;
-    return !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return true;
-  }
-})();
+import React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 
 export const MotionContext = React.createContext(true);
 
+const MOTION_PROPS = new Set([
+  'initial', 'animate', 'exit', 'whileInView', 'whileHover', 'whileTap',
+  'whileFocus', 'whileDrag', 'variants', 'transition', 'viewport', 'layout',
+  'layoutId', 'layoutDependency', 'onAnimationStart', 'onAnimationComplete', 'onUpdate',
+]);
+
+function stripMotionProps(props: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(props).filter(([k]) => !MOTION_PROPS.has(k)));
+}
+
 const MButton = ({ children, ...props }: any) => {
-  const motionAllowed = React.useContext(MotionContext) && WITH_MOTION;
-  return motionAllowed ? (
-    <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} {...props}>
-      {children}
-    </motion.button>
-  ) : (
-    <button {...props}>{children}</button>
-  );
+  const contextAllowed = React.useContext(MotionContext);
+  const reducedMotion = useReducedMotion();
+  const motionAllowed = contextAllowed && !reducedMotion;
+  // Always render motion.button so React's component tree stays consistent across SSR/CSR.
+  return motionAllowed
+    ? <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} {...props}>{children}</motion.button>
+    : <motion.button {...stripMotionProps(props)}>{children}</motion.button>;
 };
 
-const MOTION_PROPS = new Set(['initial', 'animate', 'exit', 'whileInView', 'whileHover', 'whileTap', 'whileFocus', 'whileDrag', 'variants', 'transition', 'viewport', 'layout', 'layoutId', 'layoutDependency', 'onAnimationStart', 'onAnimationComplete', 'onUpdate']);
-
 const MDiv = ({ children, ...props }: any) => {
-  const motionAllowed = React.useContext(MotionContext) && WITH_MOTION;
-  if (motionAllowed) return <motion.div {...props}>{children}</motion.div>;
-  const domProps = Object.fromEntries(Object.entries(props).filter(([k]) => !MOTION_PROPS.has(k)));
-  return <div {...domProps}>{children}</div>;
+  const contextAllowed = React.useContext(MotionContext);
+  const reducedMotion = useReducedMotion();
+  const motionAllowed = contextAllowed && !reducedMotion;
+  // Always render motion.div so React's component tree stays consistent across SSR/CSR.
+  return motionAllowed
+    ? <motion.div {...props}>{children}</motion.div>
+    : <motion.div {...stripMotionProps(props)}>{children}</motion.div>;
 };
 
 export const M = {

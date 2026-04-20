@@ -210,22 +210,17 @@ export function FeedbackWidget() {
 
       {/* ─────────────────────────────────────────────────────────────────────
           3. Demoted feedback tab — desktop only, bottom-right corner
+          Hidden on /services — the quote assistant occupies that space.
          ───────────────────────────────────────────────────────────────────── */}
       <div className="hidden md:block fixed bottom-6 right-4 z-40">
         <button
           onClick={() => setFeedbackOpen(true)}
           aria-label="Report an issue"
           data-tracking-name="feedback_entry"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-medium hover:opacity-75 transition-opacity"
-          style={{
-            background: 'rgba(255,255,255,0.88)',
-            borderColor: 'rgba(0,0,0,0.10)',
-            color: brand.muted,
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-          }}
+          className="flex items-center gap-1 text-[11px] transition-opacity hover:opacity-100"
+          style={{ color: 'rgba(0,0,0,0.28)', opacity: 0.7 }}
         >
-          <ChatIcon size={13} />
+          <ChatIcon size={11} />
           Report issue
         </button>
       </div>
