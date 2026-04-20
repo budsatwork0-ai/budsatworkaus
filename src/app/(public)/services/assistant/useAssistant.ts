@@ -22,6 +22,7 @@ import {
   priceQuote,
   selectedFromParams,
   computeDumpDisposalFee,
+  DUMP_LOAD_META,
 } from '../lib/pricing/engine';
 import {
   SNEAKER_MULTI_PRICING,
@@ -48,6 +49,7 @@ type InternalAction =
   | { type: 'answer'; id: AssistantAnswerId; value: string | number }
   | { type: 'next' }
   | { type: 'prev' }
+  | { type: 'goto'; index: number }
   | { type: 'set_service'; service: ServiceType };
 
 function assistantReducer(state: AssistantState, action: InternalAction): AssistantState {
@@ -55,9 +57,16 @@ function assistantReducer(state: AssistantState, action: InternalAction): Assist
     case 'open':
       return { ...state, open: true };
     case 'close':
-      return { ...state, open: false };
+      return { ...state, open: false, service: null, answers: {}, questionIndex: 0 };
     case 'dismiss':
-      return { ...state, open: false, dismissed: true };
+      return {
+        ...state,
+        open: false,
+        dismissed: true,
+        service: null,
+        answers: {},
+        questionIndex: 0,
+      };
     case 'init_dismissed':
       return { ...state, dismissed: true };
     case 'answer': {
@@ -72,6 +81,8 @@ function assistantReducer(state: AssistantState, action: InternalAction): Assist
         return { ...state, service: null, answers: {}, questionIndex: 0 };
       }
       return { ...state, questionIndex: state.questionIndex - 1 };
+    case 'goto':
+      return { ...state, questionIndex: Math.max(0, action.index) };
     case 'set_service':
       return { ...state, service: action.service, answers: {}, questionIndex: 0 };
     default:
@@ -97,13 +108,13 @@ function computeLiveEstimate(
     const dumpRun = (payload.dumpRun as DumpRunSelection) ?? { loadType: 'ute', loads: 1 };
     const loads = Math.max(1, dumpRun.loads || 1);
     const loadType = dumpRun.loadType ?? 'ute';
+    const meta = DUMP_LOAD_META[loadType];
 
-    // Mirror calculateEstimatedPrice's combinePricing logic:
-    //   base callout + effort blocks (loads × 1.5, +1 for trailers)
-    //   + physical blocks (1 for bulky) + travel (short-haul included)
-    let effortBlocks = loads * 1.5;
-    if (loadType === 'trailer') effortBlocks += 1;
-    const physicalBlocks = loadType === 'bulky' ? 1 : 0;
+    // Single source of truth for per-load-type effort and physical blocks.
+    // See DUMP_LOAD_META in engine.ts — keeps the assistant estimate, full
+    // wizard, and checkout numbers aligned.
+    const effortBlocks = loads * meta.effortPerLoad + meta.extraEffort;
+    const physicalBlocks = meta.physicalBlocks;
 
     // Use the midpoint of the effort/physical ranges so the assistant shows
     // a single confident number rather than a wide range.
@@ -119,7 +130,15 @@ function computeLiveEstimate(
     const total = Math.round(labour + disposal);
 
     const loadLabel =
-      loadType === 'trailer' ? 'medium load' : loadType === 'bulky' ? 'bulky items' : 'small load';
+      loadType === 'single_item'
+        ? 'single item'
+        : loadType === 'half_trailer'
+        ? 'half trailer'
+        : loadType === 'trailer'
+        ? 'medium load'
+        : loadType === 'bulky'
+        ? 'bulky items'
+        : 'small load';
     const breakdown =
       `${loads} ${loadLabel}${loads > 1 ? 's' : ''} · incl. tip fees · ~12 km included`;
 
@@ -127,28 +146,82 @@ function computeLiveEstimate(
   }
 
   if (service === 'dump' && scope === 'dump_delivery') {
-    // User didn't pick an item type in the assistant — use a sensible default.
-    const selection: DeliverySelection = {
+    // Prefer the user's answers from the assistant; fall back to sensible
+    // defaults so an early live estimate is still shown on question 1–2.
+    const delivery = (payload.dumpDelivery as DeliverySelection | undefined) ?? {
       ...DEFAULT_DUMP_DELIVERY,
       itemType: 'household',
     };
-    const result = calcDeliveryQuote(selection, ASSISTANT_DEFAULT_KM);
-    if (result.isCustomQuote || !result.total) return null;
+    const distanceKm =
+      delivery.distance === 'same_suburb'
+        ? 4
+        : delivery.distance === 'drive_30'
+        ? 12
+        : delivery.distance === 'drive_60'
+        ? 30
+        : ASSISTANT_DEFAULT_KM;
+    const result = calcDeliveryQuote(delivery, distanceKm);
+    if (result.isCustomQuote || !result.total) {
+      return {
+        total: 0,
+        confidence: 'custom',
+        breakdown: 'Longer trips — we confirm the exact quote before booking.',
+      };
+    }
+    const itemLabel =
+      delivery.itemType === 'parcel' ? 'Parcel'
+        : delivery.itemType === 'mattress' ? 'Mattress'
+        : delivery.itemType === 'groceries' ? 'Groceries'
+        : delivery.itemType === 'tools' ? 'Tools / gear'
+        : 'Household item';
+    const distanceLabel =
+      delivery.distance === 'same_suburb' ? 'Same suburb'
+        : delivery.distance === 'drive_30' ? '~30-min drive'
+        : delivery.distance === 'drive_60' ? '~60-min drive'
+        : 'Longer trip';
+    const assistLabel =
+      delivery.assist === 'need_help' ? ' · help carrying' : ' · drop-off only';
     return {
       total: result.total,
       confidence: 'estimate',
-      breakdown: `Household item · ~${ASSISTANT_DEFAULT_KM} km · pickup & drop-off`,
+      breakdown: `${itemLabel} · ${distanceLabel}${assistLabel}`,
     };
   }
 
   if (service === 'dump' && scope === 'dump_transport') {
-    const selection: TransportSelection = { ...DEFAULT_DUMP_TRANSPORT };
-    const result = calcTransportQuote(selection, ASSISTANT_DEFAULT_KM);
-    if (result.isCustomQuote || !result.total) return null;
+    const transport =
+      (payload.dumpTransport as TransportSelection | undefined) ??
+      { ...DEFAULT_DUMP_TRANSPORT };
+    const distanceKm = ASSISTANT_DEFAULT_KM;
+    const result = calcTransportQuote(transport, distanceKm);
+    if (result.isCustomQuote || !result.total) {
+      return {
+        total: 0,
+        confidence: 'custom',
+        breakdown: 'Full moves — we confirm the exact quote before booking.',
+      };
+    }
+    const moveLabel =
+      transport.moveType === 'house' ? 'House move'
+        : transport.moveType === 'student' ? 'Student move'
+        : transport.moveType === 'office' ? 'Office / gear'
+        : transport.moveType === 'event' ? 'Event move'
+        : 'Bedroom move';
+    const loadLabel =
+      transport.loadSize === 'bags' ? 'bags'
+        : transport.loadSize === 'boot' ? 'boot-full'
+        : transport.loadSize === 'full_move' ? 'full move'
+        : 'small load';
+    const stairsLabel =
+      transport.stairs === 'none' ? ''
+        : transport.stairs === 'one' ? ' · 1 flight'
+        : transport.stairs === 'no_lift' ? ' · no lift'
+        : ' · multi-flight';
+    const helpers = transport.helpers ?? 1;
     return {
       total: result.total,
       confidence: 'estimate',
-      breakdown: `Small load · 1 helper · ~${ASSISTANT_DEFAULT_KM} km included`,
+      breakdown: `${moveLabel} · ${loadLabel}${stairsLabel} · ${helpers} helper${helpers > 1 ? 's' : ''}`,
     };
   }
 
@@ -377,6 +450,12 @@ export function useAssistant(opts: {
 
   const onBack = useCallback(() => assistantDispatch({ type: 'prev' }), []);
 
+  // Jump directly back to the rego lookup step (used by the persisted rego
+  // banner's "Change" button on subsequent steps).
+  const onJumpToRegoLookup = useCallback(() => {
+    assistantDispatch({ type: 'goto', index: 0 });
+  }, []);
+
   const onHandoff = useCallback(() => {
     if (!state.service) return;
     const payload = buildMergePayload(state.service, state.answers);
@@ -397,6 +476,15 @@ export function useAssistant(opts: {
     canGoBack,
     canAdvance,
     isComplete,
-    handlers: { onOpen, onClose, onDismiss, onAnswer, onNext, onBack, onHandoff },
+    handlers: {
+      onOpen,
+      onClose,
+      onDismiss,
+      onAnswer,
+      onNext,
+      onBack,
+      onHandoff,
+      onJumpToRegoLookup,
+    },
   };
 }

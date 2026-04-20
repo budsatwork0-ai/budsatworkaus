@@ -7,7 +7,18 @@ export const QUESTION_SEQUENCES: Record<ServiceType, QuestionId[]> = {
   windows:          ['win_storeys', 'win_panes_int', 'win_panes_ext', 'win_tracks', 'win_screens'],
   cleaning:         ['clean_scope', 'clean_bedrooms', 'clean_bathrooms'],
   yard:             ['yard_scope', 'yard_size_bucket'],
-  dump:             ['dump_subtype', 'dump_load_type', 'dump_load_count'],
+  dump: [
+    'dump_subtype',
+    'dump_load_type',
+    'dump_load_count',
+    'dump_delivery_item',
+    'dump_delivery_distance',
+    'dump_delivery_assist',
+    'dump_transport_move',
+    'dump_transport_load',
+    'dump_transport_stairs',
+    'dump_transport_helpers',
+  ],
   auto:             ['auto_rego_lookup', 'auto_vehicle_size', 'auto_service_level'],
   laundry_sneakers: ['ls_tier', 'ls_laundry_loads', 'ls_sneaker_pairs', 'ls_turnaround'],
 };
@@ -23,7 +34,7 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
       { value: 'windows',          label: 'Window Cleaning',    sublabel: 'From $79' },
       { value: 'cleaning',         label: 'Home Cleaning',      sublabel: 'From $99' },
       { value: 'yard',             label: 'Yard Care',          sublabel: 'From $79' },
-      { value: 'dump',             label: 'Removal & Delivery', sublabel: 'From $99' },
+      { value: 'dump',             label: 'Removal & Delivery', sublabel: 'From $105' },
       { value: 'auto',             label: 'Car Detailing',      sublabel: 'From $99' },
       { value: 'laundry_sneakers', label: 'Laundry & Sneakers', sublabel: 'From $74' },
     ],
@@ -145,9 +156,11 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
     prompt: 'How much are we clearing?',
     kind: 'button-grid',
     options: [
-      { value: 'ute',     label: 'Small load',   sublabel: 'Ute or 6×4 trailer · ~1.5 m³' },
-      { value: 'trailer', label: 'Medium load',  sublabel: 'Large trailer · ~2.5 m³' },
-      { value: 'bulky',   label: 'Bulky items',  sublabel: 'Couches, fridges, mattresses' },
+      { value: 'single_item',  label: 'Single item',  sublabel: 'One piece · ~0.5 m³ · quick pickup' },
+      { value: 'ute',          label: 'Small load',   sublabel: 'Ute or 6×4 trailer · ~1.5 m³' },
+      { value: 'half_trailer', label: 'Half trailer', sublabel: 'Box trailer ~half full · ~2 m³' },
+      { value: 'trailer',      label: 'Medium load',  sublabel: 'Large trailer · ~2.5 m³' },
+      { value: 'bulky',        label: 'Bulky items',  sublabel: 'Couches, fridges, mattresses' },
     ],
   },
   dump_load_count: {
@@ -159,11 +172,95 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
     defaultValue: 1,
   },
 
+  // Delivery
+  dump_delivery_item: {
+    id: 'dump_delivery_item',
+    prompt: 'What are we delivering?',
+    kind: 'button-grid',
+    options: [
+      { value: 'parcel',     label: 'Parcel',      sublabel: 'Small box, envelope' },
+      { value: 'household',  label: 'Household',   sublabel: 'Furniture, appliance' },
+      { value: 'mattress',   label: 'Mattress',    sublabel: 'Awkward to move' },
+      { value: 'groceries',  label: 'Groceries',   sublabel: 'Bags or trolley' },
+      { value: 'tools',      label: 'Tools / gear', sublabel: 'Work equipment' },
+    ],
+  },
+  dump_delivery_distance: {
+    id: 'dump_delivery_distance',
+    prompt: 'How far is the drop-off?',
+    hint: 'Approximate — we confirm the exact route before booking.',
+    kind: 'button-grid',
+    options: [
+      { value: 'same_suburb', label: 'Same suburb',   sublabel: '< 5 km' },
+      { value: 'drive_30',    label: '30-min drive',  sublabel: '~5–20 km' },
+      { value: 'drive_60',    label: '60-min drive',  sublabel: '~20–40 km' },
+      { value: 'long',        label: 'Longer trip',   sublabel: '40+ km · custom quote' },
+    ],
+  },
+  dump_delivery_assist: {
+    id: 'dump_delivery_assist',
+    prompt: 'Need help carrying?',
+    hint: 'Choose "help" for stairs, heavy items, or two-person lifts.',
+    kind: 'button-grid',
+    options: [
+      { value: 'no_help',   label: 'Drop-off only',   sublabel: 'Leave at door' },
+      { value: 'need_help', label: 'Help carrying',   sublabel: 'Inside, stairs, lifting' },
+    ],
+  },
+
+  // Transport & Haul
+  dump_transport_move: {
+    id: 'dump_transport_move',
+    prompt: 'What are we moving?',
+    kind: 'button-grid',
+    options: [
+      { value: 'bedroom', label: 'A bedroom',      sublabel: 'Single room of gear' },
+      { value: 'student', label: 'Student move',   sublabel: 'Boxes + a few pieces' },
+      { value: 'house',   label: 'Whole house',    sublabel: 'Multi-room move' },
+      { value: 'office',  label: 'Office / gear',  sublabel: 'Desks, equipment' },
+      { value: 'event',   label: 'Event / venue',  sublabel: 'Set up or pack down' },
+    ],
+  },
+  dump_transport_load: {
+    id: 'dump_transport_load',
+    prompt: 'How much fits?',
+    hint: 'Rough guess — we confirm on arrival.',
+    kind: 'button-grid',
+    options: [
+      { value: 'bags',       label: 'A few bags',    sublabel: 'Car boot' },
+      { value: 'boot',       label: 'Boot-full',     sublabel: '~0.5 m³' },
+      { value: 'small_load', label: 'Small load',    sublabel: 'Ute / small trailer' },
+      { value: 'full_move',  label: 'Full move',     sublabel: 'Multi-trip or truck' },
+    ],
+  },
+  dump_transport_stairs: {
+    id: 'dump_transport_stairs',
+    prompt: 'Stairs or lift?',
+    kind: 'button-grid',
+    options: [
+      { value: 'none',    label: 'Ground floor',  sublabel: 'No stairs' },
+      { value: 'one',     label: '1 flight',      sublabel: 'Short climb' },
+      { value: 'multi',   label: 'Multiple flights', sublabel: '2+ levels' },
+      { value: 'no_lift', label: 'No lift',       sublabel: 'Walk-up only' },
+    ],
+  },
+  dump_transport_helpers: {
+    id: 'dump_transport_helpers',
+    prompt: 'Helpers needed?',
+    hint: 'More helpers speeds things up and handles heavier items.',
+    kind: 'button-grid',
+    options: [
+      { value: '1', label: '1 helper',  sublabel: 'Solo lift, light load' },
+      { value: '2', label: '2 helpers', sublabel: 'Two-person lifts' },
+      { value: '3', label: '3 helpers', sublabel: 'Heavy / bulky items' },
+    ],
+  },
+
   // Auto / Car detailing
   auto_rego_lookup: {
     id: 'auto_rego_lookup',
-    prompt: 'Want to find your vehicle by rego?',
-    hint: 'QLD rego lookup only for now. You can skip it and choose manually.',
+    prompt: "Let's find your vehicle by rego",
+    hint: 'QLD rego only for now. This lets us match the right pricing for your exact vehicle.',
     kind: 'rego-lookup',
   },
   auto_vehicle_size: {
@@ -241,12 +338,26 @@ export function getActiveSequence(
 
   if (service === 'dump') {
     const sub = answers.dump_subtype as string | undefined;
-    // Delivery & Transport don't use the (loadType, loads) tuple — the load
-    // details are collected in the full wizard with a different UI.
-    if (sub === 'dump_delivery' || sub === 'dump_transport') {
-      seq = seq.filter(
-        (id) => id !== 'dump_load_type' && id !== 'dump_load_count',
-      );
+    const deliveryOnly: QuestionId[] = [
+      'dump_delivery_item',
+      'dump_delivery_distance',
+      'dump_delivery_assist',
+    ];
+    const transportOnly: QuestionId[] = [
+      'dump_transport_move',
+      'dump_transport_load',
+      'dump_transport_stairs',
+      'dump_transport_helpers',
+    ];
+    const runsOnly: QuestionId[] = ['dump_load_type', 'dump_load_count'];
+
+    if (sub === 'dump_delivery') {
+      seq = seq.filter((id) => !runsOnly.includes(id) && !transportOnly.includes(id));
+    } else if (sub === 'dump_transport') {
+      seq = seq.filter((id) => !runsOnly.includes(id) && !deliveryOnly.includes(id));
+    } else {
+      // Default (dump_runs or before picking): hide delivery & transport branches.
+      seq = seq.filter((id) => !deliveryOnly.includes(id) && !transportOnly.includes(id));
     }
   }
 
@@ -379,11 +490,15 @@ export function buildMergePayload(
 
     case 'dump': {
       const subtype  = (answers.dump_subtype as string) ?? 'dump_runs';
-      const loadType = (answers.dump_load_type as 'ute' | 'trailer' | 'bulky') ?? 'ute';
+      const loadType =
+        (answers.dump_load_type as
+          | 'single_item'
+          | 'ute'
+          | 'half_trailer'
+          | 'trailer'
+          | 'bulky') ?? 'ute';
       const loads    = Number(answers.dump_load_count ?? 1);
-      // Only dump_runs uses the (loadType, loads) tuple. For delivery &
-      // transport the main wizard relies on its own dumpDelivery /
-      // dumpTransport state, so leave those untouched here.
+
       if (subtype === 'dump_runs') {
         return {
           ...base,
@@ -392,6 +507,76 @@ export function buildMergePayload(
           dumpRun: { loadType, loads },
         };
       }
+
+      if (subtype === 'dump_delivery') {
+        const itemType =
+          (answers.dump_delivery_item as
+            | 'parcel'
+            | 'household'
+            | 'mattress'
+            | 'groceries'
+            | 'tools'
+            | undefined) ?? 'household';
+        const distance =
+          (answers.dump_delivery_distance as
+            | 'same_suburb'
+            | 'drive_30'
+            | 'drive_60'
+            | 'long'
+            | undefined) ?? 'same_suburb';
+        const assist =
+          (answers.dump_delivery_assist as 'no_help' | 'need_help' | undefined) ?? 'no_help';
+        return {
+          ...base,
+          context: 'home',
+          scope: subtype,
+          dumpDelivery: {
+            itemType,
+            distance,
+            assist,
+          },
+        };
+      }
+
+      if (subtype === 'dump_transport') {
+        const moveType =
+          (answers.dump_transport_move as
+            | 'house'
+            | 'bedroom'
+            | 'student'
+            | 'office'
+            | 'event'
+            | undefined) ?? 'bedroom';
+        const loadSize =
+          (answers.dump_transport_load as
+            | 'bags'
+            | 'boot'
+            | 'small_load'
+            | 'full_move'
+            | undefined) ?? 'small_load';
+        const stairs =
+          (answers.dump_transport_stairs as
+            | 'none'
+            | 'one'
+            | 'multi'
+            | 'no_lift'
+            | undefined) ?? 'none';
+        const helpersRaw = Number(answers.dump_transport_helpers ?? 1);
+        const helpers: 1 | 2 | 3 =
+          helpersRaw >= 3 ? 3 : helpersRaw >= 2 ? 2 : 1;
+        return {
+          ...base,
+          context: 'home',
+          scope: subtype,
+          dumpTransport: {
+            moveType,
+            loadSize,
+            stairs,
+            helpers,
+          },
+        };
+      }
+
       return {
         ...base,
         context: 'home',

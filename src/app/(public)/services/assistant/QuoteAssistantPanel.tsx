@@ -6,6 +6,7 @@ import { brand } from '@/app/ui/theme';
 import { M } from '../utils/motion';
 import { AssistantQuestion } from './AssistantQuestion';
 import { AssistantPriceBanner } from './AssistantPriceBanner';
+import { AssistantRegoBanner } from './AssistantRegoBanner';
 import type { AssistantAPI } from './types';
 
 interface Props {
@@ -129,6 +130,22 @@ export function QuoteAssistantPanel({ assistant }: Props) {
 
             {/* Question scroll area */}
             <div className="flex-1 overflow-y-auto px-5 py-6">
+              {/*
+                Persisted rego banner — visible on every auto step AFTER the
+                rego lookup resolves. Hidden on the rego-lookup step itself
+                (that screen already renders its own vehicle-found card).
+              */}
+              {assistant.service === 'auto' &&
+                assistant.currentQuestion?.id !== 'auto_rego_lookup' && (
+                  <div className="mb-4">
+                    <AssistantRegoBanner
+                      answers={assistant.answers}
+                      onChange={assistant.handlers.onJumpToRegoLookup}
+                      onAnswer={assistant.handlers.onAnswer}
+                    />
+                  </div>
+                )}
+
               {assistant.currentQuestion && (
                 <AssistantQuestion
                   question={assistant.currentQuestion}

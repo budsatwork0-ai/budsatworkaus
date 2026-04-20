@@ -17,6 +17,13 @@ export type QuestionId =
   | 'dump_subtype'
   | 'dump_load_type'
   | 'dump_load_count'
+  | 'dump_delivery_item'
+  | 'dump_delivery_distance'
+  | 'dump_delivery_assist'
+  | 'dump_transport_move'
+  | 'dump_transport_load'
+  | 'dump_transport_stairs'
+  | 'dump_transport_helpers'
   | 'auto_rego_lookup'
   | 'auto_vehicle_size'
   | 'auto_service_level'
@@ -79,6 +86,8 @@ export type AssistantHandlers = {
   onNext: () => void;
   onBack: () => void;
   onHandoff: () => void;
+  /** Jump back to the rego-lookup step (used by the persisted rego banner). */
+  onJumpToRegoLookup: () => void;
 };
 
 export type AssistantAPI = {

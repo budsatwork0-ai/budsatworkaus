@@ -830,19 +830,42 @@ const ScopeCard = React.memo(function ScopeCard({
   const dumpHints = (() => {
     if (!(isConfigOpen && isDumpRunsCard)) return null;
     const typeLabel =
-      dumpLoadType === 'ute'
+      dumpLoadType === 'single_item'
+        ? 'single item'
+        : dumpLoadType === 'ute'
         ? 'ute load'
+        : dumpLoadType === 'half_trailer'
+        ? 'half trailer'
         : dumpLoadType === 'trailer'
         ? 'trailer full'
         : dumpLoadType === 'bulky'
         ? 'bulky furniture'
         : 'mixed load';
     const volumePer =
-      dumpLoadType === 'ute' ? 1.5 : dumpLoadType === 'trailer' ? 2.5 : dumpLoadType === 'bulky' ? 2.0 : 1.2;
+      dumpLoadType === 'single_item'
+        ? 0.5
+        : dumpLoadType === 'ute'
+        ? 1.5
+        : dumpLoadType === 'half_trailer'
+        ? 2.0
+        : dumpLoadType === 'trailer'
+        ? 2.5
+        : dumpLoadType === 'bulky'
+        ? 2.0
+        : 1.2;
     const totalVol = Math.max(1, dumpLoads) * volumePer;
-    const minsLow = 40 + (dumpLoads - 1) * 15;
-    const minsHigh = 80 + (dumpLoads - 1) * 20;
-    const techs = dumpLoads >= 3 ? 'Usually requires 2 techs.' : 'Typically 1–2 techs.';
+    const baseLow =
+      dumpLoadType === 'single_item' ? 20 : dumpLoadType === 'bulky' ? 50 : 40;
+    const baseHigh =
+      dumpLoadType === 'single_item' ? 40 : dumpLoadType === 'bulky' ? 90 : 80;
+    const minsLow = baseLow + (dumpLoads - 1) * 15;
+    const minsHigh = baseHigh + (dumpLoads - 1) * 20;
+    const techs =
+      dumpLoadType === 'single_item'
+        ? 'Usually a solo tech.'
+        : dumpLoadType === 'bulky' || dumpLoads >= 3
+        ? 'Usually requires 2 techs.'
+        : 'Typically 1–2 techs.';
     return {
       line1: `Looks like approximately ~${Math.round(totalVol * 10) / 10} cubic metres (${typeLabel}).`,
       line2: `Most jobs like this take around ${Math.max(30, minsLow)}–${minsHigh} minutes onsite.`,
@@ -1913,9 +1936,11 @@ const ScopeCard = React.memo(function ScopeCard({
             <div className="mt-3 space-y-2 text-xs text-slate-700">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'ute', label: 'Ute load' },
-                  { key: 'trailer', label: 'Trailer full' },
-                  { key: 'bulky', label: 'Bulky furniture' },
+                  { key: 'single_item',  label: 'Single item' },
+                  { key: 'ute',          label: 'Ute load' },
+                  { key: 'half_trailer', label: 'Half trailer' },
+                  { key: 'trailer',      label: 'Trailer full' },
+                  { key: 'bulky',        label: 'Bulky furniture' },
                 ].map((c) => (
                   <button
                     key={c.key}
@@ -1926,7 +1951,14 @@ const ScopeCard = React.memo(function ScopeCard({
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
-                      updateDumpRun({ loadType: c.key as 'ute' | 'trailer' | 'bulky' });
+                      updateDumpRun({
+                        loadType: c.key as
+                          | 'single_item'
+                          | 'ute'
+                          | 'half_trailer'
+                          | 'trailer'
+                          | 'bulky',
+                      });
                     }}
                   >
                     {c.label}

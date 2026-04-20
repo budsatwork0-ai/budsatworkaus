@@ -81,6 +81,11 @@ function readDetectedVehicle(answers: AssistantAnswers): DetectedVehicle {
   };
 }
 
+// How many lookup failures before we reveal the manual-entry fallback.
+// Keeps rego lookup as the primary path while still giving customers a way
+// forward if the plate can't be resolved (typo, brand-new rego, API outage).
+const MANUAL_FALLBACK_AFTER_FAILURES = 2;
+
 export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
   const { loading, error, meta, lookup, reset } = useRegoLookup();
   const detectedVehicle = React.useMemo(() => readDetectedVehicle(answers), [answers]);
@@ -89,6 +94,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
   const [state, setState] = React.useState<RegoState>(
     (answers.auto_rego_state as RegoState | undefined) ?? 'QLD',
   );
+  const [failureCount, setFailureCount] = React.useState(0);
 
   const clearDetectedAnswers = React.useCallback(() => {
     DETECTED_ANSWER_IDS.forEach((id) => onAnswer(id, ''));
@@ -99,7 +105,10 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
   const handleLookup = React.useCallback(async () => {
     const cleanedRego = rego.trim().toUpperCase();
     const vehicle = await lookup({ registrationNumber: cleanedRego, state });
-    if (!vehicle) return;
+    if (!vehicle) {
+      setFailureCount((n) => n + 1);
+      return;
+    }
 
     const classification = classifyVehicle(vehicle);
     const inferredCategory =
@@ -107,6 +116,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
       (classification.category !== 'unknown' ? classification.category : null);
     const sizeCategory = vehicle.sizeCategory ?? classification.sizeCategory ?? null;
 
+    setFailureCount(0);
     onAnswer('auto_rego_lookup', 'detected');
     onAnswer('auto_rego_plate', cleanedRego);
     onAnswer('auto_rego_state', state);
@@ -123,7 +133,10 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
     }
   }, [lookup, onAnswer, rego, state]);
 
-  const handleManual = React.useCallback(() => {
+  // Manual fallback is only available after repeated lookup failures.
+  // This removes the "free choice" loophole while still leaving a door open
+  // for legitimate cases where the rego genuinely can't be resolved.
+  const handleManualFallback = React.useCallback(() => {
     reset();
     clearDetectedAnswers();
     onAnswer('auto_rego_lookup', 'manual');
@@ -135,7 +148,10 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
     reset();
     clearDetectedAnswers();
     setRego('');
+    setFailureCount(0);
   }, [clearDetectedAnswers, reset]);
+
+  const showManualFallback = failureCount >= MANUAL_FALLBACK_AFTER_FAILURES;
 
   const categoryLabel =
     detectedCategory === '4wd'
@@ -266,21 +282,43 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleManual}
-            className="w-full rounded-2xl border py-3 text-[13px] font-medium transition-colors hover:bg-black/5"
-            style={{ borderColor: brand.border, color: brand.muted }}
-          >
-            Skip lookup and choose vehicle type manually
-          </button>
-
           {error && (
             <div
               className="rounded-2xl px-3 py-2 text-[12px]"
               style={{ background: 'rgba(220,38,38,0.08)', color: '#b91c1c' }}
             >
               {error}
+              {failureCount > 0 && !showManualFallback && (
+                <span className="ml-1 font-medium">
+                  {` Double-check the plate and try again (${MANUAL_FALLBACK_AFTER_FAILURES - failureCount} ${
+                    MANUAL_FALLBACK_AFTER_FAILURES - failureCount === 1 ? 'attempt' : 'attempts'
+                  } left before manual entry).`}
+                </span>
+              )}
+            </div>
+          )}
+
+          {showManualFallback && (
+            <div
+              className="rounded-2xl border px-3 py-3 space-y-2"
+              style={{ borderColor: brand.border, background: 'rgba(15,61,46,0.03)' }}
+            >
+              <div className="text-[12px] font-semibold" style={{ color: brand.text }}>
+                Can&apos;t find your vehicle by rego?
+              </div>
+              <div className="text-[11px] leading-snug" style={{ color: brand.muted }}>
+                You can continue by choosing your vehicle type manually. Pricing is
+                indicative only — if the vehicle we see on the day doesn&apos;t match
+                the selected type, we may adjust the quote before work begins.
+              </div>
+              <button
+                type="button"
+                onClick={handleManualFallback}
+                className="w-full rounded-2xl border py-2.5 text-[13px] font-medium transition-colors hover:bg-black/5"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Continue without rego lookup
+              </button>
             </div>
           )}
         </div>

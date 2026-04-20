@@ -709,15 +709,32 @@ export function selectedFromParams(
       const multipliers = [1, 1.2, 1.4, 1.6, 1.8, 2];
       sel['auto.wash'] = multipliers[size - 1] || 1;
     }
+    // Extra seat-row surcharge, expressed as a fraction of the base unit price.
+    // Flat additive per extra row above 2 — NOT a multiplier — so a 3-row SUV
+    // adds a small, predictable amount instead of nearly doubling the price.
+    // auto.interior base = $170 → each extra row ≈ $40 (AUTO_EXTRA_ROW_SURCHARGE / base).
+    // auto.full base     = $290 → each extra row ≈ $40 (same).
+    const AUTO_EXTRA_ROW_SURCHARGE = 40;
+    const extraRowsAboveBase = Math.max(0, rows - 2);
+
     if (scope === 'auto_interior' && rows > 0) {
-      // Increased child seat value from 0.5 to 0.75 per seat
-      sel['auto.interior'] = 1 + Math.max(0, rows - 2) + (child * 0.75);
-    }
-    if (scope === 'auto_full' && rows > 0) {
-      // Added vehicle size multiplier for consistency
+      // Size multiplier parallels auto_full so a van/4wd interior costs more
+      // than a hatch even when both have 2 rows.
       const sizeMultipliers = [1, 1.1, 1.2, 1.3, 1.4, 1.5];
       const sizeMultiplier = size > 0 ? (sizeMultipliers[size - 1] || 1) : 1;
-      sel['auto.full'] = (1 + Math.max(0, rows - 2)) * sizeMultiplier;
+      const base = PRICE_OVERRIDE['auto.interior'] || 170;
+      // Child seats still billed at $30 each (roughly 3 × 0.75 of the old
+      // fractional-unit pricing × base $170 ≈ $30/seat on average).
+      const extraFromRows = (extraRowsAboveBase * AUTO_EXTRA_ROW_SURCHARGE) / base;
+      const extraFromChild = (child * 30) / base;
+      sel['auto.interior'] = sizeMultiplier + extraFromRows + extraFromChild;
+    }
+    if (scope === 'auto_full' && rows > 0) {
+      const sizeMultipliers = [1, 1.1, 1.2, 1.3, 1.4, 1.5];
+      const sizeMultiplier = size > 0 ? (sizeMultipliers[size - 1] || 1) : 1;
+      const base = PRICE_OVERRIDE['auto.full'] || 290;
+      const extraFromRows = (extraRowsAboveBase * AUTO_EXTRA_ROW_SURCHARGE) / base;
+      sel['auto.full'] = sizeMultiplier + extraFromRows;
     }
   }
 
@@ -858,10 +875,27 @@ export function sneakerPriceForTier(tier: SneakerTier, turnaround: SneakerTurnar
 
 /* ===== Dump disposal ===== */
 
-export const DUMP_LOAD_META: Record<NonNullable<DumpRunSelection['loadType']>, { tier: DumpTier; volume: number }> = {
-  ute: { tier: 'small', volume: 1.5 },
-  trailer: { tier: 'medium', volume: 2.5 },
-  bulky: { tier: 'large', volume: 2.0 },
+/**
+ * Per-load-type metadata used by both the live-estimate math and the dump
+ * pricing engine.
+ *
+ * - `tier` decides which DUMP_DISPOSAL_FEES tier applies.
+ * - `volume` is the rough m³ per load (used for weight-fallback logic).
+ * - `effortPerLoad` is how many effort blocks each additional load adds.
+ *   Smaller items (single_item) need less loading/unloading time.
+ * - `extraEffort` is a one-off effort block added regardless of load count
+ *   (e.g. trailer hookup and reversing).
+ * - `physicalBlocks` is a one-off "awkward lift" block (bulky items only).
+ */
+export const DUMP_LOAD_META: Record<
+  NonNullable<DumpRunSelection['loadType']>,
+  { tier: DumpTier; volume: number; effortPerLoad: number; extraEffort: number; physicalBlocks: number }
+> = {
+  single_item:  { tier: 'small',  volume: 0.5, effortPerLoad: 0.4, extraEffort: 0,   physicalBlocks: 0 },
+  ute:          { tier: 'small',  volume: 1.5, effortPerLoad: 1.5, extraEffort: 0,   physicalBlocks: 0 },
+  half_trailer: { tier: 'medium', volume: 2.0, effortPerLoad: 1.5, extraEffort: 0.5, physicalBlocks: 0 },
+  trailer:      { tier: 'medium', volume: 2.5, effortPerLoad: 1.5, extraEffort: 1,   physicalBlocks: 0 },
+  bulky:        { tier: 'large',  volume: 2.0, effortPerLoad: 1.5, extraEffort: 0,   physicalBlocks: 1 },
 };
 
 export const DUMP_DISPOSAL_FEES: Record<DumpTier, number> = {
@@ -906,6 +940,28 @@ export function computeDumpDisposalFee(
   return { fee: weightFee, volume: totalVolume, basis: 'weight' as const };
 }
 
+const DUMP_RUN_BASE_CALLOUT = 79;
+const DUMP_RUN_EFFORT_BLOCK_RATE = 27.5;
+const DUMP_RUN_PHYSICAL_BLOCK_RATE = 37.5;
+
+function computeDumpRunBasePrice(selection?: DumpRunSelection | null) {
+  if (!selection?.loadType) return null;
+
+  const loads = clamp(Math.round(selection.loads ?? 1), 1, 20);
+  const meta = DUMP_LOAD_META[selection.loadType];
+  const disposal = computeDumpDisposalFee(selection).fee;
+
+  const effortBlocks = loads * meta.effortPerLoad + meta.extraEffort;
+  const physicalBlocks = meta.physicalBlocks;
+
+  return (
+    DUMP_RUN_BASE_CALLOUT +
+    effortBlocks * DUMP_RUN_EFFORT_BLOCK_RATE +
+    physicalBlocks * DUMP_RUN_PHYSICAL_BLOCK_RATE +
+    disposal
+  );
+}
+
 /* =========================
    MAIN PRICE QUOTE
    ========================= */
@@ -948,6 +1004,60 @@ export function priceQuote(params: QuoteParams) {
     ? computeDumpDisposalFee(dumpRunSelection, { nonResident: dumpIsNonResident })
     : { fee: 0, volume: 0, basis: 'tier' as const };
   const disposalFee = Math.round(disposalMeta.fee || 0);
+
+  // Dump runs don't populate `selected` (they track loadType/loads on their
+  // own DumpRunSelection tuple). Compute labour directly from DUMP_LOAD_META
+  // so the service-card price matches the assistant live estimate instead of
+  // collapsing to just the disposal fee.
+  //
+  // Mirrors the math used in assistant/useAssistant.ts and estimation.ts
+  // (BASE_CALLOUT_PRICE + effortBlocks × effort rate + physical blocks × physical rate).
+  if (isDumpRunScope) {
+    const DUMP_BASE_CALLOUT = 79;
+    const DUMP_EFFORT_MIN = 20;
+    const DUMP_EFFORT_MAX = 35;
+    const DUMP_PHYS_MIN = 25;
+    const DUMP_PHYS_MAX = 50;
+    const DUMP_EFFORT_MINUTES = 20;
+
+    const loads = Math.max(1, Math.round(dumpRunSelection?.loads ?? 1));
+    const loadType = dumpRunSelection?.loadType ?? 'ute';
+    const meta = DUMP_LOAD_META[loadType] ?? DUMP_LOAD_META.ute;
+    const effortBlocks = loads * meta.effortPerLoad + meta.extraEffort;
+    const physicalBlocks = meta.physicalBlocks;
+
+    const effortRate = (DUMP_EFFORT_MIN + DUMP_EFFORT_MAX) / 2;
+    const physicalRate = (DUMP_PHYS_MIN + DUMP_PHYS_MAX) / 2;
+    const labour =
+      DUMP_BASE_CALLOUT + effortBlocks * effortRate + physicalBlocks * physicalRate;
+
+    const travel = Math.max(0, distanceKm - POLICY.travelBaseKm) * POLICY.travelPerKm;
+    const parking = paidParking ? POLICY.parkingMin : 0;
+    const baseBeforeFees = Math.round(labour + disposalFee);
+    const total = Math.round(
+      labour + disposalFee + travel + parking + (tipFee || 0),
+    );
+    const dumpMinutes =
+      30 + Math.round(effortBlocks * DUMP_EFFORT_MINUTES + physicalBlocks * 10);
+
+    return {
+      total,
+      minutes: dumpMinutes,
+      billableMinutes: dumpMinutes,
+      unitSum: Math.round(labour),
+      labourFloor: 0,
+      travel: Math.round(travel),
+      parking,
+      tip: tipFee || 0,
+      hourlyUsed: 0,
+      billingMode: 'Per-unit' as const,
+      confidence: 'High' as const,
+      baseBeforeFees,
+      bottleCredit: 0,
+      disposalFee: Math.round(disposalFee),
+      displayPrice: fmtAUD(total),
+    };
+  }
 
   const totalQty = Object.values(selected).reduce((a, b) => a + (b || 0), 0);
   if (totalQty === 0 && disposalFee === 0) {
@@ -1139,6 +1249,20 @@ export function priceQuote(params: QuoteParams) {
     base = hourlyQty * hourlyUsed;
   } else if (isWindowsOnly || isBinCleansOnly) {
     base = unitSum;
+  } else if (currentService === 'dump' && currentScope === 'dump_runs' && dumpRunSelection?.loadType) {
+    const loads = clamp(Math.round(dumpRunSelection.loads ?? 1), 1, 20);
+    const perLoadMinutes =
+      dumpRunSelection.loadType === 'trailer'
+        ? 45
+        : dumpRunSelection.loadType === 'single_item' || dumpRunSelection.loadType === 'bulky'
+        ? 20
+        : 30;
+
+    minutes = SETUP_OVERHEAD + loads * perLoadMinutes;
+    billable = minutes;
+    base = computeDumpRunBasePrice(dumpRunSelection) ?? disposalFee;
+    unitSum = Math.round(base);
+    labourFloor = 0;
   } else if (isAutoOnly) {
     billable = minutes;
     base = unitSum;

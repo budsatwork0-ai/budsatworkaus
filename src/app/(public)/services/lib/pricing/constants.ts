@@ -127,7 +127,7 @@ export const ALLOWED_SERVICES_BY_CONTEXT: Record<Context, ServiceType[]> = {
 };
 
 // Default selections
-export const DEFAULT_DUMP_RUN = { loadType: null, loads: 1 } as const;
+export const DEFAULT_DUMP_RUN = { loadType: 'single_item', loads: 1 } as const;
 export const DEFAULT_DUMP_DELIVERY = {
   itemType: null,
   distance: 'same_suburb',

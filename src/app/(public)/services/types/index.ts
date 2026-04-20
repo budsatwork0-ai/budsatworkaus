@@ -62,7 +62,7 @@ export type TransportSelection = {
 };
 
 export type DumpRunSelection = {
-  loadType: 'ute' | 'trailer' | 'bulky' | null;
+  loadType: 'single_item' | 'ute' | 'half_trailer' | 'trailer' | 'bulky' | null;
   loads: number;
 };
 
