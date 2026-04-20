@@ -45,6 +45,7 @@ function mapDetectedCategory(category: string | null | undefined): CarType | nul
 }
 
 export default function RegoLookupAssistant({
+  selectedCategory,
   onSelectCategory,
   onVehicleDetected,
   detectedVehicle,
@@ -54,6 +55,7 @@ export default function RegoLookupAssistant({
   const [state, setState] = useState<RegoState>('QLD');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lookupMeta, setLookupMeta] = useState<{ source: string; durationMs: number | null } | null>(null);
 
   const handleLookup = async () => {
     if (!rego.trim()) return;
@@ -78,7 +80,6 @@ export default function RegoLookupAssistant({
         return;
       }
 
-      // Success!
       const vehicle: VehicleDetails = {
         make: data.make,
         model: data.model,
@@ -89,6 +90,17 @@ export default function RegoLookupAssistant({
         category: data.category ?? 'unknown',
         sizeCategory: data.sizeCategory ?? null,
       };
+
+      setLookupMeta({
+        source:
+          typeof data.source === 'string'
+            ? data.source
+            : res.headers.get('x-rego-source') ?? 'unknown',
+        durationMs:
+          typeof data.lookupDurationMs === 'number'
+            ? data.lookupDurationMs
+            : Number.parseInt(res.headers.get('x-rego-duration-ms') ?? '', 10) || null,
+      });
 
       // Update parent state first (this is the lifted state that persists)
       onVehicleChange({
@@ -115,6 +127,7 @@ export default function RegoLookupAssistant({
         onSelectCategory(inferred);
       }
     } catch {
+      setLookupMeta(null);
       setError('Network error');
       onVehicleChange(null);
     } finally {
@@ -125,8 +138,23 @@ export default function RegoLookupAssistant({
   const handleReset = () => {
     onVehicleChange(null);
     setRego('');
+    setLookupMeta(null);
     setError(null);
   };
+
+  const categoryLabel =
+    selectedCategory === '4wd' ? '4WD' : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1);
+  const sourceLabel =
+    lookupMeta?.source === 'memory' || lookupMeta?.source === 'session'
+      ? 'Saved result'
+      : lookupMeta?.source === 'cache'
+      ? 'Fast cache hit'
+      : lookupMeta?.source === 'mock'
+      ? 'Demo result'
+      : 'Live lookup';
+  const speedLabel = lookupMeta?.durationMs
+    ? `${(lookupMeta.durationMs / 1000).toFixed(lookupMeta.durationMs < 1000 ? 1 : 0)}s`
+    : null;
 
   return (
     <div className="space-y-3">
@@ -148,6 +176,12 @@ export default function RegoLookupAssistant({
                   detectedVehicle.doors && `${detectedVehicle.doors} door`,
                   detectedVehicle.seats && `${detectedVehicle.seats} seats`,
                 ].filter(Boolean).join(' • ')}
+              </div>
+              <div className="mt-2 rounded-lg bg-white/15 px-3 py-2 text-sm text-white/95">
+                Vehicle type set to <span className="font-semibold">{categoryLabel}</span>. Choose your detailing package below.
+              </div>
+              <div className="mt-2 text-xs text-emerald-100">
+                {sourceLabel}{speedLabel ? ` · ${speedLabel}` : ''}
               </div>
             </div>
             <button
@@ -199,6 +233,11 @@ export default function RegoLookupAssistant({
             >
               {isLoading ? 'Looking up...' : 'Look up vehicle'}
             </button>
+            {isLoading && (
+              <div className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300">
+                Checking rego and matching your vehicle type. Cached results return much faster on repeat searches.
+              </div>
+            )}
             {error && (
               <div className="rounded-lg bg-red-500/20 px-3 py-2 text-xs text-red-300">
                 {error}

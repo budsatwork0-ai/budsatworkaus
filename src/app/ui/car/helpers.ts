@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CarZone } from './useCarModelSelector';
+import type { CarZone } from './useCarModelSelector';
 
 type ShaderLike = {
   fragmentShader: string;

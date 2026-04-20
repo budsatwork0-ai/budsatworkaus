@@ -8,7 +8,7 @@ export const QUESTION_SEQUENCES: Record<ServiceType, QuestionId[]> = {
   cleaning:         ['clean_scope', 'clean_bedrooms', 'clean_bathrooms'],
   yard:             ['yard_scope', 'yard_size_bucket'],
   dump:             ['dump_subtype', 'dump_load_type', 'dump_load_count'],
-  auto:             ['auto_vehicle_size', 'auto_service_level'],
+  auto:             ['auto_rego_lookup', 'auto_vehicle_size', 'auto_service_level'],
   laundry_sneakers: ['ls_tier', 'ls_laundry_loads', 'ls_sneaker_pairs', 'ls_turnaround'],
 };
 
@@ -160,6 +160,12 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
   },
 
   // Auto / Car detailing
+  auto_rego_lookup: {
+    id: 'auto_rego_lookup',
+    prompt: 'Want to find your vehicle by rego?',
+    hint: 'QLD rego lookup only for now. You can skip it and choose manually.',
+    kind: 'rego-lookup',
+  },
   auto_vehicle_size: {
     id: 'auto_vehicle_size',
     prompt: 'What type of vehicle?',
@@ -168,7 +174,11 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
       { value: 'hatch',  label: 'Hatch' },
       { value: 'sedan',  label: 'Sedan' },
       { value: 'suv',    label: 'SUV' },
-      { value: '4wd',    label: '4WD / Ute' },
+      { value: 'ute',    label: 'Ute' },
+      { value: 'van',    label: 'Van' },
+      { value: '4wd',    label: '4WD' },
+      { value: 'luxury', label: 'Luxury' },
+      { value: 'muscle', label: 'Muscle' },
     ],
   },
   auto_service_level: {
@@ -240,6 +250,13 @@ export function getActiveSequence(
     }
   }
 
+  if (service === 'auto') {
+    const detectedCategory = String(answers.auto_vehicle_size ?? '').trim();
+    if (answers.auto_rego_lookup === 'detected' && detectedCategory) {
+      seq = seq.filter((id) => id !== 'auto_vehicle_size');
+    }
+  }
+
   if (service === 'laundry_sneakers') {
     const tier = answers.ls_tier as string | undefined;
     if (tier === 'laundry') {
@@ -286,8 +303,17 @@ const VEHICLE_SIZE_MAP: Record<string, number> = {
   hatch: 1,
   sedan: 2,
   suv: 3,
-  '4wd': 4,
+  ute: 4,
+  van: 5,
+  '4wd': 6,
+  luxury: 2,
+  muscle: 2,
 };
+
+function readNullableNumber(value: string | number | undefined): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
 // ─── Merge payload builder ─────────────────────────────────────────────────────
 
@@ -377,12 +403,33 @@ export function buildMergePayload(
       const vehicleKey   = (answers.auto_vehicle_size as string) ?? 'sedan';
       const vehicle_size = VEHICLE_SIZE_MAP[vehicleKey] ?? 2;
       const scope        = (answers.auto_service_level as string) ?? 'auto_express';
+      const autoParams =
+        scope === 'auto_express'
+          ? { vehicle_size, rows: 0, child_seats: 0 }
+          : { vehicle_size, rows: 2, child_seats: 0 };
+      const detectedMake = String(answers.auto_detected_make ?? '').trim();
+      const detectedModel = String(answers.auto_detected_model ?? '').trim();
+      const detectedVehicle =
+        detectedMake && detectedModel
+          ? {
+              make: detectedMake,
+              model: detectedModel,
+              year: readNullableNumber(answers.auto_detected_year),
+              bodyStyle: String(answers.auto_detected_body_style ?? ''),
+              doors: readNullableNumber(answers.auto_detected_doors),
+              seats: readNullableNumber(answers.auto_detected_seats),
+            }
+          : null;
+
       return {
         ...base,
         context: 'home',
         scope,
         carModelType: vehicleKey,
-        paramsByService: { auto: { vehicle_size } },
+        carDetectedVehicle: detectedVehicle,
+        carDetectedSizeCategory: String(answers.auto_detected_size_category ?? '').trim() || null,
+        carDetectedYear: readNullableNumber(answers.auto_detected_year),
+        paramsByService: { auto: autoParams },
       };
     }
 

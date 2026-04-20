@@ -606,6 +606,7 @@ async function lookupFromProvider(
 }
 
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now();
   const providerUrlRaw =
     process.env.REGO_LOOKUP_PROVIDER_URL ?? process.env['rego_lookup_provider_URL'];
   const registrationNumberRaw =
@@ -632,12 +633,30 @@ export async function GET(req: NextRequest) {
   }
 
   const typedState = state as RegoState;
+  const respond = (
+    body: Record<string, unknown>,
+    init: { status: number; source?: string; cacheControl?: string }
+  ) =>
+    NextResponse.json(
+      {
+        ...body,
+        lookupDurationMs: Date.now() - startedAt,
+      },
+      {
+        status: init.status,
+        headers: {
+          'Cache-Control': init.cacheControl ?? 'private, max-age=300, stale-while-revalidate=86400',
+          'x-rego-source': init.source ?? 'unknown',
+          'x-rego-duration-ms': String(Date.now() - startedAt),
+        },
+      }
+    );
 
   const cached = await fetchCache(registrationNumber, typedState);
   if (cached) {
-    return NextResponse.json(cached, {
+    return respond(cached as unknown as Record<string, unknown>, {
       status: 200,
-      headers: { 'Cache-Control': 'no-store' },
+      source: 'cache',
     });
   }
 
@@ -650,9 +669,9 @@ export async function GET(req: NextRequest) {
       categorySource: finalMock.vehicle.categorySource ?? finalMock.source,
       source: finalMock.source,
     });
-    return NextResponse.json(finalMock.vehicle, {
+    return respond(finalMock.vehicle as unknown as Record<string, unknown>, {
       status: 200,
-      headers: { 'Cache-Control': 'no-store' },
+      source: 'mock',
     });
   }
 
@@ -668,9 +687,9 @@ export async function GET(req: NextRequest) {
     const { vehicle: finalVehicle } = await applyOverrides(providerVehicle);
     await writeCache(registrationNumber, typedState, finalVehicle);
 
-    return NextResponse.json(finalVehicle, {
+    return respond(finalVehicle as unknown as Record<string, unknown>, {
       status: 200,
-      headers: { 'Cache-Control': 'no-store' },
+      source: finalVehicle.source ?? 'provider',
     });
   } catch (err) {
     const secrets = [process.env.REGCHECK_USERNAME, process.env.REGCHECK_PASSWORD, process.env.REGO_LOOKUP_PROVIDER_API_KEY];
@@ -682,6 +701,6 @@ export async function GET(req: NextRequest) {
           )
         : 'Rego lookup is currently unavailable. Please select car type manually.';
 
-    return NextResponse.json({ error: message }, { status: 502 });
+    return respond({ error: message }, { status: 502, source: 'unknown', cacheControl: 'no-store' });
   }
 }

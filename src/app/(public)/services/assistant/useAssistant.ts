@@ -13,6 +13,7 @@ import type {
   AssistantState,
   AssistantAnswers,
   QuestionId,
+  AssistantAnswerId,
   AssistantAPI,
   LiveEstimate,
 } from './types';
@@ -44,7 +45,7 @@ type InternalAction =
   | { type: 'close' }
   | { type: 'dismiss' }
   | { type: 'init_dismissed' }
-  | { type: 'answer'; id: QuestionId; value: string | number }
+  | { type: 'answer'; id: AssistantAnswerId; value: string | number }
   | { type: 'next' }
   | { type: 'prev' }
   | { type: 'set_service'; service: ServiceType };
@@ -258,6 +259,10 @@ function computeLiveEstimate(
       contractDiscount: 0,
       commercialType: null,
       afterHours: false,
+      autoCategory: service === 'auto' ? String(payload.carModelType ?? '') : undefined,
+      autoSizeCategory:
+        service === 'auto' ? (payload.carDetectedSizeCategory as string | null | undefined) ?? null : undefined,
+      autoYear: service === 'auto' ? (payload.carDetectedYear as number | null | undefined) ?? null : undefined,
       dumpRunSelection,
       cleaningParams,
       yardParams,
@@ -348,7 +353,7 @@ export function useAssistant(opts: {
   }, []);
 
   const onAnswer = useCallback(
-    (id: QuestionId, value: string | number) => {
+    (id: AssistantAnswerId, value: string | number) => {
       if (id === 'service_pick') {
         // Service selection — set service and reset sequence
         assistantDispatch({ type: 'set_service', service: value as ServiceType });
@@ -358,8 +363,8 @@ export function useAssistant(opts: {
       assistantDispatch({ type: 'answer', id, value });
 
       // Button-grid auto-advances after a short delay for visual feedback
-      const qDef = QUESTION_DEFS[id];
-      if (qDef.kind === 'button-grid') {
+      const qDef = QUESTION_DEFS[id as QuestionId];
+      if (qDef?.kind === 'button-grid') {
         setTimeout(() => assistantDispatch({ type: 'next' }), 150);
       }
     },

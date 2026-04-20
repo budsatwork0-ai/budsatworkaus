@@ -6,7 +6,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, useTexture, Html, Environment } from '@react-three/drei';
 import * as THREE from 'three';
-import { CarType, CarZone } from './useCarModelSelector';
+import type { CarType, CarZone } from './useCarModelSelector';
 import { blendTextures, mapZoneHit } from './helpers';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 

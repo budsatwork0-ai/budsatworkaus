@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { brand } from '@/app/ui/theme';
-import type { QuestionDef, AssistantAnswers, QuestionId } from './types';
+import { AssistantRegoLookup } from './AssistantRegoLookup';
+import type { QuestionDef, AssistantAnswers, AssistantAnswerId } from './types';
 
 interface Props {
   question: QuestionDef;
   answers: AssistantAnswers;
-  onAnswer: (id: QuestionId, value: string | number) => void;
+  onAnswer: (id: AssistantAnswerId, value: string | number) => void;
 }
 
 export function AssistantQuestion({ question, answers, onAnswer }: Props) {
@@ -21,6 +22,10 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question.id]);
+
+  if (question.kind === 'rego-lookup') {
+    return <AssistantRegoLookup question={question} answers={answers} onAnswer={onAnswer} />;
+  }
 
   if (question.kind === 'button-grid') {
     return (

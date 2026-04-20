@@ -15,8 +15,8 @@ import dynamic from 'next/dynamic';
 import { serializeLayout } from '@/app/ui/floor/utils';
 import { computeFloorPricing } from '@/app/ui/floor/useFloorPricing';
 import { useCarModelSelector } from '@/app/ui/car/useCarModelSelector';
+import RegoLookupAssistant from '@/app/ui/car/RegoLookupAssistant';
 const FloorPlanBuilder = dynamic(() => import('@/app/ui/floor/FloorPlanBuilder'), { ssr: false });
-const RegoLookupAssistant = dynamic(() => import('@/app/ui/car/RegoLookupAssistant'), { ssr: false });
 import type { VehicleSizeCategory } from '@/lib/rego/types';
 import { useYardMapping } from '@/app/hooks/useYardMapping';
 // Loaded lazily — only when the user reaches the contact form (step 3).
