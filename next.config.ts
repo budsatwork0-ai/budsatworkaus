@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "path";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   transpilePackages: ['framer-motion'],
@@ -13,9 +14,15 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname),
   },
   eslint: {
-    // Warnings are visible in IDE but don't block production builds
     ignoreDuringBuilds: true,
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: true,
+  widenClientFileUpload: true,
+  disableLogger: true,
+  automaticVercelMonitors: true,
+});

@@ -31,7 +31,7 @@
 
 ### Phase 4 — Scale 🗺️ Planned
 - Auto-assign crew based on availability
-- Google Ads conversion tracking
+- ✅ Google Ads conversion tracking *(2026-04-20 — fires on quote submit + payment confirmed)*
 - Customer LTV dashboard
 - Automated BAS export
 - Multi-location support (expand beyond Logan/South Brisbane)
@@ -46,11 +46,11 @@ Use **ICE scoring** (Impact × Confidence × Ease, each 1–10):
 | Feature | Impact | Confidence | Ease | Score | Status |
 |---|---|---|---|---|---|
 | Auto-assign crew | 9 | 7 | 4 | 252 | Planned |
-| Cron auto-remind 24h | 8 | 9 | 8 | 576 | Next sprint |
-| Google Ads tracking | 8 | 8 | 7 | 448 | Next sprint |
-| Invoice real insert | 7 | 9 | 8 | 504 | Next sprint |
+| Cron auto-remind 24h | 8 | 9 | 8 | 576 | ✅ Done (2026-04-20) |
+| Google Ads tracking | 8 | 8 | 7 | 448 | ✅ Done (2026-04-20) |
+| Invoice real insert | 7 | 9 | 8 | 504 | ✅ Done (2026-04-20) |
 | Weekly KPI email | 7 | 8 | 7 | 392 | Planned |
-| Sentry error tracking | 6 | 9 | 9 | 486 | Next sprint |
+| Sentry error tracking | 6 | 9 | 9 | 486 | ✅ Done (2026-04-20) |
 
 ---
 
@@ -79,6 +79,9 @@ Use **ICE scoring** (Impact × Confidence × Ease, each 1–10):
 | 2026-04-15 | Added Domain Command Panel to dashboard | Admin needed full-spectrum visibility, not just finance |
 | 2026-04-15 | Added "Send Reminder" + "Add Crew" quick actions | Highest-frequency ops tasks missing from quick bar |
 | 2026-04-15 | Upgraded subtitle to "Full-spectrum operations command centre" | Reflects actual scope of dashboard |
+| 2026-04-20 | Wired dashboard quick-action forms to real APIs | Invoice, Expense, Schedule Job were all mock; now hit Supabase |
+| 2026-04-20 | Installed Sentry + Vercel Cron | Error visibility + automated 24h quote reminders — no more manual nudges |
+| 2026-04-20 | Added Google Ads conversion tracking | Fires on quote submit & payment confirmed; uses env-var conversion labels |
 
 ---
 

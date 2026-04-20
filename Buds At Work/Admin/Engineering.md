@@ -36,6 +36,14 @@
 | `RESEND_API_KEY` | Vercel env (server only) |
 | `TURNSTILE_SECRET_KEY` | Vercel env (server only) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Vercel env |
+| `NEXT_PUBLIC_SENTRY_DSN` | Vercel env — client-side Sentry |
+| `SENTRY_DSN` | Vercel env (server only) — server Sentry |
+| `SENTRY_ORG` | Vercel env — for source map uploads |
+| `SENTRY_PROJECT` | Vercel env — for source map uploads |
+| `CRON_SECRET` | Vercel env (server only) — secures cron endpoints |
+| `NEXT_PUBLIC_GOOGLE_ADS_ID` | Vercel env — format: `AW-XXXXXXXXXX` |
+| `NEXT_PUBLIC_GOOGLE_ADS_QUOTE_LABEL` | Vercel env — Google Ads quote conversion label |
+| `NEXT_PUBLIC_GOOGLE_ADS_PAYMENT_LABEL` | Vercel env — Google Ads payment conversion label |
 
 ---
 
@@ -54,6 +62,9 @@
 | Email templates | `src/lib/email/templates.ts` |
 | Pricing engine | `src/app/(public)/services/lib/pricing/engine.ts` |
 | Supabase client (browser) | `src/lib/supabase/client.ts` |
+| Payables API | `src/app/api/payables/route.ts` |
+| Cron: 24h quote reminders | `src/app/api/cron/remind-quotes/route.ts` |
+| Conversion tracking | `src/lib/analytics/conversions.ts` |
 
 ---
 
@@ -88,9 +99,9 @@ If something breaks in production:
 
 ## Tech Debt & Backlog
 
-- [ ] Invoice creation form is mock (simulate only) — needs real Supabase insert
-- [ ] Expense recording form is mock — needs real insert to `bills` table
-- [ ] Schedule Job form is mock — needs to call `POST /api/orders`
+- [x] Invoice creation form — now POSTs to `/api/orders` with `status: 'invoiced'` *(2026-04-20)*
+- [x] Expense recording form — now POSTs to `/api/payables` → inserts into `payables` table *(2026-04-20)*
+- [x] Schedule Job form — now calls `POST /api/orders` with `status: 'scheduled'` *(2026-04-20)*
 - [ ] Goals targets are hardcoded ($15k revenue, 30 jobs) — make configurable in settings
 - [ ] Dashboard cache TTL is 60s — consider server-sent events for real-time
 
@@ -100,7 +111,7 @@ If something breaks in production:
 
 - [ ] Automated Lighthouse CI on every deploy
 - [ ] Uptime monitoring (UptimeRobot or Checkly)
-- [ ] Error alerting: Sentry or LogSnag
+- [x] Error alerting: Sentry — installed `@sentry/nextjs`, configured client/server/edge. Set `NEXT_PUBLIC_SENTRY_DSN` + `SENTRY_DSN` in Vercel env to activate *(2026-04-20)*
 - [ ] Database backup verification: weekly Supabase backup check
 - [ ] Dependency update bot (Renovate or Dependabot)
 

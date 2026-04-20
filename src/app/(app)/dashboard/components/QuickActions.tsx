@@ -149,13 +149,32 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast.success('Invoice created successfully');
-    onClose();
-    setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: formData.customer,
+          service_type: formData.service,
+          context: 'home',
+          base_price: parseFloat(formData.amount),
+          final_price: parseFloat(formData.amount),
+          scheduled_date: formData.dueDate || null,
+          notes: formData.notes || null,
+          status: 'invoiced',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create invoice');
+      }
+      toast.success('Invoice created successfully');
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create invoice');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -257,12 +276,29 @@ function RecordExpenseForm({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast.success('Expense recorded successfully');
-    onClose();
-    setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/payables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendor_name: formData.vendor,
+          category: formData.category,
+          amount: parseFloat(formData.amount),
+          due_date: formData.date || null,
+          notes: formData.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to record expense');
+      }
+      toast.success('Expense recorded successfully');
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record expense');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -367,12 +403,32 @@ function ScheduleJobForm({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast.success('Job scheduled successfully');
-    onClose();
-    setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: formData.customer,
+          customer_phone: formData.phone || null,
+          service_type: formData.service,
+          context: 'home',
+          scheduled_date: formData.date || null,
+          scheduled_time: formData.time || null,
+          notes: formData.notes ? `Address: ${formData.address}\n${formData.notes}` : `Address: ${formData.address}`,
+          status: 'scheduled',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to schedule job');
+      }
+      toast.success('Job scheduled successfully');
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to schedule job');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -43,7 +43,11 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 - [[Bug Tracker]] — quick-capture for bugs found during ops
 - [[Services Flow Improvements — April 2026]] — full funnel changes log (Phase 1 & 2)
 - [[Services Flow Improvements — April 2026 Phase 3]] — home page redesign, email re-engagement, step 3 mobile sticky bar (2026-04-15)
+- [[Services Flow Improvements — April 2026 Phase 4]] — rego lookup assistant, commercial preset tiles, window/auto/dump assistant steps (2026-04-17)
 - [[Homepage UI Polish — April 2026]] — header cleanup, CTA colour unification, remove green bg, floating button fix (2026-04-17)
+- [[Services Flow Improvements — April 2026 Phase 5]] — portal tightening, Pay Now button, profile page, Stripe saved cards, subscription change requests (2026-04-18)
+- [[Services Flow Improvements — April 2026 Phase 6]] — rego banner, delivery + transport dump subtypes, auto interior pricing rework (2026-04-20)
+- [[Infrastructure & Integrations — April 2026]] — Sentry, Vercel Cron (24h quote reminders), Google Ads conversions, dashboard forms wired to real APIs (2026-04-20)
 
 ---
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { trackPaymentCompleted } from '@/lib/analytics/conversions';
 
 type OrderDetails = {
   id: string;
@@ -51,13 +52,20 @@ function SuccessContent() {
 
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(!!sessionId);
+  const conversionFiredRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) return;
     fetch(`/api/orders/by-session?session_id=${encodeURIComponent(sessionId)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data) setOrder(data);
+        if (data) {
+          setOrder(data);
+          if (!conversionFiredRef.current) {
+            conversionFiredRef.current = true;
+            trackPaymentCompleted(data.final_price ?? 0);
+          }
+        }
       })
       .catch(() => null)
       .finally(() => setLoadingOrder(false));

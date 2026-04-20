@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import { sendGAEvent } from '@next/third-parties/google';
+import { trackQuoteSubmitted } from '@/lib/analytics/conversions';
 import StableMapSlot from '@/components/StableMapSlot';
 import {
   usePolygonQuote,
@@ -5867,6 +5868,7 @@ function winSessionMinutes(S: WizardState) {
                             value: effectiveTotal,
                             ...(timeToSubmit !== null ? { time_to_submit_seconds: timeToSubmit } : {}),
                           });
+                          trackQuoteSubmitted(effectiveTotal);
 
                           // Await profile sync before navigating so it cannot be silently dropped.
                           if (authedUser && saveToProfile) {
