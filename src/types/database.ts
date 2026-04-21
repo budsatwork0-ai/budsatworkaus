@@ -73,6 +73,8 @@ export interface Database {
           final_price: number;
           scheduled_date: string | null;
           scheduled_time: string | null;
+          estimated_duration_minutes: number;
+          assigned_crew_id: string | null;
           day_before_reminder_sent: boolean;
           status: string;
           notes: string | null;
@@ -99,6 +101,8 @@ export interface Database {
           final_price: number;
           scheduled_date?: string | null;
           scheduled_time?: string | null;
+          estimated_duration_minutes?: number;
+          assigned_crew_id?: string | null;
           day_before_reminder_sent?: boolean;
           status?: string;
           notes?: string | null;
@@ -125,6 +129,8 @@ export interface Database {
           final_price?: number;
           scheduled_date?: string | null;
           scheduled_time?: string | null;
+          estimated_duration_minutes?: number;
+          assigned_crew_id?: string | null;
           day_before_reminder_sent?: boolean;
           status?: string;
           notes?: string | null;

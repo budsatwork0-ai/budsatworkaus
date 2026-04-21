@@ -81,6 +81,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.customer_phone !== undefined) updateData.customer_phone = body.customer_phone;
     if (body.scheduled_date !== undefined) updateData.scheduled_date = body.scheduled_date;
     if (body.scheduled_time !== undefined) updateData.scheduled_time = body.scheduled_time;
+    if (body.estimated_duration_minutes !== undefined) updateData.estimated_duration_minutes = body.estimated_duration_minutes;
+    if (body.assigned_crew_id !== undefined) updateData.assigned_crew_id = body.assigned_crew_id;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.notes !== undefined) updateData.notes = body.notes;
   } else {

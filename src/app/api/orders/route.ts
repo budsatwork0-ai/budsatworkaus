@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search');
   const dateFrom = searchParams.get('date_from') || searchParams.get('scheduled_date_from');
   const dateTo = searchParams.get('date_to') || searchParams.get('scheduled_date_to');
+  const unscheduled = searchParams.get('unscheduled') === 'true';
   const limit = parseInt(searchParams.get('limit') || '100', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 
@@ -35,20 +36,24 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + limit - 1);
 
   // Apply filters
-  if (status && status !== 'all') {
-    query = query.eq('status', status);
+  if (unscheduled) {
+    query = query.is('scheduled_date', null).not('status', 'in', '("cancelled","completed")');
+  } else {
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+    if (dateFrom) {
+      query = query.gte('scheduled_date', dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte('scheduled_date', dateTo);
+    }
   }
   if (serviceType && serviceType !== 'all') {
     query = query.eq('service_type', serviceType);
   }
   if (search) {
     query = query.or(`customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
-  }
-  if (dateFrom) {
-    query = query.gte('scheduled_date', dateFrom);
-  }
-  if (dateTo) {
-    query = query.lte('scheduled_date', dateTo);
   }
 
   if (authUser.role === 'customer') {

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
 import { useDashboardData } from '../hooks/useDashboardData';
 import JobsTab from '../components/tabs/JobsTab';
+import DayScheduler from '../components/DayScheduler';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -42,10 +43,10 @@ function getWeekDates(offset: number): Date[] {
   });
 }
 
-type View = 'calendar' | 'list';
+type View = 'day' | 'calendar' | 'list';
 
 export default function SchedulePage() {
-  const [view, setView] = useState<View>('calendar');
+  const [view, setView] = useState<View>('day');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -118,11 +119,18 @@ export default function SchedulePage() {
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5">
           <button
+            onClick={() => setView('day')}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={view === 'day' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
+          >
+            Day
+          </button>
+          <button
             onClick={() => setView('calendar')}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={view === 'calendar' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
           >
-            Calendar
+            Week
           </button>
           <button
             onClick={() => setView('list')}
@@ -153,7 +161,9 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {view === 'list' ? (
+      {view === 'day' ? (
+        <DayScheduler />
+      ) : view === 'list' ? (
         <JobsTab jobs={jobs} isLoading={jobsLoading} onRowClick={() => {}} />
       ) : (
         <>

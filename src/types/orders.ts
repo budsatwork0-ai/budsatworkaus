@@ -28,6 +28,8 @@ export interface Order {
   final_price: number;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
+  estimated_duration_minutes?: number;
+  assigned_crew_id?: string | null;
   day_before_reminder_sent?: boolean;
   status: OrderStatus;
   notes?: string | null;
@@ -72,6 +74,8 @@ export interface UpdateOrderInput {
   customer_phone?: string;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
+  estimated_duration_minutes?: number;
+  assigned_crew_id?: string | null;
   status?: OrderStatus;
   notes?: string;
   completed_at?: string | null;
