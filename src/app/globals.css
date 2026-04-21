@@ -1,8 +1,99 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Buds At Work — Design Tokens
+   Source of truth lifted from theme.ts + colors_and_type.css design handoff.
+   ========================================================================== */
+
 :root {
-  --background: #f6fbf7;
-  --foreground: #12261e;
+  /* ── Base palette ──────────────────────────────────────────────────────── */
+  --bg:           #F6FBF7;
+  --card:         #FFFFFF;
+  --border:       #D7E7DD;
+  --primary:      #0F3D2E;
+  --accent:       #1C7C54;
+  --accent-soft:  #DDF3E4;
+  --surface:      #F1F7F3;
+  --surface-alt:  #EAF6EE;
+  --text:         #12261E;
+  --muted:        #4C6157;
+  --focus:        #8BC8A8;
+
+  /* ── On-dark tokens ────────────────────────────────────────────────────── */
+  --on-dark:          #F8FCF9;
+  --muted-on-dark:    rgba(248,252,249,0.82);
+  --subtle-on-dark:   rgba(248,252,249,0.62);
+
+  /* ── Semantic / status ─────────────────────────────────────────────────── */
+  --red-bg:     #FEF2F2;   --red-fg:     #B91C1C;
+  --amber-bg:   #FFFBEB;   --amber-fg:   #B45309;
+  --blue-bg:    #EFF6FF;   --blue-fg:    #1D4ED8;
+  --emerald-bg: #ECFDF5;   --emerald-fg: #047857;
+  --star:       #F59E0B;
+
+  /* ── Type ──────────────────────────────────────────────────────────────── */
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, Helvetica, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-fallback: Arial, Helvetica, sans-serif;
+
+  --h-hero:    clamp(3rem, 8vw, 5.75rem);
+  --h-cta:     clamp(2.2rem, 5vw, 3.75rem);
+  --h-section: clamp(1.7rem, 3.8vw, 2.5rem);
+  --h-page:    2.25rem;
+  --h-card:    1.05rem;
+  --text-base: 15px;
+  --text-sm:   13.5px;
+  --text-xs:   12px;
+  --text-eyebrow: 11px;
+
+  --ls-eyebrow: 0.14em;
+  --ls-hero:    -0.02em;
+  --ls-tight:   -0.01em;
+
+  --lh-hero:    1.04;
+  --lh-tight:   1.1;
+  --lh-body:    1.5;
+  --lh-relaxed: 1.6;
+
+  /* ── Radii ─────────────────────────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  24px;
+  --radius-pill: 9999px;
+
+  /* ── Shadows ───────────────────────────────────────────────────────────── */
+  --shadow-chip:      0 4px 14px rgba(15,61,46,0.20);
+  --shadow-card:      0 6px 20px rgba(2,6,23,0.06);
+  --shadow-card-lg:   0 10px 30px rgba(2,6,23,0.08);
+  --shadow-hover:     0 14px 36px rgba(15,61,46,0.11);
+  --shadow-stat:      0 16px 44px rgba(15,61,46,0.22);
+  --shadow-dashboard: 0 12px 30px rgba(15,23,42,0.06);
+
+  /* ── Spacing ───────────────────────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── Motion ────────────────────────────────────────────────────────────── */
+  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast:   150ms;
+  --dur-med:    250ms;
+  --dur-slow:   500ms;
+
+  /* Legacy aliases for Tailwind @theme */
+  --background: var(--bg);
+  --foreground: var(--text);
 }
 
 @theme inline {
@@ -13,12 +104,64 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+  font-size: var(--text-base);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #ddf3e4;
-  color: #0f3d2e;
+  background: var(--accent-soft);
+  color: var(--primary);
+}
+
+/* ==========================================================================
+   .bw-* utility classes — match design system compositions
+   ========================================================================== */
+
+.bw-h1 { font-size: var(--h-hero);    font-weight: 700; letter-spacing: var(--ls-hero);   line-height: var(--lh-hero);  color: var(--text); }
+.bw-h2 { font-size: var(--h-section); font-weight: 700; letter-spacing: var(--ls-tight);  line-height: var(--lh-tight); color: var(--text); }
+.bw-h3 { font-size: var(--h-card);    font-weight: 700; color: var(--text); }
+
+.bw-eyebrow {
+  font-size: var(--text-eyebrow);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-eyebrow);
+  color: var(--accent);
+}
+
+.bw-p     { color: var(--text);  font-size: var(--text-base); line-height: var(--lh-relaxed); }
+.bw-muted { color: var(--muted); }
+.bw-meta  { color: var(--muted); font-size: var(--text-xs); }
+.bw-code  { font-family: var(--font-mono); font-size: 13px; background: var(--surface); padding: 2px 6px; border-radius: 6px; }
+
+.bw-focusable:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+
+.bw-glass {
+  background: rgba(255,255,255,0.80);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: var(--shadow-card-lg);
+}
+
+.bw-glass-soft {
+  background: rgba(255,255,255,0.70);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: var(--shadow-card);
+}
+
+.bw-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
 }

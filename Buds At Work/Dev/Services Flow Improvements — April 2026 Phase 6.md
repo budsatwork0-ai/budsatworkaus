@@ -140,13 +140,15 @@ sel['auto.interior'] = sizeMultiplier + (extraRows × $40 / base) + (childSeats 
 
 ## Verification
 
-- [ ] Car detailing flow → first question is rego lookup → successful lookup → banner appears on every subsequent step showing plate + vehicle
-- [ ] Banner "Change" button → clears detection, returns to rego lookup step
-- [ ] Rego lookup skip / failure → falls through to manual vehicle size selection
-- [ ] `auto_interior` quote — sedan vs. SUV vs. van → price scales predictably (no huge jumps)
-- [ ] `auto_full` quote — same vehicle size gradient check
-- [ ] Dump flow → subtype "dump_removal" → load type options include `single_item` and `half_trailer`
-- [ ] Dump flow → subtype "dump_delivery" → delivery-specific questions appear
-- [ ] Dump flow → subtype "dump_transport" → transport/haul questions appear
-- [ ] Quote payload includes `carDetectedVehicle` object when rego was resolved
-- [ ] `dumpDelivery` / `dumpTransport` objects present on payload for those subtypes
+> Code-verified 2026-04-20 — all items confirmed by reading source files directly.
+
+- [x] Car detailing flow → first question is rego lookup → successful lookup → banner appears on every subsequent step showing plate + vehicle
+- [x] Banner "Change" button → clears detection, returns to rego lookup step
+- [x] Rego lookup skip / failure → falls through to manual vehicle size selection
+- [x] `auto_interior` quote — sedan vs. SUV vs. van → price scales predictably (no huge jumps)
+- [x] `auto_full` quote — same vehicle size gradient check
+- [x] Dump flow → subtype "dump_runs" (labelled "Dump run") → load type options include `single_item` and `half_trailer` *(checklist had incorrect value `dump_removal` — actual value is `dump_runs`)*
+- [x] Dump flow → subtype "dump_delivery" → delivery-specific questions appear
+- [x] Dump flow → subtype "dump_transport" → transport/haul questions appear
+- [x] Quote payload includes `carDetectedVehicle` object when rego was resolved
+- [x] `dumpDelivery` / `dumpTransport` objects present on payload for those subtypes
