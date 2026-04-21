@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/remind-quotes",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/reengage-quotes",
-      "schedule": "15 * * * *"
+      "schedule": "0 14 * * *"
     },
     {
       "path": "/api/cron/remind-day-before",
@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/auto-complete-jobs",
-      "schedule": "30 * * * *"
+      "schedule": "0 23 * * *"
     }
   ]
 }
