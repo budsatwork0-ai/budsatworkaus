@@ -15,6 +15,10 @@ const DEFAULTS: SiteStats = {
 
 type SettingsRow = { key: string; value: string };
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Fetch site settings from Supabase.
  * Returns defaults if database is unavailable.
@@ -75,4 +79,42 @@ export async function getAllSiteSettings(): Promise<Record<string, string>> {
   } catch {
     return {};
   }
+}
+
+export async function getSiteSettingValue<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const client = createServiceClientSafe();
+    if (!client) return fallback;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (client as any)
+      .from('site_settings')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+
+    if (error || !data || data.value === undefined || data.value === null) {
+      return fallback;
+    }
+
+    return data.value as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function getSiteSettingObject<T extends Record<string, unknown>>(
+  key: string,
+  fallback: T
+): Promise<T> {
+  const value = await getSiteSettingValue<unknown>(key, fallback);
+
+  if (!isPlainObject(value)) {
+    return fallback;
+  }
+
+  return {
+    ...fallback,
+    ...value,
+  } as T;
 }

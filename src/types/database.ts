@@ -73,11 +73,13 @@ export interface Database {
           final_price: number;
           scheduled_date: string | null;
           scheduled_time: string | null;
+          day_before_reminder_sent: boolean;
           status: string;
           notes: string | null;
           created_at: string;
           updated_at: string;
           completed_at: string | null;
+          auto_completed_at: string | null;
           stripe_checkout_session_id: string | null;
           stripe_payment_intent_id: string | null;
         };
@@ -97,11 +99,13 @@ export interface Database {
           final_price: number;
           scheduled_date?: string | null;
           scheduled_time?: string | null;
+          day_before_reminder_sent?: boolean;
           status?: string;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          auto_completed_at?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
         };
@@ -121,11 +125,13 @@ export interface Database {
           final_price?: number;
           scheduled_date?: string | null;
           scheduled_time?: string | null;
+          day_before_reminder_sent?: boolean;
           status?: string;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
           completed_at?: string | null;
+          auto_completed_at?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
         };
@@ -867,6 +873,8 @@ export interface Database {
           stripe_checkout_session_id: string | null;
           stripe_checkout_url: string | null;
           stripe_payment_intent_id: string | null;
+          last_reminder_sent_at: string | null;
+          last_discount_offer_sent_at: string | null;
           notes: string | null;
           converted_order_id: string | null;
           converted_subscription_id: string | null;
@@ -899,6 +907,8 @@ export interface Database {
           stripe_checkout_session_id?: string | null;
           stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;
+          last_reminder_sent_at?: string | null;
+          last_discount_offer_sent_at?: string | null;
           notes?: string | null;
           converted_order_id?: string | null;
           converted_subscription_id?: string | null;
@@ -931,6 +941,8 @@ export interface Database {
           stripe_checkout_session_id?: string | null;
           stripe_checkout_url?: string | null;
           stripe_payment_intent_id?: string | null;
+          last_reminder_sent_at?: string | null;
+          last_discount_offer_sent_at?: string | null;
           notes?: string | null;
           converted_order_id?: string | null;
           converted_subscription_id?: string | null;

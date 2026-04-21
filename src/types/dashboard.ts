@@ -130,6 +130,7 @@ export type DashboardMetrics = {
   goals: {
     monthlyRevenueTarget: number;
     currentRevenue: number;
+    revenueChange: number;
     monthlyJobsTarget: number;
     currentJobs: number;
   };
@@ -146,6 +147,24 @@ export type PayoutRecord = {
   failure_message: string | null;
 };
 
+export type DashboardCrewMember = {
+  id: string;
+  full_name: string | null;
+  status: string;
+  services: string[] | null;
+};
+
+export type DashboardQuote = {
+  id: string;
+  status: string;
+  customer_name: string | null;
+  service_type: string | null;
+  created_at: string;
+  submitted_total: number | null;
+  reviewed_total: number | null;
+  total: number | null;
+};
+
 export type DashboardData = {
   metrics: DashboardMetrics;
   receivables: ReceivableRecord[];
@@ -154,6 +173,9 @@ export type DashboardData = {
   recentActivity: ActivityItem[];
   payouts: PayoutRecord[];
   lastUpdated: string;
+  crew: DashboardCrewMember[];
+  quotes: DashboardQuote[];
+  applicantCount: number;
 };
 
 // Style mappings

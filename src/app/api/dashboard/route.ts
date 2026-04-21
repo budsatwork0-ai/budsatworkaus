@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { DEFAULT_DASHBOARD_GOALS, getDashboardGoals } from '@/lib/automations';
 import type { Order, Payable } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,7 @@ export type DashboardMetrics = {
   goals: {
     monthlyRevenueTarget: number;
     currentRevenue: number;
+    revenueChange: number;
     monthlyJobsTarget: number;
     currentJobs: number;
   };
@@ -120,6 +122,9 @@ export type DashboardData = {
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
   payouts: PayoutRecord[];
+  crew: { id: string; full_name: string | null; status: string; services: string[] | null }[];
+  quotes: { id: string; status: string; customer_name: string | null; service_type: string | null; created_at: string; submitted_total: number | null; reviewed_total: number | null; total: number | null }[];
+  applicantCount: number;
   lastUpdated: string;
 };
 
@@ -303,11 +308,15 @@ export async function GET() {
       paymentsResult,
       recentPaymentsResult,
       payoutsResult,
+      crewResult,
+      quotesResult,
+      applicantsResult,
     ] = await Promise.all([
-      // All non-cancelled orders for receivables
-      client
+      // All non-cancelled orders for receivables (join customers for address)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
         .from('orders')
-        .select('*')
+        .select('*, customers(default_address)')
         .neq('status', 'cancelled')
         .order('created_at', { ascending: false }),
 
@@ -355,6 +364,28 @@ export async function GET() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10),
+
+      // Active crew members for dashboard summary
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('employees')
+        .select('id, full_name, status, services')
+        .order('created_at', { ascending: false }),
+
+      // All quotes for pipeline calculations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('quotes')
+        .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total')
+        .order('created_at', { ascending: false })
+        .limit(200),
+
+      // Intake applicants count (non-community roles)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('applicants')
+        .select('id, role')
+        .eq('stage', 'intake'),
     ]);
 
     // Handle errors
@@ -362,12 +393,19 @@ export async function GET() {
     if (completedOrdersResult.error) throw completedOrdersResult.error;
     if (lastMonthOrdersResult.error) throw lastMonthOrdersResult.error;
 
-    const orders: Order[] = ordersResult.data || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orders: any[] = ordersResult.data || [];
     const allCompletedOrders: Order[] = completedOrdersResult.data || [];
     const lastMonthOrders: Order[] = lastMonthOrdersResult.data || [];
     const payables: Payable[] = payablesResult.data || [];
     const recentPaymentsData: { order_id: string | null; amount: number; paid_at: string }[] = recentPaymentsResult?.data || [];
     const payoutsData: PayoutRecord[] = payoutsResult?.data || [];
+    const crewData: { id: string; full_name: string | null; status: string; services: string[] | null }[] = crewResult?.data || [];
+    const quotesData: { id: string; status: string; customer_name: string | null; service_type: string | null; created_at: string; submitted_total: number | null; reviewed_total: number | null; total: number | null }[] = quotesResult?.data || [];
+    const communityRoles = new Set(['Quality partner', 'Sponsor', 'Innovation partner']);
+    const applicantCount = (applicantsResult?.data || []).filter(
+      (a: { role?: string }) => !communityRoles.has(a.role || '')
+    ).length;
 
     // Build a map of order_id -> total paid amount from completed payments
     const paymentsData: { order_id: string | null; amount: number; status: string }[] = paymentsResult?.data || [];
@@ -540,34 +578,21 @@ export async function GET() {
         service: SERVICE_LABELS[order.service_type] || order.service_type,
         scheduledDate: order.scheduled_date || '',
         scheduledTime: order.scheduled_time || '',
-        address: '',
+        address: order.customers?.default_address || '',
         status: order.status === 'in_progress' ? 'in_progress' : 'scheduled',
         amount: order.final_price || 0,
         notes: order.notes || '',
       }));
 
+    // Revenue change vs last month
+    const revenueChange = lastMonthRevenue > 0
+      ? Math.round(((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : 0;
+
     // Fetch goals from site settings (with defaults)
-    let monthlyRevenueTarget = 15000;
-    let monthlyJobsTarget = 30;
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const goalsResult = await (client as any)
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'goals')
-        .single();
-
-      if (goalsResult.data?.value) {
-        const goals = typeof goalsResult.data.value === 'string'
-          ? JSON.parse(goalsResult.data.value)
-          : goalsResult.data.value;
-        monthlyRevenueTarget = goals.monthlyRevenueTarget || 15000;
-        monthlyJobsTarget = goals.monthlyJobsTarget || 30;
-      }
-    } catch {
-      // Use defaults if settings fetch fails
-    }
+    const dashboardGoals = await getDashboardGoals().catch(() => DEFAULT_DASHBOARD_GOALS);
+    const monthlyRevenueTarget = dashboardGoals.monthlyRevenueTarget;
+    const monthlyJobsTarget = dashboardGoals.monthlyJobsTarget;
 
     // Cash balance = this month's confirmed revenue minus this month's paid expenses
     // This is what should be in the bank / Stripe balance after outgoings
@@ -612,6 +637,7 @@ export async function GET() {
         goals: {
           monthlyRevenueTarget,
           currentRevenue: totalRevenue,
+          revenueChange,
           monthlyJobsTarget,
           currentJobs: completedOrders.length,
         },
@@ -621,6 +647,9 @@ export async function GET() {
       jobs,
       recentActivity,
       payouts: payoutsData,
+      crew: crewData,
+      quotes: quotesData,
+      applicantCount,
       lastUpdated: now.toISOString(),
     };
 

@@ -12,16 +12,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReminderEmail } from '@/lib/email/templates';
+import { getAutomationSettings, SERVICE_LABELS } from '@/lib/automations';
 
 export const dynamic = 'force-dynamic';
 
-const SERVICE_LABELS: Record<string, string> = {
-  windows: 'Window Cleaning',
-  cleaning: 'Home / Commercial Cleaning',
-  yard: 'Yard Care',
-  dump: 'Dump Runs',
-  auto: 'Auto Detailing',
-  laundry_sneakers: 'Laundry & Sneaker Care',
+type ReminderQuote = {
+  id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  service_type: string;
+  reviewed_total: number | null;
+  submitted_total: number | null;
+  total: number | null;
+  stripe_checkout_url: string | null;
+  last_reminder_sent_at: string | null;
+  finalized_at: string | null;
+  payment_requested_at: string | null;
+  created_at: string;
 };
 
 export async function GET(req: NextRequest) {
@@ -37,17 +44,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const automations = await getAutomationSettings();
+  if (!automations.quote24hReminder) {
+    return NextResponse.json({ ok: true, skipped: 'disabled' });
+  }
+
+  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://budsatwork.com';
 
   // Quotes that are finalized, unpaid, older than 24h, and not yet reminded.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: quotes, error } = await (client as any)
     .from('quotes')
-    .select('id, customer_name, customer_email, service_type, reviewed_total, submitted_total, total, stripe_checkout_url, last_reminder_sent_at, created_at')
+    .select('id, customer_name, customer_email, service_type, reviewed_total, submitted_total, total, stripe_checkout_url, last_reminder_sent_at, finalized_at, payment_requested_at, created_at')
     .in('status', ['finalized', 'payment_pending'])
     .neq('payment_status', 'paid')
-    .lt('created_at', cutoff)
     .is('last_reminder_sent_at', null)
     .limit(50);
 
@@ -65,7 +76,12 @@ export async function GET(req: NextRequest) {
   let skipped = 0;
   const errors: string[] = [];
 
-  for (const quote of quotes ?? []) {
+  const eligibleQuotes = ((quotes ?? []) as ReminderQuote[]).filter((quote) => {
+    const relevantAt = quote.finalized_at || quote.payment_requested_at || quote.created_at;
+    return new Date(relevantAt).getTime() <= cutoffMs;
+  });
+
+  for (const quote of eligibleQuotes) {
     if (!quote.customer_email) { skipped++; continue; }
 
     const customerName: string = quote.customer_name || 'there';

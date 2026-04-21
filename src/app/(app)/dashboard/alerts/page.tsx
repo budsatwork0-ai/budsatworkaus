@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { brand } from '@/app/ui/theme';
-import type { Alert } from '@/app/api/alerts/route';
+import type { AdminAlert } from '@/lib/admin-alerts';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 
-const SEVERITY_STYLES: Record<Alert['severity'], { bg: string; text: string; dot: string; label: string }> = {
+const SEVERITY_STYLES: Record<AdminAlert['severity'], { bg: string; text: string; dot: string; label: string }> = {
   critical: { bg: 'bg-red-50', text: 'text-red-800', dot: 'bg-red-500', label: 'Critical' },
   warning: { bg: 'bg-amber-50', text: 'text-amber-800', dot: 'bg-amber-500', label: 'Warning' },
   info: { bg: 'bg-blue-50', text: 'text-blue-800', dot: 'bg-blue-500', label: 'Info' },
@@ -46,10 +46,11 @@ function formatTimestamp(ts: string): string {
 }
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [filter, setFilter] = useState<'all' | Alert['severity']>('all');
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+  const [filter, setFilter] = useState<'all' | AdminAlert['severity']>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dismissedCount, setDismissedCount] = useState(0);
 
   useEffect(() => {
     fetchAlerts();
@@ -63,6 +64,7 @@ export default function AlertsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setAlerts(data.alerts || []);
+      setDismissedCount(data.dismissedCount || 0);
     } catch (err) {
       console.error('Failed to load alerts:', err);
       setError('Failed to load alerts. Please try again.');
@@ -72,14 +74,48 @@ export default function AlertsPage() {
   }
 
   const filtered = filter === 'all' ? alerts : alerts.filter(a => a.severity === filter);
-  const unreadCount = alerts.filter(a => !a.read).length;
+  async function dismissAlerts(ids: string[]) {
+    if (ids.length === 0) return;
 
-  function markRead(id: string) {
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+    const previousAlerts = alerts;
+    const previousDismissedCount = dismissedCount;
+
+    setAlerts((prev) => prev.filter((alert) => !ids.includes(alert.id)));
+    setDismissedCount((count) => count + ids.length);
+
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dismiss', ids }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error('Failed to dismiss alerts:', err);
+      setAlerts(previousAlerts);
+      setDismissedCount(previousDismissedCount);
+      setError('Failed to dismiss alert. Please try again.');
+    }
   }
 
-  function markAllRead() {
-    setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+  async function restoreDismissed() {
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore_all' }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      await fetchAlerts();
+    } catch (err) {
+      console.error('Failed to restore alerts:', err);
+      setError('Failed to restore dismissed alerts. Please try again.');
+    }
   }
 
   return (
@@ -100,13 +136,22 @@ export default function AlertsPage() {
             >
               Refresh
             </button>
-            {unreadCount > 0 && (
+            {filtered.length > 0 && (
               <button
-                onClick={markAllRead}
+                onClick={() => void dismissAlerts(filtered.map((alert) => alert.id))}
                 className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-white"
                 style={{ borderColor: brand.border, color: brand.primary }}
               >
-                Mark all read ({unreadCount})
+                Clear visible ({filtered.length})
+              </button>
+            )}
+            {dismissedCount > 0 && (
+              <button
+                onClick={() => void restoreDismissed()}
+                className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-white"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Restore hidden ({dismissedCount})
               </button>
             )}
           </div>
@@ -160,7 +205,11 @@ export default function AlertsPage() {
                 {filter === 'all' ? 'No active alerts' : `No ${filter} alerts`}
               </div>
               <div className="text-xs mt-1" style={{ color: brand.muted }}>
-                {filter === 'all' ? 'Everything looks good.' : 'Try switching to All to see other alerts.'}
+                {filter === 'all'
+                  ? dismissedCount > 0
+                    ? 'Everything active is cleared. Restore hidden alerts if needed.'
+                    : 'Everything looks good.'
+                  : 'Try switching to All to see other alerts.'}
               </div>
             </div>
           )}
@@ -169,8 +218,7 @@ export default function AlertsPage() {
             return (
               <div
                 key={alert.id}
-                onClick={() => markRead(alert.id)}
-                className={`${glass} rounded-2xl p-4 cursor-pointer transition hover:shadow-md ${!alert.read ? 'ring-1 ring-inset' : ''}`}
+                className={`${glass} rounded-2xl p-4 transition hover:shadow-md`}
                 style={{
                   borderColor: brand.border,
                   background: brand.card,
@@ -183,11 +231,30 @@ export default function AlertsPage() {
                       <span className="font-semibold text-sm" style={{ color: brand.text }}>{alert.title}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${sev.bg} ${sev.text}`}>{sev.label}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{alert.source}</span>
-                      {!alert.read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
                     </div>
                     <p className="text-sm mt-1" style={{ color: brand.muted }}>{alert.message}</p>
-                    <div className="text-[11px] mt-1.5" style={{ color: brand.muted }}>
-                      {formatTimestamp(alert.timestamp)}
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-[11px]" style={{ color: brand.muted }}>
+                        {formatTimestamp(alert.timestamp)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {alert.href && (
+                          <a
+                            href={alert.href}
+                            className="text-[11px] font-medium"
+                            style={{ color: brand.primary }}
+                          >
+                            Open
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void dismissAlerts([alert.id])}
+                          className="text-[11px] font-medium text-slate-500 hover:text-slate-700"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

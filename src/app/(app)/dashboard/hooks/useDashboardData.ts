@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatCurrency, formatChange } from '@/lib/dashboard/utils';
+import { DEFAULT_DASHBOARD_GOALS } from '@/lib/automations';
 import type {
   DashboardData,
   DashboardMetrics,
+  DashboardCrewMember,
+  DashboardQuote,
   ReceivableRecord,
   PayableRecord,
   PayoutRecord,
@@ -10,7 +13,7 @@ import type {
   ActivityItem,
 } from '@/types/dashboard';
 
-export type { DashboardMetrics, ReceivableRecord, PayableRecord, PayoutRecord, JobRecord, ActivityItem };
+export type { DashboardMetrics, DashboardCrewMember, DashboardQuote, ReceivableRecord, PayableRecord, PayoutRecord, JobRecord, ActivityItem };
 
 type UseDashboardDataResult = {
   metrics: DashboardMetrics | null;
@@ -19,6 +22,9 @@ type UseDashboardDataResult = {
   payouts: PayoutRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
+  crew: DashboardCrewMember[];
+  quotes: DashboardQuote[];
+  applicantCount: number;
   lastUpdated: string | null;
   isLoading: boolean;
   error: string | null;
@@ -47,9 +53,10 @@ const defaultMetrics: DashboardMetrics = {
   },
   revenueTrend: [],
   goals: {
-    monthlyRevenueTarget: 15000,
+    monthlyRevenueTarget: DEFAULT_DASHBOARD_GOALS.monthlyRevenueTarget,
     currentRevenue: 0,
-    monthlyJobsTarget: 30,
+    revenueChange: 0,
+    monthlyJobsTarget: DEFAULT_DASHBOARD_GOALS.monthlyJobsTarget,
     currentJobs: 0,
   },
 };
@@ -84,6 +91,9 @@ export function useDashboardData(): UseDashboardDataResult {
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [crew, setCrew] = useState<DashboardCrewMember[]>([]);
+  const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
+  const [applicantCount, setApplicantCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +105,9 @@ export function useDashboardData(): UseDashboardDataResult {
     setPayouts(data.payouts || []);
     setJobs(data.jobs || []);
     setRecentActivity(data.recentActivity || []);
+    setCrew(data.crew || []);
+    setQuotes(data.quotes || []);
+    setApplicantCount(data.applicantCount ?? 0);
     setLastUpdated(data.lastUpdated || null);
   }
 
@@ -145,10 +158,13 @@ export function useDashboardData(): UseDashboardDataResult {
     payouts,
     jobs,
     recentActivity,
+    crew,
+    quotes,
+    applicantCount,
     lastUpdated,
     isLoading,
     error,
-    refetch: () => fetchData(true), // force-refresh bypasses cache
+    refetch: () => fetchData(true),
   };
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
 import { useDashboardData } from '../hooks/useDashboardData';
 import JobsTab from '../components/tabs/JobsTab';
@@ -48,8 +49,9 @@ export default function SchedulePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [isMutating, setIsMutating] = useState<string | null>(null);
 
-  const { jobs, isLoading: jobsLoading } = useDashboardData();
+  const { jobs, isLoading: jobsLoading, refetch } = useDashboardData();
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const weekStart = weekDates[0].toISOString().split('T')[0];
@@ -75,9 +77,40 @@ export default function SchedulePage() {
     return map;
   }, [orders]);
 
-  const unscheduled = orders.filter((o) => !o.scheduled_date);
+  const unscheduled = useMemo(
+    () => jobs.filter((job) => !job.scheduledDate),
+    [jobs]
+  );
   const today = new Date().toISOString().split('T')[0];
   const weekLabel = `${weekDates[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} — ${weekDates[6].toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+  async function updateScheduleOrder(
+    orderId: string,
+    payload: { status?: 'confirmed' | 'cancelled'; scheduled_date?: string | null; scheduled_time?: string | null },
+    successMessage: string
+  ) {
+    setIsMutating(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update order');
+      }
+
+      setOrders((prev) => prev.filter((order) => order.id !== orderId));
+      await refetch();
+      toast.success(successMessage);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update order');
+    } finally {
+      setIsMutating(null);
+    }
+  }
 
   return (
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
@@ -148,6 +181,32 @@ export default function SchedulePage() {
                             <p className="font-medium truncate" style={{ color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</p>
                             <p className="truncate text-slate-600">{order.customer_name}</p>
                             {order.scheduled_time && <p className="text-slate-400">{order.scheduled_time}</p>}
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={isMutating === order.id}
+                                onClick={() => void updateScheduleOrder(
+                                  order.id,
+                                  { status: 'confirmed', scheduled_date: null, scheduled_time: null },
+                                  'Job moved back to unscheduled'
+                                )}
+                                className="rounded-md border border-black/10 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Unschedule
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isMutating === order.id}
+                                onClick={() => void updateScheduleOrder(
+                                  order.id,
+                                  { status: 'cancelled' },
+                                  'Scheduled job cancelled'
+                                )}
+                                className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -168,15 +227,34 @@ export default function SchedulePage() {
               </h2>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {unscheduled.slice(0, 9).map((order) => {
-                  const color = SERVICE_COLORS[order.service_type] || '#6B7280';
+                  const color = Object.entries(SERVICE_LABELS).find(([, label]) => label === order.service)?.[0];
                   return (
                     <div key={order.id} className="rounded-xl border border-black/5 p-3 bg-white/60">
                       <div className="flex items-start justify-between">
                         <div>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: `${color}15`, color }}>{SERVICE_LABELS[order.service_type] || order.service_type}</span>
-                          <p className="text-sm font-medium mt-1" style={{ color: brand.text }}>{order.customer_name}</p>
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            style={{ background: `${SERVICE_COLORS[color || ''] || '#6B7280'}15`, color: SERVICE_COLORS[color || ''] || '#6B7280' }}
+                          >
+                            {order.service}
+                          </span>
+                          <p className="text-sm font-medium mt-1" style={{ color: brand.text }}>{order.customer}</p>
                         </div>
-                        <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.final_price.toFixed(0)}</p>
+                        <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.amount.toFixed(0)}</p>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isMutating === order.id}
+                          onClick={() => void updateScheduleOrder(
+                            order.id,
+                            { status: 'cancelled' },
+                            'Unscheduled job cancelled'
+                          )}
+                          className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
                   );

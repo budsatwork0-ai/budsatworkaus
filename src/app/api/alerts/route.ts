@@ -1,17 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth';
+import {
+  ADMIN_ALERT_STATE_KEY,
+  DEFAULT_ADMIN_ALERT_STATE,
+  dismissAlertIds,
+  getAdminAlertState,
+  type AdminAlert,
+} from '@/lib/admin-alerts';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
-
-export type Alert = {
-  id: string;
-  title: string;
-  message: string;
-  severity: 'critical' | 'warning' | 'info';
-  source: string;
-  timestamp: string;
-  read: boolean;
-};
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window cleaning',
@@ -22,9 +20,20 @@ const SERVICE_LABELS: Record<string, string> = {
   laundry_sneakers: 'Laundry & Sneaker care',
 };
 
-export async function GET() {
-  const client = createServiceClientSafe();
+function requireStaff(role: string | undefined) {
+  return role === 'admin' || role === 'employee';
+}
 
+export async function GET() {
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!requireStaff(authUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
@@ -32,10 +41,8 @@ export async function GET() {
   try {
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Fetch orders and payables in parallel
-    const [ordersResult, payablesResult] = await Promise.all([
+    const [ordersResult, payablesResult, alertState] = await Promise.all([
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
         .from('orders')
@@ -46,6 +53,7 @@ export async function GET() {
         .from('payables')
         .select('id, vendor_name, category, amount, due_date, status, created_at')
         .neq('status', 'paid'),
+      getAdminAlertState(),
     ]);
 
     const orders: Array<{
@@ -68,111 +76,155 @@ export async function GET() {
       created_at: string;
     }> = payablesResult.data || [];
 
-    const alerts: Alert[] = [];
+    const allAlerts: AdminAlert[] = [];
 
-    // Critical: Overdue jobs (non-completed, scheduled_date in the past)
-    const overdueJobs = orders.filter(o => {
-      if (o.status === 'completed') return false;
-      if (!o.scheduled_date) return false;
-      return new Date(o.scheduled_date) < now;
+    const overdueJobs = orders.filter((order) => {
+      if (order.status === 'completed') return false;
+      if (!order.scheduled_date) return false;
+      return new Date(order.scheduled_date) < now;
     });
-    overdueJobs.forEach(o => {
-      const serviceName = SERVICE_LABELS[o.service_type] || o.service_type;
-      const daysPast = Math.floor((now.getTime() - new Date(o.scheduled_date!).getTime()) / (1000 * 60 * 60 * 24));
-      alerts.push({
-        id: `overdue-job-${o.id}`,
+
+    overdueJobs.forEach((order) => {
+      const serviceName = SERVICE_LABELS[order.service_type] || order.service_type;
+      const daysPast = Math.floor((now.getTime() - new Date(order.scheduled_date!).getTime()) / (1000 * 60 * 60 * 24));
+      allAlerts.push({
+        id: `overdue-job-${order.id}`,
         title: 'Overdue job',
-        message: `${serviceName} for ${o.customer_name} is ${daysPast} day${daysPast !== 1 ? 's' : ''} past the scheduled date. Update status or reschedule.`,
+        message: `${serviceName} for ${order.customer_name} is ${daysPast} day${daysPast !== 1 ? 's' : ''} past the scheduled date. Update status or reschedule.`,
         severity: 'critical',
         source: 'Jobs',
-        timestamp: o.scheduled_date!,
-        read: false,
+        timestamp: order.scheduled_date!,
+        href: '/dashboard/schedule',
       });
     });
 
-    // Critical: Overdue payables (due_date in the past)
-    const overduePayables = payables.filter(p => {
-      if (!p.due_date) return false;
-      return new Date(p.due_date) < now;
+    const overduePayables = payables.filter((payable) => {
+      if (!payable.due_date) return false;
+      return new Date(payable.due_date) < now;
     });
-    overduePayables.forEach(p => {
-      const daysPast = Math.floor((now.getTime() - new Date(p.due_date!).getTime()) / (1000 * 60 * 60 * 24));
-      alerts.push({
-        id: `overdue-bill-${p.id}`,
+
+    overduePayables.forEach((payable) => {
+      const daysPast = Math.floor((now.getTime() - new Date(payable.due_date!).getTime()) / (1000 * 60 * 60 * 24));
+      allAlerts.push({
+        id: `overdue-bill-${payable.id}`,
         title: 'Overdue bill',
-        message: `${p.vendor_name} (${p.category}) — $${p.amount.toFixed(2)} was due ${daysPast} day${daysPast !== 1 ? 's' : ''} ago.`,
+        message: `${payable.vendor_name} (${payable.category}) — $${payable.amount.toFixed(2)} was due ${daysPast} day${daysPast !== 1 ? 's' : ''} ago.`,
         severity: 'critical',
         source: 'Payables',
-        timestamp: p.due_date!,
-        read: false,
+        timestamp: payable.due_date!,
+        href: '/dashboard/invoices',
       });
     });
 
-    // Warning: Bills due within 7 days
-    const dueSoonPayables = payables.filter(p => {
-      if (!p.due_date) return false;
-      const due = new Date(p.due_date);
+    const dueSoonPayables = payables.filter((payable) => {
+      if (!payable.due_date) return false;
+      const due = new Date(payable.due_date);
       return due >= now && due <= sevenDaysFromNow;
     });
-    dueSoonPayables.forEach(p => {
-      const daysUntil = Math.ceil((new Date(p.due_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      alerts.push({
-        id: `due-soon-${p.id}`,
+
+    dueSoonPayables.forEach((payable) => {
+      const daysUntil = Math.ceil((new Date(payable.due_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      allAlerts.push({
+        id: `due-soon-${payable.id}`,
         title: 'Bill due soon',
-        message: `${p.vendor_name} — $${p.amount.toFixed(2)} due in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}.`,
+        message: `${payable.vendor_name} — $${payable.amount.toFixed(2)} due in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}.`,
         severity: 'warning',
         source: 'Payables',
-        timestamp: p.created_at,
-        read: false,
+        timestamp: payable.created_at,
+        href: '/dashboard/invoices',
       });
     });
 
-    // Warning: Confirmed orders with no scheduled date
-    const unscheduled = orders.filter(o =>
-      (o.status === 'confirmed' || o.status === 'pending') && !o.scheduled_date
+    const unscheduledOrders = orders.filter(
+      (order) => (order.status === 'confirmed' || order.status === 'pending') && !order.scheduled_date
     );
-    unscheduled.forEach(o => {
-      const serviceName = SERVICE_LABELS[o.service_type] || o.service_type;
-      alerts.push({
-        id: `unscheduled-${o.id}`,
+
+    unscheduledOrders.forEach((order) => {
+      const serviceName = SERVICE_LABELS[order.service_type] || order.service_type;
+      allAlerts.push({
+        id: `unscheduled-${order.id}`,
         title: 'Job needs scheduling',
-        message: `${serviceName} for ${o.customer_name} is confirmed but has no scheduled date.`,
+        message: `${serviceName} for ${order.customer_name} is confirmed but has no scheduled date.`,
         severity: 'warning',
         source: 'Jobs',
-        timestamp: o.created_at,
-        read: false,
+        timestamp: order.created_at,
+        href: '/dashboard/schedule',
       });
     });
 
-    // Info: Recent bookings (last 7 days, confirmed)
-    const recentBookings = orders.filter(o => {
-      if (o.status !== 'confirmed') return false;
-      return new Date(o.created_at) >= sevenDaysAgo;
-    });
-    recentBookings.forEach(o => {
-      const serviceName = SERVICE_LABELS[o.service_type] || o.service_type;
-      alerts.push({
-        id: `booking-${o.id}`,
-        title: 'New booking confirmed',
-        message: `${serviceName} for ${o.customer_name} — $${o.final_price.toFixed(2)} received.`,
-        severity: 'info',
-        source: 'Orders',
-        timestamp: o.created_at,
-        read: true,
-      });
-    });
-
-    // Sort: critical first, then warning, then info; within each group newest first
     const severityOrder = { critical: 0, warning: 1, info: 2 };
-    alerts.sort((a, b) => {
-      const sev = severityOrder[a.severity] - severityOrder[b.severity];
-      if (sev !== 0) return sev;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    allAlerts.sort((left, right) => {
+      const severityDelta = severityOrder[left.severity] - severityOrder[right.severity];
+      if (severityDelta !== 0) return severityDelta;
+      return new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime();
     });
 
-    return NextResponse.json({ alerts });
+    const dismissedSet = new Set(alertState.dismissedIds);
+    const alerts = allAlerts.filter((alert) => !dismissedSet.has(alert.id));
+
+    return NextResponse.json({
+      alerts,
+      dismissedCount: allAlerts.length - alerts.length,
+    });
   } catch (error) {
     console.error('Alerts API error:', error);
     return NextResponse.json({ error: 'Failed to fetch alerts' }, { status: 500 });
   }
+}
+
+export async function POST(req: NextRequest) {
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!requireStaff(authUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const client = createServiceClientSafe();
+  if (!client) {
+    return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+  }
+
+  let body: { action?: 'dismiss' | 'restore_all'; ids?: string[] };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const action = body.action;
+  if (!action) {
+    return NextResponse.json({ error: 'Missing action' }, { status: 400 });
+  }
+
+  const currentState = await getAdminAlertState();
+  const nextState =
+    action === 'restore_all'
+      ? DEFAULT_ADMIN_ALERT_STATE
+      : dismissAlertIds(currentState, body.ids || []);
+
+  if (action === 'dismiss' && nextState.dismissedIds.length === currentState.dismissedIds.length) {
+    return NextResponse.json({ ok: true, state: nextState });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (client as any)
+    .from('site_settings')
+    .upsert(
+      [{
+        key: ADMIN_ALERT_STATE_KEY,
+        value: nextState,
+        description: 'Dismissed admin alerts and notification state',
+        updated_at: new Date().toISOString(),
+        updated_by: authUser.email || authUser.id,
+      }],
+      { onConflict: 'key' }
+    );
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, state: nextState });
 }

@@ -31,22 +31,25 @@ export default function SideNavItem({
 
   return (
     <motion.div
-      whileHover={{ scale: 1.02 }}
+      whileHover={{ y: -1 }}
       whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 250, damping: 20 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 22 }}
     >
       <Link
         href={href}
         title={!showLabel ? label : undefined}
-        className={`group flex items-center rounded-xl transition-all ${
+        className={`group flex items-center rounded-2xl border transition-all ${
           nested ? 'gap-2.5 px-3 py-2 ml-2' : 'gap-3 px-3 py-2.5'
         } ${showLabel ? '' : 'justify-center px-0 py-2.5'} ${
-          active ? 'bg-white/85 shadow-sm' : 'hover:bg-white/50 hover:shadow-sm'
+          active ? 'shadow-sm' : 'hover:bg-white/75 hover:shadow-sm'
         }`}
-        style={{ border: '1px solid rgba(0,0,0,.06)' }}
+        style={{
+          borderColor: active ? 'rgba(28,124,84,.10)' : 'transparent',
+          background: active ? brand.accentSoft : 'transparent',
+        }}
       >
         <motion.span
-          className={`grid place-items-center rounded-lg shrink-0 ${nested ? 'h-5 w-5' : 'h-6 w-6'}`}
+          className={`grid place-items-center rounded-[10px] shrink-0 ${nested ? 'h-6 w-6' : 'h-7 w-7'}`}
           style={{
             background: active ? brand.primary : 'rgba(15,61,46,.08)',
             color: active ? '#fff' : brand.primary,
@@ -58,18 +61,15 @@ export default function SideNavItem({
         {showLabel && (
           <>
             <span
-              className={`${nested ? 'text-[13px]' : 'text-sm'} font-medium`}
+              className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
               style={{ color: active ? brand.primary : brand.muted }}
             >
               {label}
             </span>
             {badge !== undefined && badge !== null && badge > 0 && (
               <span
-                className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{
-                  background: active ? 'rgba(15,61,46,.12)' : 'rgba(15,23,42,.08)',
-                  color: active ? brand.primary : '#475569',
-                }}
+                className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono"
+                style={{ background: '#10b981', color: '#fff' }}
               >
                 {badge > 99 ? '99+' : badge}
               </span>

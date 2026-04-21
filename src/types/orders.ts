@@ -28,11 +28,13 @@ export interface Order {
   final_price: number;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
+  day_before_reminder_sent?: boolean;
   status: OrderStatus;
   notes?: string | null;
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
+  auto_completed_at?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_payment_intent_id?: string | null;
 }
@@ -68,11 +70,11 @@ export interface UpdateOrderInput {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
-  scheduled_date?: string;
-  scheduled_time?: string;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
   status?: OrderStatus;
   notes?: string;
-  completed_at?: string;
+  completed_at?: string | null;
 }
 
 // Helper labels for display

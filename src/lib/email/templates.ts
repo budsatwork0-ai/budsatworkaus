@@ -334,3 +334,98 @@ export function dayBeforeReminderEmail({
     `),
   };
 }
+
+export type QuoteDiscountOfferParams = {
+  customerName: string;
+  serviceLabel: string;
+  originalTotal: number;
+  discountedTotal: number;
+  discountPercent: number;
+  quoteId: string;
+  paymentUrl: string;
+};
+
+export function quoteDiscountOfferEmail({
+  customerName,
+  serviceLabel,
+  originalTotal,
+  discountedTotal,
+  discountPercent,
+  quoteId,
+  paymentUrl,
+}: QuoteDiscountOfferParams): { subject: string; html: string } {
+  return {
+    subject: `${discountPercent}% off if you'd still like to lock this in`,
+    html: layout(`
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">A little nudge for you, ${customerName}</h1>
+      <p style="color:${MUTED};margin:0 0 20px;">
+        Your quote for <strong>${serviceLabel}</strong> is still open. We&apos;ve applied a
+        <strong> ${discountPercent}% re-engagement discount</strong> in case timing was the only thing holding you up.
+      </p>
+      <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Updated quote</div>
+        <div style="font-size:16px;font-weight:600;color:${PRIMARY};">${serviceLabel}</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:8px;margin-bottom:4px;">Was</div>
+        <div style="font-size:15px;color:${MUTED};text-decoration:line-through;">$${originalTotal.toFixed(2)}</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:8px;margin-bottom:4px;">Now</div>
+        <div style="font-size:22px;font-weight:700;color:${PRIMARY};">$${discountedTotal.toFixed(2)}</div>
+        <div style="font-size:11px;color:${MUTED};margin-top:8px;">Quote #${quoteId.slice(0, 8).toUpperCase()}</div>
+      </div>
+      <a href="${paymentUrl}" style="display:inline-block;background:${PRIMARY};color:#fff;text-decoration:none;border-radius:10px;padding:12px 24px;font-weight:600;font-size:15px;margin-bottom:16px;">
+        View discounted quote
+      </a>
+      <p style="color:${MUTED};font-size:13px;margin:0 0 12px;">
+        Open your client portal to generate the refreshed payment link at the discounted amount.
+      </p>
+      <p style="color:${MUTED};font-size:13px;margin:0 0 20px;">
+        Questions before you book? Reply to this email and we&apos;ll sort it out.
+      </p>
+      <p style="color:${PRIMARY};font-weight:600;margin:0;">– The Buds At Work team</p>
+    `),
+  };
+}
+
+export type WeeklyKpiEmailParams = {
+  periodLabel: string;
+  quoteVolume: number;
+  conversionRate: number;
+  revenue: number;
+  jobsCompleted: number;
+};
+
+export function weeklyKpiEmail({
+  periodLabel,
+  quoteVolume,
+  conversionRate,
+  revenue,
+  jobsCompleted,
+}: WeeklyKpiEmailParams): { subject: string; html: string } {
+  return {
+    subject: `Weekly KPI summary: ${periodLabel}`,
+    html: layout(`
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Weekly KPI summary</h1>
+      <p style="color:${MUTED};margin:0 0 20px;">Snapshot for <strong>${periodLabel}</strong>.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+        <div style="background:#f0faf5;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:${MUTED};margin-bottom:4px;">Quotes created</div>
+          <div style="font-size:24px;font-weight:700;color:${PRIMARY};">${quoteVolume}</div>
+        </div>
+        <div style="background:#f0faf5;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:${MUTED};margin-bottom:4px;">Conversion rate</div>
+          <div style="font-size:24px;font-weight:700;color:${PRIMARY};">${conversionRate}%</div>
+        </div>
+        <div style="background:#f0faf5;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:${MUTED};margin-bottom:4px;">Revenue completed</div>
+          <div style="font-size:24px;font-weight:700;color:${PRIMARY};">$${revenue.toFixed(2)}</div>
+        </div>
+        <div style="background:#f0faf5;border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:${MUTED};margin-bottom:4px;">Jobs completed</div>
+          <div style="font-size:24px;font-weight:700;color:${PRIMARY};">${jobsCompleted}</div>
+        </div>
+      </div>
+      <p style="color:${MUTED};font-size:13px;margin:0;">
+        This email is generated automatically from Buds At Work dashboard data so you can skip the manual Monday morning KPI check.
+      </p>
+    `),
+  };
+}

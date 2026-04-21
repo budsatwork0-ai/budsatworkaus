@@ -20,7 +20,7 @@ export async function GET() {
   }
 
   // Convert array to object for easier consumption
-  const settings: Record<string, string> = {};
+  const settings: Record<string, unknown> = {};
   for (const row of data || []) {
     settings[row.key] = row.value;
   }
@@ -43,22 +43,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  let body: { settings: Record<string, string> };
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!body.settings || typeof body.settings !== 'object') {
-    return NextResponse.json({ error: 'Missing settings object' }, { status: 400 });
+  const incomingSettings =
+    body && typeof body === 'object' && body.settings && typeof body.settings === 'object'
+      ? body.settings
+      : body && typeof body === 'object' && 'key' in body
+        ? { [String((body as Record<string, unknown>).key)]: (body as Record<string, unknown>).value }
+        : null;
+
+  if (!incomingSettings || Array.isArray(incomingSettings)) {
+    return NextResponse.json({ error: 'Missing settings payload' }, { status: 400 });
   }
 
   // Upsert each setting
-  const updates = Object.entries(body.settings).map(([key, value]) => ({
+  const updates = Object.entries(incomingSettings).map(([key, value]) => ({
     key,
     value,
     updated_at: new Date().toISOString(),
+    updated_by: authUser.email || authUser.id,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

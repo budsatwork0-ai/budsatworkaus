@@ -15,15 +15,7 @@ import { useAuth } from '@/app/hooks/useAuth';
 import { useSessionManager } from '@/app/hooks/useSessionManager';
 import { SessionWarningModal } from '@/components/SessionWarningModal';
 import { SoftLockModal } from '@/components/SoftLockModal';
-
-type NotificationItem = {
-  id: string;
-  type: 'warning' | 'info' | 'success';
-  title: string;
-  message: string;
-  time: string;
-  href?: string;
-};
+import type { AdminAlert } from '@/lib/admin-alerts';
 
 type NavBadgeKey =
   | 'dashboard'
@@ -77,7 +69,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [newDropdownOpen, setNewDropdownOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<AdminAlert[]>([]);
+  const [dismissedCount, setDismissedCount] = useState(0);
   const [notifLoading, setNotifLoading] = useState(false);
   const [navBadges, setNavBadges] = useState<Record<NavBadgeKey, number>>({
     dashboard: 0,
@@ -125,95 +118,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const fetchNotifications = useCallback(async () => {
     setNotifLoading(true);
     try {
-      const [ordersRes, appRes, crewRes, quotesRes, dashboardRes] = await Promise.all([
-        fetch('/api/orders?status=pending&limit=50').then((r) => r.json()).catch(() => ({ orders: [] })),
+      const [appRes, quotesRes, dashboardRes, alertsRes] = await Promise.all([
         fetch('/api/applicants?stage=intake&limit=50').then((r) => r.json()).catch(() => ({ applicants: [] })),
-        fetch('/api/crew/employees').then((r) => r.json()).catch(() => ({ employees: [] })),
         fetch('/api/quotes?status=submitted,in_review&limit=100').then((r) => r.json()).catch(() => ({ quotes: [] })),
         fetch('/api/dashboard').then((r) => r.json()).catch(() => ({ receivables: [], jobs: [] })),
+        fetch('/api/alerts').then((r) => r.json()).catch(() => ({ alerts: [], dismissedCount: 0 })),
       ]);
 
-      const pendingOrders = ordersRes.orders || [];
       const allIntake: { role: string }[] = appRes.applicants || [];
       const communityRoles = new Set(['Quality partner', 'Sponsor', 'Innovation partner']);
       const crewApplicants = allIntake.filter((applicant) => !communityRoles.has(applicant.role));
-      const activeEmployees = (crewRes.employees || []).length;
       const pendingQuotes = quotesRes.quotes || [];
       const overdueInvoices = (dashboardRes.receivables || []).filter((record: { status: string }) => record.status === 'Overdue').length;
       const unscheduledJobs = (dashboardRes.jobs || []).filter((job: { scheduledDate?: string }) => !job.scheduledDate).length;
 
-      const items: NotificationItem[] = [];
-
-      if (overdueInvoices > 0) {
-        items.push({
-          id: 'overdue-invoices',
-          type: 'warning',
-          title: `${overdueInvoices} overdue invoice${overdueInvoices > 1 ? 's' : ''}`,
-          message: 'Receivables need follow-up',
-          time: 'Now',
-          href: '/dashboard/invoices',
-        });
-      }
-
-      if (unscheduledJobs > 0) {
-        items.push({
-          id: 'unscheduled-jobs',
-          type: 'warning',
-          title: `${unscheduledJobs} unscheduled job${unscheduledJobs > 1 ? 's' : ''}`,
-          message: 'Jobs need calendar placement',
-          time: 'Now',
-          href: '/dashboard/schedule',
-        });
-      }
-
-      if (pendingQuotes.length > 0) {
-        items.push({
-          id: 'pending-quotes',
-          type: 'warning',
-          title: `${pendingQuotes.length} pending quote${pendingQuotes.length > 1 ? 's' : ''}`,
-          message: 'Quotes awaiting review',
-          time: 'Now',
-          href: '/dashboard/quotes',
-        });
-      }
-
-      if (crewApplicants.length > 0) {
-        items.push({
-          id: 'new-applicants',
-          type: 'info',
-          title: `${crewApplicants.length} new applicant${crewApplicants.length > 1 ? 's' : ''}`,
-          message: 'Review the applicant pipeline',
-          time: 'Today',
-          href: '/dashboard/applicants',
-        });
-      }
-
-      if (pendingOrders.length > 0) {
-        items.push({
-          id: 'pending-orders',
-          type: 'info',
-          title: `${pendingOrders.length} pending job${pendingOrders.length > 1 ? 's' : ''}`,
-          message: 'Orders awaiting confirmation',
-          time: 'Today',
-          href: '/dashboard/jobs',
-        });
-      }
-
-      if (activeEmployees > 0) {
-        items.push({
-          id: 'active-crew',
-          type: 'success',
-          title: `${activeEmployees} crew member${activeEmployees > 1 ? 's' : ''} active`,
-          message: 'Crew roster is available',
-          time: 'Today',
-          href: '/dashboard/crew',
-        });
-      }
-
-      setNotifications(items);
+      setNotifications(alertsRes.alerts || []);
+      setDismissedCount(alertsRes.dismissedCount || 0);
       setNavBadges({
         dashboard: overdueInvoices + crewApplicants.length + pendingQuotes.length + unscheduledJobs,
-        schedule: unscheduledJobs + pendingOrders.length,
+        schedule: unscheduledJobs,
         quotes: pendingQuotes.length,
         invoices: overdueInvoices,
         applicants: crewApplicants.length,
@@ -227,7 +150,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
-  const unreadCount = notifications.filter((n) => n.type === 'warning').length;
+  const unreadCount = notifications.filter((notification) => notification.severity !== 'info').length;
+
+  const dismissNotification = useCallback(async (id: string) => {
+    const previousNotifications = notifications;
+    const previousDismissedCount = dismissedCount;
+
+    setNotifications((prev) => prev.filter((notification) => notification.id !== id));
+    setDismissedCount((count) => count + 1);
+
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dismiss', ids: [id] }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch {
+      setNotifications(previousNotifications);
+      setDismissedCount(previousDismissedCount);
+    }
+  }, [dismissedCount, notifications]);
+
+  const restoreDismissedNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore_all' }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      await fetchNotifications();
+    } catch {
+      // Keep the current dropdown stable if restoring fails.
+    }
+  }, [fetchNotifications]);
 
   const renderExpandedNav = () => {
     return navEntries.map((entry) => {
@@ -260,13 +224,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
   };
 
-  const NOTIF_ICONS: Record<string, { bg: string; color: string }> = {
+  const NOTIF_ICONS: Record<AdminAlert['severity'], { bg: string; color: string }> = {
+    critical: { bg: '#FEE2E2', color: '#B91C1C' },
     warning: { bg: '#FEF3C7', color: '#92400E' },
     info: { bg: '#DBEAFE', color: '#1E40AF' },
-    success: { bg: '#ECFDF5', color: '#065F46' },
   };
 
   const currentTitle = PAGE_TITLES[pathname] || pathname.split('/').slice(-1)[0].replace(/^\w/, (c) => c.toUpperCase());
+  const userDisplayName = sessionUser?.user_metadata?.full_name || sessionUser?.email?.split('@')[0] || 'Admin user';
+  const userInitials = userDisplayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part: string) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'BW';
+  const roleLabel = role === 'admin' ? 'Admin' : role === 'employee' ? 'Employee' : 'Customer';
 
   return (
     <div
@@ -279,18 +251,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Toaster position="top-right" />
 
       <motion.aside
-        animate={{ width: sidebarOpen ? 292 : 88 }}
+        animate={{ width: sidebarOpen ? 268 : 88 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="hidden md:flex flex-col gap-3 p-4 sticky top-0 h-svh overflow-y-auto"
         style={{
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          background: 'rgba(255,255,255,.72)',
-          borderRight: '1px solid rgba(0,0,0,.06)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          background: 'rgba(255,255,255,.74)',
+          borderRight: '1px solid rgba(215,231,221,.92)',
         }}
       >
         <div
-          className="flex items-center gap-3 px-2 py-3 cursor-pointer"
+          className="flex items-center gap-3 rounded-2xl px-2 py-3 cursor-pointer"
           onClick={() => setSidebarOpen((value) => !value)}
         >
           <motion.div
@@ -312,6 +284,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="space-y-2">
           {sidebarOpen ? renderExpandedNav() : renderCompactNav()}
+        </div>
+
+        <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: brand.primary }}>
+              {userInitials}
+            </div>
+            {sidebarOpen ? (
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900">{userDisplayName}</div>
+                <div className="text-[11px] text-slate-500">{roleLabel}</div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
       </motion.aside>
@@ -364,6 +350,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               <div className="space-y-2">{renderExpandedNav()}</div>
 
+              <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: brand.primary }}>
+                    {userInitials}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900">{userDisplayName}</div>
+                    <div className="text-[11px] text-slate-500">{roleLabel}</div>
+                  </div>
+                </div>
+              </div>
+
             </motion.aside>
           </>
         )}
@@ -372,7 +370,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <header className="sticky top-3 z-30 px-3 sm:px-4 md:px-6">
           <div
-            className="w-full rounded-2xl border border-black/5 bg-white/80 backdrop-blur px-3 sm:px-4 md:px-6 py-3 shadow-[0_8px_30px_rgba(2,6,23,0.06)] flex items-center gap-2 sm:gap-3"
+            className="w-full rounded-[20px] border border-black/5 bg-white/82 backdrop-blur px-3 sm:px-4 md:px-5 py-3 shadow-[0_12px_30px_rgba(2,6,23,0.06)] flex items-center gap-2 sm:gap-3"
             role="banner"
           >
             <button
@@ -392,12 +390,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="ml-auto flex items-center gap-2">
               <button
                 onClick={() => setCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
+                className="hidden md:flex items-center gap-2 rounded-xl border border-black/10 bg-[#f1f7f3] px-3 py-2 text-sm text-slate-500 hover:bg-white transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span className="text-xs">Search...</span>
+                <span className="text-xs">Search jobs, quotes, customers...</span>
                 <kbd className="px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded">⌘K</kbd>
               </button>
 
@@ -430,7 +428,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       >
                         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                           <p className="text-sm font-semibold" style={{ color: brand.text }}>Notifications</p>
-                          <button onClick={fetchNotifications} className="text-xs text-slate-400 hover:text-slate-600">Refresh</button>
+                          <div className="flex items-center gap-3">
+                            {dismissedCount > 0 && (
+                              <button
+                                onClick={() => void restoreDismissedNotifications()}
+                                className="text-xs text-slate-400 hover:text-slate-600"
+                              >
+                                Restore hidden
+                              </button>
+                            )}
+                            <button onClick={fetchNotifications} className="text-xs text-slate-400 hover:text-slate-600">Refresh</button>
+                          </div>
                         </div>
                         <div className="max-h-80 overflow-y-auto">
                           {notifLoading ? (
@@ -439,33 +447,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             </div>
                           ) : notifications.length === 0 ? (
                             <div className="p-6 text-center">
-                              <p className="text-sm text-slate-400">All clear. No notifications.</p>
+                              <p className="text-sm text-slate-400">
+                                {dismissedCount > 0 ? 'Active alerts are cleared. Restore hidden alerts if needed.' : 'All clear. No notifications.'}
+                              </p>
                             </div>
                           ) : (
                             notifications.map((notification) => {
-                              const style = NOTIF_ICONS[notification.type] || NOTIF_ICONS.info;
+                              const style = NOTIF_ICONS[notification.severity] || NOTIF_ICONS.info;
                               return (
-                                <a
+                                <div
                                   key={notification.id}
-                                  href={notification.href || '#'}
-                                  onClick={() => setNotificationsOpen(false)}
                                   className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50"
                                 >
                                   <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: style.bg }}>
-                                    {notification.type === 'warning' ? (
+                                    {notification.severity === 'critical' ? (
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={style.color} strokeWidth="2"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                                    ) : notification.severity === 'warning' ? (
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={style.color} strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                                    ) : notification.type === 'success' ? (
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={style.color} strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
                                     ) : (
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={style.color} strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium" style={{ color: brand.text }}>{notification.title}</p>
-                                    <p className="text-xs text-slate-500">{notification.message}</p>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium" style={{ color: brand.text }}>{notification.title}</p>
+                                        <p className="text-xs text-slate-500">{notification.message}</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => void dismissNotification(notification.id)}
+                                        className="text-[10px] text-slate-400 hover:text-slate-600 shrink-0"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </div>
+                                    {notification.href && (
+                                      <a
+                                        href={notification.href}
+                                        onClick={() => setNotificationsOpen(false)}
+                                        className="mt-1 inline-block text-[11px] font-medium"
+                                        style={{ color: brand.primary }}
+                                      >
+                                        Open
+                                      </a>
+                                    )}
                                   </div>
-                                  <span className="text-[10px] text-slate-400 shrink-0">{notification.time}</span>
-                                </a>
+                                </div>
                               );
                             })
                           )}
@@ -481,8 +509,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setNewDropdownOpen((value) => !value)}
-                  className="px-3 py-2 text-sm rounded-xl text-white"
-                  style={{ background: brand.primary }}
+                  className="px-3.5 py-2 text-sm rounded-xl text-white shadow-[0_8px_24px_rgba(16,185,129,0.22)]"
+                  style={{ background: '#10b981' }}
                 >
                   + New
                 </motion.button>
@@ -520,7 +548,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <motion.div whileHover={{ scale: 1.05 }}>
                 <details className="group">
                   <summary className="list-none cursor-pointer">
-                    <div className="h-8 w-8 rounded-full border border-black/10" style={{ background: brand.primary }} />
+                    <div className="h-8 w-8 rounded-full border border-black/10 flex items-center justify-center text-[10px] font-semibold text-white" style={{ background: brand.primary }}>
+                      {userInitials}
+                    </div>
                   </summary>
                   <motion.div
                     className="absolute right-0 mt-2 w-40 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden"
