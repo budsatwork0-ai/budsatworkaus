@@ -16,6 +16,7 @@ export default function SideNavItem({
   label,
   icon,
   badge,
+  badgeHref,
   nested = false,
   showLabel = true,
 }: {
@@ -23,14 +24,17 @@ export default function SideNavItem({
   label: string;
   icon?: React.ReactNode;
   badge?: number | null;
+  badgeHref?: string;
   nested?: boolean;
   showLabel?: boolean;
 }) {
   const pathname = usePathname();
   const active = pathname === href || (href !== '/dashboard' && pathname?.startsWith(href + '/'));
+  const showBadge = badge !== undefined && badge !== null && badge > 0;
 
   return (
     <motion.div
+      className="relative"
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
@@ -59,24 +63,33 @@ export default function SideNavItem({
           {icon ?? <span className="text-[10px]">•</span>}
         </motion.span>
         {showLabel && (
-          <>
-            <span
-              className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
-              style={{ color: active ? brand.primary : brand.muted }}
-            >
-              {label}
-            </span>
-            {badge !== undefined && badge !== null && badge > 0 && (
-              <span
-                className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono"
-                style={{ background: '#10b981', color: '#fff' }}
-              >
-                {badge > 99 ? '99+' : badge}
-              </span>
-            )}
-          </>
+          <span
+            className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
+            style={{ color: active ? brand.primary : brand.muted }}
+          >
+            {label}
+          </span>
+        )}
+        {/* Non-deep-linked badge rendered inside the Link */}
+        {showLabel && showBadge && !badgeHref && (
+          <span
+            className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono"
+            style={{ background: '#10b981', color: '#fff' }}
+          >
+            {badge! > 99 ? '99+' : badge}
+          </span>
         )}
       </Link>
+      {/* Deep-linked badge rendered outside the anchor to avoid nesting */}
+      {showLabel && showBadge && badgeHref && (
+        <Link
+          href={badgeHref}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono transition hover:opacity-80"
+          style={{ background: '#10b981', color: '#fff' }}
+        >
+          {badge! > 99 ? '99+' : badge}
+        </Link>
+      )}
     </motion.div>
   );
 }

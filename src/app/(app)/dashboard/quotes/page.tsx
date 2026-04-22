@@ -706,9 +706,28 @@ function QuotesPageContent() {
   );
 }
 
+function QuotesSkeleton() {
+  return (
+    <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14 animate-pulse">
+      {/* Metric row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-2xl bg-white/70 border border-black/5" />
+        ))}
+      </div>
+      {/* Quote cards */}
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-20 rounded-2xl bg-white/70 border border-black/5" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function QuotesPage() {
   return (
-    <Suspense fallback={<div className="min-h-[320px] w-full" />}>
+    <Suspense fallback={<QuotesSkeleton />}>
       <QuotesPageContent />
     </Suspense>
   );

@@ -171,9 +171,8 @@ export default function DashboardHome() {
 
   const crewSummary = useMemo(() => {
     const active = crew.filter((member) => member.status === 'active');
-    const awaiting = crew.filter((member) => member.awaitingApproval);
     const ready = crew.filter((member) => member.readyForCrewApproval);
-    return { active, awaiting, ready };
+    return { active, ready };
   }, [crew]);
 
   const visibleCrew = useMemo(() => {
@@ -188,12 +187,12 @@ export default function DashboardHome() {
 
   const crewUtilization = useMemo(() => {
     const active = crew.filter((m) => m.status === 'active');
-    if (active.length === 0) return { totalAssigned: 0, totalInProgress: 0, avgLoad: 0, overloaded: [] };
+    if (active.length === 0) return { totalInProgress: 0, overloaded: [] as typeof crew };
     const totalAssigned = active.reduce((sum, m) => sum + (m.assignedJobs ?? 0), 0);
     const totalInProgress = active.reduce((sum, m) => sum + (m.inProgressJobs ?? 0), 0);
     const avgLoad = Math.round(totalAssigned / active.length);
     const overloaded = active.filter((m) => (m.assignedJobs ?? 0) > avgLoad * 1.5 && avgLoad > 0);
-    return { totalAssigned, totalInProgress, avgLoad, overloaded };
+    return { totalInProgress, overloaded };
   }, [crew]);
 
   const nextBestActions = useMemo<NextBestAction[]>(() => {
@@ -320,7 +319,7 @@ export default function DashboardHome() {
                         </td>
                         <td className="px-4 py-3 align-top">
                           <p className="font-medium text-slate-900">{job.service}</p>
-                          <p className="text-[11px] text-slate-500">{job.notes || 'No note added'}</p>
+                          {job.notes && <p className="text-[11px] text-slate-500">{job.notes}</p>}
                         </td>
                         <td className="px-4 py-3 align-top">
                           <span className={statusPillClass(job.status)}>
@@ -496,9 +495,6 @@ export default function DashboardHome() {
       >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: '#10b981' }}>
-              Operations Console
-            </p>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-semibold tracking-[-0.03em]" style={{ color: brand.primary }}>
                 {roleCopy.title}
@@ -520,9 +516,9 @@ export default function DashboardHome() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <HeaderChip label={`${alertsFeed.length} active alerts`} tone="red" />
-            <HeaderChip label={`${todayJobs.length} jobs today`} tone="blue" />
-            <HeaderChip label={`${crewSummary.active.length} active crew`} tone="emerald" />
+            {alertsFeed.length > 0 && <HeaderChip label={`${alertsFeed.length} active alert${alertsFeed.length === 1 ? '' : 's'}`} tone="red" />}
+            {todayJobs.length > 0 && <HeaderChip label={`${todayJobs.length} job${todayJobs.length === 1 ? '' : 's'} today`} tone="blue" />}
+            {crewSummary.active.length > 0 && <HeaderChip label={`${crewSummary.active.length} active crew`} tone="emerald" />}
           </div>
         </div>
 
@@ -705,12 +701,19 @@ function AlertRow({ alert }: { alert: DashboardAlert }) {
   );
 }
 
+const ACTION_BADGE_LABELS: Record<AttentionTone, string> = {
+  red: 'Overdue',
+  amber: 'Pending',
+  blue: 'Review',
+  emerald: 'Approve',
+};
+
 function ActionCard({ action }: { action: NextBestAction }) {
   const colors = toneStyles(action.tone);
   return (
     <Link href={action.href} className="rounded-[20px] border border-black/5 bg-white/90 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,61,46,0.08)]">
       <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: colors.bg, color: colors.fg }}>
-        Next
+        {ACTION_BADGE_LABELS[action.tone]}
       </span>
       <p className="mt-3 text-sm font-semibold text-slate-900">{action.title}</p>
       <p className="mt-2 text-xs leading-5 text-slate-500">{action.detail}</p>

@@ -310,9 +310,26 @@ function SchedulePageContent() {
   );
 }
 
+function ScheduleSkeleton() {
+  return (
+    <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14 animate-pulse">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-48 rounded-xl bg-white/70 border border-black/5" />
+      </div>
+      {/* Calendar grid */}
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="h-48 rounded-2xl bg-white/70 border border-black/5" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function SchedulePage() {
   return (
-    <Suspense fallback={<div className="min-h-[320px] w-full" />}>
+    <Suspense fallback={<ScheduleSkeleton />}>
       <SchedulePageContent />
     </Suspense>
   );
