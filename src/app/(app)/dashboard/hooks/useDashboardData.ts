@@ -113,9 +113,9 @@ const defaultMoneyFlow: MoneyFlowData = {
 };
 
 const CACHE_KEY = 'dashboard_cache';
-const CACHE_TTL_MS = 60_000; // 60 seconds
+const CACHE_TTL_MS = 300_000; // 5 minutes
 
-function readCache(): DashboardData | null {
+export function readCache(): DashboardData | null {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;

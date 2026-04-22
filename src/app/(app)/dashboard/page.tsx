@@ -7,6 +7,7 @@ import { brand } from '@/app/ui/theme';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useDashboardData } from './hooks/useDashboardData';
 import { ErrorMessage, RefreshIcon } from './components/shared';
+import { ErrorBoundary } from './_components/ErrorBoundary';
 import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
 import { jobStatusLabels, normalizeQuoteStatus, type DashboardAlert, type DashboardCrewMember, type DashboardQuote, type JobRecord } from '@/types/dashboard';
 
@@ -556,7 +557,9 @@ export default function DashboardHome() {
                   : 'hidden lg:block'
               }
             >
-              {node}
+              <ErrorBoundary label={sectionKey}>
+                {node}
+              </ErrorBoundary>
             </div>
           );
         })}

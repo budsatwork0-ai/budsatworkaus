@@ -9,6 +9,7 @@
  */
 
 import type { PayoutRecord } from '@/types/dashboard';
+import { formatCurrency, formatDate } from '@/lib/dashboard/utils';
 
 type Props = {
   payouts: PayoutRecord[];
@@ -21,19 +22,6 @@ const STATUS_STYLES: Record<PayoutRecord['status'], { bg: string; text: string; 
   failed:   { bg: 'bg-red-100',     text: 'text-red-700',     label: 'Failed' },
   canceled: { bg: 'bg-slate-100',   text: 'text-slate-600',   label: 'Cancelled' },
 };
-
-function formatAUD(amount: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
-}
-
-function formatDate(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 export default function SettlementsTab({ payouts, isLoading }: Props) {
   if (isLoading) {
@@ -56,7 +44,7 @@ export default function SettlementsTab({ payouts, isLoading }: Props) {
       {pendingTotal > 0 && (
         <div className="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
           <span className="text-amber-600 text-sm font-medium">
-            {formatAUD(pendingTotal)} in transit to NAB
+            {formatCurrency(pendingTotal)} in transit to NAB
           </span>
           <span className="text-amber-500 text-xs">
             · Stripe settles on a T+2 rolling schedule (business days)
@@ -82,7 +70,7 @@ export default function SettlementsTab({ payouts, isLoading }: Props) {
                 <div className="flex flex-col gap-0.5 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-slate-900">
-                      {formatAUD(payout.amount)}
+                      {formatCurrency(payout.amount)}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-none ${style.bg} ${style.text}`}>
                       {style.label}
