@@ -598,6 +598,9 @@ export interface Database {
           crew_access_approved: boolean;
           ndis_worker: boolean;
           hourly_rate: number;
+          default_role: string | null;
+          employment_type: string;
+          roster_active: boolean;
           status: string;
           created_at: string;
           updated_at: string;
@@ -619,6 +622,9 @@ export interface Database {
           crew_access_approved?: boolean;
           ndis_worker?: boolean;
           hourly_rate?: number;
+          default_role?: string | null;
+          employment_type?: string;
+          roster_active?: boolean;
           status?: string;
           created_at?: string;
           updated_at?: string;
@@ -640,6 +646,9 @@ export interface Database {
           crew_access_approved?: boolean;
           ndis_worker?: boolean;
           hourly_rate?: number;
+          default_role?: string | null;
+          employment_type?: string;
+          roster_active?: boolean;
           status?: string;
           created_at?: string;
           updated_at?: string;

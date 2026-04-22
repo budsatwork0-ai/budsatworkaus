@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Toaster } from 'sonner';
 import { brand } from '@/app/ui/theme';
@@ -58,6 +58,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
+  const router = useRouter();
   const { role, isAdmin } = useAuth();
   const { sessionState, user: sessionUser, extendSession, unlock } = useSessionManager();
   const handleSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/'; };
@@ -558,10 +559,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800">
+                    <button
+                      onClick={() => router.push('/dashboard/settings?group=account&panel=profile')}
+                      className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800"
+                    >
                       My Profile
                     </button>
-                    <button className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800">
+                    <button
+                      onClick={() => router.push('/dashboard/settings?group=workspace&panel=general')}
+                      className="block w-full text-left text-sm px-4 py-2 hover:bg-slate-50 text-slate-800"
+                    >
                       Settings
                     </button>
                     <div className="border-t border-slate-100 px-4 py-1.5">

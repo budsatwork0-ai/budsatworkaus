@@ -30,6 +30,7 @@ type EmployeeProgressEmployee = {
   ndis_worker?: boolean | null;
   onboarding_complete?: boolean | null;
   crew_access_approved?: boolean | null;
+  roster_active?: boolean | null;
   status?: string | null;
 };
 
@@ -172,7 +173,7 @@ export async function syncEmployeeOnboardingState(
 ) {
   const { data: employee } = await (client as any)
     .from('employees')
-    .select('id, user_id, ndis_worker, onboarding_complete, crew_access_approved, status')
+    .select('id, user_id, ndis_worker, onboarding_complete, crew_access_approved, roster_active, status')
     .eq('id', employeeId)
     .single();
 
@@ -212,7 +213,7 @@ export async function syncEmployeeOnboardingState(
   const nextStatus =
     employee.status === 'suspended'
       ? 'suspended'
-      : snapshot.crewAccessApproved
+      : snapshot.crewAccessApproved && employee.roster_active !== false
       ? 'active'
       : 'inactive';
 

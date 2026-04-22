@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { formatCurrency, formatChange } from '@/lib/dashboard/utils';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_DASHBOARD_GOALS } from '@/lib/automations';
 import type {
   DashboardData,
   DashboardMetrics,
+  DashboardAlert,
   DashboardCrewMember,
   DashboardQuote,
+  MoneyFlowData,
   ReceivableRecord,
   PayableRecord,
   PayoutRecord,
@@ -13,15 +14,16 @@ import type {
   ActivityItem,
 } from '@/types/dashboard';
 
-export type { DashboardMetrics, DashboardCrewMember, DashboardQuote, ReceivableRecord, PayableRecord, PayoutRecord, JobRecord, ActivityItem };
-
 type UseDashboardDataResult = {
-  metrics: DashboardMetrics | null;
+  metrics: DashboardMetrics;
+  moneyFlow: MoneyFlowData;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
   payouts: PayoutRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
+  alertsFeed: DashboardAlert[];
+  dismissedAlertCount: number;
   crew: DashboardCrewMember[];
   quotes: DashboardQuote[];
   applicantCount: number;
@@ -29,6 +31,7 @@ type UseDashboardDataResult = {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  orderIdToQuoteId: Map<string, string>;
 };
 
 // Default metrics for loading state
@@ -61,6 +64,54 @@ const defaultMetrics: DashboardMetrics = {
   },
 };
 
+const defaultMoneyFlow: MoneyFlowData = {
+  overview: {
+    revenueThisMonth: 0,
+    expensesThisMonth: 0,
+    payrollOwed: 0,
+    outstandingInvoices: 0,
+    grossMargin: 0,
+    labourCostPercent: 0,
+    incomingReceived: 0,
+    outgoingPaid: 0,
+  },
+  series: [],
+  incoming: {
+    expected: 0,
+    received: 0,
+    overdue: 0,
+    depositsCollected: 0,
+    quotesAccepted: 0,
+    invoicesIssued: 0,
+    invoicesPaid: 0,
+    revenueByService: [],
+    revenueByCustomer: [],
+  },
+  outgoing: {
+    due: 0,
+    paid: 0,
+    payrollOwed: 0,
+    supplierCosts: 0,
+    subscriptionCosts: 0,
+    reimbursementCosts: 0,
+    settlementClearing: 0,
+    expenseByCategory: [],
+  },
+  crewPay: {
+    totalHours: 0,
+    approvedHours: 0,
+    pendingHours: 0,
+    payrollOwed: 0,
+    readyCount: 0,
+    needsReviewCount: 0,
+    missingAcceptanceCount: 0,
+    workers: [],
+  },
+  alerts: [],
+  transactions: [],
+  jobMargins: [],
+};
+
 const CACHE_KEY = 'dashboard_cache';
 const CACHE_TTL_MS = 60_000; // 60 seconds
 
@@ -86,11 +137,14 @@ function writeCache(data: DashboardData) {
 
 export function useDashboardData(): UseDashboardDataResult {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [moneyFlow, setMoneyFlow] = useState<MoneyFlowData>(defaultMoneyFlow);
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
   const [payables, setPayables] = useState<PayableRecord[]>([]);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [alertsFeed, setAlertsFeed] = useState<DashboardAlert[]>([]);
+  const [dismissedAlertCount, setDismissedAlertCount] = useState(0);
   const [crew, setCrew] = useState<DashboardCrewMember[]>([]);
   const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
   const [applicantCount, setApplicantCount] = useState(0);
@@ -100,11 +154,14 @@ export function useDashboardData(): UseDashboardDataResult {
 
   function applyData(data: DashboardData) {
     setMetrics(data.metrics);
+    setMoneyFlow(data.moneyFlow || defaultMoneyFlow);
     setReceivables(data.receivables);
     setPayables(data.payables);
     setPayouts(data.payouts || []);
     setJobs(data.jobs || []);
     setRecentActivity(data.recentActivity || []);
+    setAlertsFeed(data.alertsFeed || []);
+    setDismissedAlertCount(data.dismissedAlertCount ?? 0);
     setCrew(data.crew || []);
     setQuotes(data.quotes || []);
     setApplicantCount(data.applicantCount ?? 0);
@@ -144,20 +201,31 @@ export function useDashboardData(): UseDashboardDataResult {
     } finally {
       setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  const orderIdToQuoteId = useMemo(
+    () => new Map<string, string>(
+      quotes
+        .filter((q) => q.converted_order_id)
+        .map((q) => [q.converted_order_id as string, q.id])
+    ),
+    [quotes]
+  );
+
   return {
     metrics: metrics ?? defaultMetrics,
+    moneyFlow,
     receivables,
     payables,
     payouts,
     jobs,
     recentActivity,
+    alertsFeed,
+    dismissedAlertCount,
     crew,
     quotes,
     applicantCount,
@@ -165,36 +233,7 @@ export function useDashboardData(): UseDashboardDataResult {
     isLoading,
     error,
     refetch: () => fetchData(true),
+    orderIdToQuoteId,
   };
 }
 
-// Helper hook for formatted display values
-export function useFormattedMetrics(metrics: DashboardMetrics | null) {
-  if (!metrics) {
-    return {
-      cashBalance: '$0',
-      outstandingReceivables: '$0',
-      outstandingReceivablesHint: '0 invoices due',
-      outstandingReceivablesChange: null,
-      upcomingPayables: '$0',
-      upcomingPayablesHint: '0 bills scheduled',
-      upcomingPayablesChange: null,
-      netProfit: '$0',
-      netProfitHint: '0% margin',
-      netProfitChange: null,
-    };
-  }
-
-  return {
-    cashBalance: formatCurrency(metrics.cashBalance),
-    outstandingReceivables: formatCurrency(metrics.outstandingReceivables.total),
-    outstandingReceivablesHint: `${metrics.outstandingReceivables.count} invoices due`,
-    outstandingReceivablesChange: formatChange(metrics.outstandingReceivables.change),
-    upcomingPayables: formatCurrency(metrics.upcomingPayables.total),
-    upcomingPayablesHint: `${metrics.upcomingPayables.count} bills scheduled`,
-    upcomingPayablesChange: formatChange(metrics.upcomingPayables.change),
-    netProfit: formatCurrency(metrics.netProfit.amount),
-    netProfitHint: `${metrics.netProfit.margin}% margin`,
-    netProfitChange: formatChange(metrics.netProfit.change),
-  };
-}

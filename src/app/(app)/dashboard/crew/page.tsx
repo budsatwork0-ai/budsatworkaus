@@ -1,43 +1,5 @@
-'use client';
-
-import { useState } from 'react';
-import { brand } from '@/app/ui/theme';
-import ApplicantsPage from '../applicants/page';
-import OnboardingPage from '../onboarding/page';
-
-type Tab = 'applicants' | 'onboarding';
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'applicants', label: 'Applicants' },
-  { key: 'onboarding', label: 'Onboarding' },
-];
+import { CrewPipelineView } from './CrewPipelineView';
 
 export default function CrewPage() {
-  const [tab, setTab] = useState<Tab>('applicants');
-
-  return (
-    <div>
-      <div className="px-4 md:px-10 lg:px-12 pb-4">
-        <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5 w-fit">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-              style={
-                tab === t.key
-                  ? { background: brand.primary, color: 'white' }
-                  : { color: brand.muted }
-              }
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tab === 'applicants' && <ApplicantsPage />}
-      {tab === 'onboarding' && <OnboardingPage />}
-    </div>
-  );
+  return <CrewPipelineView />;
 }

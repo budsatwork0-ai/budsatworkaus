@@ -1,29 +1,8 @@
 'use client';
 
 import { brand } from '@/app/ui/theme';
-import type { ActivityItem } from '../hooks/useDashboardData';
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatRelativeTime = (timestamp: string) => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
-};
+import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
+import type { ActivityItem } from '@/types/dashboard';
 
 const typeIcons: Record<ActivityItem['type'], React.ReactNode> = {
   payment: (

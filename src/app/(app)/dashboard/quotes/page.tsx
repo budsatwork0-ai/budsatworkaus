@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
 import { FREQUENCY_LABELS, SERVICE_TYPE_LABELS } from '@/types/orders';
+import { normalizeQuoteStatus as _normalizeQuoteStatus } from '@/types/dashboard';
 
 type QuoteStatus =
   | 'submitted'
@@ -43,21 +45,38 @@ type Quote = {
 
 type WorkspaceTab = 'review' | 'approved' | 'archive';
 
-function normalizeStatus(rawStatus: string): QuoteStatus {
-  if (rawStatus === 'pending') return 'submitted';
-  if (rawStatus === 'approved') return 'finalized';
-  if (rawStatus === 'adjusted') return 'in_review';
-  if (rawStatus === 'converted') return 'paid';
+function sanitizeWorkspaceTab(value: string | null): WorkspaceTab {
+  if (value === 'approved' || value === 'archive') return value;
+  return 'review';
+}
+
+function sanitizeStatus(value: string | null): QuoteStatus | null {
   if (
-    rawStatus === 'submitted' ||
-    rawStatus === 'in_review' ||
-    rawStatus === 'finalized' ||
-    rawStatus === 'payment_pending' ||
-    rawStatus === 'paid' ||
-    rawStatus === 'denied' ||
-    rawStatus === 'cancelled'
+    value === 'submitted' ||
+    value === 'in_review' ||
+    value === 'finalized' ||
+    value === 'payment_pending' ||
+    value === 'paid' ||
+    value === 'denied' ||
+    value === 'cancelled'
   ) {
-    return rawStatus;
+    return value;
+  }
+  return null;
+}
+
+function normalizeStatus(rawStatus: string): QuoteStatus {
+  const normalized = _normalizeQuoteStatus(rawStatus);
+  if (
+    normalized === 'submitted' ||
+    normalized === 'in_review' ||
+    normalized === 'finalized' ||
+    normalized === 'payment_pending' ||
+    normalized === 'paid' ||
+    normalized === 'denied' ||
+    normalized === 'cancelled'
+  ) {
+    return normalized;
   }
   return 'submitted';
 }
@@ -119,16 +138,25 @@ function quoteMatchesSearch(quote: Quote, search: string) {
     .some((value) => String(value).toLowerCase().includes(term));
 }
 
-export default function QuotesPage() {
+function QuotesPageContent() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('review');
-  const [search, setSearch] = useState('');
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(() => sanitizeWorkspaceTab(searchParams?.get('workspace') ?? null));
+  const [search, setSearch] = useState(() => searchParams?.get('search') || '');
   const [adjustModal, setAdjustModal] = useState<Quote | null>(null);
   const [adjustPrice, setAdjustPrice] = useState('');
   const [cancelModal, setCancelModal] = useState<Quote | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const statusFilter = sanitizeStatus(searchParams?.get('status') ?? null);
+
+  useEffect(() => {
+    setWorkspaceTab(sanitizeWorkspaceTab(searchParams?.get('workspace') ?? null));
+    setSearch(searchParams?.get('search') || '');
+  }, [searchParams]);
 
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
@@ -276,6 +304,13 @@ export default function QuotesPage() {
     }
   }, [adjustModal, adjustPrice, updateQuote]);
 
+  const updateWorkspaceTab = useCallback((nextTab: WorkspaceTab) => {
+    setWorkspaceTab(nextTab);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('workspace', nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const handleCancelQuote = useCallback(async () => {
     if (!cancelModal) return;
     const reason = cancelReason.trim();
@@ -292,15 +327,19 @@ export default function QuotesPage() {
       toast.success('Approved quote cancelled and moved to archive');
       setCancelModal(null);
       setCancelReason('');
-      setWorkspaceTab('archive');
+      updateWorkspaceTab('archive');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel quote');
     }
-  }, [cancelModal, cancelReason, updateQuote]);
+  }, [cancelModal, cancelReason, updateQuote, updateWorkspaceTab]);
 
   const filteredQuotes = useMemo(
-    () => quotes.filter((quote) => quoteMatchesSearch(quote, search)),
-    [quotes, search]
+    () => quotes.filter((quote) => {
+      if (!quoteMatchesSearch(quote, search)) return false;
+      if (statusFilter && quote.status !== statusFilter) return false;
+      return true;
+    }),
+    [quotes, search, statusFilter]
   );
 
   const grouped = useMemo(() => {
@@ -388,7 +427,7 @@ export default function QuotesPage() {
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setWorkspaceTab(tab.key)}
+                  onClick={() => updateWorkspaceTab(tab.key)}
                   className={`rounded-2xl border px-4 py-3 text-left transition ${isActive ? 'shadow-sm' : 'hover:bg-slate-50/80'}`}
                   style={{
                     borderColor: isActive ? 'rgba(15,61,46,0.18)' : 'rgba(15,23,42,0.08)',
@@ -420,6 +459,11 @@ export default function QuotesPage() {
             />
           </div>
         </div>
+        {statusFilter ? (
+          <div className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            Status filter: {STATUS_LABELS[statusFilter]}
+          </div>
+        ) : null}
       </div>
 
       {loading ? (
@@ -659,6 +703,14 @@ export default function QuotesPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function QuotesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[320px] w-full" />}>
+      <QuotesPageContent />
+    </Suspense>
   );
 }
 

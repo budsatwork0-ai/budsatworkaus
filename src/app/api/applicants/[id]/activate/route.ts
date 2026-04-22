@@ -16,6 +16,18 @@ export async function POST(_req: NextRequest, context: RouteContext) {
   }
 
   const client = createServiceClient();
+  let setup: {
+    default_role?: string | null;
+    employment_type?: string | null;
+    hourly_rate?: number | null;
+    roster_active?: boolean | null;
+  } = {};
+
+  try {
+    setup = await _req.json();
+  } catch {
+    setup = {};
+  }
 
   // 1. Fetch the applicant
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,6 +98,10 @@ export async function POST(_req: NextRequest, context: RouteContext) {
       ndis_worker: applicant.ndis_participant || false,
       onboarding_complete: false,
       crew_access_approved: false,
+      default_role: typeof setup.default_role === 'string' && setup.default_role.trim() ? setup.default_role.trim() : null,
+      employment_type: typeof setup.employment_type === 'string' && setup.employment_type.trim() ? setup.employment_type.trim() : 'casual',
+      hourly_rate: typeof setup.hourly_rate === 'number' && Number.isFinite(setup.hourly_rate) ? setup.hourly_rate : 25,
+      roster_active: setup.roster_active ?? true,
       status: 'inactive',
     })
     .select()

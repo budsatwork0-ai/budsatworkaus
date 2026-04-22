@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { brand } from '@/app/ui/theme';
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -45,14 +46,32 @@ function getWeekDates(offset: number): Date[] {
 
 type View = 'day' | 'calendar' | 'list';
 
-export default function SchedulePage() {
-  const [view, setView] = useState<View>('day');
+function sanitizeView(value: string | null): View {
+  if (value === 'calendar' || value === 'list') return value;
+  return 'day';
+}
+
+function sanitizeScheduleState(value: string | null): 'all' | 'scheduled' | 'unscheduled' {
+  if (value === 'scheduled' || value === 'unscheduled') return value;
+  return 'all';
+}
+
+function SchedulePageContent() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [view, setView] = useState<View>(() => sanitizeView(searchParams?.get('view') ?? null));
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [isMutating, setIsMutating] = useState<string | null>(null);
 
-  const { jobs, isLoading: jobsLoading, refetch } = useDashboardData();
+  const { jobs, isLoading: jobsLoading, refetch, orderIdToQuoteId } = useDashboardData();
+  const scheduleState = sanitizeScheduleState(searchParams?.get('scheduleState') ?? null);
+
+  useEffect(() => {
+    setView(sanitizeView(searchParams?.get('view') ?? null));
+  }, [searchParams]);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const weekStart = weekDates[0].toISOString().split('T')[0];
@@ -113,27 +132,34 @@ export default function SchedulePage() {
     }
   }
 
+  function updateQuery(nextView: View) {
+    setView(nextView);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('view', nextView);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   return (
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5">
           <button
-            onClick={() => setView('day')}
+            onClick={() => updateQuery('day')}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={view === 'day' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
           >
             Day
           </button>
           <button
-            onClick={() => setView('calendar')}
+            onClick={() => updateQuery('calendar')}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={view === 'calendar' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
           >
             Week
           </button>
           <button
-            onClick={() => setView('list')}
+            onClick={() => updateQuery('list')}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={view === 'list' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}
           >
@@ -164,7 +190,13 @@ export default function SchedulePage() {
       {view === 'day' ? (
         <DayScheduler />
       ) : view === 'list' ? (
-        <JobsTab jobs={jobs} isLoading={jobsLoading} onRowClick={() => {}} />
+        <JobsTab
+          jobs={jobs}
+          isLoading={jobsLoading}
+          onRowClick={() => {}}
+          initialScheduleState={scheduleState}
+          orderIdToQuoteId={orderIdToQuoteId}
+        />
       ) : (
         <>
           {loading ? (
@@ -275,5 +307,13 @@ export default function SchedulePage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function SchedulePage() {
+  return (
+    <Suspense fallback={<div className="min-h-[320px] w-full" />}>
+      <SchedulePageContent />
+    </Suspense>
   );
 }

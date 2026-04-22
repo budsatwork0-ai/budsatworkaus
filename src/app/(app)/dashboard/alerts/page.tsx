@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { brand } from '@/app/ui/theme';
 import type { AdminAlert } from '@/lib/admin-alerts';
 
@@ -45,9 +46,15 @@ function formatTimestamp(ts: string): string {
   return `${days} days ago`;
 }
 
-export default function AlertsPage() {
+function AlertsPageContent() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
-  const [filter, setFilter] = useState<'all' | AdminAlert['severity']>('all');
+  const [filter, setFilter] = useState<'all' | AdminAlert['severity']>(() => {
+    const severity = searchParams?.get('severity');
+    return severity === 'critical' || severity === 'warning' || severity === 'info' ? severity : 'all';
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dismissedCount, setDismissedCount] = useState(0);
@@ -55,6 +62,11 @@ export default function AlertsPage() {
   useEffect(() => {
     fetchAlerts();
   }, []);
+
+  useEffect(() => {
+    const severity = searchParams?.get('severity');
+    setFilter(severity === 'critical' || severity === 'warning' || severity === 'info' ? severity : 'all');
+  }, [searchParams]);
 
   async function fetchAlerts() {
     setIsLoading(true);
@@ -163,7 +175,16 @@ export default function AlertsPage() {
         {(['all', 'critical', 'warning', 'info'] as const).map(f => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => {
+              setFilter(f);
+              const params = new URLSearchParams(searchParams?.toString() ?? '');
+              if (f === 'all') {
+                params.delete('severity');
+              } else {
+                params.set('severity', f);
+              }
+              router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
+            }}
             className={`px-3 py-1 rounded-full text-xs border transition ${filter === f ? 'bg-white shadow-sm font-medium' : 'bg-transparent hover:bg-white/60'}`}
             style={{ borderColor: brand.border, color: filter === f ? brand.primary : brand.muted }}
           >
@@ -264,5 +285,13 @@ export default function AlertsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[320px] w-full" />}>
+      <AlertsPageContent />
+    </Suspense>
   );
 }

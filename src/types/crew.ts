@@ -3,6 +3,7 @@
 export type AssignmentStatus = 'available' | 'accepted' | 'declined' | 'in_progress' | 'completed';
 
 export type EmployeeStatus = 'active' | 'inactive' | 'suspended';
+export type EmploymentType = 'casual' | 'contractor' | 'part_time' | 'full_time';
 
 export type DocType =
   | 'wwcc'
@@ -67,6 +68,13 @@ export const ONBOARDING_SECTION_LABELS: Record<OnboardingSection, string> = {
   services: 'Services',
   documents: 'Documents',
   ndis: 'NDIS',
+};
+
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  casual: 'Casual',
+  contractor: 'Contractor',
+  part_time: 'Part-time',
+  full_time: 'Full-time',
 };
 
 export const REQUIRED_DOCS: DocType[] = ['wwcc', 'police_check', 'first_aid'];

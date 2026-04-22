@@ -19,6 +19,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import EmptyState from '@/components/EmptyState';
 import LoadingSkeleton, { SummaryCardsSkeleton } from '@/components/LoadingSkeleton';
 import CreateOrderModal from '@/components/CreateOrderModal';
+import { formatCurrency, formatDate } from '@/lib/dashboard/utils';
 
 type TabKey = 'all' | 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
@@ -41,21 +42,6 @@ const serviceTypeOptions: Array<ServiceType | 'all'> = [
   'laundry_sneakers',
 ];
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatDate = (value: string | null | undefined) => {
-  if (!value) return '-';
-  return new Date(value).toLocaleDateString('en-AU', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
 
 const StatusChip = ({ status }: { status: OrderStatus }) => {
   const colorClass = ORDER_STATUS_COLORS[status] ?? 'bg-slate-100 text-slate-700';

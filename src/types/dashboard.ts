@@ -45,6 +45,7 @@ export type JobRecord = {
   status: JobStatus;
   amount: number;
   notes: string;
+  quoteId?: string;
 };
 
 export type ActivityItem = {
@@ -56,10 +57,158 @@ export type ActivityItem = {
   timestamp: string;
 };
 
+export type DashboardAlert = {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'critical' | 'warning' | 'info';
+  source: string;
+  timestamp: string;
+  href?: string;
+};
+
 export type RecordDetail =
   | { type: 'receivable'; record: ReceivableRecord }
   | { type: 'payable'; record: PayableRecord }
   | { type: 'job'; record: JobRecord };
+
+export type LabourAcceptanceStatus = 'accepted' | 'pending' | 'missing';
+export type AwardComplianceStatus = 'compliant' | 'review' | 'unconfigured';
+
+export type MoneyFlowPoint = {
+  date: string;
+  revenue: number;
+  expenses: number;
+  labourCost: number;
+  net: number;
+};
+
+export type MoneyBreakdownItem = {
+  label: string;
+  amount: number;
+  share: number;
+  count?: number;
+};
+
+export type MoneyActionAlert = {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'critical' | 'warning' | 'info';
+  href?: string;
+  actionLabel?: string;
+};
+
+export type CrewPayContribution = {
+  assignmentId: string;
+  orderId: string;
+  jobLabel: string;
+  customer: string;
+  service: string;
+  date: string;
+  hours: number;
+  approved: boolean;
+  estimatedRevenue: number;
+  labourAcceptance: LabourAcceptanceStatus;
+};
+
+export type CrewPayWorker = {
+  id: string;
+  name: string;
+  role: string;
+  employmentType: string;
+  serviceMix: string[];
+  payRate: number;
+  awardCategory: string;
+  classification: string | null;
+  minimumAwardRate: number | null;
+  awardVariance: number | null;
+  awardStatus: AwardComplianceStatus;
+  totalHours: number;
+  approvedHours: number;
+  pendingHours: number;
+  estimatedGrossPay: number;
+  approvedPay: number;
+  pendingPay: number;
+  payStatus: 'Draft' | 'Ready to pay' | 'Needs review';
+  labourAcceptanceSummary: {
+    accepted: number;
+    pending: number;
+    missing: number;
+  };
+  contributions: CrewPayContribution[];
+};
+
+export type MoneyTransaction = {
+  id: string;
+  date: string;
+  type: 'incoming' | 'outgoing' | 'payroll' | 'settlement';
+  title: string;
+  subtitle: string;
+  amount: number;
+  status: string;
+  reference?: string;
+  href?: string;
+};
+
+export type MoneyJobMargin = {
+  orderId: string;
+  customer: string;
+  service: string;
+  date: string;
+  revenue: number;
+  labourCost: number;
+  margin: number;
+  labourAcceptance: LabourAcceptanceStatus;
+};
+
+export type MoneyFlowData = {
+  overview: {
+    revenueThisMonth: number;
+    expensesThisMonth: number;
+    payrollOwed: number;
+    outstandingInvoices: number;
+    grossMargin: number;
+    labourCostPercent: number;
+    incomingReceived: number;
+    outgoingPaid: number;
+  };
+  series: MoneyFlowPoint[];
+  incoming: {
+    expected: number;
+    received: number;
+    overdue: number;
+    depositsCollected: number;
+    quotesAccepted: number;
+    invoicesIssued: number;
+    invoicesPaid: number;
+    revenueByService: MoneyBreakdownItem[];
+    revenueByCustomer: MoneyBreakdownItem[];
+  };
+  outgoing: {
+    due: number;
+    paid: number;
+    payrollOwed: number;
+    supplierCosts: number;
+    subscriptionCosts: number;
+    reimbursementCosts: number;
+    settlementClearing: number;
+    expenseByCategory: MoneyBreakdownItem[];
+  };
+  crewPay: {
+    totalHours: number;
+    approvedHours: number;
+    pendingHours: number;
+    payrollOwed: number;
+    readyCount: number;
+    needsReviewCount: number;
+    missingAcceptanceCount: number;
+    workers: CrewPayWorker[];
+  };
+  alerts: MoneyActionAlert[];
+  transactions: MoneyTransaction[];
+  jobMargins: MoneyJobMargin[];
+};
 
 // Filter types
 export type ReceivableFilters = {
@@ -152,6 +301,19 @@ export type DashboardCrewMember = {
   full_name: string | null;
   status: string;
   services: string[] | null;
+  onboardingComplete?: boolean;
+  crewAccessApproved?: boolean;
+  awaitingApproval?: boolean;
+  readyForCrewApproval?: boolean;
+  currentSectionLabel?: string | null;
+  progress?: {
+    completed: number;
+    total: number;
+    currentStep: number;
+  };
+  assignedJobs?: number;
+  inProgressJobs?: number;
+  nextJobDate?: string | null;
 };
 
 export type DashboardQuote = {
@@ -163,14 +325,29 @@ export type DashboardQuote = {
   submitted_total: number | null;
   reviewed_total: number | null;
   total: number | null;
+  converted_order_id: string | null;
+  payment_status?: string | null;
+  payment_requested_at?: string | null;
+  finalized_at?: string | null;
 };
+
+export function normalizeQuoteStatus(status: string): string {
+  if (status === 'pending') return 'submitted';
+  if (status === 'approved') return 'finalized';
+  if (status === 'adjusted') return 'in_review';
+  if (status === 'converted') return 'paid';
+  return status;
+}
 
 export type DashboardData = {
   metrics: DashboardMetrics;
+  moneyFlow: MoneyFlowData;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
   jobs: JobRecord[];
   recentActivity: ActivityItem[];
+  alertsFeed: DashboardAlert[];
+  dismissedAlertCount: number;
   payouts: PayoutRecord[];
   lastUpdated: string;
   crew: DashboardCrewMember[];

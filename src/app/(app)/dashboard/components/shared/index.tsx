@@ -9,7 +9,7 @@ import {
   type PayableStatus,
   type JobStatus,
 } from '@/types/dashboard';
-import { formatCurrency, exportCsv, type CsvColumn } from '@/lib/dashboard/utils';
+import { formatCurrency, formatDate, exportCsv, type CsvColumn } from '@/lib/dashboard/utils';
 
 // Icons
 export function RefreshIcon({ className = 'h-4 w-4' }: { className?: string }) {
@@ -285,15 +285,6 @@ export const DetailDrawer = ({
   };
 }) => {
   if (!detail) return null;
-
-  const formatDate = (value?: string) => {
-    if (!value) return '-';
-    return new Date(value).toLocaleDateString('en-AU', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
 
   const getDetailRows = () => {
     if (detail.type === 'receivable') {

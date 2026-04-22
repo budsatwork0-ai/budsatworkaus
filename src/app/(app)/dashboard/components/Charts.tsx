@@ -16,6 +16,7 @@ import {
   Legend,
 } from 'recharts';
 import { brand } from '@/app/ui/theme';
+import { formatCurrency } from '@/lib/dashboard/utils';
 
 const COLORS = [brand.primary, '#10B981', '#6366F1', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -35,13 +36,6 @@ type ExpenseDataPoint = {
   amount: number;
   percent: number;
 };
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(value);
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
   if (active && payload && payload.length) {
@@ -99,8 +93,6 @@ export function RevenueLineChart({ data }: { data: RevenueDataPoint[] }) {
 }
 
 export function ServicesPieChart({ data }: { data: ServiceDataPoint[] }) {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-
   return (
     <ResponsiveContainer width="100%" height={200}>
       <PieChart>

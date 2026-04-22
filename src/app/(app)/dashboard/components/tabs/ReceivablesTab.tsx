@@ -1,57 +1,51 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { StatusChip, ExportButton, Pagination } from '../shared';
 import { TableSkeleton } from '../Skeletons';
 import { formatCurrency, formatDate, receivableCsvColumns } from '@/lib/dashboard/utils';
+import { useTableFilters } from '../../hooks/useTableFilters';
 import {
   type ReceivableRecord,
   type ReceivableFilters,
   type RecordDetail,
   receivableStatusOptions,
-  ITEMS_PER_PAGE,
 } from '@/types/dashboard';
 
 type ReceivablesTabProps = {
   receivables: ReceivableRecord[];
   isLoading: boolean;
   onRowClick: (detail: RecordDetail) => void;
+  initialFilters?: Partial<ReceivableFilters>;
 };
 
-export default function ReceivablesTab({ receivables, isLoading, onRowClick }: ReceivablesTabProps) {
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<ReceivableFilters>({
-    status: 'all',
-    startDate: '',
-    endDate: '',
-    search: '',
-  });
-
-  const filteredReceivables = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase();
-    return receivables.filter((record) => {
-      if (filters.status !== 'all' && record.status !== filters.status) return false;
-      if (filters.startDate && record.invoiceDate < filters.startDate) return false;
-      if (filters.endDate && record.invoiceDate > filters.endDate) return false;
-      if (searchTerm) {
-        const haystack = `${record.customer} ${record.service} ${record.id} ${record.jobId}`.toLowerCase();
-        if (!haystack.includes(searchTerm)) return false;
-      }
-      return true;
-    });
-  }, [filters, receivables]);
-
-  const paginatedReceivables = useMemo(() => {
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    return filteredReceivables.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredReceivables, page]);
-
-  const totalPages = Math.ceil(filteredReceivables.length / ITEMS_PER_PAGE);
-
-  const handleFilterChange = (key: keyof ReceivableFilters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+function buildInitialFilters(partial?: Partial<ReceivableFilters>): ReceivableFilters {
+  const status = partial?.status && receivableStatusOptions.includes(partial.status) ? partial.status : 'all';
+  return {
+    status,
+    startDate: partial?.startDate || '',
+    endDate: partial?.endDate || '',
+    search: partial?.search || '',
   };
+}
+
+export default function ReceivablesTab({ receivables, isLoading, onRowClick, initialFilters }: ReceivablesTabProps) {
+  const { filters, setFilter, filtered, paginated, page, setPage, totalPages } = useTableFilters(
+    receivables,
+    {
+      initialFilters: buildInitialFilters(initialFilters),
+      filterFn: (record, f) => {
+        if (f.status !== 'all' && record.status !== f.status) return false;
+        if (f.startDate && record.invoiceDate < f.startDate) return false;
+        if (f.endDate && record.invoiceDate > f.endDate) return false;
+        if (f.search) {
+          const term = f.search.trim().toLowerCase();
+          const haystack = `${record.customer} ${record.service} ${record.id} ${record.jobId}`.toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+        return true;
+      },
+    }
+  );
 
   return (
     <div className="space-y-4">
@@ -60,7 +54,7 @@ export default function ReceivablesTab({ receivables, isLoading, onRowClick }: R
           Status
           <select
             value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
+            onChange={(e) => setFilter('status', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           >
             {receivableStatusOptions.map((option) => (
@@ -75,7 +69,7 @@ export default function ReceivablesTab({ receivables, isLoading, onRowClick }: R
           <input
             type="date"
             value={filters.startDate}
-            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            onChange={(e) => setFilter('startDate', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
@@ -84,7 +78,7 @@ export default function ReceivablesTab({ receivables, isLoading, onRowClick }: R
           <input
             type="date"
             value={filters.endDate}
-            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            onChange={(e) => setFilter('endDate', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
@@ -94,15 +88,15 @@ export default function ReceivablesTab({ receivables, isLoading, onRowClick }: R
             type="text"
             placeholder="Customer, job, or invoice"
             value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
+            onChange={(e) => setFilter('search', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-slate-500">{filteredReceivables.length} results</span>
+          <span className="text-xs text-slate-500">{filtered.length} results</span>
           <ExportButton
             label="Export CSV"
-            data={filteredReceivables}
+            data={filtered}
             columns={receivableCsvColumns}
             filename="receivables.csv"
           />
@@ -128,14 +122,14 @@ export default function ReceivablesTab({ receivables, isLoading, onRowClick }: R
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedReceivables.length === 0 ? (
+                  {paginated.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-500">
                         No receivables match the filters
                       </td>
                     </tr>
                   ) : (
-                    paginatedReceivables.map((record) => (
+                    paginated.map((record) => (
                       <tr
                         key={record.id}
                         onClick={() => onRowClick({ type: 'receivable', record })}

@@ -1,57 +1,51 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { StatusChip, ExportButton, Pagination } from '../shared';
 import { TableSkeleton } from '../Skeletons';
 import { formatCurrency, formatDate, payableCsvColumns } from '@/lib/dashboard/utils';
+import { useTableFilters } from '../../hooks/useTableFilters';
 import {
   type PayableRecord,
   type PayableFilters,
   type RecordDetail,
   payableStatusOptions,
-  ITEMS_PER_PAGE,
 } from '@/types/dashboard';
 
 type PayablesTabProps = {
   payables: PayableRecord[];
   isLoading: boolean;
   onRowClick: (detail: RecordDetail) => void;
+  initialFilters?: Partial<PayableFilters>;
 };
 
-export default function PayablesTab({ payables, isLoading, onRowClick }: PayablesTabProps) {
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<PayableFilters>({
-    status: 'all',
-    startDate: '',
-    endDate: '',
-    search: '',
-  });
-
-  const filteredPayables = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase();
-    return payables.filter((record) => {
-      if (filters.status !== 'all' && record.status !== filters.status) return false;
-      if (filters.startDate && record.billDate < filters.startDate) return false;
-      if (filters.endDate && record.billDate > filters.endDate) return false;
-      if (searchTerm) {
-        const haystack = `${record.supplier} ${record.category} ${record.id}`.toLowerCase();
-        if (!haystack.includes(searchTerm)) return false;
-      }
-      return true;
-    });
-  }, [filters, payables]);
-
-  const paginatedPayables = useMemo(() => {
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    return filteredPayables.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredPayables, page]);
-
-  const totalPages = Math.ceil(filteredPayables.length / ITEMS_PER_PAGE);
-
-  const handleFilterChange = (key: keyof PayableFilters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
+function buildInitialFilters(partial?: Partial<PayableFilters>): PayableFilters {
+  const status = partial?.status && payableStatusOptions.includes(partial.status) ? partial.status : 'all';
+  return {
+    status,
+    startDate: partial?.startDate || '',
+    endDate: partial?.endDate || '',
+    search: partial?.search || '',
   };
+}
+
+export default function PayablesTab({ payables, isLoading, onRowClick, initialFilters }: PayablesTabProps) {
+  const { filters, setFilter, filtered, paginated, page, setPage, totalPages } = useTableFilters(
+    payables,
+    {
+      initialFilters: buildInitialFilters(initialFilters),
+      filterFn: (record, f) => {
+        if (f.status !== 'all' && record.status !== f.status) return false;
+        if (f.startDate && record.billDate < f.startDate) return false;
+        if (f.endDate && record.billDate > f.endDate) return false;
+        if (f.search) {
+          const term = f.search.trim().toLowerCase();
+          const haystack = `${record.supplier} ${record.category} ${record.id}`.toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+        return true;
+      },
+    }
+  );
 
   return (
     <div className="space-y-4">
@@ -60,7 +54,7 @@ export default function PayablesTab({ payables, isLoading, onRowClick }: Payable
           Status
           <select
             value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
+            onChange={(e) => setFilter('status', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           >
             {payableStatusOptions.map((option) => (
@@ -75,7 +69,7 @@ export default function PayablesTab({ payables, isLoading, onRowClick }: Payable
           <input
             type="date"
             value={filters.startDate}
-            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            onChange={(e) => setFilter('startDate', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
@@ -84,7 +78,7 @@ export default function PayablesTab({ payables, isLoading, onRowClick }: Payable
           <input
             type="date"
             value={filters.endDate}
-            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            onChange={(e) => setFilter('endDate', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
@@ -94,15 +88,15 @@ export default function PayablesTab({ payables, isLoading, onRowClick }: Payable
             type="text"
             placeholder="Supplier or category"
             value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
+            onChange={(e) => setFilter('search', e.target.value)}
             className="rounded-lg border border-black/10 bg-white/90 px-3 py-1.5 text-xs text-slate-700"
           />
         </label>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-slate-500">{filteredPayables.length} results</span>
+          <span className="text-xs text-slate-500">{filtered.length} results</span>
           <ExportButton
             label="Export CSV"
-            data={filteredPayables}
+            data={filtered}
             columns={payableCsvColumns}
             filename="payables.csv"
           />
@@ -127,14 +121,14 @@ export default function PayablesTab({ payables, isLoading, onRowClick }: Payable
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedPayables.length === 0 ? (
+                  {paginated.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">
                         No payables match the filters
                       </td>
                     </tr>
                   ) : (
-                    paginatedPayables.map((record) => (
+                    paginated.map((record) => (
                       <tr
                         key={record.id}
                         onClick={() => onRowClick({ type: 'payable', record })}

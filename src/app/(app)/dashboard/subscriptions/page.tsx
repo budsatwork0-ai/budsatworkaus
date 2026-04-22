@@ -21,6 +21,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import EmptyState from '@/components/EmptyState';
 import LoadingSkeleton, { SummaryCardsSkeleton } from '@/components/LoadingSkeleton';
 import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
+import { formatCurrency, formatDate } from '@/lib/dashboard/utils';
 
 type TabKey = 'all' | 'active' | 'paused' | 'cancelled';
 
@@ -49,22 +50,6 @@ const frequencyOptions: Array<SubscriptionFrequency | 'all'> = [
   'fortnightly',
   'monthly',
 ];
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatDate = (value: string | null | undefined) => {
-  if (!value) return '-';
-  return new Date(value).toLocaleDateString('en-AU', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
 
 const StatusChip = ({ status }: { status: SubscriptionStatus }) => {
   const colorClass = SUBSCRIPTION_STATUS_COLORS[status] ?? 'bg-slate-100 text-slate-700';
