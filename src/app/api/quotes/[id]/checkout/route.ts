@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth';
 import { createStripeClient } from '@/lib/stripe/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteFinalizedEmail } from '@/lib/email/templates';
+import { recordAnalyticsEvent } from '@/lib/analytics/server';
 import type Stripe from 'stripe';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     context: quote.context,
     scope: quote.scope,
     frequency: quote.frequency,
+    analytics_session_id: quote.analytics_session_id ?? null,
     base_price: Number(quote.submitted_total ?? quote.total ?? amount),
     discount_percent: 0,
     final_price: amount,
@@ -241,6 +243,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (quoteUpdateErr) {
     console.error('[checkout] Failed to update quote status:', quoteUpdateErr.message);
   }
+
+  void recordAnalyticsEvent({
+    sessionId: quote.analytics_session_id ?? null,
+    eventName: 'checkout_started',
+    page: authUser.role === 'customer' ? '/portal/quotes' : '/dashboard/quotes',
+    source: 'server',
+    quoteId: quote.id,
+    orderId,
+    eventValue: amount,
+    eventData: {
+      service: quote.service_type,
+      context: quote.context,
+      scope: quote.scope,
+      payment_status: 'pending_payment',
+    },
+  });
 
   let emailSent = false;
   let emailError: string | null = null;

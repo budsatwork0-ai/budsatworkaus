@@ -3,6 +3,7 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { UpdateOrderInput } from '@/types/orders';
 import type { OrderUpdate } from '@/types/database';
 import { getAuthUser } from '@/lib/auth';
+import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -60,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existingOrder } = await (client as any)
     .from('orders')
-    .select('id, customer_id')
+    .select('id, customer_id, quote_id, analytics_session_id, service_type, context, scope, status, scheduled_date, scheduled_time')
     .eq('id', id)
     .maybeSingle();
 
@@ -122,6 +123,56 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
     console.error('[api/orders/[id]] DB error:', error.message);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+  }
+
+  const scheduleBecameSet =
+    !existingOrder.scheduled_date &&
+    !existingOrder.scheduled_time &&
+    (Boolean(updateData.scheduled_date) || Boolean(updateData.scheduled_time));
+
+  if (body.status && body.status !== existingOrder.status) {
+    const eventName =
+      body.status === 'completed'
+        ? 'order_completed'
+        : body.status === 'cancelled'
+          ? 'order_cancelled'
+          : body.status === 'scheduled'
+            ? 'order_scheduled'
+            : body.status === 'in_progress'
+              ? 'order_in_progress'
+              : 'order_status_changed';
+
+    void recordAnalyticsEvent({
+      sessionId: existingOrder.analytics_session_id ?? null,
+      eventName,
+      source: 'server',
+      quoteId: existingOrder.quote_id ?? null,
+      orderId: existingOrder.id,
+      eventValue: data.final_price ?? null,
+      eventData: {
+        service: existingOrder.service_type,
+        context: existingOrder.context,
+        scope: existingOrder.scope,
+        from_status: existingOrder.status,
+        to_status: body.status,
+      },
+    });
+  } else if (scheduleBecameSet) {
+    void recordAnalyticsEvent({
+      sessionId: existingOrder.analytics_session_id ?? null,
+      eventName: 'order_scheduled',
+      source: 'server',
+      quoteId: existingOrder.quote_id ?? null,
+      orderId: existingOrder.id,
+      eventValue: data.final_price ?? null,
+      eventData: {
+        service: existingOrder.service_type,
+        context: existingOrder.context,
+        scope: existingOrder.scope,
+        scheduled_date: updateData.scheduled_date ?? null,
+        scheduled_time: updateData.scheduled_time ?? null,
+      },
+    });
   }
 
   return NextResponse.json(data);

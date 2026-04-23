@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { brand } from '@/app/ui/theme';
+import { formatCurrency } from '@/lib/dashboard/utils';
 import { Panel, ArrowUpIcon, ArrowDownIcon } from '../shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,8 +34,10 @@ type AnalyticsSession = {
 };
 
 type VisitorEvent = {
-  id: string; session_id: string; event_name: string; event_label: string | null;
-  page: string | null; created_at: string;
+  id: string; session_id: string | null; event_name: string; event_label: string | null;
+  page: string | null; source: 'client' | 'server';
+  quote_id: string | null; order_id: string | null; payment_id: string | null;
+  event_value: number | null; event_data: Record<string, unknown> | null; created_at: string;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -107,6 +110,14 @@ const dayLabel = (dateStr: string) => {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
 };
+
+const getEventString = (event: VisitorEvent, key: string): string | null => {
+  const value = event.event_data?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+};
+
+const getEventIdentity = (event: VisitorEvent): string | null =>
+  event.payment_id ?? event.order_id ?? event.quote_id ?? event.session_id ?? null;
 
 // ─── Sub-component: Stat card ─────────────────────────────────────────────────
 
@@ -258,7 +269,7 @@ export default function VisitorsTab() {
           .order('first_seen_at', { ascending: false }),
         // Visitor events (30 days) for CTA/funnel
         (supabase as any).from('visitor_events')
-          .select('id,session_id,event_name,event_label,page,created_at')
+          .select('id,session_id,event_name,event_label,page,source,quote_id,order_id,payment_id,event_value,event_data,created_at')
           .gte('created_at', thirtyDaysAgo),
       ]);
 
@@ -464,9 +475,13 @@ export default function VisitorsTab() {
     return { new: newV, returning, total: recent.length };
   }, [sessions, sevenDaysAgo]);
 
-  // Conversion funnel
-  const funnelData = useMemo(() => {
-    const allSessions = new Set(historicalPageViews.map(pv => pv.session_id));
+  const sessionLookup = useMemo(
+    () => new Map(sessions.map((session) => [session.session_id, session])),
+    [sessions]
+  );
+
+  // Page funnel
+  const pageFunnelData = useMemo(() => {
     return FUNNEL_PAGES.map(fp => {
       const sessionsOnPage = new Set(
         historicalPageViews.filter(pv => pv.page === fp.path || pv.page.startsWith(fp.path + '/')).map(pv => pv.session_id)
@@ -475,7 +490,129 @@ export default function VisitorsTab() {
     });
   }, [historicalPageViews]);
 
-  const funnelMax = funnelData[0]?.visitors ?? 1;
+  const pageFunnelMax = pageFunnelData[0]?.visitors ?? 1;
+
+  const commercialFunnel = useMemo(() => {
+    const steps = [
+      { event: 'quote_start', label: 'Quote Started' },
+      { event: 'quote_step_3', label: 'Reached Contact Step' },
+      { event: 'quote_submitted', label: 'Quote Submitted' },
+      { event: 'checkout_started', label: 'Checkout Started' },
+      { event: 'payment_completed', label: 'Payment Completed' },
+    ] as const;
+
+    return steps.map((step) => {
+      const identities = new Set<string>();
+      events
+        .filter((event) => event.event_name === step.event)
+        .forEach((event) => {
+          const identity = getEventIdentity(event);
+          if (identity) identities.add(identity);
+        });
+      return { ...step, visitors: identities.size };
+    });
+  }, [events]);
+
+  const commercialFunnelMax = commercialFunnel[0]?.visitors ?? 1;
+  const quoteStarts = commercialFunnel[0]?.visitors ?? 0;
+  const quoteSubmissions = commercialFunnel[2]?.visitors ?? 0;
+  const checkoutStarts = commercialFunnel[3]?.visitors ?? 0;
+  const paymentsCompleted = commercialFunnel[4]?.visitors ?? 0;
+  const quoteCompletionRate = quoteStarts > 0 ? Math.round((quoteSubmissions / quoteStarts) * 100) : 0;
+  const checkoutCompletionRate = checkoutStarts > 0 ? Math.round((paymentsCompleted / checkoutStarts) * 100) : 0;
+
+  const attributedRevenue = useMemo(
+    () => events
+      .filter((event) => event.event_name === 'payment_completed')
+      .reduce((sum, event) => sum + (event.event_value ?? 0), 0),
+    [events]
+  );
+
+  const sourcePerformance = useMemo(() => {
+    const map = new Map<string, { quotes: number; payments: number; revenue: number }>();
+
+    events.forEach((event) => {
+      if (!event.session_id) return;
+      if (event.event_name !== 'quote_submitted' && event.event_name !== 'payment_completed') return;
+
+      const session = sessionLookup.get(event.session_id);
+      const source = classifySource(session?.referrer ?? null, session?.utm_source ?? null);
+      const bucket = map.get(source) ?? { quotes: 0, payments: 0, revenue: 0 };
+
+      if (event.event_name === 'quote_submitted') bucket.quotes += 1;
+      if (event.event_name === 'payment_completed') {
+        bucket.payments += 1;
+        bucket.revenue += event.event_value ?? 0;
+      }
+
+      map.set(source, bucket);
+    });
+
+    return Array.from(map.entries())
+      .map(([source, value]) => ({
+        source,
+        ...value,
+        quoteToPaidRate: value.quotes > 0 ? Math.round((value.payments / value.quotes) * 100) : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue || b.payments - a.payments)
+      .slice(0, 6);
+  }, [events, sessionLookup]);
+
+  const servicePerformance = useMemo(() => {
+    const map = new Map<string, { started: number; submitted: number; paid: number; revenue: number }>();
+
+    events.forEach((event) => {
+      const service =
+        getEventString(event, 'service') ??
+        getEventString(event, 'service_type') ??
+        null;
+      if (!service) return;
+
+      const bucket = map.get(service) ?? { started: 0, submitted: 0, paid: 0, revenue: 0 };
+      if (event.event_name === 'quote_start' || event.event_name === 'service_selected') bucket.started += 1;
+      if (event.event_name === 'quote_submitted') bucket.submitted += 1;
+      if (event.event_name === 'payment_completed') {
+        bucket.paid += 1;
+        bucket.revenue += event.event_value ?? 0;
+      }
+      map.set(service, bucket);
+    });
+
+    return Array.from(map.entries())
+      .map(([service, value]) => ({
+        service,
+        ...value,
+        submitRate: value.started > 0 ? Math.round((value.submitted / value.started) * 100) : 0,
+        paidRate: value.submitted > 0 ? Math.round((value.paid / value.submitted) * 100) : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue || b.paid - a.paid || b.submitted - a.submitted)
+      .slice(0, 8);
+  }, [events]);
+
+  const topDropOffReasons = useMemo(() => {
+    const map = new Map<string, number>();
+
+    events
+      .filter((event) => event.event_name === 'quote_step3_submit_failed' || event.event_name === 'quote_step3_abandoned')
+      .forEach((event) => {
+        const missingFieldsRaw = getEventString(event, 'missing_fields');
+        const missingFields = missingFieldsRaw?.split(',').map((field) => field.trim()).filter(Boolean) ?? [];
+
+        if (missingFields.length === 0 || (missingFields.length === 1 && missingFields[0] === 'none')) {
+          map.set('general_friction', (map.get('general_friction') ?? 0) + 1);
+          return;
+        }
+
+        missingFields.forEach((field) => {
+          map.set(field, (map.get(field) ?? 0) + 1);
+        });
+      });
+
+    return Array.from(map.entries())
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [events]);
 
   // Top CTA events (last 30 days)
   const topEvents = useMemo(() => {
@@ -550,28 +687,25 @@ export default function VisitorsTab() {
             )}
           </Panel>
 
-          {/* Funnel + Stats row */}
-          <div className="grid gap-4 lg:grid-cols-2">
-
-            {/* Conversion Funnel */}
-            <Panel title="Conversion Funnel" subtitle="Visitors reaching each key page (last 30 days)">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <Panel title="Commercial Funnel" subtitle="Tracked journey from quote start to payment (last 30 days)">
               {isLoading ? (
-                <div className="space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="h-8 rounded-lg animate-pulse bg-slate-100" />)}</div>
+                <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-8 rounded-lg animate-pulse bg-slate-100" />)}</div>
               ) : (
-                <div className="space-y-2">
-                  {funnelData.map((step, i) => {
-                    const pct = funnelMax > 0 ? Math.round((step.visitors / funnelMax) * 100) : 0;
-                    const dropPct = i > 0 && funnelData[i - 1].visitors > 0
-                      ? Math.round(((funnelData[i - 1].visitors - step.visitors) / funnelData[i - 1].visitors) * 100)
+                <div className="space-y-3">
+                  {commercialFunnel.map((step, i) => {
+                    const pct = commercialFunnelMax > 0 ? Math.round((step.visitors / commercialFunnelMax) * 100) : 0;
+                    const dropPct = i > 0 && commercialFunnel[i - 1].visitors > 0
+                      ? Math.round(((commercialFunnel[i - 1].visitors - step.visitors) / commercialFunnel[i - 1].visitors) * 100)
                       : null;
                     return (
-                      <div key={step.path}>
-                        <div className="flex items-center justify-between mb-1">
+                      <div key={step.event}>
+                        <div className="mb-1 flex items-center justify-between">
                           <span className="text-xs font-medium text-slate-700">{step.label}</span>
                           <div className="flex items-center gap-2">
-                            {dropPct !== null && dropPct > 0 && (
+                            {dropPct !== null && dropPct > 0 ? (
                               <span className="text-[10px] text-red-400">−{dropPct}%</span>
-                            )}
+                            ) : null}
                             <span className="text-xs font-semibold text-slate-900">{step.visitors.toLocaleString()}</span>
                           </div>
                         </div>
@@ -588,7 +722,154 @@ export default function VisitorsTab() {
               )}
             </Panel>
 
-            {/* Quick stats */}
+            <div className="grid gap-3">
+              <Panel title="Commercial Snapshot" subtitle="What the tracked event stream says this month">
+                {isLoading ? <div className="h-32 animate-pulse bg-slate-100 rounded-xl" /> : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{quoteStarts}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Quote starts</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{quoteSubmissions}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Quote submissions</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{paymentsCompleted}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Payments completed</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{formatCurrency(attributedRevenue)}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Attributed revenue</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{quoteCompletionRate}%</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Start to submit</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-4 py-3">
+                      <p className="text-xl font-bold text-slate-900">{checkoutCompletionRate}%</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Checkout to paid</p>
+                    </div>
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title="Top Friction" subtitle="Most common missing or blocked fields on step 3">
+                {isLoading ? <div className="h-24 animate-pulse bg-slate-100 rounded-xl" /> :
+                  topDropOffReasons.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3 text-center">No repeated step-3 friction recorded yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {topDropOffReasons.map((reason) => (
+                        <div key={reason.reason} className="flex items-center justify-between">
+                          <span className="text-xs text-slate-600 truncate">{reason.reason.replace(/_/g, ' ')}</span>
+                          <span className="text-xs font-semibold text-slate-900 ml-2 shrink-0">{reason.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+              </Panel>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Panel title="Revenue by Source" subtitle="Paid conversions grouped by acquisition source">
+              {isLoading ? <div className="h-40 animate-pulse bg-slate-100 rounded-xl" /> :
+                sourcePerformance.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">No attributed quote or payment events yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {sourcePerformance.map((source, i) => (
+                      <div key={source.source}>
+                        <div className="mb-1 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                            <span className="text-xs font-medium text-slate-700 truncate">{source.source}</span>
+                          </div>
+                          <span className="text-xs font-semibold text-slate-900">{formatCurrency(source.revenue)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>{source.quotes} quotes</span>
+                          <span>{source.payments} paid</span>
+                          <span>{source.quoteToPaidRate}% quote to paid</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </Panel>
+
+            <Panel title="Service Performance" subtitle="Tracked quote and payment flow by service">
+              {isLoading ? <div className="h-40 animate-pulse bg-slate-100 rounded-xl" /> :
+                servicePerformance.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">No service funnel events recorded yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-black/5">
+                          <th className="text-left py-2 pr-3 text-slate-400 font-medium">Service</th>
+                          <th className="text-right py-2 pr-3 text-slate-400 font-medium">Started</th>
+                          <th className="text-right py-2 pr-3 text-slate-400 font-medium">Submitted</th>
+                          <th className="text-right py-2 pr-3 text-slate-400 font-medium">Paid</th>
+                          <th className="text-right py-2 text-slate-400 font-medium">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {servicePerformance.map((service) => (
+                          <tr key={service.service} className="border-b border-black/5 last:border-0">
+                            <td className="py-2 pr-3 font-medium text-slate-700">{service.service.replace(/_/g, ' ')}</td>
+                            <td className="py-2 pr-3 text-right text-slate-600">{service.started}</td>
+                            <td className="py-2 pr-3 text-right text-slate-600">{service.submitted}</td>
+                            <td className="py-2 pr-3 text-right font-semibold text-slate-900">{service.paid}</td>
+                            <td className="py-2 text-right font-semibold text-slate-900">{formatCurrency(service.revenue)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              }
+            </Panel>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Panel title="Page Funnel" subtitle="Visitors reaching each key page (last 30 days)">
+              {isLoading ? (
+                <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-8 rounded-lg animate-pulse bg-slate-100" />)}</div>
+              ) : (
+                <div className="space-y-2">
+                  {pageFunnelData.map((step, i) => {
+                    const pct = pageFunnelMax > 0 ? Math.round((step.visitors / pageFunnelMax) * 100) : 0;
+                    const dropPct = i > 0 && pageFunnelData[i - 1].visitors > 0
+                      ? Math.round(((pageFunnelData[i - 1].visitors - step.visitors) / pageFunnelData[i - 1].visitors) * 100)
+                      : null;
+                    return (
+                      <div key={step.path}>
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-700">{step.label}</span>
+                          <div className="flex items-center gap-2">
+                            {dropPct !== null && dropPct > 0 ? (
+                              <span className="text-[10px] text-red-400">−{dropPct}%</span>
+                            ) : null}
+                            <span className="text-xs font-semibold text-slate-900">{step.visitors.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%`, background: PALETTE[i % PALETTE.length] }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Panel>
+
             <div className="grid gap-3">
               <Panel title="Returning vs New (7 days)" subtitle="Visitor loyalty split">
                 {isLoading ? <div className="h-20 animate-pulse bg-slate-100 rounded-xl" /> : (
@@ -619,18 +900,18 @@ export default function VisitorsTab() {
                 )}
               </Panel>
 
-              <Panel title="Top CTA Events" subtitle="Tracked interactions this month">
+              <Panel title="Top Tracked Events" subtitle="Browser and server events flowing into the insight stream">
                 {isLoading ? <div className="h-24 animate-pulse bg-slate-100 rounded-xl" /> :
                   topEvents.length === 0 ? (
                     <p className="text-xs text-slate-400 py-3 text-center">
-                      No events yet — add <code className="bg-slate-100 px-1 rounded">data-track="event-name"</code> to your CTAs
+                      No events yet — add <code className="bg-slate-100 px-1 rounded">data-track="event-name"</code> or trigger lifecycle events server-side.
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {topEvents.map(e => (
-                        <div key={e.name} className="flex items-center justify-between">
-                          <span className="text-xs text-slate-600 truncate">{e.name.replace(/_/g, ' ')}</span>
-                          <span className="text-xs font-semibold text-slate-900 ml-2 shrink-0">{e.count}</span>
+                      {topEvents.map((event) => (
+                        <div key={event.name} className="flex items-center justify-between">
+                          <span className="text-xs text-slate-600 truncate">{event.name.replace(/_/g, ' ')}</span>
+                          <span className="text-xs font-semibold text-slate-900 ml-2 shrink-0">{event.count}</span>
                         </div>
                       ))}
                     </div>

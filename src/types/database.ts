@@ -68,6 +68,7 @@ export interface Database {
           context: string;
           scope: string | null;
           frequency: string;
+          analytics_session_id: string | null;
           base_price: number;
           discount_percent: number;
           final_price: number;
@@ -96,6 +97,7 @@ export interface Database {
           context: string;
           scope?: string | null;
           frequency?: string;
+          analytics_session_id?: string | null;
           base_price: number;
           discount_percent?: number;
           final_price: number;
@@ -124,6 +126,7 @@ export interface Database {
           context?: string;
           scope?: string | null;
           frequency?: string;
+          analytics_session_id?: string | null;
           base_price?: number;
           discount_percent?: number;
           final_price?: number;
@@ -873,6 +876,7 @@ export interface Database {
           scope: string | null;
           service_address: string | null;
           frequency: string;
+          analytics_session_id: string | null;
           total: number;
           submitted_total: number;
           reviewed_total: number | null;
@@ -907,6 +911,7 @@ export interface Database {
           scope?: string | null;
           service_address?: string | null;
           frequency?: string;
+          analytics_session_id?: string | null;
           total?: number;
           submitted_total?: number;
           reviewed_total?: number | null;
@@ -941,6 +946,7 @@ export interface Database {
           scope?: string | null;
           service_address?: string | null;
           frequency?: string;
+          analytics_session_id?: string | null;
           total?: number;
           submitted_total?: number;
           reviewed_total?: number | null;

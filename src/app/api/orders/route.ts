@@ -3,6 +3,7 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import type { CreateOrderInput, OrderStatus, ServiceType } from '@/types/orders';
 import { getAuthUser } from '@/lib/auth';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 // 30 order creations per IP per 15 minutes (admin/employee only).
 const checkOrderPostLimit = createRateLimiter({ limit: 30, windowMs: 15 * 60 * 1000 });
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
     context: body.context,
     scope: body.scope || null,
     frequency: body.frequency || 'none',
+    analytics_session_id: body.analytics_session_id || null,
     base_price: body.base_price,
     discount_percent: body.discount_percent || 0,
     final_price: body.final_price,
@@ -134,6 +136,21 @@ export async function POST(req: NextRequest) {
     console.error('[api/orders] POST failed:', error.message);
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
   }
+
+  void recordAnalyticsEvent({
+    sessionId: body.analytics_session_id ?? null,
+    eventName: 'order_created',
+    source: 'server',
+    quoteId: body.quote_id || null,
+    orderId: data.id,
+    eventValue: body.final_price,
+    eventData: {
+      service: body.service_type,
+      context: body.context,
+      scope: body.scope || null,
+      created_by_role: authUser.role,
+    },
+  });
 
   return NextResponse.json(data, { status: 201 });
 }

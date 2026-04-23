@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import { sendGAEvent } from '@next/third-parties/google';
 import { trackQuoteSubmitted } from '@/lib/analytics/conversions';
+import { getPublicAnalyticsSessionId, trackPublicAnalyticsEvent } from '@/lib/analytics/public';
+import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import StableMapSlot from '@/components/StableMapSlot';
 import {
   usePolygonQuote,
@@ -3106,6 +3108,13 @@ function ServicesPageContent() {
     },
     [dispatch]
   );
+  const trackQuoteEvent = React.useCallback((eventName: string, payload: AnalyticsEventData = {}) => {
+    sendGAEvent('event', eventName, payload);
+    void trackPublicAnalyticsEvent({
+      eventName,
+      eventData: payload,
+    });
+  }, []);
 
   // Tracks the currently authenticated user for contact-form UX (badge + mismatch warning).
   const [authedUser, setAuthedUser] = useState<User | null>(null);
@@ -3165,7 +3174,7 @@ function ServicesPageContent() {
     if (S.step !== 2) {
       if (step2StartTsRef.current !== null) {
         const timeOnStep2 = Math.round((Date.now() - step2StartTsRef.current) / 1000);
-        sendGAEvent('event', 'quote_step2_time', { service: S.service, scope: S.scope, seconds: timeOnStep2 });
+        trackQuoteEvent('quote_step2_time', { service: S.service, scope: S.scope, seconds: timeOnStep2 });
       }
       step2StartTsRef.current = null;
     }
@@ -3193,9 +3202,9 @@ function ServicesPageContent() {
       S.phone.replace(/\D+/g, '').length >= 10;
     if (contactValid && !contactCompleteFiredRef.current) {
       contactCompleteFiredRef.current = true;
-      sendGAEvent('event', 'quote_step3_contact_complete', { service: S.service, scope: S.scope });
+      trackQuoteEvent('quote_step3_contact_complete', { service: S.service, scope: S.scope });
     }
-  }, [S.step, S.fullName, S.email, S.phone, S.service, S.scope]);
+  }, [S.step, S.fullName, S.email, S.phone, S.service, S.scope, trackQuoteEvent]);
 
   // --- Tracking: fire on tab-close / navigation away from Step 3 before submitting ---
   useEffect(() => {
@@ -3207,7 +3216,7 @@ function ServicesPageContent() {
         if (!S.email?.trim()) missing.push('email');
         if (!S.phone?.trim()) missing.push('phone');
         if (!S.address?.trim()) missing.push('address');
-        sendGAEvent('event', 'quote_step3_abandoned', {
+        trackQuoteEvent('quote_step3_abandoned', {
           service: S.service,
           scope: S.scope,
           missing_fields: missing.join(',') || 'none',
@@ -3217,7 +3226,7 @@ function ServicesPageContent() {
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [S.step, S.service, S.scope]);
+  }, [S.step, S.service, S.scope, trackQuoteEvent]);
   const [laundryIroningOpen, setLaundryIroningOpen] = useState(false);
   // Step 3: controls whether the optional Availability + Notes cards are expanded
   const [s3DetailsOpen, setS3DetailsOpen] = useState(true);
@@ -3386,7 +3395,7 @@ function ServicesPageContent() {
 
   // Fire once on mount — provides the funnel entry baseline in GA4.
   useEffect(() => {
-    sendGAEvent('event', 'quote_start', { context: S.context });
+    trackQuoteEvent('quote_start', { context: S.context });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3603,7 +3612,7 @@ function ServicesPageContent() {
 
   const goToStep = (n: 1 | 2 | 3) => {
     if (n === 1) {
-      sendGAEvent('event', 'quote_reset', { service: S.service, context: S.context });
+      trackQuoteEvent('quote_reset', { service: S.service, context: S.context });
       const keepContext = S.context; // preserve context only
       try {
         localStorage.removeItem(STORAGE_KEY);
@@ -3618,18 +3627,18 @@ function ServicesPageContent() {
     }
 
     if (n < S.step) {
-      sendGAEvent('event', 'quote_step_back', { from: S.step, to: n, service: S.service });
+      trackQuoteEvent('quote_step_back', { from: S.step, to: n, service: S.service });
     }
 
     if (n === 2) {
       // Ensure current scope has its preset applied so Step 2 UI starts consistent
       applyScopePreset(S.service, S.scope);
       setActiveServiceId(null);
-      sendGAEvent('event', 'quote_step_2', { service: S.service });
+      trackQuoteEvent('quote_step_2', { service: S.service });
     }
 
     if (n === 3) {
-      sendGAEvent('event', 'quote_step_3', { service: S.service, scope: S.scope });
+      trackQuoteEvent('quote_step_3', { service: S.service, scope: S.scope });
       // Pre-fill users already have their contact details — prime captcha immediately.
       if (authedUser) setCaptchaReady(true);
     }
@@ -3638,7 +3647,7 @@ function ServicesPageContent() {
   };
 
   const selectService = (svc: ServiceType) => {
-    sendGAEvent('event', 'service_selected', { service: svc, context: S.context });
+    trackQuoteEvent('service_selected', { service: svc, context: S.context });
     const defaultScope =
       svc === 'dump' ? 'dump_runs' :
       svc === 'windows' ? 'windows_full' :
@@ -3670,7 +3679,7 @@ function ServicesPageContent() {
     }
 
     // Auto-advance to Step 2 — intent is clear on tile selection
-    sendGAEvent('event', 'quote_step_2', { service: svc });
+    trackQuoteEvent('quote_step_2', { service: svc });
   };
 
   // Seed commercial-cleaning params when the niche changes
@@ -4451,7 +4460,7 @@ function winSessionMinutes(S: WizardState) {
                           }}
                           onClick={() => {
                             if (S.context !== c) {
-                              sendGAEvent('event', 'context_switched', { from: S.context, to: c });
+                              trackQuoteEvent('context_switched', { from: S.context, to: c });
                             }
                             set('context', c as Context);
                           }}
@@ -4604,9 +4613,9 @@ function winSessionMinutes(S: WizardState) {
                           const commercialNiches: CommercialCleaningType[] = ['office', 'medical', 'fitness', 'hospitality', 'education', 'event', 'accommodation'];
                           const onSelect = (key: string) => {
                             const prevScope = S.scope;
-                            sendGAEvent('event', 'scope_selected', { service: S.service, scope: key, context: S.context });
+                            trackQuoteEvent('scope_selected', { service: S.service, scope: key, context: S.context });
                             if (prevScope && prevScope !== key) {
-                              sendGAEvent('event', 'scope_changed', { service: S.service, from: prevScope, to: key });
+                              trackQuoteEvent('scope_changed', { service: S.service, from: prevScope, to: key });
                             }
                             // If commercial cleaning and key is a niche, set the commercial type
                             if (S.context === 'commercial' && S.service === 'cleaning' && commercialNiches.includes(key as CommercialCleaningType)) {
@@ -4829,7 +4838,7 @@ function winSessionMinutes(S: WizardState) {
                           key={scope.key}
                           type="button"
                           onClick={() => {
-                            sendGAEvent('event', 'scope_selected', { service: S.service, scope: scope.key, context: S.context });
+                            trackQuoteEvent('scope_selected', { service: S.service, scope: scope.key, context: S.context });
                             set('scope', scope.key);
                             applyScopePreset(S.service, scope.key);
                             setHasInteractedStep2(true);
@@ -5190,7 +5199,7 @@ function winSessionMinutes(S: WizardState) {
                         onClick={() => {
                           set('address', savedPropertyAddress as any);
                           set('region', savedPropertyAddress as any);
-                          sendGAEvent('event', 'quote_step3_address_filled', { service: S.service, scope: S.scope, source: 'saved_property' });
+                          trackQuoteEvent('quote_step3_address_filled', { service: S.service, scope: S.scope, source: 'saved_property' });
                         }}
                       >
                         Use saved
@@ -5202,7 +5211,7 @@ function winSessionMinutes(S: WizardState) {
                     onAddressChange={(formatted, suburb) => {
                       set('address', formatted as any);
                       set('region', (suburb || formatted) as any);
-                      sendGAEvent('event', 'quote_step3_address_filled', { service: S.service, scope: S.scope });
+                      trackQuoteEvent('quote_step3_address_filled', { service: S.service, scope: S.scope });
                     }}
                     onClear={() => {
                       set('address', '' as any);
@@ -5222,7 +5231,7 @@ function winSessionMinutes(S: WizardState) {
                           ? 'border-[color:var(--accent)] bg-white'
                           : 'border-black/10 bg-white/70'
                       )}
-                      onClick={() => { set('paidParking', !S.paidParking); sendGAEvent('event', 'quote_step3_access_toggle', { field: 'paidParking', value: !S.paidParking }); }}
+                      onClick={() => { set('paidParking', !S.paidParking); trackQuoteEvent('quote_step3_access_toggle', { field: 'paidParking', value: !S.paidParking }); }}
                     >
                       Paid/Street parking
                     </button>
@@ -5234,7 +5243,7 @@ function winSessionMinutes(S: WizardState) {
                           ? 'border-[color:var(--accent)] bg-white'
                           : 'border-black/10 bg-white/70'
                       )}
-                      onClick={() => { set('secondStorey', !S.secondStorey); sendGAEvent('event', 'quote_step3_access_toggle', { field: 'secondStorey', value: !S.secondStorey }); }}
+                      onClick={() => { set('secondStorey', !S.secondStorey); trackQuoteEvent('quote_step3_access_toggle', { field: 'secondStorey', value: !S.secondStorey }); }}
                     >
                       Second storey
                     </button>
@@ -5246,7 +5255,7 @@ function winSessionMinutes(S: WizardState) {
                           ? 'border-[color:var(--accent)] bg-white'
                           : 'border-black/10 bg-white/70'
                       )}
-                      onClick={() => { set('afterHours', !S.afterHours); sendGAEvent('event', 'quote_step3_access_toggle', { field: 'afterHours', value: !S.afterHours }); }}
+                      onClick={() => { set('afterHours', !S.afterHours); trackQuoteEvent('quote_step3_access_toggle', { field: 'afterHours', value: !S.afterHours }); }}
                     >
                       After-hours (post-6pm)
                     </button>
@@ -5258,7 +5267,7 @@ function winSessionMinutes(S: WizardState) {
                           ? 'border-[color:var(--accent)] bg-white'
                           : 'border-black/10 bg-white/70'
                       )}
-                      onClick={() => { set('clutterAccess', !S.clutterAccess); sendGAEvent('event', 'quote_step3_access_toggle', { field: 'clutterAccess', value: !S.clutterAccess }); }}
+                      onClick={() => { set('clutterAccess', !S.clutterAccess); trackQuoteEvent('quote_step3_access_toggle', { field: 'clutterAccess', value: !S.clutterAccess }); }}
                     >
                       Tight access
                     </button>
@@ -5270,7 +5279,7 @@ function winSessionMinutes(S: WizardState) {
                           ? 'border-[color:var(--accent)] bg-white'
                           : 'border-black/10 bg-white/70'
                       )}
-                      onClick={() => { set('petHair', !S.petHair); sendGAEvent('event', 'quote_step3_access_toggle', { field: 'petHair', value: !S.petHair }); }}
+                      onClick={() => { set('petHair', !S.petHair); trackQuoteEvent('quote_step3_access_toggle', { field: 'petHair', value: !S.petHair }); }}
                     >
                       Pets present
                     </button>
@@ -5311,7 +5320,7 @@ function winSessionMinutes(S: WizardState) {
                   className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-black/10 bg-white/60 text-sm font-medium text-slate-700 hover:bg-white/80 transition-colors"
                   onClick={() => {
                     setS3DetailsOpen((v) => {
-                      sendGAEvent('event', 'quote_step3_details_toggled', { opened: !v });
+                      trackQuoteEvent('quote_step3_details_toggled', { opened: !v });
                       return !v;
                     });
                   }}
@@ -5364,7 +5373,7 @@ function winSessionMinutes(S: WizardState) {
                           const current: string[] = S.preferredAvailability || [];
                           const next = active ? current.filter((v) => v !== slot) : [...current, slot];
                           set('preferredAvailability', next);
-                          sendGAEvent('event', 'quote_step3_availability_selected', { slot, selected: !active });
+                          trackQuoteEvent('quote_step3_availability_selected', { slot, selected: !active });
                         }}
                       >
                         {slot}
@@ -5378,7 +5387,7 @@ function winSessionMinutes(S: WizardState) {
                     checked={S.photosOK}
                     onChange={(e) => {
                       set('photosOK', e.target.checked);
-                      sendGAEvent('event', 'quote_step3_photos_ok', { checked: e.target.checked });
+                      trackQuoteEvent('quote_step3_photos_ok', { checked: e.target.checked });
                     }}
                     className="mt-0.5 accent-emerald-600"
                   />
@@ -5783,7 +5792,7 @@ function winSessionMinutes(S: WizardState) {
                           normalisedPhone.length < 10 && 'phone',
                           !S.address.trim() && 'address',
                         ].filter(Boolean).join(',');
-                        sendGAEvent('event', 'quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
+                        trackQuoteEvent('quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
                         toast.error(
                           'Please complete your details and confirm your service address.'
                         );
@@ -5838,6 +5847,7 @@ function winSessionMinutes(S: WizardState) {
                             context: S.context,
                             scope: S.scope,
                             frequency: S.commFrequency || 'none',
+                            analytics_session_id: getPublicAnalyticsSessionId(),
                             submitted_total: effectiveTotal,
                             total: effectiveTotal,
                             service_address: S.address.trim(),
@@ -5862,11 +5872,19 @@ function winSessionMinutes(S: WizardState) {
                           const timeToSubmit = step3StartTsRef.current
                             ? Math.round((Date.now() - step3StartTsRef.current) / 1000)
                             : null;
-                          sendGAEvent('event', 'quote_submitted', {
+                          const submittedPayload: AnalyticsEventData = {
                             service: S.service,
                             scope: S.scope,
                             value: effectiveTotal,
                             ...(timeToSubmit !== null ? { time_to_submit_seconds: timeToSubmit } : {}),
+                          };
+                          sendGAEvent('event', 'quote_submitted', submittedPayload);
+                          void trackPublicAnalyticsEvent({
+                            eventName: 'quote_submitted',
+                            quoteId: quote.id,
+                            eventValue: effectiveTotal,
+                            eventData: submittedPayload,
+                            useBeacon: true,
                           });
                           trackQuoteSubmitted(effectiveTotal);
 

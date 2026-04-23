@@ -7,11 +7,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import {
+  getOrCreatePublicAnalyticsSessionId,
+  trackPublicAnalyticsEvent,
+} from '@/lib/analytics/public';
+import {
+  PUBLIC_ANALYTICS_RETURNING_KEY,
+} from '@/lib/analytics/shared';
 
 const EXCLUDED_PREFIXES = ['/dashboard', '/crew', '/portal', '/api', '/account'];
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const SESSION_KEY = '_baw_sid';
-const RETURNING_KEY = '_baw_ret'; // persists across sessions to flag returning visitors
 
 function shouldTrack(path: string): boolean {
   return !EXCLUDED_PREFIXES.some(prefix => path.startsWith(prefix));
@@ -19,21 +24,19 @@ function shouldTrack(path: string): boolean {
 
 function getOrCreateSessionId(): { id: string; isNew: boolean } {
   if (typeof window === 'undefined') return { id: '', isNew: false };
-  const stored = localStorage.getItem(SESSION_KEY);
+  const stored = getOrCreatePublicAnalyticsSessionId();
   if (stored) return { id: stored, isNew: false };
-  const id = crypto.randomUUID();
-  localStorage.setItem(SESSION_KEY, id);
-  return { id, isNew: true };
+  return { id: '', isNew: true };
 }
 
 function isReturningVisitor(): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem(RETURNING_KEY) === '1';
+  return localStorage.getItem(PUBLIC_ANALYTICS_RETURNING_KEY) === '1';
 }
 
 function markAsReturning(): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(RETURNING_KEY, '1');
+  localStorage.setItem(PUBLIC_ANALYTICS_RETURNING_KEY, '1');
 }
 
 function getUtmParams(): Record<string, string> {
@@ -202,25 +205,20 @@ export default function VisitorTracker() {
     if (!sessionId) return;
 
     const onClick = (e: MouseEvent) => {
-      const target = (e.target as Element)?.closest('[data-track]') as HTMLElement | null;
+      const target = (e.target as Element)?.closest('[data-track],[data-tracking-name]') as HTMLElement | null;
       if (!target) return;
-      const eventName = target.dataset.track;
+      const eventName = target.dataset.track ?? target.dataset.trackingName;
       if (!eventName) return;
       const eventLabel = target.dataset.trackLabel ?? target.textContent?.trim().slice(0, 60) ?? undefined;
+      const eventData = target.dataset.trackValue
+        ? { value: target.dataset.trackValue }
+        : undefined;
 
-      fetch('/api/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          page: window.location.pathname,
-          page_title: document.title,
-          event_type: 'event',
-          event_name: eventName,
-          event_label: eventLabel,
-        }),
-        keepalive: true,
-      }).catch(() => {});
+      void trackPublicAnalyticsEvent({
+        eventName,
+        eventLabel,
+        eventData,
+      });
     };
 
     document.addEventListener('click', onClick, { passive: true });

@@ -4,6 +4,7 @@ import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { bookingConfirmedEmail, checkoutExpiredEmail } from '@/lib/email/templates';
+import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -77,25 +78,37 @@ export async function POST(req: NextRequest) {
 
         let resolvedOrderId = orderId;
         let currentQuoteStatus: string | null = null;
+        let analyticsSessionId: string | null = null;
+        let quoteScope: string | null = null;
+        let quoteContext: string | null = null;
+        let quoteServiceType: string | null = null;
 
         if (!resolvedOrderId && quoteId) {
           // Resolve order from quote fallback when metadata is quote-only.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: quoteOrder } = await (client as any)
             .from('quotes')
-            .select('converted_order_id, status')
+            .select('converted_order_id, status, analytics_session_id, scope, context, service_type')
             .eq('id', quoteId)
             .maybeSingle();
           resolvedOrderId = quoteOrder?.converted_order_id || undefined;
           currentQuoteStatus = quoteOrder?.status || null;
+          analyticsSessionId = quoteOrder?.analytics_session_id || null;
+          quoteScope = quoteOrder?.scope || null;
+          quoteContext = quoteOrder?.context || null;
+          quoteServiceType = quoteOrder?.service_type || null;
         } else if (quoteId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: quoteSnapshot } = await (client as any)
             .from('quotes')
-            .select('status')
+            .select('status, analytics_session_id, scope, context, service_type')
             .eq('id', quoteId)
             .maybeSingle();
           currentQuoteStatus = quoteSnapshot?.status || null;
+          analyticsSessionId = quoteSnapshot?.analytics_session_id || null;
+          quoteScope = quoteSnapshot?.scope || null;
+          quoteContext = quoteSnapshot?.context || null;
+          quoteServiceType = quoteSnapshot?.service_type || null;
         }
 
         if (currentQuoteStatus === 'cancelled') {
@@ -140,7 +153,7 @@ export async function POST(req: NextRequest) {
         const paymentAmount = (session.amount_total || 0) / 100;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (client as any)
+        const { data: paymentRecord } = await (client as any)
           .from('payments')
           .insert([{
             order_id: resolvedOrderId,
@@ -150,7 +163,9 @@ export async function POST(req: NextRequest) {
             status: 'completed',
             paid_at: new Date().toISOString(),
             notes: `Stripe Checkout: ${session.id}`,
-          }]);
+          }])
+          .select('id')
+          .single();
 
         // Audit log
         logAudit(client, 'order', resolvedOrderId, 'payment_received', {
@@ -180,6 +195,24 @@ export async function POST(req: NextRequest) {
             payment_intent: session.payment_intent,
           });
         }
+
+        void recordAnalyticsEvent({
+          sessionId: analyticsSessionId,
+          eventName: 'payment_completed',
+          page: '/services/checkout/success',
+          source: 'server',
+          quoteId: quoteId ?? null,
+          orderId: resolvedOrderId,
+          paymentId: paymentRecord?.id ?? null,
+          eventValue: paymentAmount,
+          eventData: {
+            service: session.metadata?.service_type ?? quoteServiceType,
+            context: session.metadata?.context ?? quoteContext,
+            scope: quoteScope,
+            stripe_session_id: session.id,
+            payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+          },
+        });
 
         // Store the Stripe Customer ID on the customers row so future checkouts reuse it.
         // This handles the case where checkout was created without a prior customer row.
@@ -234,11 +267,26 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', expiredQuoteId)
             .eq('status', 'payment_pending')
-            .select('customer_email, customer_name, service_type, submitted_total, total')
+            .select('customer_email, customer_name, service_type, submitted_total, total, analytics_session_id, context, scope, converted_order_id')
             .maybeSingle();
 
           logAudit(client, 'quote', expiredQuoteId, 'checkout_expired', {
             stripe_session_id: expiredSession.id,
+          });
+
+          void recordAnalyticsEvent({
+            sessionId: expiredQuote?.analytics_session_id ?? null,
+            eventName: 'checkout_expired',
+            page: '/services/checkout/cancel',
+            source: 'server',
+            quoteId: expiredQuoteId,
+            orderId: expiredQuote?.converted_order_id ?? null,
+            eventData: {
+              service: expiredQuote?.service_type ?? null,
+              context: expiredQuote?.context ?? null,
+              scope: expiredQuote?.scope ?? null,
+              stripe_session_id: expiredSession.id,
+            },
           });
 
           // Notify customer their payment link expired and invite them to re-request
@@ -273,7 +321,7 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: failedOrder } = await (client as any)
           .from('orders')
-          .select('id, quote_id')
+          .select('id, quote_id, analytics_session_id, service_type, context, scope')
           .eq('stripe_payment_intent_id', failedPi.id)
           .maybeSingle();
 
@@ -300,6 +348,23 @@ export async function POST(req: NextRequest) {
           logAudit(client, 'order', failedOrder.id, 'payment_failed', {
             payment_intent_id: failedPi.id,
             failure_message: failedPi.last_payment_error?.message,
+          });
+
+          void recordAnalyticsEvent({
+            sessionId: failedOrder.analytics_session_id ?? null,
+            eventName: 'payment_failed',
+            page: '/services/checkout/cancel',
+            source: 'server',
+            quoteId: failedOrder.quote_id ?? null,
+            orderId: failedOrder.id,
+            eventValue: failedPi.amount ? failedPi.amount / 100 : null,
+            eventData: {
+              service: failedOrder.service_type,
+              context: failedOrder.context,
+              scope: failedOrder.scope,
+              payment_intent: failedPi.id,
+              failure_message: failedPi.last_payment_error?.message ?? null,
+            },
           });
         }
         break;
@@ -353,7 +418,7 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: refundOrder } = await (client as any)
           .from('orders')
-          .select('id')
+          .select('id, quote_id, analytics_session_id, service_type, context, scope')
           .eq('stripe_payment_intent_id', paymentIntentId)
           .maybeSingle();
 
@@ -387,6 +452,22 @@ export async function POST(req: NextRequest) {
             refund_amount: refundAmount,
             charge_id: charge.id,
             payment_intent_id: paymentIntentId,
+          });
+
+          void recordAnalyticsEvent({
+            sessionId: refundOrder.analytics_session_id ?? null,
+            eventName: isFullRefund ? 'payment_refunded' : 'payment_partially_refunded',
+            source: 'server',
+            quoteId: refundOrder.quote_id ?? null,
+            orderId: refundOrder.id,
+            eventValue: refundAmount,
+            eventData: {
+              service: refundOrder.service_type,
+              context: refundOrder.context,
+              scope: refundOrder.scope,
+              charge_id: charge.id,
+              payment_intent: paymentIntentId,
+            },
           });
         }
 

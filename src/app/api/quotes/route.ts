@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReceivedEmail } from '@/lib/email/templates';
+import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -152,6 +153,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid quote total' }, { status: 400 });
   }
 
+  const analyticsSessionId =
+    typeof body.analytics_session_id === 'string' && body.analytics_session_id.trim().length > 0
+      ? body.analytics_session_id.trim()
+      : null;
+
   // Combine address + notes into a single field — quotes table has no
   // dedicated service_address column, so we prepend it to notes.
   const combinedNotes = [
@@ -171,11 +177,13 @@ export async function POST(request: NextRequest) {
       context: body.context || 'home',
       scope: body.scope,
       frequency: body.frequency || 'none',
+      analytics_session_id: analyticsSessionId,
       total: submittedTotal,
       submitted_total: submittedTotal,
       reviewed_total: null,
       status: 'submitted',
       payment_status: 'not_requested',
+      service_address: typeof body.service_address === 'string' ? body.service_address.trim() : null,
       notes: combinedNotes,
     })
     .select()
@@ -185,6 +193,23 @@ export async function POST(request: NextRequest) {
     console.error('[api/quotes] POST failed:', error.message);
     return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
   }
+
+  void recordAnalyticsEvent({
+    sessionId: analyticsSessionId,
+    eventName: 'quote_created',
+    page: '/services',
+    source: 'server',
+    quoteId: data.id,
+    eventValue: submittedTotal,
+    eventData: {
+      service: String(body.service_type),
+      context: String(body.context),
+      scope: typeof body.scope === 'string' ? body.scope : null,
+      frequency: typeof body.frequency === 'string' ? body.frequency : 'none',
+      has_address: Boolean(typeof body.service_address === 'string' && body.service_address.trim()),
+      customer_type: authUser?.role ?? 'anonymous',
+    },
+  });
 
   // Send "quote received" confirmation email — fire and forget
   const customerEmail = body.customer_email as string | undefined;

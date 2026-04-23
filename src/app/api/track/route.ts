@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import type { AnalyticsEventData } from '@/lib/analytics/shared';
 
 const rateLimiter = createRateLimiter({ limit: 120, windowMs: 10 * 60 * 1000 });
 
@@ -51,6 +52,10 @@ export async function POST(req: NextRequest) {
     // CTA events (event_type === 'event')
     event_name,
     event_label,
+    event_data,
+    event_value,
+    quote_id,
+    order_id,
   } = b;
 
   const validEventTypes = ['pageview', 'heartbeat', 'engagement', 'event'];
@@ -98,6 +103,35 @@ export async function POST(req: NextRequest) {
       );
   }
 
+  const ensureSessionExists = async () => {
+    const { error: insertErr } = await (supabase as any)
+      .from('analytics_sessions')
+      .insert({
+        session_id,
+        referrer: typeof referrer === 'string' ? referrer : null,
+        user_agent: ua || null,
+        city,
+        country,
+        utm_source: typeof utm_source === 'string' ? utm_source : null,
+        utm_medium: typeof utm_medium === 'string' ? utm_medium : null,
+        utm_campaign: typeof utm_campaign === 'string' ? utm_campaign : null,
+        utm_term: typeof utm_term === 'string' ? utm_term : null,
+        utm_content: typeof utm_content === 'string' ? utm_content : null,
+        is_returning: Boolean(is_returning),
+        pages_visited: 0,
+        total_seconds: 0,
+        first_seen_at: now,
+        last_seen_at: now,
+      });
+
+    if (insertErr) {
+      await (supabase as any)
+        .from('analytics_sessions')
+        .update({ last_seen_at: now })
+        .eq('session_id', session_id);
+    }
+  };
+
   // -------------------------------------------------------------------------
   // 2. UPSERT analytics_sessions (persistent — never deleted)
   // -------------------------------------------------------------------------
@@ -127,6 +161,8 @@ export async function POST(req: NextRequest) {
       // Session already exists — increment pages_visited and update last_seen
       await (supabase as any).rpc('increment_session_pages', { p_session_id: session_id, p_now: now });
     }
+  } else {
+    await ensureSessionExists();
   }
 
   // Update total time on site when we receive engagement data
@@ -197,6 +233,11 @@ export async function POST(req: NextRequest) {
   // 5. INSERT visitor_events (CTA clicks / custom events)
   // -------------------------------------------------------------------------
   if (event_type === 'event' && typeof event_name === 'string' && event_name) {
+    const normalizedEventData =
+      event_data && typeof event_data === 'object' && !Array.isArray(event_data)
+        ? (event_data as AnalyticsEventData)
+        : {};
+
     await (supabase as any)
       .from('visitor_events')
       .insert({
@@ -204,6 +245,11 @@ export async function POST(req: NextRequest) {
         event_name,
         event_label: typeof event_label === 'string' ? event_label : null,
         page,
+        source: 'client',
+        quote_id: typeof quote_id === 'string' ? quote_id : null,
+        order_id: typeof order_id === 'string' ? order_id : null,
+        event_value: typeof event_value === 'number' && Number.isFinite(event_value) ? event_value : null,
+        event_data: normalizedEventData,
         created_at: now,
       });
   }

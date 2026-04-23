@@ -33,6 +33,7 @@ export interface Order {
   day_before_reminder_sent?: boolean;
   status: OrderStatus;
   notes?: string | null;
+  analytics_session_id?: string | null;
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
@@ -66,6 +67,7 @@ export interface CreateOrderInput {
   scheduled_time?: string;
   status?: OrderStatus;
   notes?: string;
+  analytics_session_id?: string;
 }
 
 export interface UpdateOrderInput {
