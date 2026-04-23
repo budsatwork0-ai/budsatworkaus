@@ -4,6 +4,7 @@
 // Tracks: pageviews, heartbeats, scroll depth, time on page, UTM params,
 // new vs returning visitors, and CTA click events via [data-track] attributes.
 // Excluded from admin/crew/portal routes — only tracks the public marketing site.
+// Pageviews fire on first load so brief visits persist in analytics history.
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
@@ -60,7 +61,6 @@ function getMaxScrollDepth(): number {
 export default function VisitorTracker() {
   const [sessionId, setSessionId] = useState('');
   const [isReturning, setIsReturning] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
   const pathname = usePathname();
 
   const lastTrackedPath = useRef<string | null>(null);
@@ -81,14 +81,6 @@ export default function VisitorTracker() {
     if (isNew) markAsReturning();
   }, []);
 
-  // Gate on first real user interaction to filter headless bots
-  useEffect(() => {
-    const onInteract = () => setHasInteracted(true);
-    const events = ['scroll', 'click', 'keydown', 'mousemove', 'touchstart'] as const;
-    events.forEach(e => window.addEventListener(e, onInteract, { once: true, passive: true }));
-    return () => events.forEach(e => window.removeEventListener(e, onInteract));
-  }, []);
-
   // Track scroll depth continuously
   useEffect(() => {
     const onScroll = () => {
@@ -104,7 +96,6 @@ export default function VisitorTracker() {
   // Track page views on route change, sending previous page's engagement data
   useEffect(() => {
     if (!sessionId || !pathname || !shouldTrack(pathname)) return;
-    if (!hasInteracted) return;
     if (lastTrackedPath.current === pathname) return;
 
     const previousPath = lastTrackedPath.current;
@@ -141,7 +132,7 @@ export default function VisitorTracker() {
       body: JSON.stringify(payload),
       keepalive: true,
     }).catch(() => {});
-  }, [pathname, sessionId, hasInteracted, isReturning]);
+  }, [pathname, sessionId, isReturning]);
 
   // Send final page engagement data when tab closes / user navigates away
   useEffect(() => {
@@ -177,7 +168,7 @@ export default function VisitorTracker() {
 
   // Heartbeat — keeps session alive and updates current page
   useEffect(() => {
-    if (!sessionId || !hasInteracted) return;
+    if (!sessionId) return;
 
     const interval = setInterval(() => {
       const currentPath = window.location.pathname;
@@ -197,7 +188,7 @@ export default function VisitorTracker() {
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [sessionId, hasInteracted]);
+  }, [sessionId]);
 
   // CTA click tracking — attach to any element with [data-track="event-name"]
   // Example: <button data-track="quote_request" data-track-label="Get a Quote">
