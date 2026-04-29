@@ -1,4 +1,4 @@
-import type { ServiceType, WizardState, Action } from '../types';
+import type { ServiceType, WizardState, Action, Context } from '../types';
 
 export type { Action };
 
@@ -12,8 +12,13 @@ export type QuestionId =
   | 'clean_scope'
   | 'clean_bedrooms'
   | 'clean_bathrooms'
+  // NDIS-only follow-ups appended in NDIS context — used by the hourly
+  // suggester so the assistant's live estimate matches the wizard's Step 2.
+  | 'clean_living_rooms'
+  | 'clean_condition'
   | 'yard_scope'
   | 'yard_size_bucket'
+  | 'yard_condition'
   | 'dump_subtype'
   | 'dump_load_type'
   | 'dump_load_count'
@@ -94,6 +99,8 @@ export type AssistantAPI = {
   open: boolean;
   dismissed: boolean;
   service: ServiceType | null;
+  /** Wizard context — used to tailor copy, service options, and pricing. */
+  context: Context;
   currentQuestion: QuestionDef | null;
   currentStep: number;
   totalSteps: number;

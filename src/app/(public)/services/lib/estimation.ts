@@ -432,7 +432,7 @@ export function computeScopeMinutes(S: WizardState, service: ServiceType, scopeK
   }
 
   // Cleaning – home
-  if (service === 'cleaning' && S.context === 'home') {
+  if (service === 'cleaning' && S.context !== 'commercial') {
     if (scopeKey === 'hourly') {
       const params =
         scopeKey === S.scope
@@ -556,7 +556,10 @@ export function buildQuoteSummary(
   estimate: ReturnType<typeof priceQuote>,
   scopedPrice?: { price: number; disclaimer: string }
 ) {
-  const ctxLabel = S.context[0].toUpperCase() + S.context.slice(1);
+  const ctxLabel =
+    S.context === 'ndis'
+      ? 'NDIS'
+      : S.context[0].toUpperCase() + S.context.slice(1);
   const svc = SERVICES.find((x) => x.key === S.service)?.label ?? S.service;
   const scope = SCOPES_BY_SERVICE[S.service].find((s) => s.key === S.scope)?.label ?? S.scope;
   const parts: string[] = [];
@@ -622,6 +625,17 @@ export function buildQuoteSummary(
     }`
   );
   parts.push(`Contact: ${S.email || '—'} · ${S.phone || '—'}`);
+  if (S.context === 'ndis' && S.ndisManagementType) {
+    const routingLabel =
+      S.ndisManagementType === 'plan_managed'
+        ? 'Plan-managed'
+        : S.ndisManagementType === 'self_managed'
+        ? 'Self-managed'
+        : 'Agency-managed (NDIA)';
+    parts.push(`NDIS management: ${routingLabel}`);
+    if (S.ndisForwardContactName) parts.push(`NDIS forward contact: ${S.ndisForwardContactName}`);
+    if (S.ndisForwardEmail) parts.push(`NDIS forward email: ${S.ndisForwardEmail}`);
+  }
   parts.push(`Region: ${S.region || '—'}`);
   if (S.notes) parts.push(`Notes: ${S.notes}`);
   if (S.yardMeasureRequested) parts.push(`Measurement requested for yard/area.`);

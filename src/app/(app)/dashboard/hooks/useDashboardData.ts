@@ -5,6 +5,7 @@ import type {
   DashboardMetrics,
   DashboardAlert,
   DashboardCrewMember,
+  PartnerReferralSnapshot,
   DashboardQuote,
   MoneyFlowData,
   ReceivableRecord,
@@ -26,6 +27,7 @@ type UseDashboardDataResult = {
   dismissedAlertCount: number;
   crew: DashboardCrewMember[];
   quotes: DashboardQuote[];
+  partnerReferrals: PartnerReferralSnapshot[];
   applicantCount: number;
   lastUpdated: string | null;
   isLoading: boolean;
@@ -147,6 +149,7 @@ export function useDashboardData(): UseDashboardDataResult {
   const [dismissedAlertCount, setDismissedAlertCount] = useState(0);
   const [crew, setCrew] = useState<DashboardCrewMember[]>([]);
   const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
+  const [partnerReferrals, setPartnerReferrals] = useState<PartnerReferralSnapshot[]>([]);
   const [applicantCount, setApplicantCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -164,6 +167,7 @@ export function useDashboardData(): UseDashboardDataResult {
     setDismissedAlertCount(data.dismissedAlertCount ?? 0);
     setCrew(data.crew || []);
     setQuotes(data.quotes || []);
+    setPartnerReferrals(data.partnerReferrals || []);
     setApplicantCount(data.applicantCount ?? 0);
     setLastUpdated(data.lastUpdated || null);
   }
@@ -228,6 +232,7 @@ export function useDashboardData(): UseDashboardDataResult {
     dismissedAlertCount,
     crew,
     quotes,
+    partnerReferrals,
     applicantCount,
     lastUpdated,
     isLoading,
@@ -236,4 +241,3 @@ export function useDashboardData(): UseDashboardDataResult {
     orderIdToQuoteId,
   };
 }
-

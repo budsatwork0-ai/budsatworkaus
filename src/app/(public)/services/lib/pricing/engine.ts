@@ -817,7 +817,7 @@ export function hourlyRate(
   commercialType?: CommercialCleaningType | null
 ) {
   if (service === 'cleaning') {
-    if (context === 'home') {
+    if (context !== 'commercial') {
       const map: Partial<Record<ScopeKey, number>> = {
         weekly: CLEANING_HOME_RATES_V2.weekly,
         general: CLEANING_HOME_RATES_V2.general,
@@ -1275,9 +1275,9 @@ export function priceQuote(params: QuoteParams) {
     base = (billable / 60) * hrRate;
     unitSum = base;
     labourFloor = 0;
-  } else if (currentService === 'cleaning' && context === 'home') {
+  } else if (currentService === 'cleaning' && context !== 'commercial') {
     // Home cleaning: use preset base minutes and extras (time for display, cost from base + extras cost only)
-    let minBlock: number = POLICY.minBlock[context];
+    const minBlock = POLICY.minBlock.home;
     const kindMap: Partial<Record<ScopeKey, CleanScopeKindV2>> = {
       weekly: 'weekly',
       general: 'general',
@@ -1287,7 +1287,7 @@ export function priceQuote(params: QuoteParams) {
       hourly: 'hourly',
     };
     const kind = kindMap[currentScope];
-    if (kind) minBlock = Math.round(CLEANING_HOME_MIN_HOURS_V2[kind] * 60);
+    const effectiveMinBlock = kind ? Math.round(CLEANING_HOME_MIN_HOURS_V2[kind] * 60) : minBlock;
 
     const extras = computeHomeExtras(currentScope, cleaningParams || {});
     extraCost = extras.extraCost;
@@ -1297,15 +1297,15 @@ export function priceQuote(params: QuoteParams) {
     // display minutes include extras + add-ons
     minutes = extras.baseMinutes + extras.extraMinutes + addonMinutes;
     // billable minutes for labour based on base preset only (respect minBlock)
-    const baseMinutes = Math.max(minBlock, extras.baseMinutes);
-    billable = Math.max(minBlock, roundToHalfHour(baseMinutes / 60) * 60);
+    const baseMinutes = Math.max(effectiveMinBlock, extras.baseMinutes);
+    billable = Math.max(effectiveMinBlock, roundToHalfHour(baseMinutes / 60) * 60);
 
     const hrRate = hourlyRate(context, currentService, currentScope, commercialType);
     labourFloor = (billable / 60) * hrRate;
     base = labourFloor + extraCost + addonCost;
   } else {
     // Other services / commercial cleaning
-    const minBlock = POLICY.minBlock[context];
+    const minBlock = context === 'commercial' ? POLICY.minBlock.commercial : POLICY.minBlock.home;
     billable = Math.max(minutes, minBlock);
 
     // Round to nearest half hour
@@ -1336,7 +1336,7 @@ export function priceQuote(params: QuoteParams) {
     currentService === 'cleaning' ? (context === 'commercial' ? 12 : 8) : 0;
 
   // Home cleaning: keep totals aligned to base hours/rate without size/condition/contract tweaks
-  if (currentService === 'cleaning' && context === 'home') {
+  if (currentService === 'cleaning' && context !== 'commercial') {
     sizeMult = 1;
     flatAdjust = 0;
     discount = 0;

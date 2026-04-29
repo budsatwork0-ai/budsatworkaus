@@ -8,6 +8,7 @@ import type {
   TransportSelection,
   SneakerTurnaround,
   Action,
+  Context,
 } from '../types';
 import type {
   AssistantState,
@@ -17,7 +18,12 @@ import type {
   AssistantAPI,
   LiveEstimate,
 } from './types';
-import { QUESTION_DEFS, getActiveSequence, buildMergePayload } from './flow';
+import {
+  QUESTION_DEFS,
+  getActiveSequence,
+  buildMergePayload,
+  getContextualQuestion,
+} from './flow';
 import {
   priceQuote,
   selectedFromParams,
@@ -28,9 +34,18 @@ import {
   SNEAKER_MULTI_PRICING,
   DEFAULT_DUMP_DELIVERY,
   DEFAULT_DUMP_TRANSPORT,
+  ALLOWED_SERVICES_BY_CONTEXT,
 } from '../lib/pricing/constants';
 import { calcDeliveryQuote, calcTransportQuote } from '../lib/pricing/transport';
 import { BASE_CALLOUT_PRICE, EFFORT_BLOCK_RANGE, PHYSICAL_BLOCK_RANGE } from '../lib/estimation';
+import {
+  ndisRateFor,
+  ndisSubtotal,
+  suggestNdisCleaningHours,
+  suggestNdisYardHours,
+  type NdisCondition,
+  type NdisYardSize,
+} from '../lib/pricing/ndis';
 
 /** Default travel distance for the quote-assistant live estimate.
  *  The assistant doesn't collect an address, so we assume a typical
@@ -50,7 +65,8 @@ type InternalAction =
   | { type: 'next' }
   | { type: 'prev' }
   | { type: 'goto'; index: number }
-  | { type: 'set_service'; service: ServiceType };
+  | { type: 'set_service'; service: ServiceType }
+  | { type: 'reset_for_context' };
 
 function assistantReducer(state: AssistantState, action: InternalAction): AssistantState {
   switch (action.type) {
@@ -85,6 +101,8 @@ function assistantReducer(state: AssistantState, action: InternalAction): Assist
       return { ...state, questionIndex: Math.max(0, action.index) };
     case 'set_service':
       return { ...state, service: action.service, answers: {}, questionIndex: 0 };
+    case 'reset_for_context':
+      return { ...state, service: null, answers: {}, questionIndex: 0 };
     default:
       return state;
   }
@@ -95,11 +113,43 @@ function assistantReducer(state: AssistantState, action: InternalAction): Assist
 function computeLiveEstimate(
   service: ServiceType | null,
   answers: AssistantAnswers,
+  context: Context,
 ): LiveEstimate | null {
   if (!service) return null;
 
-  const payload = buildMergePayload(service, answers);
+  const payload = buildMergePayload(service, answers, context);
   const scope = payload.scope ?? '';
+
+  // ── NDIS cleaning + yard — priced at the Price Guide cap (hours × rate),
+  //    NOT via the generic priceQuote path. The wizard's Step 2 panel uses
+  //    the same hours suggester, so the assistant's number now lines up
+  //    with what the user sees after handoff. ──
+  if (context === 'ndis' && (service === 'cleaning' || service === 'yard')) {
+    const hours =
+      service === 'cleaning'
+        ? suggestNdisCleaningHours(
+            Number(answers.clean_bedrooms ?? 2),
+            Number(answers.clean_bathrooms ?? 1),
+            Number(answers.clean_living_rooms ?? 1),
+            (answers.clean_condition as NdisCondition) ?? 'lived_in',
+          )
+        : suggestNdisYardHours(
+            (['small', 'medium', 'large', 'xlarge'].includes(String(answers.yard_size_bucket))
+              ? (answers.yard_size_bucket as NdisYardSize)
+              : 'medium'),
+            (answers.yard_condition as NdisCondition) ?? 'lived_in',
+          );
+    const total = ndisSubtotal(hours);
+    const rate = ndisRateFor();
+    return {
+      total,
+      // 'guide' confidence flags this as Price-Guide-anchored — the wizard
+      // and any downstream copy can render it differently from a free-form
+      // estimate (no negotiation, plan manager will confirm).
+      confidence: 'guide',
+      breakdown: `${hours} hr × $${rate.toFixed(2)} · NDIS Price Guide cap`,
+    };
+  }
 
   // ── Dump — use the same pricing helpers as the main wizard so the
   //    assistant estimate matches what the user will see next. ──
@@ -295,7 +345,7 @@ function computeLiveEstimate(
             screens:   Number(answers.win_screens   ?? 0),
           }
         : undefined,
-      'home',
+      context,
       undefined,
     );
   } catch {
@@ -315,9 +365,15 @@ function computeLiveEstimate(
   const yardParams: NumericParams | undefined = service === 'yard' ? params : undefined;
   const cleaningParams: NumericParams | undefined = service === 'cleaning' ? params : undefined;
 
+  // Commercial work carries a modest uplift vs. home (access, insurance,
+  // invoicing overhead). NDIS is quoted at home rates — the difference is in
+  // scheduling and reporting, not the labour itself. Keeps the assistant
+  // estimate aligned with the full wizard's context-aware pricing.
+  const commercialUplift = context === 'commercial' ? 1.15 : 1;
+
   try {
     const result = priceQuote({
-      context: 'home',
+      context,
       currentService: service,
       currentScope: scope,
       selected,
@@ -326,11 +382,11 @@ function computeLiveEstimate(
       tipFee: 0,
       conditionMult: 1,
       flags: { petHair: false, greaseSoap: false, clutterAccess: false, secondStorey: false },
-      commercialUplift: 1,
+      commercialUplift,
       sizeAdjust: 'standard',
       conditionFlat: 0,
       contractDiscount: 0,
-      commercialType: null,
+      commercialType: context === 'commercial' ? 'office' : null,
       afterHours: false,
       autoCategory: service === 'auto' ? String(payload.carModelType ?? '') : undefined,
       autoSizeCategory:
@@ -355,6 +411,8 @@ export function useAssistant(opts: {
   dispatch: React.Dispatch<Action>;
   wizardStep: 1 | 2 | 3;
   wizardHasInteracted: boolean;
+  /** Current wizard context — tailors the service picker, copy, and pricing. */
+  context: Context;
 }): AssistantAPI {
   const [state, assistantDispatch] = useReducer(assistantReducer, {
     open: false,
@@ -371,20 +429,22 @@ export function useAssistant(opts: {
     }
   }, []);
 
-  // Auto-open after 5–8s on first visit (only if not dismissed and wizard untouched)
+  // The assistant now opens ONLY on explicit user action (trigger button).
+  // The auto-open timer was removed so the panel never appears uninvited.
+
+  // If the user switches context, clear an assistant service that is not
+  // available in the new flow.
   useEffect(() => {
-    if (state.dismissed || opts.wizardHasInteracted) return;
-    if (localStorage.getItem(LS_DISMISSED_KEY) === 'true') return;
-    const delay = 5000 + Math.random() * 3000;
-    const t = setTimeout(() => assistantDispatch({ type: 'open' }), delay);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // deliberately mount-only
+    if (!state.service) return;
+    if (!ALLOWED_SERVICES_BY_CONTEXT[opts.context].includes(state.service)) {
+      assistantDispatch({ type: 'reset_for_context' });
+    }
+  }, [opts.context, state.service]);
 
   // Active service-specific question sequence
   const activeSequence = useMemo(
-    () => (state.service ? getActiveSequence(state.service, state.answers) : []),
-    [state.service, state.answers],
+    () => (state.service ? getActiveSequence(state.service, state.answers, opts.context) : []),
+    [state.service, state.answers, opts.context],
   );
 
   // Step 0 = service picker; steps 1..N = service-specific questions
@@ -396,7 +456,12 @@ export function useAssistant(opts: {
   const currentQId = inServicePick
     ? 'service_pick'
     : (activeSequence[state.questionIndex] ?? null);
-  const currentQuestion = currentQId ? QUESTION_DEFS[currentQId] : null;
+  // Service picker is built dynamically so only services allowed for the
+  // current context are shown (e.g. NDIS hides auto / laundry, commercial
+  // hides laundry & dump runs).
+  const currentQuestion = currentQId
+    ? getContextualQuestion(currentQId, opts.context)
+    : null;
 
   const isComplete = !inServicePick && state.questionIndex >= activeSequence.length;
 
@@ -411,8 +476,8 @@ export function useAssistant(opts: {
   const canGoBack = !inServicePick;
 
   const liveEstimate = useMemo(
-    () => computeLiveEstimate(state.service, state.answers),
-    [state.service, state.answers],
+    () => computeLiveEstimate(state.service, state.answers, opts.context),
+    [state.service, state.answers, opts.context],
   );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -458,16 +523,17 @@ export function useAssistant(opts: {
 
   const onHandoff = useCallback(() => {
     if (!state.service) return;
-    const payload = buildMergePayload(state.service, state.answers);
+    const payload = buildMergePayload(state.service, state.answers, opts.context);
     opts.dispatch({ type: 'merge', value: payload as Partial<WizardState> });
     assistantDispatch({ type: 'close' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [state.service, state.answers, opts.dispatch]);
+  }, [state.service, state.answers, opts.context, opts.dispatch]);
 
   return {
     open:            state.open,
     dismissed:       state.dismissed,
     service:         state.service,
+    context:         opts.context,
     currentQuestion,
     currentStep,
     totalSteps,

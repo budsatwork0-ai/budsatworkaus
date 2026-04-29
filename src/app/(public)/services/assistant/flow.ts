@@ -1,5 +1,12 @@
-import type { ServiceType, WizardState, SneakerTurnaround } from '../types';
+import type { ServiceType, WizardState, SneakerTurnaround, Context } from '../types';
 import type { QuestionId, QuestionDef, AssistantAnswers, OptionDef } from './types';
+import { ALLOWED_SERVICES_BY_CONTEXT } from '../lib/pricing/constants';
+import {
+  suggestNdisCleaningHours,
+  suggestNdisYardHours,
+  type NdisCondition,
+  type NdisYardSize,
+} from '../lib/pricing/ndis';
 
 // ─── Question sequences per service ───────────────────────────────────────────
 
@@ -115,6 +122,30 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
     defaultValue: 1,
   },
 
+  // NDIS-only — appended to the cleaning sequence in NDIS context. Mirrors
+  // the inputs on the wizard's Step 2 NDIS panel so handing off pre-fills
+  // instead of resetting to defaults.
+  clean_living_rooms: {
+    id: 'clean_living_rooms',
+    prompt: 'How many living rooms?',
+    hint: 'Lounge, family, dining — count the open shared spaces.',
+    kind: 'stepper',
+    min: 0,
+    max: 5,
+    defaultValue: 1,
+  },
+  clean_condition: {
+    id: 'clean_condition',
+    prompt: 'What condition is the space in?',
+    hint: 'Used to suggest hours — you can adjust at the next step.',
+    kind: 'button-grid',
+    options: [
+      { value: 'tidy',     label: 'Tidy',     sublabel: 'Maintained — light touch' },
+      { value: 'lived_in', label: 'Lived-in', sublabel: 'Typical ongoing support' },
+      { value: 'reset',    label: 'Reset',    sublabel: 'Needs a deeper pass' },
+    ],
+  },
+
   // Yard
   yard_scope: {
     id: 'yard_scope',
@@ -137,6 +168,19 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
       { value: 'medium', label: 'Medium', sublabel: 'Standard yard, ~300–600 m²' },
       { value: 'large',  label: 'Large',  sublabel: 'Big yard, 800 m²+' },
       { value: 'xlarge', label: 'Very large', sublabel: 'Acreage, 1,500 m²+' },
+    ],
+  },
+
+  // NDIS-only yard follow-up — same condition options as the wizard panel.
+  yard_condition: {
+    id: 'yard_condition',
+    prompt: 'What condition is the yard in?',
+    hint: 'Used to suggest hours — you can adjust at the next step.',
+    kind: 'button-grid',
+    options: [
+      { value: 'tidy',     label: 'Tidy',     sublabel: 'Maintained — light touch' },
+      { value: 'lived_in', label: 'Lived-in', sublabel: 'Typical ongoing support' },
+      { value: 'reset',    label: 'Reset',    sublabel: 'Needs a deeper pass' },
     ],
   },
 
@@ -328,13 +372,178 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
   },
 };
 
+// ─── Context-aware service picker ──────────────────────────────────────────────
+
+// Per-context copy for the service picker. Commercial and NDIS each need a
+// different opening prompt, hint, and service sub-labels (pricing + framing
+// differ from home). The options are filtered to ALLOWED_SERVICES_BY_CONTEXT
+// so users only see services that are actually bookable in their context.
+
+type ServiceOptionCopy = Partial<Record<ServiceType, { label: string; sublabel: string }>>;
+
+const HOME_COPY: ServiceOptionCopy = {
+  windows:          { label: 'Window Cleaning',    sublabel: 'From $79' },
+  cleaning:         { label: 'Home Cleaning',      sublabel: 'From $99' },
+  yard:             { label: 'Yard Care',          sublabel: 'From $79' },
+  dump:             { label: 'Removal & Delivery', sublabel: 'From $105' },
+  auto:             { label: 'Car Detailing',      sublabel: 'From $99' },
+  laundry_sneakers: { label: 'Laundry & Sneakers', sublabel: 'From $74' },
+};
+
+const COMMERCIAL_COPY: ServiceOptionCopy = {
+  windows:  { label: 'Commercial Windows', sublabel: 'Offices, shopfronts, medical' },
+  cleaning: { label: 'Commercial Cleaning', sublabel: 'Office, retail, hospitality' },
+  yard:     { label: 'Grounds & Exterior',  sublabel: 'Property maintenance' },
+};
+
+const NDIS_COPY: ServiceOptionCopy = {
+  cleaning: { label: 'NDIS Cleaning', sublabel: 'Plan, self, or agency-managed' },
+  yard:     { label: 'NDIS Yard Care', sublabel: 'Supported yard maintenance' },
+};
+
+const CONTEXT_COPY: Record<Context, ServiceOptionCopy> = {
+  home: HOME_COPY,
+  commercial: COMMERCIAL_COPY,
+  ndis: NDIS_COPY,
+};
+
+const CONTEXT_PROMPT: Record<Context, { prompt: string; hint?: string }> = {
+  home: {
+    prompt: 'What service do you need?',
+  },
+  commercial: {
+    prompt: 'What commercial service do you need?',
+    hint: 'We quote commercial at a small uplift to cover access, insurance, and invoicing.',
+  },
+  ndis: {
+    prompt: 'Which NDIS service do you need?',
+    hint: 'We support plan, self, and agency-managed participants — via our MaluCare partnership.',
+  },
+};
+
+/**
+ * Build the service-picker question for the given context.
+ * Filters options to ALLOWED_SERVICES_BY_CONTEXT and swaps copy so the
+ * wording matches the current flow (home / commercial / NDIS).
+ */
+export function getServicePickQuestion(context: Context): QuestionDef {
+  const allowed = ALLOWED_SERVICES_BY_CONTEXT[context];
+  const copy = CONTEXT_COPY[context];
+  const { prompt, hint } = CONTEXT_PROMPT[context];
+
+  const options: OptionDef[] = [];
+  for (const svc of allowed) {
+    const c = copy[svc] ?? HOME_COPY[svc];
+    if (c) options.push({ value: svc, label: c.label, sublabel: c.sublabel });
+  }
+
+  return {
+    id: 'service_pick',
+    prompt,
+    hint,
+    kind: 'button-grid',
+    options,
+  };
+}
+
+const CONTEXT_QUESTION_OVERRIDES: Partial<
+  Record<Context, Partial<Record<QuestionId, Partial<QuestionDef>>>>
+> = {
+  commercial: {
+    clean_scope: {
+      prompt: 'What commercial clean do you need?',
+      hint: 'Pick the closest fit — we will confirm access, frequency, and site requirements before work begins.',
+      options: [
+        { value: 'general', label: 'Routine site clean', sublabel: 'Office, retail, hospitality' },
+        { value: 'deep', label: 'Detailed clean', sublabel: 'High-touch or catch-up clean' },
+        { value: 'endoflease', label: 'Site reset', sublabel: 'Move-out, handover, or reopening' },
+      ],
+    },
+    clean_bedrooms: {
+      prompt: 'How many main work areas?',
+      hint: 'Use rooms, zones, or sections as a rough size guide.',
+      defaultValue: 3,
+    },
+    clean_bathrooms: {
+      prompt: 'How many restrooms?',
+      defaultValue: 1,
+    },
+    yard_scope: {
+      prompt: 'What exterior maintenance do you need?',
+      options: [
+        { value: 'yard_mow', label: 'Lawn mowing', sublabel: 'Verges, lawns, common areas' },
+        { value: 'yard_hedge', label: 'Hedge trim', sublabel: 'Frontage and boundary lines' },
+        { value: 'yard_leaves', label: 'Grounds tidy', sublabel: 'Leaves, weeds, light debris' },
+        { value: 'blast_and_shine', label: 'Pressure wash', sublabel: 'Paths, entries, hard surfaces' },
+        { value: 'gutter_clean', label: 'Gutter clean', sublabel: 'Low-rise commercial' },
+      ],
+    },
+    yard_size_bucket: {
+      prompt: 'How large is the area?',
+      hint: 'An estimate is fine — we can adjust after reviewing access and site photos.',
+    },
+  },
+  ndis: {
+    clean_scope: {
+      prompt: 'What household-task support is needed?',
+      hint: 'This helps us prepare a clear quote for plan, self, or agency-managed support.',
+      options: [
+        { value: 'general', label: 'Regular support clean', sublabel: 'Ongoing household tasks' },
+        { value: 'deep', label: 'Deep support clean', sublabel: 'Heavier one-off reset' },
+        { value: 'endoflease', label: 'Move support clean', sublabel: 'Entry, exit, or tenancy change' },
+      ],
+    },
+    clean_bedrooms: {
+      prompt: 'How many bedrooms are in the home?',
+      hint: 'Used only to estimate the support hours before review.',
+    },
+    clean_bathrooms: {
+      prompt: 'How many bathrooms?',
+    },
+    yard_scope: {
+      prompt: 'What yard support is needed?',
+      hint: 'We keep the quote clear so it can be routed to the right NDIS contact.',
+      options: [
+        { value: 'yard_mow', label: 'Lawn mowing', sublabel: 'Routine yard maintenance' },
+        { value: 'yard_hedge', label: 'Hedge trim', sublabel: 'Light pruning and shaping' },
+        { value: 'yard_leaves', label: 'Garden tidy', sublabel: 'Leaves, weeds, light debris' },
+        { value: 'gutter_clean', label: 'Gutter clean', sublabel: 'If suitable and accessible' },
+      ],
+    },
+    yard_size_bucket: {
+      prompt: 'How big is the yard area?',
+      hint: 'Choose the closest size. We will confirm suitability before booking.',
+    },
+  },
+};
+
+export function getContextualQuestion(id: QuestionId, context: Context): QuestionDef {
+  if (id === 'service_pick') return getServicePickQuestion(context);
+
+  const base = QUESTION_DEFS[id];
+  const override = CONTEXT_QUESTION_OVERRIDES[context]?.[id];
+  return override ? { ...base, ...override, id: base.id, kind: base.kind } : base;
+}
+
 // ─── Dynamic sequence filtering ────────────────────────────────────────────────
 
 export function getActiveSequence(
   service: ServiceType,
   answers: AssistantAnswers,
+  context: Context = 'home',
 ): QuestionId[] {
   let seq = [...QUESTION_SEQUENCES[service]];
+
+  // NDIS context: append the inputs the wizard's hourly suggester needs so
+  // the assistant captures them up front (instead of resetting to defaults
+  // when the user lands on Step 2).
+  if (context === 'ndis') {
+    if (service === 'cleaning') {
+      seq = [...seq, 'clean_living_rooms', 'clean_condition'];
+    } else if (service === 'yard') {
+      seq = [...seq, 'yard_condition'];
+    }
+  }
 
   if (service === 'dump') {
     const sub = answers.dump_subtype as string | undefined;
@@ -431,8 +640,9 @@ function readNullableNumber(value: string | number | undefined): number | null {
 export function buildMergePayload(
   service: ServiceType,
   answers: AssistantAnswers,
+  context: Context = 'home',
 ): Partial<WizardState> {
-  const base: Partial<WizardState> = { service, step: 2 };
+  const base: Partial<WizardState> = { service, step: 2, context };
 
   switch (service) {
     case 'windows': {
@@ -440,11 +650,13 @@ export function buildMergePayload(
       const int_    = Number(answers.win_panes_int ?? 12);
       const ext_    = Number(answers.win_panes_ext ?? 12);
       const tracks  = Number(answers.win_tracks    ?? 12);
-      const screens = Number(answers.win_screens   ?? 0);
+      // Commercial sites rarely have fly screens on office/shopfront glazing —
+      // default to 0 so the assistant doesn't quote something that isn't there.
+      const defaultScreens = context === 'commercial' ? 0 : 0;
+      const screens = Number(answers.win_screens   ?? defaultScreens);
       return {
         ...base,
         scope: 'windows_full',
-        context: 'home',
         winStoreys: storeys,
         winRows: [{ int: int_, ext: ext_, tracks, screens, label: 'Ground floor' }],
         paramsByService: { windows: { panes_int: int_, panes_ext: ext_, tracks, screens } },
@@ -460,12 +672,34 @@ export function buildMergePayload(
       const scope    = scopeMap[answers.clean_scope as string] ?? 'general';
       const bedrooms  = Number(answers.clean_bedrooms  ?? 2);
       const bathrooms = Number(answers.clean_bathrooms ?? 1);
+      const living    = Number(answers.clean_living_rooms ?? 1);
+
+      // NDIS: pre-fill Step 2 panel inputs so the wizard's hourly suggester
+      // matches the assistant's live estimate exactly. Without this the user
+      // sees one number in the assistant and a different one on Step 2.
+      if (context === 'ndis') {
+        const condition = (answers.clean_condition as NdisCondition) ?? 'lived_in';
+        const ndisHours = suggestNdisCleaningHours(bedrooms, bathrooms, living, condition);
+        return {
+          ...base,
+          scope,
+          paramsByService: {
+            cleaning: { bedrooms, bathrooms, kitchens: 1, living, laundry: 0, storeys: 1 },
+          },
+          ndisPropertyBedrooms: bedrooms,
+          ndisPropertyBathrooms: bathrooms,
+          ndisPropertyLiving: living,
+          ndisCondition: condition,
+          ndisEstimatedHours: ndisHours,
+          ndisHoursOrigin: 'suggested',
+        };
+      }
+
       return {
         ...base,
-        context: 'home',
         scope,
         paramsByService: {
-          cleaning: { bedrooms, bathrooms, kitchens: 1, living: 1, laundry: 0, storeys: 1 },
+          cleaning: { bedrooms, bathrooms, kitchens: 1, living, laundry: 0, storeys: 1 },
         },
       };
     }
@@ -480,9 +714,29 @@ export function buildMergePayload(
       const size = isPerimeterScope
         ? (YARD_PERIMETER_SIZE_MAP[bucket] ?? 30)
         : (YARD_SIZE_MAP[bucket] ?? 450);
+
+      // NDIS: pricing is hours × Price Guide rate, not m² × yard rates. Carry
+      // the size bucket and condition forward so the wizard's NDIS Step 2
+      // panel can pre-fill and show the same number the assistant just did.
+      if (context === 'ndis') {
+        const sizeBucket = (['small', 'medium', 'large', 'xlarge'].includes(bucket)
+          ? bucket
+          : 'medium') as NdisYardSize;
+        const condition = (answers.yard_condition as NdisCondition) ?? 'lived_in';
+        const ndisHours = suggestNdisYardHours(sizeBucket, condition);
+        return {
+          ...base,
+          scope: scopeKey,
+          paramsByService: { yard: { [paramKey]: size } },
+          ndisYardSize: sizeBucket,
+          ndisCondition: condition,
+          ndisEstimatedHours: ndisHours,
+          ndisHoursOrigin: 'suggested',
+        };
+      }
+
       return {
         ...base,
-        context: 'home',
         scope: scopeKey,
         paramsByService: { yard: { [paramKey]: size } },
       };
@@ -502,7 +756,6 @@ export function buildMergePayload(
       if (subtype === 'dump_runs') {
         return {
           ...base,
-          context: 'home',
           scope: subtype,
           dumpRun: { loadType, loads },
         };
@@ -528,7 +781,6 @@ export function buildMergePayload(
           (answers.dump_delivery_assist as 'no_help' | 'need_help' | undefined) ?? 'no_help';
         return {
           ...base,
-          context: 'home',
           scope: subtype,
           dumpDelivery: {
             itemType,
@@ -566,7 +818,6 @@ export function buildMergePayload(
           helpersRaw >= 3 ? 3 : helpersRaw >= 2 ? 2 : 1;
         return {
           ...base,
-          context: 'home',
           scope: subtype,
           dumpTransport: {
             moveType,
@@ -579,7 +830,6 @@ export function buildMergePayload(
 
       return {
         ...base,
-        context: 'home',
         scope: subtype,
       };
     }
@@ -608,7 +858,6 @@ export function buildMergePayload(
 
       return {
         ...base,
-        context: 'home',
         scope,
         carModelType: vehicleKey,
         carDetectedVehicle: detectedVehicle,
@@ -624,11 +873,10 @@ export function buildMergePayload(
       const sneakerPairs = Number(answers.ls_sneaker_pairs ?? 2);
       const turnaround  = (answers.ls_turnaround as SneakerTurnaround) ?? 'standard';
       if (tier === 'laundry') {
-        return { ...base, context: 'home', scope: 'laundry', laundryLoads };
+        return { ...base, scope: 'laundry', laundryLoads };
       }
       return {
         ...base,
-        context: 'home',
         scope: 'sneaker_care',
         sneakerPairCount: sneakerPairs,
         sneakerTurnaround: turnaround,

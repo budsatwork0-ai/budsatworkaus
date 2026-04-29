@@ -3,13 +3,21 @@
 import { AnimatePresence } from 'framer-motion';
 import { brand } from '@/app/ui/theme';
 import { M } from '../utils/motion';
+import type { Context } from '../types';
 
 interface Props {
   onOpen: () => void;
   visible: boolean;
+  context: Context;
 }
 
-export function QuoteAssistantTrigger({ onOpen, visible }: Props) {
+const TRIGGER_LABEL: Record<Context, string> = {
+  home: 'Not sure what to book?',
+  commercial: 'Need a commercial quote?',
+  ndis: 'Need an NDIS quote?',
+};
+
+export function QuoteAssistantTrigger({ onOpen, visible, context }: Props) {
   return (
     <AnimatePresence>
       {visible && (
@@ -30,7 +38,7 @@ export function QuoteAssistantTrigger({ onOpen, visible }: Props) {
             }}
           >
             <span className="flex-shrink-0 text-[13px] leading-none" aria-hidden>✦</span>
-            Not sure what to book?
+            {TRIGGER_LABEL[context]}
           </button>
         </M.div>
       )}

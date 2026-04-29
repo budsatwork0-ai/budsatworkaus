@@ -63,11 +63,28 @@ export function QuoteAssistantPanel({ assistant }: Props) {
     : 'fixed right-0 top-0 bottom-0 z-50 flex w-[420px] flex-col bg-white shadow-2xl';
 
   const inServicePick = assistant.service === null;
+  const contextIntro = {
+    home: {
+      label: "Let's get started",
+      sub: 'What are you looking for today?',
+      complete: "We've built your estimate. Review it and confirm — or adjust anything before booking.",
+    },
+    commercial: {
+      label: 'Commercial quote',
+      sub: 'Choose the site service you need.',
+      complete: "We've built a commercial estimate. Review access, timing, and site details before submitting.",
+    },
+    ndis: {
+      label: 'NDIS quote',
+      sub: 'Choose the participant support needed.',
+      complete: "We've built an NDIS estimate. Review routing and participant details before submitting.",
+    },
+  }[assistant.context];
   const headerLabel = inServicePick
-    ? "Let's get started"
+    ? contextIntro.label
     : 'Quote Assistant';
   const headerSub = inServicePick
-    ? 'What are you looking for today?'
+    ? contextIntro.sub
     : `Step ${assistant.currentStep} of ${assistant.totalSteps}`;
 
   return (
@@ -166,7 +183,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                     Your quote is ready
                   </p>
                   <p className="text-[13px]" style={{ color: brand.muted }}>
-                    We've built your estimate. Review it and confirm — or adjust anything before booking.
+                    {contextIntro.complete}
                   </p>
                 </div>
               )}

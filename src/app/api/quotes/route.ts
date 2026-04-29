@@ -3,7 +3,7 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
-import { quoteReceivedEmail } from '@/lib/email/templates';
+import { quoteReceivedEmail, ndisForwardQuoteEmail } from '@/lib/email/templates';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid service_type' }, { status: 400 });
   }
 
-  if (!['home', 'commercial'].includes(body.context as string)) {
+  if (!['home', 'commercial', 'ndis'].includes(body.context as string)) {
     return NextResponse.json({ error: 'Invalid context' }, { status: 400 });
   }
 
@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
   const SERVICES_BY_CONTEXT: Record<string, string[]> = {
     home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
     commercial: ['windows', 'cleaning', 'yard'],
+    ndis: ['cleaning', 'yard'],
   };
   if (!SERVICES_BY_CONTEXT[body.context as string]?.includes(body.service_type as string)) {
     return NextResponse.json({ error: 'Service not available for this context' }, { status: 400 });
@@ -156,6 +157,35 @@ export async function POST(request: NextRequest) {
   const analyticsSessionId =
     typeof body.analytics_session_id === 'string' && body.analytics_session_id.trim().length > 0
       ? body.analytics_session_id.trim()
+      : null;
+
+  // NDIS routing fields — only accepted when context === 'ndis'. Values are
+  // validated; unknown management types fall back to NULL so the DB CHECK
+  // constraint is never violated.
+  const NDIS_MGMT_VALUES = new Set(['plan_managed', 'self_managed', 'agency_managed']);
+  const isNdis = body.context === 'ndis';
+  const ndisManagementType =
+    isNdis && typeof body.ndis_management_type === 'string' &&
+    NDIS_MGMT_VALUES.has(body.ndis_management_type)
+      ? body.ndis_management_type
+      : null;
+  const ndisForwardContact =
+    isNdis && typeof body.ndis_forward_contact === 'string' && body.ndis_forward_contact.trim().length > 0
+      ? body.ndis_forward_contact.trim()
+      : null;
+  const ndisForwardEmailRaw =
+    isNdis && typeof body.ndis_forward_email === 'string' ? body.ndis_forward_email.trim().toLowerCase() : '';
+  const ndisForwardEmail =
+    ndisForwardEmailRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ndisForwardEmailRaw)
+      ? ndisForwardEmailRaw
+      : null;
+  const ndisEstimatedHoursNum =
+    isNdis && Number.isFinite(Number(body.ndis_estimated_hours))
+      ? Math.max(0, Number(body.ndis_estimated_hours))
+      : null;
+  const ndisHourlyRateNum =
+    isNdis && Number.isFinite(Number(body.ndis_hourly_rate))
+      ? Math.max(0, Number(body.ndis_hourly_rate))
       : null;
 
   // Combine address + notes into a single field — quotes table has no
@@ -185,6 +215,12 @@ export async function POST(request: NextRequest) {
       payment_status: 'not_requested',
       service_address: typeof body.service_address === 'string' ? body.service_address.trim() : null,
       notes: combinedNotes,
+      // NDIS-specific routing + pricing (null for non-NDIS quotes).
+      ndis_management_type: ndisManagementType,
+      ndis_forward_contact: ndisForwardContact,
+      ndis_forward_email: ndisForwardEmail,
+      ndis_estimated_hours: ndisEstimatedHoursNum,
+      ndis_hourly_rate: ndisHourlyRateNum,
     })
     .select()
     .single();
@@ -225,6 +261,46 @@ export async function POST(request: NextRequest) {
       resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
         console.error('[email] quote_received send failed:', err);
       });
+    }
+  }
+
+  // Auto-forward NDIS quotes to the plan manager / participant nominee / NDIA
+  // billing contact so funding can be confirmed without manual steps.
+  if (
+    isNdis &&
+    ndisForwardEmail &&
+    ndisManagementType &&
+    data
+  ) {
+    const resend = getResendClient();
+    if (resend) {
+      const { subject, html } = ndisForwardQuoteEmail({
+        participantName: body.customer_name as string,
+        forwardContactName: ndisForwardContact,
+        managementType: ndisManagementType as 'plan_managed' | 'self_managed' | 'agency_managed',
+        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+        estimatedHours: ndisEstimatedHoursNum,
+        hourlyRate: ndisHourlyRateNum,
+        total: submittedTotal,
+        serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
+        quoteId: data.id,
+        notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null,
+      });
+      resend.emails
+        .send({ from: FROM_ADDRESS, to: ndisForwardEmail, subject, html })
+        .then(() => {
+          // Mark as forwarded; best-effort, don't block the response.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (client as any)
+            .from('quotes')
+            .update({ ndis_forwarded_at: new Date().toISOString() })
+            .eq('id', data.id)
+            .then(() => {})
+            .catch((err: unknown) => console.error('[ndis] forwarded_at stamp failed:', err));
+        })
+        .catch((err) => {
+          console.error('[email] ndis_forward send failed:', err);
+        });
     }
   }
 

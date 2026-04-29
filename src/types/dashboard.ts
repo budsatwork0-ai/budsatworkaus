@@ -331,6 +331,20 @@ export type DashboardQuote = {
   finalized_at?: string | null;
 };
 
+export type PartnerReferralSnapshot = {
+  partner: string;
+  destinationUrl: string;
+  totalClicks: number;
+  uniqueSessions: number;
+  clicksLast7Days: number;
+  clicksPrev7Days: number;
+  lastClickedAt: string | null;
+  topSources: Array<{
+    source: string;
+    clicks: number;
+  }>;
+};
+
 export function normalizeQuoteStatus(status: string): string {
   if (status === 'pending') return 'submitted';
   if (status === 'approved') return 'finalized';
@@ -352,6 +366,7 @@ export type DashboardData = {
   lastUpdated: string;
   crew: DashboardCrewMember[];
   quotes: DashboardQuote[];
+  partnerReferrals: PartnerReferralSnapshot[];
   applicantCount: number;
 };
 

@@ -14,16 +14,27 @@ test.describe('Services Quote Flow', () => {
     await expect(pageContent).toBeVisible();
   });
 
-  test('should show home and commercial context options', async ({ page }) => {
+  test('should show home, commercial, and NDIS context options', async ({ page }) => {
     // Look for context selection buttons
     const homeButton = page.getByRole('button', { name: /home/i });
     const commercialButton = page.getByRole('button', { name: /commercial/i });
+    const ndisButton = page.getByRole('button', { name: /^ndis$/i });
 
     // At least one context option should be visible
     const hasHome = await homeButton.count() > 0;
     const hasCommercial = await commercialButton.count() > 0;
+    const hasNdis = await ndisButton.count() > 0;
 
-    expect(hasHome || hasCommercial).toBeTruthy();
+    expect(hasHome && hasCommercial && hasNdis).toBeTruthy();
+  });
+
+  test('should limit NDIS context to cleaning and yard care', async ({ page }) => {
+    await page.getByRole('button', { name: /^ndis$/i }).click();
+
+    await expect(page.getByRole('button', { name: /select cleaning/i })).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('button', { name: /select yard care/i })).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('button', { name: /select window cleaning/i })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByText(/malucare/i)).toBeVisible();
   });
 
   test('should select a service type', async ({ page }) => {

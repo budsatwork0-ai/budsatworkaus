@@ -269,6 +269,19 @@ export type DashboardData = {
     nextJobDate: string | null;
   }[];
   quotes: { id: string; status: string; customer_name: string | null; service_type: string | null; created_at: string; submitted_total: number | null; reviewed_total: number | null; total: number | null; converted_order_id: string | null }[];
+  partnerReferrals: Array<{
+    partner: string;
+    destinationUrl: string;
+    totalClicks: number;
+    uniqueSessions: number;
+    clicksLast7Days: number;
+    clicksPrev7Days: number;
+    lastClickedAt: string | null;
+    topSources: Array<{
+      source: string;
+      clicks: number;
+    }>;
+  }>;
   applicantCount: number;
   lastUpdated: string;
 };
@@ -307,6 +320,12 @@ type DashboardQuoteRecord = {
   payment_status: string | null;
   payment_requested_at: string | null;
   finalized_at: string | null;
+};
+
+type PartnerReferralEventRecord = {
+  session_id: string | null;
+  created_at: string;
+  event_data: Record<string, unknown> | null;
 };
 
 // Map order status to receivable status
@@ -485,6 +504,14 @@ function inferLabourAcceptance(quote: DashboardQuoteRecord | undefined): LabourA
   return 'missing';
 }
 
+function getPartnerReferralString(
+  event: PartnerReferralEventRecord,
+  key: string
+): string | null {
+  const value = event.event_data?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
 function resolveAwardReference(employee: {
   services?: string[] | null;
   default_role?: string | null;
@@ -550,6 +577,9 @@ export async function GET() {
     const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
     const payrollWindowStart = new Date(now.getFullYear(), now.getMonth() - 4, 1);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
     // Fetch all data in parallel
     const [
@@ -562,6 +592,7 @@ export async function GET() {
       payoutsResult,
       crewResult,
       quotesResult,
+      partnerReferralEventsResult,
       applicantsResult,
       alertState,
     ] = await Promise.all([
@@ -633,6 +664,16 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(200),
 
+      // Partner referral clicks for insights
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)
+        .from('visitor_events')
+        .select('session_id, created_at, event_data')
+        .eq('event_name', 'partner_referral_click')
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(500),
+
       // Intake applicants count (non-community roles)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
@@ -668,10 +709,68 @@ export async function GET() {
       employment_type?: string | null;
     }> = crewResult?.data || [];
     const quotesData: DashboardQuoteRecord[] = quotesResult?.data || [];
+    const partnerReferralEvents: PartnerReferralEventRecord[] = partnerReferralEventsResult?.data || [];
     const communityRoles = new Set(['Quality partner', 'Sponsor', 'Innovation partner']);
     const applicantCount = (applicantsResult?.data || []).filter(
       (a: { role?: string }) => !communityRoles.has(a.role || '')
     ).length;
+
+    const partnerReferralMap = new Map<string, {
+      partner: string;
+      destinationUrl: string;
+      totalClicks: number;
+      uniqueSessions: Set<string>;
+      clicksLast7Days: number;
+      clicksPrev7Days: number;
+      lastClickedAt: string | null;
+      topSources: Map<string, number>;
+    }>();
+
+    for (const event of partnerReferralEvents) {
+      const partner = getPartnerReferralString(event, 'partner') || 'Unknown partner';
+      const destinationUrl = getPartnerReferralString(event, 'destination_url') || '';
+      const source = getPartnerReferralString(event, 'source') || 'Unknown source';
+      const createdAt = event.created_at;
+      const eventDate = new Date(createdAt);
+      const bucket = partnerReferralMap.get(partner) || {
+        partner,
+        destinationUrl,
+        totalClicks: 0,
+        uniqueSessions: new Set<string>(),
+        clicksLast7Days: 0,
+        clicksPrev7Days: 0,
+        lastClickedAt: null,
+        topSources: new Map<string, number>(),
+      };
+
+      bucket.totalClicks += 1;
+      if (event.session_id) bucket.uniqueSessions.add(event.session_id);
+      if (eventDate >= sevenDaysAgo) bucket.clicksLast7Days += 1;
+      if (eventDate >= fourteenDaysAgo && eventDate < sevenDaysAgo) bucket.clicksPrev7Days += 1;
+      if (!bucket.lastClickedAt || new Date(bucket.lastClickedAt) < eventDate) {
+        bucket.lastClickedAt = createdAt;
+      }
+      bucket.topSources.set(source, (bucket.topSources.get(source) || 0) + 1);
+      if (!bucket.destinationUrl && destinationUrl) bucket.destinationUrl = destinationUrl;
+
+      partnerReferralMap.set(partner, bucket);
+    }
+
+    const partnerReferrals = Array.from(partnerReferralMap.values())
+      .map((snapshot) => ({
+        partner: snapshot.partner,
+        destinationUrl: snapshot.destinationUrl,
+        totalClicks: snapshot.totalClicks,
+        uniqueSessions: snapshot.uniqueSessions.size,
+        clicksLast7Days: snapshot.clicksLast7Days,
+        clicksPrev7Days: snapshot.clicksPrev7Days,
+        lastClickedAt: snapshot.lastClickedAt,
+        topSources: Array.from(snapshot.topSources.entries())
+          .map(([source, clicks]) => ({ source, clicks }))
+          .sort((left, right) => right.clicks - left.clicks)
+          .slice(0, 3),
+      }))
+      .sort((left, right) => right.totalClicks - left.totalClicks);
 
     const employeeIds = crewData.map((employee) => employee.id);
     const sectionsByEmployee = new Map<string, Array<{ section: string; completed: boolean }>>();
@@ -1390,6 +1489,7 @@ export async function GET() {
       payouts: payoutsData,
       crew,
       quotes: quotesData,
+      partnerReferrals,
       applicantCount,
       lastUpdated: now.toISOString(),
     };

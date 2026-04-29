@@ -33,6 +33,7 @@ export function Tile({
   disabled,
   popular,
   from,
+  variant = 'default',
 }: {
   active?: boolean;
   onClick?: () => void;
@@ -42,12 +43,15 @@ export function Tile({
   disabled?: boolean;
   popular?: boolean;
   from?: string;
+  variant?: 'default' | 'feature';
 }) {
+  const isFeature = variant === 'feature';
   return (
     <M.button
       onClick={() => !disabled && onClick?.()}
       className={cls(
-        'relative w-full min-w-0 text-left rounded-3xl py-6 px-5 border',
+        'relative w-full min-w-0 text-left border',
+        isFeature ? 'rounded-[30px] px-7 py-8 min-h-[220px]' : 'rounded-3xl py-6 px-5',
         active
           ? 'border-[color:var(--accent)] shadow-[0_4px_20px_rgba(15,61,46,0.12)]'
           : 'border-black/[0.07] shadow-[0_2px_8px_rgba(2,6,23,0.04)] hover:shadow-[0_6px_22px_rgba(2,6,23,0.09)] hover:border-black/[0.11]',
@@ -90,9 +94,12 @@ export function Tile({
         </div>
       )}
       {/* Vertical layout: icon → title → subtitle → price */}
-      <div className="flex flex-col items-start gap-3">
+      <div className={cls('flex flex-col items-start', isFeature ? 'gap-5' : 'gap-3')}>
         <div
-          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
+          className={cls(
+            'flex items-center justify-center shrink-0',
+            isFeature ? 'h-16 w-16 rounded-[22px] text-[28px]' : 'w-11 h-11 rounded-2xl text-xl'
+          )}
           style={{
             background: active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : '#f3f4f6',
             transition: 'background 180ms ease-in-out',
@@ -100,11 +107,22 @@ export function Tile({
         >
           {icon}
         </div>
-        <div className="space-y-0.5">
-          <div className="font-semibold text-[15px] text-slate-900 leading-snug">{title}</div>
-          {subtitle && <div className="text-[12px] leading-snug" style={{ color: 'rgba(100,116,139,0.75)' }}>{subtitle}</div>}
+        <div className={cls(isFeature ? 'space-y-1.5' : 'space-y-0.5')}>
+          <div className={cls('font-semibold text-slate-900 leading-snug', isFeature ? 'text-[22px]' : 'text-[15px]')}>
+            {title}
+          </div>
+          {subtitle && (
+            <div
+              className={cls('leading-snug', isFeature ? 'text-[14px] max-w-[24ch]' : 'text-[12px]')}
+              style={{ color: 'rgba(100,116,139,0.75)' }}
+            >
+              {subtitle}
+            </div>
+          )}
           {from && !disabled && (
-            <div className="text-[12px] font-semibold pt-1" style={{ color: 'var(--accent)' }}>from {from}</div>
+            <div className={cls('font-semibold pt-1', isFeature ? 'text-[15px]' : 'text-[12px]')} style={{ color: 'var(--accent)' }}>
+              from {from}
+            </div>
           )}
         </div>
       </div>

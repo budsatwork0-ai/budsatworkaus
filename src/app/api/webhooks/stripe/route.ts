@@ -616,8 +616,11 @@ export async function POST(req: NextRequest) {
           amount: dispute.amount / 100,
           currency: dispute.currency,
           charge_id: dispute.charge,
+          payment_intent: dispute.payment_intent,
           reason: dispute.reason,
           status: dispute.status,
+          evidence_due_by: dispute.evidence_details?.due_by ?? null,
+          livemode: dispute.livemode,
         });
         break;
       }

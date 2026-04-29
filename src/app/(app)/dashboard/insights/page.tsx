@@ -52,6 +52,12 @@ function average(numbers: number[]) {
   return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
+function formatDelta(current: number, previous: number) {
+  if (previous <= 0) return current > 0 ? '+100%' : '0%';
+  const delta = Math.round(((current - previous) / previous) * 100);
+  return `${delta >= 0 ? '+' : ''}${delta}%`;
+}
+
 function HeaderBadge({
   label,
   tone = 'slate',
@@ -161,7 +167,7 @@ function InsightSnapshotCard({
 function InsightsPageContent() {
   const [tab, setTab] = useTabbedNav<Tab>('tab', sanitizeTab);
   const [focusArea, setFocusArea] = useTabbedNav<FocusArea>('view', sanitizeFocusArea);
-  const { metrics, moneyFlow, receivables, payables, alertsFeed, quotes, crew, lastUpdated, isLoading, error, refetch } = useDashboardData();
+  const { metrics, moneyFlow, receivables, payables, alertsFeed, quotes, crew, partnerReferrals, lastUpdated, isLoading, error, refetch } = useDashboardData();
   const now = useMemo(() => new Date(), []);
 
   const reviewQuotes = useMemo(
@@ -295,6 +301,88 @@ function InsightsPageContent() {
       }))
       .sort((a, b) => b.winRate - a.winRate || b.won - a.won)
       .slice(0, 5);
+  }, [quotes]);
+
+  const maluCareReferral = useMemo(
+    () => partnerReferrals.find((snapshot) => snapshot.partner === 'MaluCare') ?? null,
+    [partnerReferrals]
+  );
+
+  // NDIS-specific insights: volume, conversion by management type, avg hours,
+  // revenue mix, pipeline — everything a program manager needs at a glance.
+  const ndisInsights = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ndisQuotes = quotes.filter((q: any) => q.context === 'ndis');
+    const total = ndisQuotes.length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const last30 = ndisQuotes.filter((q: any) =>
+      new Date(q.created_at) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const won = ndisQuotes.filter((q: any) => normalizeQuoteStatus(q.status) === 'paid').length;
+    const conversion = total > 0 ? Math.round((won / total) * 100) : 0;
+    const revenue = ndisQuotes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((q: any) => normalizeQuoteStatus(q.status) === 'paid')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .reduce((s: number, q: any) => s + getQuoteAmount(q), 0);
+    const pipelineValue = ndisQuotes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((q: any) => {
+        const st = normalizeQuoteStatus(q.status);
+        return st === 'submitted' || st === 'in_review' || st === 'finalized' || st === 'payment_pending';
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .reduce((s: number, q: any) => s + getQuoteAmount(q), 0);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hoursValues = ndisQuotes.map((q: any) => Number(q.ndis_estimated_hours)).filter((n: number) => Number.isFinite(n) && n > 0);
+    const avgHours = hoursValues.length > 0
+      ? hoursValues.reduce((s: number, n: number) => s + n, 0) / hoursValues.length
+      : 0;
+
+    const byMgmt: Record<string, { total: number; won: number; value: number }> = {
+      plan_managed: { total: 0, won: 0, value: 0 },
+      self_managed: { total: 0, won: 0, value: 0 },
+      agency_managed: { total: 0, won: 0, value: 0 },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ndisQuotes.forEach((q: any) => {
+      const key = q.ndis_management_type as string | null;
+      if (!key || !byMgmt[key]) return;
+      byMgmt[key].total += 1;
+      if (normalizeQuoteStatus(q.status) === 'paid') byMgmt[key].won += 1;
+      byMgmt[key].value += getQuoteAmount(q);
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const forwarded = ndisQuotes.filter((q: any) => !!q.ndis_forwarded_at).length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accepted = ndisQuotes.filter((q: any) => !!q.ndis_accepted_at).length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const booked = ndisQuotes.filter((q: any) => !!q.ndis_booked_at).length;
+
+    // Service mix (cleaning vs yard)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cleaningCount = ndisQuotes.filter((q: any) => q.service_type === 'cleaning').length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yardCount = ndisQuotes.filter((q: any) => q.service_type === 'yard').length;
+
+    return {
+      total,
+      last30Count: last30.length,
+      won,
+      conversion,
+      revenue,
+      pipelineValue,
+      avgHours,
+      byMgmt,
+      forwarded,
+      accepted,
+      booked,
+      cleaningCount,
+      yardCount,
+    };
   }, [quotes]);
 
   const completedJobsPerActiveCrew = activeCrew > 0
@@ -595,6 +683,110 @@ function InsightsPageContent() {
                           </div>
                         )}
                       </div>
+                    </Panel>
+
+                    <Panel
+                      title="NDIS Program"
+                      subtitle="Volume, conversion, and routing health for NDIS household-tasks quotes."
+                      right={
+                        ndisInsights.total > 0
+                          ? `${ndisInsights.total} lifetime · ${ndisInsights.last30Count} in 30d`
+                          : 'No NDIS quotes yet'
+                      }
+                    >
+                      {ndisInsights.total > 0 ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="space-y-2">
+                              <StatRow label="Paid NDIS revenue" value={formatCurrency(ndisInsights.revenue)} />
+                              <StatRow label="Active NDIS pipeline" value={formatCurrency(ndisInsights.pipelineValue)} />
+                              <StatRow label="Conversion rate" value={`${ndisInsights.conversion}%`} />
+                              <StatRow
+                                label="Avg hours per quote"
+                                value={ndisInsights.avgHours > 0 ? `${ndisInsights.avgHours.toFixed(1)} hr` : '—'}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <StatRow
+                                label="Cleaning vs Yard"
+                                value={`${ndisInsights.cleaningCount} cleaning · ${ndisInsights.yardCount} yard`}
+                              />
+                              <StatRow label="Forwarded to funder" value={`${ndisInsights.forwarded} / ${ndisInsights.total}`} />
+                              <StatRow label="Accepted" value={`${ndisInsights.accepted} / ${ndisInsights.total}`} />
+                              <StatRow label="Booked" value={`${ndisInsights.booked} / ${ndisInsights.total}`} />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              By management type
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {(['plan_managed', 'self_managed', 'agency_managed'] as const).map((key) => {
+                                const b = ndisInsights.byMgmt[key];
+                                const label =
+                                  key === 'plan_managed' ? 'Plan-managed'
+                                  : key === 'self_managed' ? 'Self-managed'
+                                  : 'Agency-managed';
+                                const conv = b.total > 0 ? Math.round((b.won / b.total) * 100) : 0;
+                                return (
+                                  <div key={key} className="rounded-xl border border-violet-200 bg-violet-50/50 px-3 py-2.5">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">{label}</div>
+                                    <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                                      {b.total} {b.total === 1 ? 'quote' : 'quotes'}
+                                    </div>
+                                    <div className="text-[11px] text-slate-600">
+                                      {formatCurrency(b.value)} · {conv}% paid
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                          No NDIS quotes yet. Once participants submit through the NDIS flow, you&rsquo;ll see
+                          volume, conversion, and routing health here.
+                        </div>
+                      )}
+                    </Panel>
+
+                    <Panel
+                      title="Partner Referrals"
+                      subtitle="Tracked outbound clicks from the NDIS quote flow into trusted partners."
+                      right={maluCareReferral ? `${maluCareReferral.totalClicks} MaluCare clicks` : 'No partner clicks yet'}
+                    >
+                      {maluCareReferral ? (
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <div className="space-y-2">
+                            <StatRow label="MaluCare clicks · 30 days" value={String(maluCareReferral.totalClicks)} />
+                            <StatRow label="Tracked unique sessions" value={String(maluCareReferral.uniqueSessions)} />
+                            <StatRow label="Last 7 days" value={`${maluCareReferral.clicksLast7Days} (${formatDelta(maluCareReferral.clicksLast7Days, maluCareReferral.clicksPrev7Days)})`} />
+                            <StatRow
+                              label="Last click"
+                              value={maluCareReferral.lastClickedAt ? formatRelativeTime(maluCareReferral.lastClickedAt) : 'No clicks yet'}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <StatRow label="Destination" value={maluCareReferral.destinationUrl || 'https://malucare.org/'} />
+                            {maluCareReferral.topSources.length > 0 ? maluCareReferral.topSources.map((source) => (
+                              <StatRow
+                                key={source.source}
+                                label={`Source · ${source.source}`}
+                                value={`${source.clicks} click${source.clicks === 1 ? '' : 's'}`}
+                              />
+                            )) : (
+                              <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                                Waiting for the first tracked MaluCare referral click.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                          No MaluCare referral clicks have been captured yet. Once someone clicks the partner badge in the NDIS quote flow, it will show up here.
+                        </div>
+                      )}
                     </Panel>
                   </div>
 

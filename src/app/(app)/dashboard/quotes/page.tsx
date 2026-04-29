@@ -17,6 +17,8 @@ type QuoteStatus =
   | 'denied'
   | 'cancelled';
 
+type NdisManagementType = 'plan_managed' | 'self_managed' | 'agency_managed';
+
 type Quote = {
   id: string;
   customer_name: string;
@@ -41,6 +43,27 @@ type Quote = {
   notes: string | null;
   converted_order_id: string | null;
   created_at: string;
+  // NDIS routing (nullable for non-NDIS quotes)
+  ndis_management_type: NdisManagementType | null;
+  ndis_forward_contact: string | null;
+  ndis_forward_email: string | null;
+  ndis_estimated_hours: number | null;
+  ndis_hourly_rate: number | null;
+  ndis_forwarded_at: string | null;
+  ndis_accepted_at: string | null;
+  ndis_booked_at: string | null;
+};
+
+const NDIS_MGMT_LABELS: Record<NdisManagementType, string> = {
+  plan_managed: 'Plan-managed',
+  self_managed: 'Self-managed',
+  agency_managed: 'Agency-managed (NDIA)',
+};
+
+const NDIS_MGMT_CLASS: Record<NdisManagementType, string> = {
+  plan_managed: 'bg-violet-100 text-violet-800',
+  self_managed: 'bg-indigo-100 text-indigo-800',
+  agency_managed: 'bg-purple-100 text-purple-800',
 };
 
 type WorkspaceTab = 'review' | 'approved' | 'archive';
@@ -146,6 +169,7 @@ function QuotesPageContent() {
   const [loading, setLoading] = useState(true);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(() => sanitizeWorkspaceTab(searchParams?.get('workspace') ?? null));
   const [search, setSearch] = useState(() => searchParams?.get('search') || '');
+  const [ndisOnly, setNdisOnly] = useState(() => (searchParams?.get('ndis') ?? '') === '1');
   const [adjustModal, setAdjustModal] = useState<Quote | null>(null);
   const [adjustPrice, setAdjustPrice] = useState('');
   const [cancelModal, setCancelModal] = useState<Quote | null>(null);
@@ -283,6 +307,24 @@ function QuotesPageContent() {
     }
   }, [requestPayment, updateQuote]);
 
+  const handleNdisStamp = useCallback(
+    async (quote: Quote, field: 'ndis_forwarded_at' | 'ndis_accepted_at' | 'ndis_booked_at') => {
+      try {
+        await updateQuote(quote.id, { [field]: true });
+        const label =
+          field === 'ndis_forwarded_at'
+            ? 'forwarded'
+            : field === 'ndis_accepted_at'
+            ? 'accepted'
+            : 'booked';
+        toast.success(`Quote marked ${label}`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update NDIS status');
+      }
+    },
+    [updateQuote],
+  );
+
   const handleAdjust = useCallback(async () => {
     if (!adjustModal) return;
     const reviewed = Number(adjustPrice);
@@ -337,9 +379,15 @@ function QuotesPageContent() {
     () => quotes.filter((quote) => {
       if (!quoteMatchesSearch(quote, search)) return false;
       if (statusFilter && quote.status !== statusFilter) return false;
+      if (ndisOnly && quote.context !== 'ndis') return false;
       return true;
     }),
-    [quotes, search, statusFilter]
+    [quotes, search, statusFilter, ndisOnly]
+  );
+
+  const ndisQuoteCount = useMemo(
+    () => quotes.filter((q) => q.context === 'ndis').length,
+    [quotes],
   );
 
   const grouped = useMemo(() => {
@@ -459,11 +507,26 @@ function QuotesPageContent() {
             />
           </div>
         </div>
-        {statusFilter ? (
-          <div className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            Status filter: {STATUS_LABELS[statusFilter]}
-          </div>
-        ) : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {statusFilter ? (
+            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              Status filter: {STATUS_LABELS[statusFilter]}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setNdisOnly((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
+              ndisOnly
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'bg-violet-50 text-violet-800 hover:bg-violet-100'
+            }`}
+            title="Filter to NDIS quotes only"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            NDIS only{ndisQuoteCount > 0 ? ` · ${ndisQuoteCount}` : ''}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -493,6 +556,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
 
               <Section
@@ -514,6 +578,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
             </div>
           )}
@@ -539,6 +604,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
 
               <Section
@@ -560,6 +626,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
             </div>
           )}
@@ -585,6 +652,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
 
               <Section
@@ -606,6 +674,7 @@ function QuotesPageContent() {
                   setCancelModal(quote);
                   setCancelReason('');
                 }}
+                onNdisStamp={handleNdisStamp}
               />
             </div>
           )}
@@ -775,6 +844,7 @@ function Section({
   onRequestPayment,
   onCopyPaymentLink,
   onCancelApproved,
+  onNdisStamp,
 }: {
   title: string;
   subtitle: string;
@@ -788,6 +858,7 @@ function Section({
   onRequestPayment: (quote: Quote) => void;
   onCopyPaymentLink: (quote: Quote) => void;
   onCancelApproved: (quote: Quote) => void;
+  onNdisStamp: (quote: Quote, field: 'ndis_forwarded_at' | 'ndis_accepted_at' | 'ndis_booked_at') => void;
 }) {
   return (
     <section className="space-y-3">
@@ -834,6 +905,47 @@ function Section({
                     {quote.notes && (
                       <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
                         {quote.notes}
+                      </div>
+                    )}
+                    {quote.context === 'ndis' && (
+                      <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-900">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                            NDIS
+                          </span>
+                          {quote.ndis_management_type && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${NDIS_MGMT_CLASS[quote.ndis_management_type]}`}>
+                              {NDIS_MGMT_LABELS[quote.ndis_management_type]}
+                            </span>
+                          )}
+                          {quote.ndis_estimated_hours != null && (
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-violet-900 border border-violet-200">
+                              {Number(quote.ndis_estimated_hours).toFixed(
+                                Number.isInteger(Number(quote.ndis_estimated_hours)) ? 0 : 1
+                              )} hr
+                              {quote.ndis_hourly_rate != null
+                                ? ` × $${Number(quote.ndis_hourly_rate).toFixed(2)}/hr`
+                                : ''}
+                            </span>
+                          )}
+                        </div>
+                        {(quote.ndis_forward_contact || quote.ndis_forward_email) && (
+                          <div className="mt-1.5 text-[11px] text-violet-900/90">
+                            Forward: {quote.ndis_forward_contact || '—'}
+                            {quote.ndis_forward_email ? ` · ${quote.ndis_forward_email}` : ''}
+                          </div>
+                        )}
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] text-violet-900/80">
+                          <span className={`rounded px-1.5 py-0.5 ${quote.ndis_forwarded_at ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                            {quote.ndis_forwarded_at ? `✓ Forwarded ${toDate(quote.ndis_forwarded_at)}` : 'Not forwarded'}
+                          </span>
+                          <span className={`rounded px-1.5 py-0.5 ${quote.ndis_accepted_at ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                            {quote.ndis_accepted_at ? `✓ Accepted ${toDate(quote.ndis_accepted_at)}` : 'Pending approval'}
+                          </span>
+                          <span className={`rounded px-1.5 py-0.5 ${quote.ndis_booked_at ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                            {quote.ndis_booked_at ? `✓ Booked ${toDate(quote.ndis_booked_at)}` : 'Not booked'}
+                          </span>
+                        </div>
                       </div>
                     )}
                     {quote.status === 'cancelled' && quote.cancellation_reason && (
@@ -940,6 +1052,38 @@ function Section({
                     <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
                       Order {quote.converted_order_id.slice(0, 8).toUpperCase()}
                     </span>
+                  )}
+
+                  {quote.context === 'ndis' && (
+                    <>
+                      {!quote.ndis_forwarded_at && (
+                        <button
+                          onClick={() => onNdisStamp(quote, 'ndis_forwarded_at')}
+                          disabled={loading}
+                          className="rounded-lg bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-800 hover:bg-violet-200 disabled:opacity-60"
+                        >
+                          Mark forwarded
+                        </button>
+                      )}
+                      {quote.ndis_forwarded_at && !quote.ndis_accepted_at && (
+                        <button
+                          onClick={() => onNdisStamp(quote, 'ndis_accepted_at')}
+                          disabled={loading}
+                          className="rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-200 disabled:opacity-60"
+                        >
+                          Mark accepted
+                        </button>
+                      )}
+                      {quote.ndis_accepted_at && !quote.ndis_booked_at && (
+                        <button
+                          onClick={() => onNdisStamp(quote, 'ndis_booked_at')}
+                          disabled={loading}
+                          className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
+                        >
+                          Mark booked
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

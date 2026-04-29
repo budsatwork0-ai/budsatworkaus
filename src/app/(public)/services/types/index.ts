@@ -1,7 +1,8 @@
 // Core service types
-export type Context = 'home' | 'commercial';
+export type Context = 'home' | 'commercial' | 'ndis';
 export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'laundry_sneakers';
 export type ScopeKey = string;
+export type NdisManagementType = 'plan_managed' | 'self_managed' | 'agency_managed';
 
 // Laundry & Sneaker Care types
 export type LaundryTier = 'wash_fold';
@@ -274,6 +275,36 @@ export type WizardState = {
   companyName: string;
   abn: string;
   isBusinessExpense: boolean;
+  ndisManagementType: NdisManagementType | null;
+  ndisForwardContactName: string;
+  ndisForwardEmail: string;
+  /** Estimated hours selected in the NDIS hourly Step 2 (cleaning or yard). */
+  ndisEstimatedHours: number;
+  /** Where the NDIS hours came from — 'suggested' (auto) or 'manual' (user override). */
+  ndisHoursOrigin: 'suggested' | 'manual';
+  /** Property size input for NDIS hours suggester (cleaning). */
+  ndisPropertyBedrooms: number;
+  ndisPropertyBathrooms: number;
+  ndisPropertyLiving: number;
+  /**
+   * Optional extra-room counts surfaced in the NDIS Step 2 panel.
+   * Default to 1/1/1 when absent so historical state migrates cleanly.
+   */
+  ndisPropertyKitchens: number;
+  ndisPropertyLaundry: number;
+  ndisPropertyStoreys: number;
+  /** Yard size input for NDIS hours suggester. */
+  ndisYardSize: 'small' | 'medium' | 'large' | 'xlarge';
+  /** Condition of the space that drives the hours multiplier. */
+  ndisCondition: 'tidy' | 'lived_in' | 'reset';
+  /**
+   * NDIS Price Guide rate slot. Defaults to weekday daytime. Surfaces the
+   * Saturday / Sunday / public-holiday differentials so the quote reflects
+   * the actual cap that the plan manager will see on the invoice.
+   */
+  ndisRateSlot: 'weekday_day' | 'weekday_evening' | 'saturday' | 'sunday' | 'public_holiday';
+  /** MMM region (metro/regional/remote/very_remote) — affects rate cap. */
+  ndisRegion: 'metro' | 'regional' | 'remote' | 'very_remote';
   notes: string;
   yardPolygon: { lat: number; lng: number }[][];
   yardArea: number | null;

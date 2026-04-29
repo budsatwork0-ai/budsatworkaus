@@ -68,6 +68,88 @@ export function quoteReceivedEmail({ customerName, serviceLabel, total, quoteId 
   };
 }
 
+export type NdisForwardQuoteParams = {
+  participantName: string;
+  forwardContactName: string | null;
+  managementType: 'plan_managed' | 'self_managed' | 'agency_managed';
+  serviceLabel: string;
+  estimatedHours: number | null;
+  hourlyRate: number | null;
+  total: number;
+  serviceAddress: string | null;
+  quoteId: string;
+  notes: string | null;
+};
+
+/**
+ * Email sent automatically on NDIS quote submission to the plan manager
+ * (plan-managed), participant/nominee (self-managed), or NDIA-billing contact
+ * (agency-managed). Gives them everything they need to approve funding.
+ */
+export function ndisForwardQuoteEmail({
+  participantName,
+  forwardContactName,
+  managementType,
+  serviceLabel,
+  estimatedHours,
+  hourlyRate,
+  total,
+  serviceAddress,
+  quoteId,
+  notes,
+}: NdisForwardQuoteParams): { subject: string; html: string } {
+  const managementLabel =
+    managementType === 'plan_managed'
+      ? 'Plan-managed'
+      : managementType === 'self_managed'
+      ? 'Self-managed'
+      : 'Agency-managed (NDIA)';
+  const greeting = forwardContactName ? `Hi ${forwardContactName}` : 'Hello';
+  const rateLine =
+    estimatedHours && hourlyRate
+      ? `${estimatedHours} hr × $${hourlyRate.toFixed(2)}/hr (NDIS Price Guide cap)`
+      : null;
+  return {
+    subject: `NDIS quote for ${participantName} — Buds At Work · MaluCare`,
+    html: layout(`
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:10px 14px;margin-bottom:18px;color:#5b21b6;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">
+        NDIS · Household tasks
+      </div>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">${greeting},</h1>
+      <p style="color:${MUTED};margin:0 0 8px;">
+        You've been nominated as the ${managementLabel.toLowerCase()} contact for an NDIS household-tasks quote
+        prepared for <strong style="color:${PRIMARY};">${participantName}</strong>.
+      </p>
+      <p style="color:${MUTED};margin:0 0 18px;">
+        Please review the detail below and reply to approve, adjust, or decline. We book once funding is confirmed.
+      </p>
+      <div style="background:#faf9ff;border-radius:12px;padding:16px;margin-bottom:18px;border:1px solid #ede9fe;">
+        <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>
+        <div style="font-size:16px;font-weight:600;color:${PRIMARY};">${serviceLabel}</div>
+        ${rateLine ? `
+        <div style="font-size:13px;color:${MUTED};margin-top:10px;margin-bottom:4px;">Estimate</div>
+        <div style="font-size:15px;font-weight:500;color:${PRIMARY};">${rateLine}</div>` : ''}
+        <div style="font-size:13px;color:${MUTED};margin-top:10px;margin-bottom:4px;">Quoted total</div>
+        <div style="font-size:20px;font-weight:700;color:${PRIMARY};">$${total.toFixed(2)}</div>
+        ${serviceAddress ? `
+        <div style="font-size:13px;color:${MUTED};margin-top:10px;margin-bottom:4px;">Service address</div>
+        <div style="font-size:14px;color:${PRIMARY};">${serviceAddress}</div>` : ''}
+        <div style="font-size:11px;color:${MUTED};margin-top:12px;">Quote #${quoteId.slice(0, 8).toUpperCase()} · Management: ${managementLabel}</div>
+      </div>
+      ${notes ? `
+      <div style="font-size:13px;color:${MUTED};margin:0 0 18px;white-space:pre-wrap;">${notes}</div>` : ''}
+      <p style="color:${MUTED};font-size:13px;margin:0 0 8px;">
+        Reply to this email to approve funding or request a change. For questions, our team is at
+        <a href="mailto:hello@budsatwork.com" style="color:${PRIMARY};">hello@budsatwork.com</a>.
+      </p>
+      <p style="color:${MUTED};font-size:12px;margin:12px 0 0;">
+        In partnership with <a href="https://malucare.org/" style="color:${PRIMARY};">MaluCare</a> — supporting
+        NDIS participants across Greater Brisbane.
+      </p>
+    `),
+  };
+}
+
 export type QuoteFinalizedParams = {
   customerName: string;
   serviceLabel: string;

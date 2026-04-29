@@ -2,6 +2,7 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import { sendGAEvent } from '@next/third-parties/google';
@@ -31,6 +32,7 @@ import type {
   ServiceType,
   ScopeKey,
   CommFrequency,
+  NdisManagementType,
   WizardState,
   SneakerTurnaround,
   RouteLookupResult,
@@ -127,6 +129,20 @@ import {
   computeYardQuote,
   priceQuote,
 } from './lib/pricing/engine';
+
+// NDIS pricing — shared with the Quote Assistant so live estimates and
+// Step 2 always agree. Rates are now Price-Guide-tabled (weekday daytime,
+// weekday evening, Saturday, Sunday, public holiday) with an MMM region
+// modifier on top.
+import {
+  NDIS_MIN_HOURS,
+  NDIS_MAX_HOURS,
+  NDIS_RATE_LABELS,
+  NDIS_REGION_LABELS,
+  ndisRateFor,
+  suggestNdisCleaningHours,
+  suggestNdisYardHours,
+} from './lib/pricing/ndis';
 
 // Extracted modules - Wizard state
 import { getInitialState, wizardReducer, useLocalStorageReducer } from './lib/wizard-state';
@@ -320,6 +336,62 @@ const COMM_PRESETS: Record<
   ],
 };
 
+const NDIS_ACCENT = '#6d28d9';
+
+// NDIS caps, min/max hours, and suggestion helpers now live in
+// lib/pricing/ndis.ts so the Quote Assistant can share the same source of truth.
+
+const CONTEXT_OPTIONS: { key: Context; label: string; activeColor: string }[] = [
+  { key: 'home', label: 'Home', activeColor: ACCENT },
+  { key: 'commercial', label: 'Commercial', activeColor: ACCENT },
+  { key: 'ndis', label: 'NDIS', activeColor: NDIS_ACCENT },
+];
+
+const CONTEXT_LABELS: Record<Context, string> = {
+  home: 'Home',
+  commercial: 'Commercial',
+  ndis: 'NDIS',
+};
+
+const NDIS_SERVICE_LEAD_TEXT: Partial<Record<ServiceType, string>> = {
+  cleaning: '2 hrs minimum',
+  yard: '2 hrs minimum',
+};
+
+const RESIDENTIAL_CLEANING_SCOPE_LABELS: Record<string, string> = {
+  weekly: 'Weekly Clean',
+  general: 'Standard Clean',
+  deep: 'Deep Clean',
+  endoflease: 'Move In / Out',
+  hourly: 'Hourly / Directed',
+};
+
+const NDIS_MANAGEMENT_OPTIONS: {
+  key: NdisManagementType;
+  title: string;
+  description: string;
+  destination: string;
+}[] = [
+  {
+    key: 'plan_managed',
+    title: 'Plan-Managed',
+    description: 'We send the quote straight to the participant’s plan management provider for budgeting and payment processing.',
+    destination: 'Send to the participant’s Plan Management Provider',
+  },
+  {
+    key: 'self_managed',
+    title: 'Self-Managed',
+    description: 'We send the quote directly to the participant or their nominee so they can pay and claim back through the NDIS.',
+    destination: 'Send to the participant or nominee/family',
+  },
+  {
+    key: 'agency_managed',
+    title: 'Agency-Managed (NDIA)',
+    description: 'We send the quote to the participant first. After approval, an NDIS-registered provider creates the service booking in myplace.',
+    destination: 'Send to the participant for review and acceptance',
+  },
+];
+
 /** Compact +/– stepper for room/unit counts. Handles stopPropagation internally. */
 function NumberStepper({ label, value, onStep }: {
   label: string;
@@ -397,8 +469,8 @@ const computeMins = (S: WizardState, service: ServiceType, scopeKey: ScopeKey, c
     if (preset) return Math.round((preset.hours || 2) * 60);
     return 120;
   }
-  // Lock home cleaning presets to fixed hours
-  if (service === 'cleaning' && S.context === 'home') {
+  // Lock residential/NDIS cleaning presets to fixed hours
+  if (service === 'cleaning' && S.context !== 'commercial') {
     if (scopeKey === 'hourly') {
       const params = cleaningParamsForScope(scopeKey, S.scope, S.paramsByService, S.context, S.cleaningAddons);
       return (params.hours || 1) * 60;
@@ -615,7 +687,7 @@ const ScopeCard = React.memo(function ScopeCard({
     S.service === 'cleaning' && sc.key === 'hourly'
       ? Math.max(3, Math.round(S.paramsByService.cleaning?.hours ?? 3))
       : null;
-  const isHomeCleaning = S.service === 'cleaning' && S.context === 'home';
+  const isHomeCleaning = S.service === 'cleaning' && S.context !== 'commercial';
   const isCommercialCleaning = S.service === 'cleaning' && S.context === 'commercial';
   const commercialNicheKeys: CommercialCleaningType[] = ['office', 'medical', 'fitness', 'hospitality', 'education', 'event', 'accommodation'];
   const isCommercialNicheCard = isCommercialCleaning && commercialNicheKeys.includes(sc.key as CommercialCleaningType);
@@ -3082,7 +3154,12 @@ function ServicesPageContent() {
   const motionEnabled = !yardActive;
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
-  const assistant = useAssistant({ dispatch, wizardStep: S.step, wizardHasInteracted: hasInteractedStep2 });
+  const assistant = useAssistant({
+    dispatch,
+    wizardStep: S.step,
+    wizardHasInteracted: hasInteractedStep2,
+    context: S.context,
+  });
   const [urlServiceHandled, setUrlServiceHandled] = useState(false);
   // Detect rebook mode from URL before params are cleared (read once at mount).
   const [isRebook] = useState(() =>
@@ -3115,6 +3192,17 @@ function ServicesPageContent() {
       eventData: payload,
     });
   }, []);
+  const handlePartnerReferralClick = React.useCallback(() => {
+    try {
+      trackQuoteEvent('partner_referral_click', {
+        partner: 'MaluCare',
+        source: 'services_ndis_quote_flow',
+        destination_url: 'https://malucare.org/',
+      });
+    } catch (error) {
+      console.warn('[analytics] partner_referral_click failed', error);
+    }
+  }, [trackQuoteEvent]);
 
   // Tracks the currently authenticated user for contact-form UX (badge + mismatch warning).
   const [authedUser, setAuthedUser] = useState<User | null>(null);
@@ -3701,7 +3789,24 @@ function ServicesPageContent() {
   // Enforce context rules (service availability, windows screens)
   useEffect(() => {
     const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context];
-    if (!allowed.includes(S.service)) selectService(allowed[0]);
+    if (!allowed.includes(S.service)) {
+      // IMPORTANT: Don't auto-advance to Step 2 when the context switch forces
+      // a service reset. Keep the user on Step 1 so they can pick between the
+      // allowed services (e.g. NDIS → Cleaning vs Yard Care).
+      const fallback = allowed[0];
+      const defaultScope =
+        fallback === 'dump' ? 'dump_runs' :
+        fallback === 'windows' ? 'windows_full' :
+        fallback === 'yard' ? 'yard_mow' :
+        fallback === 'auto' ? 'auto_express' :
+        fallback === 'laundry_sneakers' ? 'laundry' :
+        'general';
+      dispatch({
+        type: 'merge',
+        value: { service: fallback, scope: defaultScope, step: 1 },
+      });
+      setActiveServiceId(null);
+    }
 
     // screens always 0 in commercial
     if (S.context === 'commercial' && S.service === 'windows') {
@@ -4214,7 +4319,15 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   S.paramsByService.dump?.binPlan,
 ]);
 
-  const effectivePrice = routePriceOverride ?? scopedPricing.price;
+  // NDIS context is always priced as (estimated hours × Price Guide rate for
+  // the chosen slot + region) — this bypasses scope-based pricing for cleaning
+  // + yard. Defaults to weekday-day metro so quotes match the pre-rate-table
+  // behaviour until the user explicitly picks a band.
+  const ndisHourlyPrice =
+    S.context === 'ndis' && (S.service === 'cleaning' || S.service === 'yard')
+      ? Math.round((S.ndisEstimatedHours || NDIS_MIN_HOURS) * ndisRateFor(S.ndisRateSlot, S.ndisRegion))
+      : null;
+  const effectivePrice = ndisHourlyPrice ?? routePriceOverride ?? scopedPricing.price;
   const isSneakerLot = S.service === 'laundry_sneakers' && (S.scope === 'sneaker_lot' || (S.scope === 'sneaker_care' && S.sneakerTier === 'multi'));
   const isLaundryService = S.service === 'laundry_sneakers' && S.scope === 'laundry';
   const isSneakerService = S.service === 'laundry_sneakers' && S.scope === 'sneaker_care';
@@ -4295,8 +4408,17 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       const meta = SNEAKER_TURNAROUND_META.find((m) => m.key === turnaround);
       return meta ? `~${meta.window}` : '~3–5 business days';
     }
+    // NDIS cleaning + yard are billed on an hourly estimate — surface that
+    // directly instead of deriving from scope-based estMinutes.
+    if (S.context === 'ndis' && (S.service === 'cleaning' || S.service === 'yard')) {
+      const h = S.ndisEstimatedHours || NDIS_MIN_HOURS;
+      return `~${h} hr`;
+    }
     return `~${fmtHrMin(estMinutes)}`;
-  }, [estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround]);
+  }, [estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround, S.context, S.service, S.ndisEstimatedHours]);
+
+  const isNdisContext = S.context === 'ndis';
+  const serviceContextLabel = CONTEXT_LABELS[S.context];
 
 function winSessionMinutes(S: WizardState) {
   return computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
@@ -4443,55 +4565,171 @@ function winSessionMinutes(S: WizardState) {
                     role="tablist"
                     aria-label="Context"
                   >
-                    {(['home', 'commercial'] as const).map((c) => {
-                      const isActive = S.context === c;
+                    {CONTEXT_OPTIONS.map(({ key, label, activeColor }) => {
+                      const isActive = S.context === key;
                       return (
                         <button
-                          key={c}
+                          key={key}
                           role="tab"
                           aria-selected={isActive}
                           className="relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"
                           style={{
-                            background: isActive ? 'var(--accent)' : 'transparent',
+                            background: isActive ? activeColor : 'transparent',
                             color: isActive ? '#fff' : 'rgba(75,85,99,0.85)',
-                            boxShadow: isActive ? '0 2px 8px rgba(15,61,46,0.22)' : 'none',
+                            boxShadow: isActive
+                              ? key === 'ndis'
+                                ? '0 2px 10px rgba(109,40,217,0.28)'
+                                : '0 2px 8px rgba(15,61,46,0.22)'
+                              : 'none',
                             transform: isActive ? 'scale(1.02)' : 'scale(1)',
                             transition: 'background 160ms ease-in-out, color 160ms ease-in-out, box-shadow 160ms ease-in-out, transform 160ms ease-in-out',
                           }}
                           onClick={() => {
-                            if (S.context !== c) {
-                              trackQuoteEvent('context_switched', { from: S.context, to: c });
+                            if (S.context !== key) {
+                              trackQuoteEvent('context_switched', { from: S.context, to: key });
                             }
-                            set('context', c as Context);
+                            set('context', key);
                           }}
-                          aria-label={`Select ${c} context`}
+                          aria-label={`Select ${label} context`}
                         >
-                          {c[0].toUpperCase() + c.slice(1)}
+                          {label}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Service tiles */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-                  {SERVICES.map((s) => {
-                    const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
-                    const isActive = S.service === s.key && allowed;
-                    return (
-                      <Tile
-                        key={s.key}
-                        active={isActive}
-                        disabled={!allowed}
-                        onClick={() => allowed && selectService(s.key)}
-                        title={s.label}
-                        subtitle={s.subtitle}
-                        icon={s.icon}
-                        popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
-                        from={s.from}
-                      />
-                    );
-                  })}
+                {isNdisContext && (
+                  <section
+                    aria-labelledby="ndis-hero-title"
+                    className="mb-8 rounded-[28px] border border-violet-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,245,255,0.96))] shadow-[0_18px_40px_-26px_rgba(109,40,217,0.22)]"
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="h-[2px] w-full bg-gradient-to-r from-violet-400 via-violet-500 to-fuchsia-400"
+                    />
+                    <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] md:items-center md:gap-8 md:p-7">
+                      <div className="space-y-4">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-800">
+                          <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" />
+                          NDIS quote flow
+                        </div>
+                        <h3
+                          id="ndis-hero-title"
+                          className="max-w-xl text-[24px] font-semibold leading-tight tracking-tight text-slate-900 md:text-[30px]"
+                        >
+                          Cleaning and yard care for NDIS participants.
+                        </h3>
+                        <p className="max-w-xl text-[15px] leading-7 text-slate-600">
+                          Delivered through our partnership with MaluCare.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1 text-[12px] text-slate-500">
+                          <span className="inline-flex items-center gap-2">
+                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                            Built for supported cleaning and yard care
+                          </span>
+                          <span className="inline-flex items-center gap-2">
+                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                            Plan, self, and agency-managed routing
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="w-full">
+                        <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.22em] text-slate-400 md:text-right">
+                          In partnership with
+                        </div>
+                        <a
+                          href="https://malucare.org/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Visit MaluCare website"
+                          onClick={handlePartnerReferralClick}
+                          className="group relative block w-full overflow-hidden rounded-[24px] border border-violet-100/80 bg-white/95 text-left shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(109,40,217,0.10)] focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                        >
+                          <div className="relative min-h-[240px] bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 pt-5 pb-24 md:min-h-[260px] md:px-6 md:pt-6 md:pb-28">
+                            <Image
+                              src="/images/partners/malucare-logo.png"
+                              alt=""
+                              width={720}
+                              height={320}
+                              className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                              sizes="(max-width: 768px) 100vw, 420px"
+                              aria-hidden="true"
+                            />
+                            <div className="pointer-events-none absolute inset-x-4 bottom-4 md:inset-x-5 md:bottom-5">
+                              <div className="flex items-end justify-between gap-4 rounded-[20px] border border-white/70 bg-white/88 px-4 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.10)] backdrop-blur-md">
+                                <div className="space-y-1">
+                                  <div className="text-[20px] font-semibold tracking-tight text-slate-900 transition-colors group-hover:text-violet-900">
+                                    MaluCare
+                                  </div>
+                                  <div className="max-w-sm text-[13px] leading-5 text-slate-500">
+                                    Registered NDIS &amp; community support organisation
+                                  </div>
+                                </div>
+                                <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors group-hover:text-violet-700">
+                                  Visit
+                                  <svg
+                                    aria-hidden="true"
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="shrink-0 transition-all duration-200 group-hover:translate-x-0.5"
+                                  >
+                                    <path d="M7 17L17 7" />
+                                    <path d="M8 7h9v9" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </a>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Service tiles — NDIS shows only the two funded services; home/commercial keep the full set */}
+                <div
+                  className={cls(
+                    'grid gap-3.5',
+                    isNdisContext
+                      ? 'grid-cols-1 xl:grid-cols-2'
+                      : 'grid-cols-2 sm:grid-cols-3'
+                  )}
+                >
+                  {SERVICES
+                    .filter((s) =>
+                      isNdisContext
+                        ? ALLOWED_SERVICES_BY_CONTEXT.ndis.includes(s.key)
+                        : true
+                    )
+                    .map((s) => {
+                      const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
+                      const isActive = S.service === s.key && allowed;
+                      const leadText = isNdisContext
+                        ? NDIS_SERVICE_LEAD_TEXT[s.key] ?? s.from
+                        : s.from;
+                      return (
+                        <Tile
+                          key={s.key}
+                          active={isActive}
+                          disabled={!allowed}
+                          onClick={() => allowed && selectService(s.key)}
+                          title={s.label}
+                          subtitle={s.subtitle}
+                          icon={s.icon}
+                          popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
+                          from={leadText}
+                          variant={isNdisContext ? 'feature' : 'default'}
+                        />
+                      );
+                    })}
                 </div>
 
               </section>
@@ -4574,7 +4812,379 @@ function winSessionMinutes(S: WizardState) {
 
 
         // ---------- actual section render (no hooks below) ----------
-        const step2Body = (
+        // NDIS cleaning + yard get a dedicated hourly-estimator panel that
+        // short-circuits the regular scope picker. Hours are suggested from
+        // house/yard size + condition, and priced at the NDIS Price Guide cap
+        // ($57.10/hr). Users can still fine-tune hours manually.
+        const ndisStep2Panel =
+          isNdisContext && (S.service === 'cleaning' || S.service === 'yard') ? (() => {
+            const suggested = S.service === 'cleaning'
+              ? suggestNdisCleaningHours({
+                  bedrooms: S.ndisPropertyBedrooms,
+                  bathrooms: S.ndisPropertyBathrooms,
+                  living: S.ndisPropertyLiving,
+                  kitchens: S.ndisPropertyKitchens,
+                  laundry: S.ndisPropertyLaundry,
+                  storeys: S.ndisPropertyStoreys,
+                  condition: S.ndisCondition,
+                })
+              : suggestNdisYardHours(S.ndisYardSize, S.ndisCondition);
+            // When the user hasn't manually overridden, the displayed hours
+            // *must* track the current inputs — previously it was frozen at
+            // whatever ndisEstimatedHours happened to be, so changing rooms
+            // didn't move the price. Only respect ndisEstimatedHours in
+            // 'manual' mode.
+            const hours =
+              S.ndisHoursOrigin === 'manual' && S.ndisEstimatedHours
+                ? S.ndisEstimatedHours
+                : suggested;
+            // Resolve the actual Price Guide rate from the chosen slot +
+            // region. Defaults are weekday-day metro ($57.10) so existing
+            // quotes look identical until the user picks a different band.
+            const effectiveRate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
+            const subtotal = Math.round(hours * effectiveRate);
+            const STEP = 0.25; // quarter-hour increments — matches NDIS claim units
+            const bumpHours = (next: number) => {
+              const stepped = Math.round(next / STEP) * STEP;
+              const clamped = Math.max(NDIS_MIN_HOURS, Math.min(NDIS_MAX_HOURS, stepped));
+              setMany({ ndisEstimatedHours: clamped, ndisHoursOrigin: 'manual' });
+            };
+            const applySuggested = () => {
+              // Switch back to suggested mode. Don't overwrite ndisEstimatedHours
+              // here — the renderer will pick up `suggested` automatically while
+              // origin === 'suggested'.
+              setMany({ ndisEstimatedHours: 0, ndisHoursOrigin: 'suggested' });
+            };
+            // Pretty-print hours that may now be fractional (e.g. 5.25 hr).
+            const fmtHours = (h: number) =>
+              Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
+            const Stepper = ({ label, value, onChange, min, max }: {
+              label: string; value: number; onChange: (n: number) => void; min: number; max: number;
+            }) => (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-100 bg-white/70 px-3 py-2">
+                <span className="text-sm font-medium text-slate-700">{label}</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    className="h-7 w-7 rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 disabled:opacity-40"
+                    onClick={() => onChange(Math.max(min, value - 1))}
+                    disabled={value <= min}
+                    aria-label={`Decrease ${label.toLowerCase()}`}
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-slate-900">{value}</span>
+                  <button
+                    type="button"
+                    className="h-7 w-7 rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 disabled:opacity-40"
+                    onClick={() => onChange(Math.min(max, value + 1))}
+                    disabled={value >= max}
+                    aria-label={`Increase ${label.toLowerCase()}`}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+            return (
+              <section
+                aria-labelledby="ndis-step2-heading"
+                className="rounded-2xl border border-violet-200/80 bg-gradient-to-br from-violet-50/80 via-white to-white p-5 shadow-[0_12px_40px_-18px_rgba(109,40,217,0.35)]"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-600">
+                      NDIS · Household tasks
+                    </p>
+                    <h3 id="ndis-step2-heading" className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
+                      {S.service === 'cleaning' ? 'Estimate your cleaning hours' : 'Estimate your yard hours'}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600 max-w-2xl">
+                      We quote NDIS household tasks at the NDIS Price Guide cap.
+                      Tell us about the space and when the visit is — we&apos;ll
+                      suggest the hours and apply the right rate band.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Current band:{' '}
+                      <span className="font-semibold text-slate-700">
+                        {NDIS_RATE_LABELS[S.ndisRateSlot]} · {NDIS_REGION_LABELS[S.ndisRegion]} ·{' '}
+                        ${effectiveRate.toFixed(2)}/hr
+                      </span>
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-violet-600" />
+                    Price Guide 2024–25
+                  </span>
+                </div>
+
+                {S.service === 'cleaning' ? (
+                  // Note: input changes do NOT touch ndisHoursOrigin. Previously
+                  // every change reset the user's manual override back to
+                  // 'suggested'. Now the override sticks until the user clicks
+                  // "Use suggestion" in the suggested-estimate panel below.
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <Stepper
+                      label="Bedrooms"
+                      value={S.ndisPropertyBedrooms}
+                      min={0}
+                      max={8}
+                      onChange={(n) => setMany({ ndisPropertyBedrooms: n })}
+                    />
+                    <Stepper
+                      label="Bathrooms"
+                      value={S.ndisPropertyBathrooms}
+                      min={0}
+                      max={6}
+                      onChange={(n) => setMany({ ndisPropertyBathrooms: n })}
+                    />
+                    <Stepper
+                      label="Living rooms"
+                      value={S.ndisPropertyLiving}
+                      min={0}
+                      max={5}
+                      onChange={(n) => setMany({ ndisPropertyLiving: n })}
+                    />
+                    <Stepper
+                      label="Kitchens"
+                      value={S.ndisPropertyKitchens}
+                      min={0}
+                      max={3}
+                      onChange={(n) => setMany({ ndisPropertyKitchens: n })}
+                    />
+                    <Stepper
+                      label="Laundry"
+                      value={S.ndisPropertyLaundry}
+                      min={0}
+                      max={2}
+                      onChange={(n) => setMany({ ndisPropertyLaundry: n })}
+                    />
+                    <Stepper
+                      label="Storeys"
+                      value={S.ndisPropertyStoreys}
+                      min={1}
+                      max={3}
+                      onChange={(n) => setMany({ ndisPropertyStoreys: n })}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Yard size</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                      {([
+                        { k: 'small', label: 'Small', blurb: 'Courtyard / unit' },
+                        { k: 'medium', label: 'Medium', blurb: 'Typical suburban' },
+                        { k: 'large', label: 'Large', blurb: '700–1500 m²' },
+                        { k: 'xlarge', label: 'X-Large', blurb: 'Acreage / dual' },
+                      ] as const).map(({ k, label, blurb }) => {
+                        const active = S.ndisYardSize === k;
+                        return (
+                          <button
+                            key={k}
+                            type="button"
+                            className={cls(
+                              'rounded-xl border px-3 py-2.5 text-left transition',
+                              active
+                                ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
+                                : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
+                            )}
+                            onClick={() => setMany({ ndisYardSize: k })}
+                            aria-pressed={active}
+                          >
+                            <div className="text-sm font-semibold text-slate-900">{label}</div>
+                            <div className="text-[11px] text-slate-500">{blurb}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">When?</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Price Guide differentials apply outside weekday daytime — the rate above updates as you change this.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-5">
+                    {([
+                      { k: 'weekday_day',     label: 'Weekday day',     blurb: 'Mon–Fri 6am–8pm' },
+                      { k: 'weekday_evening', label: 'Weekday evening', blurb: 'After 8pm' },
+                      { k: 'saturday',        label: 'Saturday',        blurb: 'Sat any time' },
+                      { k: 'sunday',          label: 'Sunday',          blurb: 'Sun any time' },
+                      { k: 'public_holiday',  label: 'Public holiday',  blurb: 'QLD calendar' },
+                    ] as const).map(({ k, label, blurb }) => {
+                      const active = S.ndisRateSlot === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          className={cls(
+                            'rounded-xl border px-3 py-2.5 text-left transition',
+                            active
+                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
+                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
+                          )}
+                          onClick={() => setMany({ ndisRateSlot: k })}
+                          aria-pressed={active}
+                        >
+                          <div className="text-sm font-semibold text-slate-900">{label}</div>
+                          <div className="text-[11px] text-slate-500">{blurb}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Region</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Remote and very-remote zones attract a Price Guide loading. Most Brisbane / Logan / Gold Coast bookings stay metro.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                    {([
+                      { k: 'metro',       label: 'Metro',       blurb: 'MMM 1' },
+                      { k: 'regional',    label: 'Regional',    blurb: 'MMM 2-3' },
+                      { k: 'remote',      label: 'Remote',      blurb: 'MMM 6 · +40%' },
+                      { k: 'very_remote', label: 'Very remote', blurb: 'MMM 7 · +50%' },
+                    ] as const).map(({ k, label, blurb }) => {
+                      const active = S.ndisRegion === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          className={cls(
+                            'rounded-xl border px-3 py-2.5 text-left transition',
+                            active
+                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
+                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
+                          )}
+                          onClick={() => setMany({ ndisRegion: k })}
+                          aria-pressed={active}
+                        >
+                          <div className="text-sm font-semibold text-slate-900">{label}</div>
+                          <div className="text-[11px] text-slate-500">{blurb}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condition</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {([
+                      { k: 'tidy', label: 'Tidy', blurb: 'Maintained — light touch' },
+                      { k: 'lived_in', label: 'Lived-in', blurb: 'Typical ongoing support' },
+                      { k: 'reset', label: 'Reset', blurb: 'Needs a deeper pass' },
+                    ] as const).map(({ k, label, blurb }) => {
+                      const active = S.ndisCondition === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          className={cls(
+                            'rounded-xl border px-3 py-2.5 text-left transition',
+                            active
+                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
+                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
+                          )}
+                          onClick={() => setMany({ ndisCondition: k })}
+                          aria-pressed={active}
+                        >
+                          <div className="text-sm font-semibold text-slate-900">{label}</div>
+                          <div className="text-[11px] text-slate-500">{blurb}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+                        Suggested estimate
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-700">
+                        <span className="font-semibold text-slate-900">{fmtHours(suggested)} hr</span>{' '}
+                        <span className="text-slate-500">
+                          · based on your {S.service === 'cleaning' ? 'property size' : 'yard size'} and condition
+                        </span>
+                      </p>
+                    </div>
+                    {S.ndisHoursOrigin === 'manual' && hours !== suggested && (
+                      <button
+                        type="button"
+                        onClick={applySuggested}
+                        className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50"
+                      >
+                        Use suggestion
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="h-10 w-10 rounded-xl border border-violet-200 text-lg font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-40"
+                        onClick={() => bumpHours(hours - STEP)}
+                        disabled={hours <= NDIS_MIN_HOURS}
+                        aria-label="Decrease hours"
+                      >
+                        −
+                      </button>
+                      <div className="min-w-[5.5rem] rounded-xl border border-violet-200 bg-white px-3 py-2 text-center">
+                        <div className="text-2xl font-semibold tabular-nums text-slate-900">{fmtHours(hours)}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">hours</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="h-10 w-10 rounded-xl border border-violet-200 text-lg font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-40"
+                        onClick={() => bumpHours(hours + STEP)}
+                        disabled={hours >= NDIS_MAX_HOURS}
+                        aria-label="Increase hours"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        {fmtHours(hours)} hr × ${effectiveRate.toFixed(2)}/hr
+                      </div>
+                      <div className="text-3xl font-semibold tracking-tight text-slate-900">
+                        {fmtAUD(subtotal)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <input
+                    type="range"
+                    min={NDIS_MIN_HOURS}
+                    max={NDIS_MAX_HOURS}
+                    step={1}
+                    value={hours}
+                    onChange={(e) => bumpHours(Number(e.target.value))}
+                    className="mt-4 w-full accent-violet-600"
+                    aria-label="Estimated hours"
+                  />
+                  <div className="mt-1 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>{NDIS_MIN_HOURS} hr min</span>
+                    <span>{NDIS_MAX_HOURS} hr cap</span>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-[11px] text-slate-500">
+                  Hours are an estimate — you can adjust anytime before the visit. We log time on-site so your plan
+                  is only charged for actual delivered hours.
+                </p>
+              </section>
+            );
+          })() : null;
+
+        const step2Body = ndisStep2Panel ? (
+                  <>{ndisStep2Panel}</>
+                ) : (
                   <>
                     {/* Section heading */}
                     {S.service === 'yard' ? (
@@ -4584,7 +5194,7 @@ function winSessionMinutes(S: WizardState) {
                           Map your lawns and sites
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-                          Choose what we're doing, then outline each address on the satellite map. We auto-calc the area,
+                          Choose what we&apos;re doing, then outline each address on the satellite map. We auto-calc the area,
                           time, and cost for every site across Greater Brisbane.
                         </p>
                       </div>
@@ -4594,7 +5204,7 @@ function winSessionMinutes(S: WizardState) {
                           Our Abilities
                         </h3>
                         <p className="mt-1 text-sm text-slate-600">
-                          Tell us what matters and we'll shape it to you.
+                          Tell us what matters and we&apos;ll shape it to you.
                         </p>
                       </div>
                     )}
@@ -4716,7 +5326,7 @@ function winSessionMinutes(S: WizardState) {
                         })()}
                       </div>
 
-                      {S.service === 'cleaning' && S.context === 'home' && S.step === 2 && S.scope === 'hourly' && (
+                      {S.service === 'cleaning' && S.context !== 'commercial' && S.step === 2 && S.scope === 'hourly' && (
                         <div className={cls('mt-6', glass, 'rounded-2xl p-4 shadow-[0_12px_40px_rgba(15,23,42,0.12)]')}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
@@ -5180,6 +5790,98 @@ function winSessionMinutes(S: WizardState) {
                 )}
               </S3_Card>
 
+              {isNdisContext && (
+                <S3_Card className="scroll-mt-24" >
+                  <div id="s3-ndis-routing" className="sr-only" aria-hidden="true" />
+                  <S3_Title>
+                    <span className="flex items-center gap-2">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-600" aria-hidden="true"><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>
+                      NDIS quote routing
+                    </span>
+                  </S3_Title>
+                  <p className="mt-2 text-[12px] text-slate-600">
+                    Routed with Buds At Work and <span className="font-semibold text-violet-800">MaluCare</span> so the quote lands with the right person from the start.
+                  </p>
+                  <div className="mt-3 grid gap-2">
+                    {NDIS_MANAGEMENT_OPTIONS.map((option) => {
+                      const active = S.ndisManagementType === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          className={cls(
+                            'rounded-2xl border px-4 py-3 text-left transition-colors',
+                            active
+                              ? 'border-violet-500 bg-violet-50 shadow-[0_8px_24px_rgba(109,40,217,0.10)]'
+                              : 'border-black/10 bg-white/70 hover:border-violet-300 hover:bg-violet-50/50'
+                          )}
+                          onClick={() => set('ndisManagementType', option.key)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">{option.title}</div>
+                              <div className="mt-1 text-xs text-slate-600">{option.description}</div>
+                              <div className="mt-2 text-[11px] font-medium text-violet-800">{option.destination}</div>
+                            </div>
+                            <span
+                              className={cls(
+                                'mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border',
+                                active ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white text-transparent'
+                              )}
+                              aria-hidden="true"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {!S.ndisManagementType && (
+                    <div className="mt-2 text-[11px] text-amber-700">
+                      Select how this participant is managed so we know who should receive the quote.
+                    </div>
+                  )}
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-contact">
+                        Forward contact
+                      </label>
+                      <input
+                        id="s3-ndis-forward-contact"
+                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                        placeholder="Plan manager, nominee, or participant"
+                        value={S.ndisForwardContactName}
+                        onChange={(e) => set('ndisForwardContactName', e.target.value)}
+                        onFocus={() => setCaptchaReady(true)}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-email">
+                        Forward quote email
+                      </label>
+                      <input
+                        id="s3-ndis-forward-email"
+                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                        placeholder="billing@provider.com.au"
+                        value={S.ndisForwardEmail}
+                        onChange={(e) => set('ndisForwardEmail', e.target.value)}
+                        onBlur={(e) => set('ndisForwardEmail', (e.target.value || '').trim().toLowerCase())}
+                        onFocus={() => setCaptchaReady(true)}
+                      />
+                      {S.ndisForwardEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.ndisForwardEmail.trim()) && (
+                        <div className="mt-1 text-[11px] text-red-600">Enter a valid forwarding email or leave this blank.</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] text-slate-600">
+                    Leave the forwarding email blank if the quote should go to the participant email above first. We’ll include the routing notes for the team either way.
+                  </div>
+                </S3_Card>
+              )}
+
               {/* Location & access */}
               <S3_Card>
                 <S3_Title>
@@ -5355,7 +6057,7 @@ function winSessionMinutes(S: WizardState) {
                     When works best for you?
                   </span>
                 </S3_Title>
-                <p className="text-[11px] text-slate-500 mt-1">Select all that apply — we'll try to match your schedule.</p>
+                <p className="text-[11px] text-slate-500 mt-1">Select all that apply — we&apos;ll try to match your schedule.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(['Weekday mornings', 'Weekday afternoons', 'Weekends', 'Flexible / ASAP'] as const).map((slot) => {
                     const active = (S.preferredAvailability || []).includes(slot);
@@ -5393,7 +6095,7 @@ function winSessionMinutes(S: WizardState) {
                   />
                   <span className="text-xs text-slate-700">
                     Send a few photos for a faster, more accurate quote
-                    <span className="block text-[11px] text-slate-400 mt-0.5">Customers who share photos get a confirmed price sooner — we'll follow up via SMS or email, no app needed.</span>
+                    <span className="block text-[11px] text-slate-400 mt-0.5">Customers who share photos get a confirmed price sooner — we&apos;ll follow up via SMS or email, no app needed.</span>
                   </span>
                 </label>
               </S3_Card>
@@ -5471,7 +6173,7 @@ function winSessionMinutes(S: WizardState) {
               </div>
 
               <div className="text-[11px] text-slate-600 text-center space-y-1">
-                <div>You won't be charged now — we'll confirm times and any price changes before work proceeds.</div>
+                <div>You won&apos;t be charged now — we&apos;ll confirm times and any price changes before work proceeds.</div>
                 <div className="text-slate-400">We typically respond within 2 hours on business days.</div>
               </div>
             </div>
@@ -5497,10 +6199,12 @@ function winSessionMinutes(S: WizardState) {
                         'text-[10px] px-2 py-0.5 rounded-full flex-shrink-0',
                         S.context === 'commercial'
                           ? 'bg-indigo-100 text-indigo-800'
+                          : S.context === 'ndis'
+                          ? 'bg-violet-100 text-violet-800'
                           : 'bg-emerald-100 text-emerald-800'
                       )}
                     >
-                      {S.context === 'commercial' ? 'Commercial' : 'Home'}
+                      {serviceContextLabel}
                     </span>
                   </div>
                   <div className="text-base font-medium text-slate-900">
@@ -5528,10 +6232,21 @@ function winSessionMinutes(S: WizardState) {
                         );
                       }
                       // For other services, show the scope label
+                      if (S.service === 'cleaning' && S.context !== 'commercial') {
+                        return RESIDENTIAL_CLEANING_SCOPE_LABELS[S.scope] ?? S.scope ?? 'Select a scope';
+                      }
                       const scopeDef = SCOPES_BY_SERVICE[S.service]?.find((s) => s.key === S.scope);
                       return scopeDef?.label ?? S.scope ?? 'Select a scope';
                     })()}
                   </div>
+                  {isNdisContext && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="inline-block h-1 w-1 rounded-full bg-violet-400" aria-hidden="true" />
+                      <span>
+                        Partnered with <span className="font-semibold text-slate-700">MaluCare</span>
+                      </span>
+                    </div>
+                  )}
                   {/* Show subscription badge for recurring commercial cleans */}
                   {S.context === 'commercial' && S.service === 'cleaning' && S.commFrequency && S.commFrequency !== 'none' && (
                     <div className="mt-2">
@@ -5621,7 +6336,7 @@ function winSessionMinutes(S: WizardState) {
                                 <div className="text-[11px]">{quoteResult.customQuoteReason ?? 'This job may require a custom quote based on distance, access, or item size.'}</div>
                               </div>
                               <div className="text-[11px] text-slate-600 mt-2">
-                                Contact us and we'll provide a fair, itemised quote.
+                                Contact us and we&apos;ll provide a fair, itemised quote.
                               </div>
                             </>
                           );
@@ -5779,11 +6494,16 @@ function winSessionMinutes(S: WizardState) {
                       }
 
                       const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
+                      const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
+                      const hasValidNdisForwardEmail =
+                        !ndisForwardEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ndisForwardEmail);
                       const okInputs =
                         S.fullName?.trim().length >= 2 &&
                         /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '') &&
                         normalisedPhone.length >= 10 &&
-                        S.address.trim().length > 0;
+                        S.address.trim().length > 0 &&
+                        (!isNdisContext || !!S.ndisManagementType) &&
+                        hasValidNdisForwardEmail;
 
                       if (!okInputs) {
                         const missingFields = [
@@ -5791,16 +6511,22 @@ function winSessionMinutes(S: WizardState) {
                           !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) && 'email',
                           normalisedPhone.length < 10 && 'phone',
                           !S.address.trim() && 'address',
+                          (isNdisContext && !S.ndisManagementType) && 'ndis_management',
+                          (isNdisContext && !hasValidNdisForwardEmail) && 'ndis_forward_email',
                         ].filter(Boolean).join(',');
                         trackQuoteEvent('quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
                         toast.error(
-                          'Please complete your details and confirm your service address.'
+                          isNdisContext
+                            ? 'Please complete your details, service address, and NDIS routing fields.'
+                            : 'Please complete your details and confirm your service address.'
                         );
                         // Scroll to the first invalid field so it's visible.
                         const firstInvalid =
                           (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
                           : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
                           : normalisedPhone.length < 10 ? 's3-phone'
+                          : isNdisContext && !S.ndisManagementType ? 's3-ndis-routing'
+                          : isNdisContext && !hasValidNdisForwardEmail ? 's3-ndis-forward-email'
                           : null;
                         if (firstInvalid) {
                           document.getElementById(firstInvalid)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -5812,6 +6538,11 @@ function winSessionMinutes(S: WizardState) {
                       // Compute the total that matches what the customer saw in the UI,
                       // including any delivery/service fees for laundry and sneaker services.
                       let effectiveTotal = scopedPricing?.price ?? estimate.total;
+                      // NDIS cleaning + yard are billed at (estimated hours × NDIS hourly rate) —
+                      // mirror the override used in the live price display.
+                      if (ndisHourlyPrice !== null) {
+                        effectiveTotal = ndisHourlyPrice;
+                      }
                       if (isLaundryService) {
                         // Match priceLabel: base service cost + pickup/delivery + service fee
                         const laundryBase = Math.max(LAUNDRY_MIN, laundryLoads * 30) + laundryAddOnTotal;
@@ -5851,12 +6582,44 @@ function winSessionMinutes(S: WizardState) {
                             submitted_total: effectiveTotal,
                             total: effectiveTotal,
                             service_address: S.address.trim(),
+                            // Structured NDIS fields — the API and admin dashboard read these
+                            // first and fall back to parsing notes for older quotes.
+                            ndis_management_type: isNdisContext ? S.ndisManagementType : null,
+                            ndis_forward_contact: isNdisContext ? (S.ndisForwardContactName.trim() || null) : null,
+                            ndis_forward_email: isNdisContext ? (ndisForwardEmail || null) : null,
+                            ndis_estimated_hours: isNdisContext && ndisHourlyPrice !== null ? S.ndisEstimatedHours : null,
+                            ndis_hourly_rate: isNdisContext && ndisHourlyPrice !== null
+                              ? ndisRateFor(S.ndisRateSlot, S.ndisRegion)
+                              : null,
+                            ndis_rate_slot: isNdisContext && ndisHourlyPrice !== null ? S.ndisRateSlot : null,
+                            ndis_region: isNdisContext && ndisHourlyPrice !== null ? S.ndisRegion : null,
                             notes: [
                               S.notes || '',
                               S.preferredAvailability?.length
                                 ? `Availability: ${S.preferredAvailability.join(', ')}`
                                 : '',
                               S.photosOK ? 'Happy to share photos for quoting.' : '',
+                              isNdisContext && S.ndisManagementType
+                                ? `NDIS management: ${
+                                    S.ndisManagementType === 'plan_managed'
+                                      ? 'Plan-managed participant'
+                                      : S.ndisManagementType === 'self_managed'
+                                      ? 'Self-managed participant'
+                                      : 'Agency-managed (NDIA) participant'
+                                  }`
+                                : '',
+                              isNdisContext && S.ndisForwardContactName.trim()
+                                ? `NDIS forward contact: ${S.ndisForwardContactName.trim()}`
+                                : '',
+                              isNdisContext && ndisForwardEmail
+                                ? `NDIS forward email: ${ndisForwardEmail}`
+                                : '',
+                              isNdisContext && ndisHourlyPrice !== null
+                                ? `NDIS quote: ${S.ndisEstimatedHours} hr × $${ndisRateFor(S.ndisRateSlot, S.ndisRegion).toFixed(2)}/hr (${NDIS_RATE_LABELS[S.ndisRateSlot]} · ${NDIS_REGION_LABELS[S.ndisRegion]} · Price Guide cap)`
+                                : '',
+                              isNdisContext
+                                ? 'NDIS quote flow supported under the Buds At Work x MaluCare partnership.'
+                                : '',
                             ].filter(Boolean).join('\n').trim() || '',
                           }),
                         });
@@ -6355,6 +7118,7 @@ function winSessionMinutes(S: WizardState) {
       <QuoteAssistantTrigger
         onOpen={assistant.handlers.onOpen}
         visible={!assistant.open && !assistant.dismissed && !hasInteractedStep2 && S.step === 1}
+        context={S.context}
       />
       <QuoteAssistantPanel assistant={assistant} />
     </MotionContext.Provider>

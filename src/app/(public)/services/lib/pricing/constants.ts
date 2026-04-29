@@ -124,6 +124,7 @@ export const SERVICE_REGIONS = [
 export const ALLOWED_SERVICES_BY_CONTEXT: Record<Context, ServiceType[]> = {
   home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
   commercial: ['windows', 'cleaning', 'yard'],
+  ndis: ['cleaning', 'yard'],
 };
 
 // Default selections

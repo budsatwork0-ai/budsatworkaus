@@ -239,6 +239,33 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (body.converted_order_id) updates.converted_order_id = body.converted_order_id;
   if (body.converted_subscription_id) updates.converted_subscription_id = body.converted_subscription_id;
 
+  // NDIS routing flags — admin can mark quotes as forwarded / accepted / booked.
+  // Values accept ISO timestamps, `true` (stamp now) or `null` (clear).
+  const ndisStampFields: Array<'ndis_forwarded_at' | 'ndis_accepted_at' | 'ndis_booked_at'> = [
+    'ndis_forwarded_at',
+    'ndis_accepted_at',
+    'ndis_booked_at',
+  ];
+  for (const field of ndisStampFields) {
+    if (body[field] !== undefined) {
+      const val = body[field];
+      if (val === null) updates[field] = null;
+      else if (val === true) updates[field] = new Date().toISOString();
+      else if (typeof val === 'string' && val.length > 0) updates[field] = val;
+    }
+  }
+  if (typeof body.ndis_management_type === 'string' &&
+      ['plan_managed', 'self_managed', 'agency_managed'].includes(body.ndis_management_type)) {
+    updates.ndis_management_type = body.ndis_management_type;
+  }
+  if (typeof body.ndis_forward_contact === 'string') {
+    updates.ndis_forward_contact = body.ndis_forward_contact.trim() || null;
+  }
+  if (typeof body.ndis_forward_email === 'string') {
+    const e = body.ndis_forward_email.trim().toLowerCase();
+    updates.ndis_forward_email = e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any)
     .from('quotes')

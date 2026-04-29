@@ -23,7 +23,12 @@ function formatAUD(amount: number): string {
 }
 
 function OrderSummaryCard({ order }: { order: OrderDetails }) {
-  const contextLabel = order.context === 'commercial' ? 'Commercial' : 'Residential';
+  const contextLabel =
+    order.context === 'commercial'
+      ? 'Commercial'
+      : order.context === 'ndis'
+      ? 'NDIS'
+      : 'Residential';
   return (
     <div className="bg-white/60 backdrop-blur rounded-2xl p-6 border border-slate-200/50 mb-6 text-left">
       <p className="text-sm font-medium text-slate-700 mb-3">Payment summary</p>

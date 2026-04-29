@@ -135,7 +135,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
   const serviceLabel = SERVICE_LABELS[quote.service_type] || quote.service_type;
   const contextLabel = quote.context === 'commercial' ? 'Commercial' : 'Residential';
-  const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
+  // Always trust the configured site URL first. The request `Origin` header is
+  // attacker-controlled — using it for Stripe success/cancel redirects let an
+  // attacker steer post-payment users to an arbitrary domain (and the URL
+  // ends up serialised into Stripe receipts). Only fall back to the request
+  // origin when no env var is set (local dev).
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.get('origin') || '';
 
   // Resolve or create a Stripe Customer so returning customers see their saved cards.
   // Falls back to customer_email only if the DB lookup fails or no customer row exists.
