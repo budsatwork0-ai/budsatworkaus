@@ -317,13 +317,31 @@ export async function POST(req: NextRequest) {
 
       case 'payment_intent.payment_failed': {
         const failedPi = event.data.object as Stripe.PaymentIntent;
+        const metadataOrderId = failedPi.metadata?.order_id;
+        const metadataQuoteId = failedPi.metadata?.quote_id;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: failedOrder } = await (client as any)
+        let { data: failedOrder } = await (client as any)
           .from('orders')
           .select('id, quote_id, analytics_session_id, service_type, context, scope')
           .eq('stripe_payment_intent_id', failedPi.id)
           .maybeSingle();
+
+        if (!failedOrder && metadataOrderId) {
+          // Checkout can emit PaymentIntent events before checkout.session.completed.
+          // Resolve through metadata copied onto the PaymentIntent at session creation.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: metadataOrder } = await (client as any)
+            .from('orders')
+            .update({
+              stripe_payment_intent_id: failedPi.id,
+              status: 'failed',
+            })
+            .eq('id', metadataOrderId)
+            .select('id, quote_id, analytics_session_id, service_type, context, scope')
+            .maybeSingle();
+          failedOrder = metadataOrder;
+        }
 
         if (failedOrder) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -332,7 +350,8 @@ export async function POST(req: NextRequest) {
             .update({ status: 'failed' })
             .eq('id', failedOrder.id);
 
-          if (failedOrder.quote_id) {
+          const failedQuoteId = failedOrder.quote_id ?? metadataQuoteId;
+          if (failedQuoteId) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (client as any)
               .from('quotes')
@@ -342,7 +361,7 @@ export async function POST(req: NextRequest) {
                 stripe_checkout_url: null,
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', failedOrder.quote_id);
+              .eq('id', failedQuoteId);
           }
 
           logAudit(client, 'order', failedOrder.id, 'payment_failed', {
@@ -355,7 +374,7 @@ export async function POST(req: NextRequest) {
             eventName: 'payment_failed',
             page: '/services/checkout/cancel',
             source: 'server',
-            quoteId: failedOrder.quote_id ?? null,
+            quoteId: failedQuoteId ?? null,
             orderId: failedOrder.id,
             eventValue: failedPi.amount ? failedPi.amount / 100 : null,
             eventData: {
@@ -371,17 +390,62 @@ export async function POST(req: NextRequest) {
       }
 
       case 'payment_intent.succeeded': {
-        // Backup handler — only insert payment if not already recorded via checkout.session.completed
+        // Backup handler. Stripe does not guarantee ordering, so this can
+        // arrive before checkout.session.completed. Resolve via the
+        // PaymentIntent metadata copied during Checkout Session creation.
         const pi = event.data.object as Stripe.PaymentIntent;
+        const metadataOrderId = pi.metadata?.order_id;
+        const metadataQuoteId = pi.metadata?.quote_id;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existingOrder } = await (client as any)
+        let { data: existingOrder } = await (client as any)
           .from('orders')
-          .select('id')
+          .select('id, status, quote_id')
           .eq('stripe_payment_intent_id', pi.id)
           .maybeSingle();
 
+        if (!existingOrder && metadataOrderId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: metadataOrder } = await (client as any)
+            .from('orders')
+            .update({
+              stripe_payment_intent_id: pi.id,
+              status: 'confirmed',
+            })
+            .eq('id', metadataOrderId)
+            .select('id, status, quote_id')
+            .maybeSingle();
+          existingOrder = metadataOrder;
+        }
+
         if (existingOrder) {
+          if (existingOrder.status !== 'confirmed') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (client as any)
+              .from('orders')
+              .update({
+                stripe_payment_intent_id: pi.id,
+                status: 'confirmed',
+              })
+              .eq('id', existingOrder.id);
+          }
+
+          const succeededQuoteId = existingOrder.quote_id ?? metadataQuoteId;
+          if (succeededQuoteId) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (client as any)
+              .from('quotes')
+              .update({
+                status: 'paid',
+                payment_status: 'paid',
+                paid_at: new Date().toISOString(),
+                stripe_payment_intent_id: pi.id,
+                converted_order_id: existingOrder.id,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', succeededQuoteId);
+          }
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: existingPayment } = await (client as any)
             .from('payments')

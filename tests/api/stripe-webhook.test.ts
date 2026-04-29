@@ -4,30 +4,87 @@ import type { NextRequest } from 'next/server';
 
 type DbCall = {
   table: string;
-  method: 'insert' | 'upsert';
+  method: 'insert' | 'update' | 'upsert';
   rows: unknown;
   options?: unknown;
 };
 
 const mocks = vi.hoisted(() => {
   const calls: DbCall[] = [];
+  const state = {
+    ordersById: new Map<string, Record<string, unknown>>(),
+    ordersByPaymentIntent: new Map<string, Record<string, unknown>>(),
+    paymentsByReference: new Map<string, Record<string, unknown>>(),
+  };
   const serviceClient = {
     from: vi.fn((table: string) => {
+      const filters: Record<string, unknown> = {};
+      let operation: 'insert' | 'update' | null = null;
+      let rows: unknown;
+
       const builder = {
-        insert: vi.fn((rows: unknown) => {
-          calls.push({ table, method: 'insert', rows });
-          return Promise.resolve({ data: null, error: null });
+        insert: vi.fn((nextRows: unknown) => {
+          operation = 'insert';
+          rows = nextRows;
+          calls.push({ table, method: 'insert', rows: nextRows });
+          return builder;
+        }),
+        update: vi.fn((nextRows: unknown) => {
+          operation = 'update';
+          rows = nextRows;
+          calls.push({ table, method: 'update', rows: nextRows });
+          return builder;
         }),
         upsert: vi.fn((rows: unknown, options?: unknown) => {
           calls.push({ table, method: 'upsert', rows, options });
           return Promise.resolve({ data: null, error: null });
         }),
+        select: vi.fn(() => builder),
+        eq: vi.fn((column: string, value: unknown) => {
+          filters[column] = value;
+          return builder;
+        }),
+        is: vi.fn((column: string, value: unknown) => {
+          filters[column] = value;
+          return builder;
+        }),
+        maybeSingle: vi.fn(() => {
+          if (table === 'orders' && filters.stripe_payment_intent_id) {
+            return Promise.resolve({
+              data: state.ordersByPaymentIntent.get(String(filters.stripe_payment_intent_id)) ?? null,
+              error: null,
+            });
+          }
+          if (table === 'orders' && filters.id) {
+            const order = state.ordersById.get(String(filters.id)) ?? null;
+            if (operation === 'update' && order && rows && typeof rows === 'object') {
+              Object.assign(order, rows);
+              const paymentIntentId = order.stripe_payment_intent_id;
+              if (typeof paymentIntentId === 'string') {
+                state.ordersByPaymentIntent.set(paymentIntentId, order);
+              }
+            }
+            return Promise.resolve({ data: order, error: null });
+          }
+          if (table === 'payments' && filters.payment_reference) {
+            return Promise.resolve({
+              data: state.paymentsByReference.get(String(filters.payment_reference)) ?? null,
+              error: null,
+            });
+          }
+          return Promise.resolve({ data: null, error: null });
+        }),
+        single: vi.fn(() => Promise.resolve({ data: { id: 'pay_test_123' }, error: null })),
+        then: vi.fn((resolve: (value: { data: null; error: null }) => unknown) => {
+          return Promise.resolve({ data: null, error: null }).then(resolve);
+        }),
+        catch: vi.fn(() => Promise.resolve({ data: null, error: null })),
       };
       return builder;
     }),
   };
 
-  return { calls, serviceClient };
+  return { calls, serviceClient, state };
 });
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -114,6 +171,9 @@ describe('Stripe webhook route', () => {
     vi.resetModules();
     mocks.calls.length = 0;
     mocks.serviceClient.from.mockClear();
+    mocks.state.ordersById.clear();
+    mocks.state.ordersByPaymentIntent.clear();
+    mocks.state.paymentsByReference.clear();
     process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
   });
 
@@ -186,6 +246,98 @@ describe('Stripe webhook route', () => {
         failure_code: 'account_closed',
         failure_message: 'The bank account has been closed.',
       })],
+    }));
+  });
+
+  it('confirms an order when payment_intent.succeeded arrives before checkout.session.completed', async () => {
+    mocks.state.ordersById.set('ord_test_123', {
+      id: 'ord_test_123',
+      status: 'pending',
+      quote_id: 'quote_test_123',
+    });
+
+    const response = await postEvent('payment_intent.succeeded', {
+      id: 'pi_test_123',
+      object: 'payment_intent',
+      amount: 12345,
+      metadata: {
+        order_id: 'ord_test_123',
+        quote_id: 'quote_test_123',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.calls).toContainEqual({
+      table: 'orders',
+      method: 'update',
+      rows: {
+        stripe_payment_intent_id: 'pi_test_123',
+        status: 'confirmed',
+      },
+    });
+    expect(mocks.calls).toContainEqual(expect.objectContaining({
+      table: 'quotes',
+      method: 'update',
+      rows: expect.objectContaining({
+        status: 'paid',
+        payment_status: 'paid',
+        stripe_payment_intent_id: 'pi_test_123',
+        converted_order_id: 'ord_test_123',
+      }),
+    }));
+    expect(mocks.calls).toContainEqual(expect.objectContaining({
+      table: 'payments',
+      method: 'insert',
+      rows: [expect.objectContaining({
+        order_id: 'ord_test_123',
+        amount: 123.45,
+        payment_reference: 'pi_test_123',
+        status: 'completed',
+      })],
+    }));
+  });
+
+  it('marks an order failed from payment_intent.payment_failed metadata', async () => {
+    mocks.state.ordersById.set('ord_test_123', {
+      id: 'ord_test_123',
+      status: 'pending',
+      quote_id: 'quote_test_123',
+      analytics_session_id: 'analytics_test_123',
+      service_type: 'cleaning',
+      context: 'home',
+      scope: 'standard',
+    });
+
+    const response = await postEvent('payment_intent.payment_failed', {
+      id: 'pi_test_failed',
+      object: 'payment_intent',
+      amount: 12345,
+      metadata: {
+        order_id: 'ord_test_123',
+        quote_id: 'quote_test_123',
+      },
+      last_payment_error: {
+        message: 'Your card was declined.',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.calls).toContainEqual(expect.objectContaining({
+      table: 'orders',
+      method: 'update',
+      rows: {
+        stripe_payment_intent_id: 'pi_test_failed',
+        status: 'failed',
+      },
+    }));
+    expect(mocks.calls).toContainEqual(expect.objectContaining({
+      table: 'quotes',
+      method: 'update',
+      rows: expect.objectContaining({
+        status: 'finalized',
+        payment_status: 'not_requested',
+        stripe_checkout_url: null,
+      }),
     }));
   });
 

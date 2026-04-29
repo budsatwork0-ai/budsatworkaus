@@ -209,6 +209,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         customer_name: (quote.customer_name ?? '').slice(0, 255),
         customer_email: (quote.customer_email ?? '').slice(0, 255),
       },
+      payment_intent_data: {
+        metadata: {
+          order_id: orderId,
+          quote_id: quote.id,
+          service_type: quote.service_type,
+          context: quote.context,
+        },
+      },
       success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/services/checkout/cancel?order_id=${orderId}`,
     },
