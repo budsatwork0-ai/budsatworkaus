@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
-// Idle thresholds (ms of real inactivity, not counting time tab is hidden)
-const WARN_AT_MS        = 9  * 60_000;  // 9 min  → show warning
-const SOFT_LOCK_AT_MS   = 10 * 60_000;  // 10 min → soft lock
-const FULL_LOGOUT_AT_MS = 30 * 60_000;  // 30 min → full sign-out
+// Auth sessions should not remain usable after someone walks away.
+// Five minutes is intentionally short for shared/admin devices.
+const WARN_AT_MS = 4 * 60_000;
+const FULL_LOGOUT_AT_MS = 5 * 60_000;
+const LAST_ACTIVITY_KEY = 'budsatwork.auth.lastActivityAt';
 
 const ACTIVITY_EVENTS = [
   'mousemove',
@@ -30,23 +31,26 @@ export interface UseSessionManagerReturn {
 /**
  * Manages session idle state for protected portals.
  *
- * Timeline (real inactivity, paused while tab is hidden):
- *   0 → 9 min  : active
- *   9 → 10 min : warning modal (countdown)
- *   10 → 30 min: soft locked (progress preserved, re-auth required)
- *   30 min+    : full sign-out → redirect /account
+ * Timeline:
+ *   0 → 4 min : active
+ *   4 → 5 min : warning modal
+ *   5 min+    : full sign-out → redirect /account
  *
- * Tab hidden → timer pauses. Tab visible → timer resumes from where it left off.
+ * Hidden/closed tabs count as inactivity. The timestamp is persisted so a
+ * browser sleep, reload, or return days later cannot revive an old profile.
  */
 export function useSessionManager(): UseSessionManagerReturn {
   const [sessionState, setSessionState] = useState<SessionState>('active');
   const [user, setUser] = useState<User | null>(null);
 
-  // Tracks real idle time (not counting hidden-tab duration)
-  const lastActivityRef  = useRef<number>(Date.now());
-  const pausedMsRef      = useRef<number>(0);
-  const tabHiddenAtRef   = useRef<number | null>(null);
-  const tickRef          = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logoutInFlightRef = useRef(false);
+
+  const persistActivity = useCallback((at: number) => {
+    lastActivityRef.current = at;
+    window.localStorage.setItem(LAST_ACTIVITY_KEY, String(at));
+  }, []);
 
   // ── Auth subscription ────────────────────────────────────────────────────
   // onAuthStateChange fires INITIAL_SESSION immediately, so getUser() is redundant.
@@ -60,11 +64,9 @@ export function useSessionManager(): UseSessionManagerReturn {
 
   // ── Extend (reset timer back to active) ─────────────────────────────────
   const extendSession = useCallback(() => {
-    lastActivityRef.current = Date.now();
-    pausedMsRef.current = 0;
-    tabHiddenAtRef.current = null;
+    persistActivity(Date.now());
     setSessionState('active');
-  }, []);
+  }, [persistActivity]);
 
   // ── Unlock (re-auth with password) ──────────────────────────────────────
   const unlock = useCallback(async (password: string): Promise<{ error: string | null }> => {
@@ -81,22 +83,34 @@ export function useSessionManager(): UseSessionManagerReturn {
     return { error: null };
   }, [user, extendSession]);
 
-  // ── Idle tick + visibility pause ─────────────────────────────────────────
+  // ── Idle tick + hidden-tab expiry ────────────────────────────────────────
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
     const doFullLogout = async () => {
+      if (logoutInFlightRef.current) return;
+      logoutInFlightRef.current = true;
       setSessionState('logged_out');
+      window.localStorage.removeItem(LAST_ACTIVITY_KEY);
       await supabase.auth.signOut();
       window.location.href = '/account';
     };
 
+    const storedLastActivity = Number(window.localStorage.getItem(LAST_ACTIVITY_KEY));
+    if (Number.isFinite(storedLastActivity) && storedLastActivity > 0) {
+      lastActivityRef.current = storedLastActivity;
+      if (Date.now() - storedLastActivity >= FULL_LOGOUT_AT_MS) {
+        void doFullLogout();
+      }
+    } else {
+      persistActivity(Date.now());
+    }
+
     const resetActivity = () => {
-      // Only reset if in active or warning state (don't let activity dismiss soft lock)
+      // Only reset if in active or warning state.
       setSessionState((prev) => {
         if (prev === 'active' || prev === 'warning') {
-          lastActivityRef.current = Date.now();
-          pausedMsRef.current = 0;
+          persistActivity(Date.now());
           return 'active';
         }
         return prev;
@@ -104,40 +118,21 @@ export function useSessionManager(): UseSessionManagerReturn {
     };
 
     const onVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab hidden — record when we hid
-        tabHiddenAtRef.current = Date.now();
-      } else {
-        // Tab visible — accumulate the hidden duration
-        if (tabHiddenAtRef.current !== null) {
-          pausedMsRef.current += Date.now() - tabHiddenAtRef.current;
-          tabHiddenAtRef.current = null;
-        }
+      if (!document.hidden && Date.now() - lastActivityRef.current >= FULL_LOGOUT_AT_MS) {
+        void doFullLogout();
       }
     };
 
     const tick = () => {
-      // If tab is currently hidden, don't advance the idle clock
-      if (document.hidden) return;
-
-      const realIdle = Date.now() - lastActivityRef.current - pausedMsRef.current;
+      const realIdle = Date.now() - lastActivityRef.current;
 
       setSessionState((prev) => {
         if (prev === 'logged_out') return prev;
-        if (prev === 'soft_locked') {
-          // In soft lock: still track for full logout
-          if (realIdle >= FULL_LOGOUT_AT_MS) {
-            doFullLogout();
-            return 'logged_out';
-          }
-          return prev;
-        }
         if (realIdle >= FULL_LOGOUT_AT_MS) {
-          doFullLogout();
+          void doFullLogout();
           return 'logged_out';
         }
-        if (realIdle >= SOFT_LOCK_AT_MS) return 'soft_locked';
-        if (realIdle >= WARN_AT_MS)      return 'warning';
+        if (realIdle >= WARN_AT_MS) return 'warning';
         return 'active';
       });
     };
@@ -152,7 +147,7 @@ export function useSessionManager(): UseSessionManagerReturn {
       ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, resetActivity));
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, []);
+  }, [persistActivity]);
 
   return { sessionState, user, extendSession, unlock };
 }
