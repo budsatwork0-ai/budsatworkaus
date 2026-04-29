@@ -33,6 +33,8 @@ export default function JoinPage() {
   const [error, setError] = useState('');
   const [registered, setRegistered] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -74,6 +76,29 @@ export default function JoinPage() {
     setRegistered(true);
   }
 
+  async function handleResend() {
+    setResendLoading(true);
+    setResendMessage('');
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || 'Unable to resend verification email.');
+      }
+      setResendMessage(`Verification email resent to ${form.email}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to resend verification email.');
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
   if (registered) {
     return (
       <AuthSplitLayout variant="staff">
@@ -87,6 +112,25 @@ export default function JoinPage() {
           <p className="text-slate-400 text-sm mb-1">We sent a verification link to</p>
           <p className="text-emerald-400 font-medium text-sm mb-6">{form.email}</p>
           <p className="text-slate-500 text-xs">Click the link in the email to activate your account, then sign in to complete onboarding.</p>
+          <div className="mt-5 flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { void handleResend(); }}
+              disabled={resendLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resendLoading && <Spinner />}
+              {resendLoading ? 'Resending…' : 'Resend verification email'}
+            </button>
+            {resendMessage ? (
+              <p className="text-xs text-emerald-400">{resendMessage}</p>
+            ) : (
+              <p className="text-xs text-slate-500">If it doesn&apos;t arrive, check spam/junk first, then resend.</p>
+            )}
+            {error ? (
+              <p className="max-w-sm text-xs text-red-400">{error}</p>
+            ) : null}
+          </div>
           <div className="mt-8 pt-6 border-t border-white/8">
             <Link href="/account/crew" className="text-sm font-semibold text-emerald-400 hover:underline">
               Go to staff sign in
