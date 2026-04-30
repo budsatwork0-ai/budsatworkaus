@@ -21,6 +21,8 @@ function createLimiter(requests: number, window: string) {
 export const ipRatelimit = createLimiter(5, '15 m');
 // 3 registrations per email per hour
 export const emailRatelimit = createLimiter(3, '1 h');
+// 10 quote submissions per IP per 15 minutes
+export const quoteSubmitRatelimit = createLimiter(10, '15 m');
 
 export async function checkRateLimit(
   limiter: Ratelimit | null,

@@ -45,3 +45,4 @@ When and how to issue refunds.
 - [[Email Triggers]]
 - [[Quote Flow]]
 - [[Services Flow Improvements — April 2026]]
+- [[NDIS Pricing Rewrite & Stripe Hardening — April 2026]] *(disputes — see follow-ups; ops email on `charge.dispute.created` not yet wired)*

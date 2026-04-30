@@ -5,6 +5,12 @@ import { createStripeClient } from '@/lib/stripe/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteFinalizedEmail } from '@/lib/email/templates';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
+import {
+  centsToDollars,
+  calculateStripeFeeEstimate,
+  dollarsToCents,
+  getStripeCheckoutPolicy,
+} from '@/lib/payments/pricing';
 import type Stripe from 'stripe';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -79,6 +85,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: 'Invalid finalized amount' }, { status: 400 });
   }
+
+  const amountCents = dollarsToCents(amount);
+  const checkoutPolicy = getStripeCheckoutPolicy(amountCents);
+  if (!checkoutPolicy.allowed) {
+    return NextResponse.json(
+      {
+        error: checkoutPolicy.message,
+        code: 'stripe_minimum_not_met',
+        amount_cents: checkoutPolicy.amountCents,
+        amount: centsToDollars(checkoutPolicy.amountCents),
+        minimum_charge_cents: checkoutPolicy.minimumChargeCents,
+        minimum_charge: centsToDollars(checkoutPolicy.minimumChargeCents),
+        alternative_payment: 'payid_or_bank_transfer',
+      },
+      { status: 400 }
+    );
+  }
+
+  const feeEstimate = calculateStripeFeeEstimate(amountCents);
 
   const orderPayload = {
     quote_id: quote.id,
@@ -192,7 +217,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         {
           price_data: {
             currency: 'aud',
-            unit_amount: Math.round(amount * 100),
+            unit_amount: amountCents,
             product_data: {
               name: `${contextLabel} ${serviceLabel}`,
               description: `Buds At Work quote #${quote.id.slice(0, 8).toUpperCase()}`,
@@ -206,6 +231,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         quote_id: quote.id,
         service_type: quote.service_type,
         context: quote.context,
+        amount_cents: String(amountCents),
+        estimated_stripe_fee_cents: String(feeEstimate.feeCents),
+        estimated_net_cents: String(feeEstimate.netCents),
         customer_name: (quote.customer_name ?? '').slice(0, 255),
         customer_email: (quote.customer_email ?? '').slice(0, 255),
       },
@@ -215,6 +243,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           quote_id: quote.id,
           service_type: quote.service_type,
           context: quote.context,
+          amount_cents: String(amountCents),
+          estimated_stripe_fee_cents: String(feeEstimate.feeCents),
+          estimated_net_cents: String(feeEstimate.netCents),
         },
       },
       success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,

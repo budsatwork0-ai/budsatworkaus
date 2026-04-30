@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
-import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  createRateLimiter,
+  getClientIp,
+  quoteSubmitRatelimit,
+} from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReceivedEmail, ndisForwardQuoteEmail } from '@/lib/email/templates';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
@@ -15,8 +20,14 @@ const SERVICE_LABELS: Record<string, string> = {
   laundry_sneakers: 'Laundry & Sneaker Care',
 };
 
-// 10 quote submissions per IP per 15 minutes.
-const checkQuotePostLimit = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
+// 10 quote submissions per IP per 15 minutes (production only).
+// Production prefers Upstash (durable + shared across serverless instances).
+// Falls back to in-memory if Upstash env vars aren't set.
+// In dev the limiter is bypassed entirely — getClientIp() returns 'unknown' on
+// localhost, so a single tester would otherwise lock out every submitter on the
+// same process.
+const fallbackQuotePostLimit = createRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000 });
+const RATE_LIMIT_QUOTES = process.env.NODE_ENV === 'production';
 
 export async function GET(request: NextRequest) {
   const authUser = await getAuthUser();
@@ -92,12 +103,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { allowed } = checkQuotePostLimit(getClientIp(request));
-  if (!allowed) {
-    return NextResponse.json(
-      { error: 'Too many quote submissions. Please wait a few minutes and try again.' },
-      { status: 429 }
-    );
+  if (RATE_LIMIT_QUOTES) {
+    const ip = getClientIp(request);
+    const { allowed } = quoteSubmitRatelimit
+      ? await checkRateLimit(quoteSubmitRatelimit, ip)
+      : fallbackQuotePostLimit(ip);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many quote submissions. Please wait a few minutes and try again.' },
+        { status: 429 }
+      );
+    }
   }
 
   // Auth is optional — anonymous visitors can submit quotes.

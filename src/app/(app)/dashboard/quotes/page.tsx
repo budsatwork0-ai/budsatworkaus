@@ -246,7 +246,17 @@ function QuotesPageContent() {
       }
       if (data.email_error) {
         const sentTo = data.email_to ? ` (${data.email_to})` : '';
-        toast.error(`Payment link created, but email failed${sentTo}: ${data.email_error}`);
+        let copiedLink = false;
+        if (data.url && navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(data.url);
+            copiedLink = true;
+          } catch {
+            copiedLink = false;
+          }
+        }
+        const copyNote = copiedLink ? ' Checkout link copied.' : ' Use Copy payment link.';
+        toast.warning(`Payment link created, but email failed${sentTo}: ${data.email_error}.${copyNote}`);
       } else {
         const baseMessage = options?.successMessage ?? 'Payment link sent to customer';
         const sentTo = data.email_to ? ` to ${data.email_to}` : '';

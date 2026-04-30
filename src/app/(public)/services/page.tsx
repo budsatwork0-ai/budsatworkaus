@@ -9,6 +9,7 @@ import { sendGAEvent } from '@next/third-parties/google';
 import { trackQuoteSubmitted } from '@/lib/analytics/conversions';
 import { getPublicAnalyticsSessionId, trackPublicAnalyticsEvent } from '@/lib/analytics/public';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
+import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
 import StableMapSlot from '@/components/StableMapSlot';
 import {
   usePolygonQuote,
@@ -6416,6 +6417,9 @@ function winSessionMinutes(S: WizardState) {
                       )}
                       <div className="text-[11px] text-slate-600">
                         {TERMS_SNIPPET}
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        {SMALL_JOB_PAYMENT_COPY}
                       </div>
 
                       <div className="mt-3">

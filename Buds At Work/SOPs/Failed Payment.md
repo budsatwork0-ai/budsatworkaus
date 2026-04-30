@@ -50,3 +50,4 @@ This can happen if the webhook didn't fire. Fix manually:
 - [[New Booking]]
 - [[Refund Process]]
 - [[Services Flow Improvements — April 2026]]
+- [[NDIS Pricing Rewrite & Stripe Hardening — April 2026]] *(rate-limit + idempotency follow-ups still open)*
