@@ -29,7 +29,7 @@ function createCheckoutIdempotencyKey(payload: {
   amountCents: number;
   context: string | null;
   customerEmail: string | null;
-  orderId: string;
+  orderId: string | null;
   origin: string;
   quoteId: string;
   serviceType: string;
