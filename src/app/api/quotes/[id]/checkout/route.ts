@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createStripeClient } from '@/lib/stripe/server';
@@ -23,6 +24,24 @@ const SERVICE_LABELS: Record<string, string> = {
   auto: 'Auto Detailing',
   laundry_sneakers: 'Laundry & Sneaker Care',
 };
+
+function createCheckoutIdempotencyKey(payload: {
+  amountCents: number;
+  context: string | null;
+  customerEmail: string | null;
+  orderId: string;
+  origin: string;
+  quoteId: string;
+  serviceType: string;
+  stripeCustomerId?: string;
+}) {
+  const hash = createHash('sha256')
+    .update(JSON.stringify(payload))
+    .digest('hex')
+    .slice(0, 16);
+
+  return `${payload.quoteId}-checkout-${hash}`;
+}
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const authUser = await getAuthUser();
@@ -204,6 +223,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   let session: Stripe.Checkout.Session;
+  const idempotencyKey = createCheckoutIdempotencyKey({
+    amountCents,
+    context: quote.context ?? null,
+    customerEmail: quote.customer_email ?? null,
+    orderId,
+    origin,
+    quoteId: quote.id,
+    serviceType: quote.service_type,
+    stripeCustomerId,
+  });
+
   try {
     session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -251,8 +281,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       success_url: `${origin}/services/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/services/checkout/cancel?order_id=${orderId}`,
     },
-    // Idempotency key prevents duplicate sessions if request is retried
-    { idempotencyKey: `${quote.id}-checkout` });
+    // Include material checkout inputs so exact retries dedupe, while changed
+    // quote/payment details do not collide with Stripe's prior request cache.
+    { idempotencyKey });
   } catch (stripeErr) {
     console.error('[checkout] Stripe session creation failed:', stripeErr);
     const message =

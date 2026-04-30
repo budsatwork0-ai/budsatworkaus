@@ -17,6 +17,26 @@ const CARD_STYLE = `
 const PRIMARY = '#0f3d2e';
 const MUTED = '#6b7280';
 
+export function formatEmailName(name: string): string {
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return 'there';
+  if (trimmed.toLowerCase() === 'there') return 'there';
+
+  return trimmed
+    .split(' ')
+    .map((part) =>
+      part
+        .split(/([-'])/)
+        .map((token) => {
+          if (token === '-' || token === "'") return token;
+          if (!token) return token;
+          return `${token[0].toUpperCase()}${token.slice(1).toLowerCase()}`;
+        })
+        .join('')
+    )
+    .join(' ');
+}
+
 function layout(content: string): string {
   return `
     <!DOCTYPE html>
@@ -47,10 +67,12 @@ export type QuoteReceivedParams = {
 };
 
 export function quoteReceivedEmail({ customerName, serviceLabel, total, quoteId }: QuoteReceivedParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Got your quote — we'll be in touch soon`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Hey ${customerName} 👋</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Hey ${displayName} 👋</h1>
       <p style="color:${MUTED};margin:0 0 8px;">Your quote came through — nice one for reaching out.</p>
       <p style="color:${MUTED};margin:0 0 20px;">We're looking it over and will send you a payment link within 2–4 business hours on weekdays once everything is confirmed.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
@@ -159,10 +181,12 @@ export type QuoteFinalizedParams = {
 };
 
 export function quoteFinalizedEmail({ customerName, serviceLabel, total, quoteId, paymentUrl }: QuoteFinalizedParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Your quote is ready — pay now to confirm your booking`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Your quote is ready, ${customerName}!</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Your quote is ready, ${displayName}!</h1>
       <p style="color:${MUTED};margin:0 0 20px;">We've reviewed your quote. Pay now to lock in your booking.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>
@@ -197,10 +221,12 @@ export function serviceScheduledEmail({
   serviceAddress,
   orderId,
 }: ServiceScheduledParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Your booking is scheduled — ${scheduledDate}`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're locked in, ${customerName}!</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're locked in, ${displayName}!</h1>
       <p style="color:${MUTED};margin:0 0 20px;">Here are your confirmed service details.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>
@@ -241,10 +267,12 @@ export type BookingConfirmedParams = {
 };
 
 export function bookingConfirmedEmail({ customerName, serviceLabel, total, orderId }: BookingConfirmedParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Booking confirmed — see you soon!`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're all booked in, ${customerName}! 🎉</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">You're all booked in, ${displayName}! 🎉</h1>
       <p style="color:${MUTED};margin:0 0 20px;">Payment received — your booking is confirmed. We'll be in touch with scheduling details shortly.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>
@@ -275,10 +303,12 @@ export type CheckoutExpiredParams = {
 };
 
 export function checkoutExpiredEmail({ customerName, serviceLabel, total, quoteId }: CheckoutExpiredParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Your payment link expired — here's how to get a new one`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">No worries, ${customerName} — happens to everyone.</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">No worries, ${displayName} — happens to everyone.</h1>
       <p style="color:${MUTED};margin:0 0 20px;">Your payment link has expired (Stripe links are valid for 24 hours), but your quote is still saved and ready to go.</p>
       <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
         <div style="font-size:13px;color:${MUTED};margin-bottom:4px;">Service</div>
@@ -315,10 +345,12 @@ export function quoteReminderEmail({
   quoteId,
   paymentUrl,
 }: QuoteReminderParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Still thinking? Your quote is ready to go`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Hey ${customerName},</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">Hey ${displayName},</h1>
       <p style="color:${MUTED};margin:0 0 20px;">
         Just a quick heads-up — your payment link for <strong>${serviceLabel}</strong>
         is still active and ready whenever you are.
@@ -370,10 +402,12 @@ export function dayBeforeReminderEmail({
   orderId,
   portalUrl = 'https://budsatwork.com/portal',
 }: DayBeforeReminderParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `Reminder: we're coming tomorrow — ${scheduledDate}`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">See you tomorrow, ${customerName}! 👋</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">See you tomorrow, ${displayName}! 👋</h1>
       <p style="color:${MUTED};margin:0 0 20px;">
         Just a friendly heads-up — your <strong>${serviceLabel}</strong> is scheduled for
         <strong>${scheduledDate}</strong>. Here&apos;s everything you need.
@@ -436,10 +470,12 @@ export function quoteDiscountOfferEmail({
   quoteId,
   paymentUrl,
 }: QuoteDiscountOfferParams): { subject: string; html: string } {
+  const displayName = formatEmailName(customerName);
+
   return {
     subject: `${discountPercent}% off if you'd still like to lock this in`,
     html: layout(`
-      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">A little nudge for you, ${customerName}</h1>
+      <h1 style="font-size:22px;font-weight:700;color:${PRIMARY};margin:0 0 8px;">A little nudge for you, ${displayName}</h1>
       <p style="color:${MUTED};margin:0 0 20px;">
         Your quote for <strong>${serviceLabel}</strong> is still open. We&apos;ve applied a
         <strong> ${discountPercent}% re-engagement discount</strong> in case timing was the only thing holding you up.

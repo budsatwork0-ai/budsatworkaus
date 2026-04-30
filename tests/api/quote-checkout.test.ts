@@ -192,7 +192,33 @@ describe('quote checkout route payment pricing', () => {
           estimated_net_cents: '953',
         }),
       }),
-      { idempotencyKey: 'quote_test_123-checkout' }
+      { idempotencyKey: expect.stringMatching(/^quote_test_123-checkout-[a-f0-9]{16}$/) }
     );
+  });
+
+  it('uses a new Stripe idempotency key when checkout parameters change', async () => {
+    mocks.state.quote = {
+      ...mocks.state.quote,
+      submitted_total: 20,
+      reviewed_total: 20,
+      total: 20,
+    };
+
+    await postCheckout();
+    const firstOptions = mocks.stripe.checkout.sessions.create.mock.calls[0]?.[1];
+
+    mocks.state.quote = {
+      ...mocks.state.quote,
+      submitted_total: 25,
+      reviewed_total: 25,
+      total: 25,
+    };
+
+    await postCheckout();
+    const secondOptions = mocks.stripe.checkout.sessions.create.mock.calls[1]?.[1];
+
+    expect(firstOptions?.idempotencyKey).toMatch(/^quote_test_123-checkout-[a-f0-9]{16}$/);
+    expect(secondOptions?.idempotencyKey).toMatch(/^quote_test_123-checkout-[a-f0-9]{16}$/);
+    expect(secondOptions?.idempotencyKey).not.toBe(firstOptions?.idempotencyKey);
   });
 });

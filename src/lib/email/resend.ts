@@ -8,4 +8,4 @@ export function getResendClient(): Resend | null {
   return _client;
 }
 
-export const FROM_ADDRESS = 'Buds At Work <hello@budsatwork.com>';
+export const FROM_ADDRESS = 'Buds At Work <admin@budsatwork.com>';
