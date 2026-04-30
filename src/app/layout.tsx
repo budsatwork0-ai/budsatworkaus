@@ -3,7 +3,7 @@ import "./globals.css";
 import { SkipLinks } from "@/components/SkipLinks";
 import VisitorTracker from "@/app/ui/VisitorTracker";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import { ConsentAwareGoogleAnalytics } from "@/components/ConsentAwareGoogleAnalytics";
 import type { Metadata, Viewport } from "next";
 
 export const viewport: Viewport = {
@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LocalBusinessSchema />
         <WebsiteSchema />
       </head>
-      {gaId && <GoogleAnalytics gaId={gaId} />}
+      <ConsentAwareGoogleAnalytics gaId={gaId} />
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
         <SkipLinks />
         <VisitorTracker />

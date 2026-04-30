@@ -84,10 +84,9 @@ const contactMethods = [
   },
   {
     icon: <PhoneIcon />,
-    title: 'SMS',
-    value: 'Text us anytime',
-    href: 'sms:admin@budsatwork.com',
-    description: 'Mon–Sat, 7am–5pm',
+    title: 'Phone',
+    value: 'Business number coming soon',
+    description: 'Email is best while we set this up',
   },
   {
     icon: <MapPinIcon />,

@@ -18,6 +18,7 @@ import {
 
 const EXCLUDED_PREFIXES = ['/dashboard', '/crew', '/portal', '/api', '/account'];
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const COOKIE_CONSENT_KEY = 'cookie-consent';
 
 function shouldTrack(path: string): boolean {
   return !EXCLUDED_PREFIXES.some(prefix => path.startsWith(prefix));
@@ -61,6 +62,7 @@ function getMaxScrollDepth(): number {
 export default function VisitorTracker() {
   const [sessionId, setSessionId] = useState('');
   const [isReturning, setIsReturning] = useState(false);
+  const [hasConsent, setHasConsent] = useState(false);
   const pathname = usePathname();
 
   const lastTrackedPath = useRef<string | null>(null);
@@ -71,6 +73,20 @@ export default function VisitorTracker() {
 
   // Initialise session on mount (client-only)
   useEffect(() => {
+    const syncConsent = () => {
+      const accepted = localStorage.getItem(COOKIE_CONSENT_KEY) === 'accepted';
+      setHasConsent(accepted);
+      if (!accepted) setSessionId('');
+    };
+
+    syncConsent();
+    window.addEventListener('cookie-consent-change', syncConsent);
+    return () => window.removeEventListener('cookie-consent-change', syncConsent);
+  }, []);
+
+  // Initialise session after analytics consent (client-only)
+  useEffect(() => {
+    if (!hasConsent) return;
     const { id, isNew } = getOrCreateSessionId();
     const returning = isReturningVisitor();
     setSessionId(id);
@@ -79,7 +95,7 @@ export default function VisitorTracker() {
     utmParams.current = getUtmParams();
     // Mark as returning on next visit
     if (isNew) markAsReturning();
-  }, []);
+  }, [hasConsent]);
 
   // Track scroll depth continuously
   useEffect(() => {
@@ -95,7 +111,7 @@ export default function VisitorTracker() {
 
   // Track page views on route change, sending previous page's engagement data
   useEffect(() => {
-    if (!sessionId || !pathname || !shouldTrack(pathname)) return;
+    if (!hasConsent || !sessionId || !pathname || !shouldTrack(pathname)) return;
     if (lastTrackedPath.current === pathname) return;
 
     const previousPath = lastTrackedPath.current;
@@ -132,11 +148,11 @@ export default function VisitorTracker() {
       body: JSON.stringify(payload),
       keepalive: true,
     }).catch(() => {});
-  }, [pathname, sessionId, isReturning]);
+  }, [hasConsent, pathname, sessionId, isReturning]);
 
   // Send final page engagement data when tab closes / user navigates away
   useEffect(() => {
-    if (!sessionId) return;
+    if (!hasConsent || !sessionId) return;
 
     const flush = () => {
       const currentPath = window.location.pathname;
@@ -164,11 +180,11 @@ export default function VisitorTracker() {
     return () => {
       window.removeEventListener('beforeunload', flush);
     };
-  }, [sessionId]);
+  }, [hasConsent, sessionId]);
 
   // Heartbeat — keeps session alive and updates current page
   useEffect(() => {
-    if (!sessionId) return;
+    if (!hasConsent || !sessionId) return;
 
     const interval = setInterval(() => {
       const currentPath = window.location.pathname;
@@ -188,12 +204,12 @@ export default function VisitorTracker() {
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [sessionId]);
+  }, [hasConsent, sessionId]);
 
   // CTA click tracking — attach to any element with [data-track="event-name"]
   // Example: <button data-track="quote_request" data-track-label="Get a Quote">
   useEffect(() => {
-    if (!sessionId) return;
+    if (!hasConsent || !sessionId) return;
 
     const onClick = (e: MouseEvent) => {
       const target = (e.target as Element)?.closest('[data-track],[data-tracking-name]') as HTMLElement | null;
@@ -214,7 +230,7 @@ export default function VisitorTracker() {
 
     document.addEventListener('click', onClick, { passive: true });
     return () => document.removeEventListener('click', onClick);
-  }, [sessionId]);
+  }, [hasConsent, sessionId]);
 
   return null;
 }

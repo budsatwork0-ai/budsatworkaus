@@ -120,9 +120,9 @@ type PanelMeta = {
 };
 
 const DEFAULT_SITE_STATS: SiteStats = {
-  jobs_completed: '250+',
-  avg_rating: '4.9/5',
-  repeat_customers: '70%+',
+  jobs_completed: 'Now booking',
+  avg_rating: 'Reviews soon',
+  repeat_customers: 'Local startup',
 };
 
 const DEFAULT_ACCOUNT_PROFILE: AccountProfile = {

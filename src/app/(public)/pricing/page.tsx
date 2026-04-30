@@ -1,12 +1,14 @@
 import { brand } from '../../ui/theme';
+import { MARKETING_SERVICES } from '@/lib/marketing-services';
 
 const rows = [
-  { s: 'Home Cleaning', basis: 'Hourly', range: '$45–$65/hr', notes: 'Size, rooms, condition' },
-  { s: 'Window Cleaning', basis: 'Per pane', range: '$15–$30', notes: 'Height, access, tracks/screens' },
-  { s: 'Mowing & Edging', basis: 'Yard size', range: '$79–$189', notes: 'Growth, obstacles' },
+  { s: 'Home Cleaning', basis: 'Scope / hours', range: `From $${MARKETING_SERVICES.cleaning.from}`, notes: 'Size, rooms, condition' },
+  { s: 'Window Cleaning', basis: 'Panes / access', range: `From $${MARKETING_SERVICES.windows.from}`, notes: 'Height, access, tracks/screens' },
+  { s: 'Mowing & Edging', basis: 'Yard size', range: `From $${MARKETING_SERVICES.yard.from}`, notes: 'Growth, obstacles' },
   { s: 'Garden Care', basis: 'Hourly', range: '$69–$99/hr', notes: 'Hedging/green waste' },
-  { s: 'Dump Runs', basis: 'Per m³', range: '$35–$75/m³', notes: 'Weight, tip fees, distance' },
-  { s: 'Car Detailing', basis: 'Package', range: '$149–$349', notes: 'Vehicle size, condition' },
+  { s: 'Dump Runs', basis: 'Load / item', range: `From $${MARKETING_SERVICES.dump.from}`, notes: 'Weight, tip fees, distance' },
+  { s: 'Car Detailing', basis: 'Package', range: `From $${MARKETING_SERVICES.auto.from}`, notes: 'Vehicle size, condition' },
+  { s: 'Laundry & Sneaker Care', basis: 'Load / pair', range: `From $${MARKETING_SERVICES.laundry_sneakers.from}`, notes: 'Pickup, turnaround, add-ons' },
   { s: 'Property Maintenance', basis: 'Hourly', range: '$79–$120/hr', notes: 'Task complexity' },
 ];
 

@@ -15,7 +15,7 @@ export const SERVICES = [
   { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · Deep · EoL',      from: '$99',  popular: true },
   { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · Hedge · Tidy',       from: '$79',  popular: true },
   { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · Delivery',          from: '$105' },
-  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full',           from: '$99' },
+  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full',           from: '$160' },
   { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · Fold · Sneakers', from: '$74' },
 ] as const;
 

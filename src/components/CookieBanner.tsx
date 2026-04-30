@@ -18,11 +18,13 @@ export function CookieBanner() {
 
   const accept = () => {
     localStorage.setItem(STORAGE_KEY, 'accepted');
+    window.dispatchEvent(new Event('cookie-consent-change'));
     setVisible(false);
   };
 
   const decline = () => {
     localStorage.setItem(STORAGE_KEY, 'declined');
+    window.dispatchEvent(new Event('cookie-consent-change'));
     setVisible(false);
   };
 
@@ -34,7 +36,7 @@ export function CookieBanner() {
     >
       <div className="mx-auto max-w-7xl px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
         <p className="text-sm" style={{ color: brand.text }}>
-          We use cookies to analyse site traffic via Google Analytics. By continuing you agree to our{' '}
+          We use optional analytics cookies to understand site traffic and ad performance. You can accept or decline. See our{' '}
           <a href="/privacy" className="underline hover:no-underline" style={{ color: brand.primary }}>
             Privacy Policy
           </a>

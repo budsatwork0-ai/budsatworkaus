@@ -6,8 +6,7 @@ export function LocalBusinessSchema() {
     name: 'Buds At Work',
     description: 'Quote-first local services in Logan & South Brisbane: home cleaning, window cleaning, yard care, dump runs, car detailing, and NDIS-friendly support.',
     url: 'https://budsatwork.com',
-    logo: 'https://budsatwork.com/logo.png',
-    image: 'https://budsatwork.com/og-image.png',
+    image: 'https://budsatwork.com/og-image.svg',
     email: 'admin@budsatwork.com',
     identifier: {
       '@type': 'PropertyValue',
@@ -24,13 +23,6 @@ export function LocalBusinessSchema() {
       'Logan', 'South Brisbane', 'Springwood', 'Beenleigh', 'Browns Plains',
       'Loganholme', 'Daisy Hill', 'Slacks Creek',
     ].map((name) => ({ '@type': 'City', name, containedInPlace: { '@type': 'State', name: 'Queensland' } })),
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '5.0',
-      reviewCount: '24',
-      bestRating: '5',
-      worstRating: '1',
-    },
     priceRange: '$$',
     openingHoursSpecification: [
       {

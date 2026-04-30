@@ -269,7 +269,7 @@ export default function TermsPage() {
             or in connection with these terms or our services shall be resolved as follows:
           </PolicyPara>
           <PolicyList items={[
-            'In the first instance, by good-faith negotiation between the parties. Please contact us at admin@budsatwork.com or 0474 766 703 to raise a concern.',
+            'In the first instance, by good-faith negotiation between the parties. Please contact us at admin@budsatwork.com to raise a concern.',
             'If not resolved within 14 days, either party may escalate to the Queensland Civil and Administrative Tribunal (QCAT) or a Queensland court of competent jurisdiction.',
           ]} />
         </PolicySection>
@@ -303,7 +303,7 @@ export default function TermsPage() {
           </PolicyPara>
           <PolicyList items={[
             'Email: admin@budsatwork.com',
-            'Phone: 0474 766 703',
+            'Phone: business number coming soon',
             'Business hours: Monday–Friday, 8 am–5 pm AEST',
           ]} />
         </PolicySection>

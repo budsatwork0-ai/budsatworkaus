@@ -8,9 +8,9 @@ export type SiteStats = {
 
 // Default fallback values if database is unavailable
 const DEFAULTS: SiteStats = {
-  jobs_completed: '250+',
-  avg_rating: '4.9/5',
-  repeat_customers: '70%+',
+  jobs_completed: 'Now booking',
+  avg_rating: 'Reviews soon',
+  repeat_customers: 'Local startup',
 };
 
 type SettingsRow = { key: string; value: string };

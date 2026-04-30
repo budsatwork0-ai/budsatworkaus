@@ -61,7 +61,7 @@ export default function PrivacyPolicyPage() {
           </PolicyPara>
           <PolicyPara>
             If you have questions about this policy or want to make a privacy complaint, please contact us
-            at <EmailLink /> or call <strong>0474 766 703</strong>.
+            at <EmailLink />.
           </PolicyPara>
         </PolicySection>
 
@@ -85,7 +85,7 @@ export default function PrivacyPolicyPage() {
           <PolicyPara>We collect personal information in the following ways:</PolicyPara>
           <PolicyList items={[
             'Directly from you: when you complete our quote builder, contact form, feedback widget, create an account, or communicate with us by email, phone, or SMS.',
-            'Automatically: when you visit our website, our servers and Google Analytics collect technical and usage data via cookies, pixels, and similar technologies.',
+            'Automatically: when you visit our website, our servers collect basic technical data. Google Analytics data is only collected if you accept optional analytics cookies.',
             'From third parties: where you use a third-party payment method (e.g. Apple Pay or Google Pay via Stripe) or sign in via a linked account.',
           ]} />
         </PolicySection>
@@ -222,7 +222,7 @@ export default function PrivacyPolicyPage() {
             'Complaint: lodge a complaint with us first, and if not resolved, escalate to the OAIC at oaic.gov.au or 1300 363 992.',
           ]} />
           <PolicyPara>
-            To exercise any of these rights, email us at <EmailLink /> or call <strong>0474 766 703</strong>.
+            To exercise any of these rights, email us at <EmailLink />.
             We will respond within five business days for access/correction requests and within 30 days
             for more complex requests.
           </PolicyPara>
@@ -246,7 +246,7 @@ export default function PrivacyPolicyPage() {
           </PolicyPara>
           <PolicyList items={[
             'Email: admin@budsatwork.com',
-            'Phone: 0474 766 703',
+            'Phone: business number coming soon',
             'Business hours: Monday–Friday, 8 am–5 pm AEST',
           ]} />
           <PolicyPara>

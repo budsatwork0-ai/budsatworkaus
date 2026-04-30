@@ -497,11 +497,22 @@ export function CrewPipelineView() {
                         </div>
 
                         <div className="mt-2 rounded-xl px-3 py-2" style={{ background: '#F8FBF9' }}>
-                          <div className="flex items-center justify-between gap-3 text-[11px]">
-                            <span style={{ color: brand.muted }}>Availability</span>
-                            <span style={{ color: person.availability === 'Available this week' ? '#047857' : '#64748B' }}>
-                              {person.availability}
-                            </span>
+                          <div className="flex items-start justify-between gap-3 text-[11px]">
+                            <span className="shrink-0 pt-0.5" style={{ color: brand.muted }}>Availability</span>
+                            {person.availabilitySlots.length > 0 ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                {person.availabilitySlots.map((slot) => {
+                                  const m = slot.match(/^(\w{3}):(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+                                  const lm = slot.match(/^(\w{3})_(am|pm)$/);
+                                  const dayLabels: Record<string, string> = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+                                  if (m) return <span key={slot} style={{ color: '#047857' }}>{dayLabels[m[1]] || m[1]} {m[2]}–{m[3]}</span>;
+                                  if (lm) return <span key={slot} style={{ color: '#047857' }}>{dayLabels[lm[1]] || lm[1]} {lm[2].toUpperCase()}</span>;
+                                  return <span key={slot} style={{ color: '#047857' }}>{slot}</span>;
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#64748B' }}>Not set</span>
+                            )}
                           </div>
                           <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
                             <span style={{ color: brand.muted }}>Deployability</span>

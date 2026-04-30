@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { brand } from '../theme';
+import { MARKETING_SERVICE_LIST } from '@/lib/marketing-services';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const BRAND = {
@@ -43,14 +44,17 @@ const icons = {
 };
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
-const SERVICES = [
-  { key: 'windows',  label: 'Window cleaning',       icon: icons.windows,  from: 79,  popular: false, href: '/services?service=windows' },
-  { key: 'cleaning', label: 'Home cleaning',          icon: icons.cleaning, from: 99,  popular: true,  href: '/services?service=cleaning' },
-  { key: 'yard',     label: 'Yard & garden',          icon: icons.yard,     from: 79,  popular: true,  href: '/services?service=yard' },
-  { key: 'dump',     label: 'Dump runs',              icon: icons.dump,     from: 200, popular: false, href: '/services?service=dump' },
-  { key: 'auto',     label: 'Car detailing',          icon: icons.auto,     from: 99,  popular: false, href: '/services?service=auto' },
-  { key: 'laundry',  label: 'Laundry & sneakers',    icon: icons.laundry,  from: 74,  popular: false, href: '/services?service=laundry_sneakers' },
-];
+const SERVICES = MARKETING_SERVICE_LIST.map((service) => ({
+  ...service,
+  icon:
+    service.key === 'windows' ? icons.windows :
+    service.key === 'cleaning' ? icons.cleaning :
+    service.key === 'yard' ? icons.yard :
+    service.key === 'dump' ? icons.dump :
+    service.key === 'auto' ? icons.auto :
+    icons.laundry,
+  popular: service.key === 'cleaning' || service.key === 'yard',
+}));
 
 const STEPS = [
   {
@@ -71,12 +75,6 @@ const STEPS = [
     body: 'Leave your details. We review within 2–4 hours on weekdays then send a secure payment link.',
     tool: { icon: icons.calc, label: 'Every add-on is visible before you submit' },
   },
-];
-
-const TESTIMONIALS = [
-  { name: 'Sarah M.',  suburb: 'Springwood',    service: 'Home cleaning',   text: 'Absolutely brilliant. Professional, on time, left the house spotless. Will definitely book again.' },
-  { name: 'James T.',  suburb: 'Beenleigh',     service: 'Yard & garden',   text: 'Transformed our yard in a few hours. The quote was fair and there were zero surprise charges.' },
-  { name: 'Linda K.',  suburb: 'Browns Plains',  service: 'Window cleaning', text: 'So easy to get a real price upfront. The crew were friendly and thorough — windows look brand new.' },
 ];
 
 const TRUST = [
@@ -302,6 +300,8 @@ export default function HomePage() {
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/services"
+                data-track="hero_quote_click"
+                data-track-label="Homepage hero quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
                 style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
@@ -375,10 +375,10 @@ export default function HomePage() {
               style={{ background: BRAND.primary, boxShadow: '0 16px 44px rgba(15,61,46,0.22)' }}
             >
               {[
-                { val: 320, suf: '+',   pre: '',  lbl: 'Jobs completed' },
-                { val: 5,   suf: '.0★', pre: '',  lbl: 'Average rating' },
+                { val: 6,   suf: '',    pre: '',  lbl: 'Services quoted online' },
                 { val: 2,   suf: '',    pre: '',  lbl: 'Service regions' },
-                { val: 48,  suf: 'h',   pre: '<', lbl: 'Quote turnaround' },
+                { val: 48,  suf: 'h',   pre: '<', lbl: 'Weekday quote review' },
+                { val: 0,   suf: '',    pre: '',  lbl: 'Surprise fees' },
               ].map(({ val, suf, pre, lbl }) => (
                 <div key={lbl} className="flex flex-col items-center py-1">
                   <span className="text-[1.6rem] font-bold tabular-nums" style={{ color: BRAND.onDark }}>
@@ -428,7 +428,7 @@ export default function HomePage() {
                         {s.icon}
                       </div>
                       <p className="font-semibold text-[15px]" style={{ color: BRAND.text }}>{s.label}</p>
-                      <p className="mt-0.5 text-[13px] font-medium" style={{ color: BRAND.accent }}>from ${s.from}</p>
+
                       <div
                         className="mt-3 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                         style={{ color: BRAND.accent }}
@@ -533,52 +533,39 @@ export default function HomePage() {
             </FadeUp>
           </section>
 
-          {/* ── Testimonials ──────────────────────────────────────────── */}
+          {/* ── Early promise ──────────────────────────────────────────── */}
           <section>
             <FadeUp className="text-center mb-10">
-              <Eyebrow>Reviews</Eyebrow>
-              <SectionH2 center>What our customers say</SectionH2>
-              <div className="flex items-center justify-center gap-0.5 mt-2" style={{ color: '#F59E0B' }}>
-                {[1,2,3,4,5].map(i => <span key={i}>{icons.star}</span>)}
-                <span className="ml-2 text-[13px]" style={{ color: BRAND.muted }}>5.0 average · 60+ reviews</span>
-              </div>
+              <Eyebrow>Starting local · Built on trust</Eyebrow>
+              <SectionH2 center>What we want to be known for</SectionH2>
+              <p className="mt-3 text-[15px] max-w-lg mx-auto" style={{ color: BRAND.muted }}>
+                We&apos;re early, so we&apos;re keeping the promise simple: clear quotes, respectful work, and useful local support.
+              </p>
             </FadeUp>
 
             <div className="grid md:grid-cols-3 gap-4">
-              {TESTIMONIALS.map((t, i) => (
-                <FadeUp key={t.name} delay={i * 0.08}>
+              {[
+                { title: 'Quote first', text: 'You see the scope and estimated price before we ask you to commit.' },
+                { title: 'Local crew', text: 'We are building around Logan and South Brisbane, not pretending to cover everywhere.' },
+                { title: 'Community-backed', text: 'Bookings, partners, and donations help us create practical local work opportunities.' },
+              ].map((item, i) => (
+                <FadeUp key={item.title} delay={i * 0.08}>
                   <motion.div
                     whileHover={{ y: -4, boxShadow: '0 12px 30px rgba(15,61,46,0.09)' }}
                     className="rounded-2xl p-6 h-full border flex flex-col"
                     style={{ background: BRAND.card, borderColor: BRAND.border }}
                   >
-                    {/* Stars */}
-                    <div className="flex gap-0.5 mb-3" style={{ color: '#F59E0B' }}>
-                      {[1,2,3,4,5].map(i => <span key={i}>{icons.star}</span>)}
-                    </div>
-                    <p className="text-[14px] leading-relaxed flex-1" style={{ color: BRAND.text }}>
-                      &ldquo;{t.text}&rdquo;
-                    </p>
+                    <h3 className="text-[1rem] font-bold" style={{ color: BRAND.text }}>{item.title}</h3>
+                    <p className="mt-3 text-[14px] leading-relaxed flex-1" style={{ color: BRAND.muted }}>{item.text}</p>
                     <div className="mt-4 pt-4 border-t" style={{ borderColor: BRAND.border }}>
-                      <p className="text-[13px] font-semibold" style={{ color: BRAND.text }}>{t.name}</p>
-                      <p className="text-[12px]" style={{ color: BRAND.muted }}>{t.suburb} · {t.service}</p>
+                      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: BRAND.primary }}>
+                        {icons.check} Built into every quote
+                      </span>
                     </div>
                   </motion.div>
                 </FadeUp>
               ))}
             </div>
-
-            <FadeUp delay={0.18} className="mt-6 text-center">
-              <a
-                href="https://g.page/r/CYTORrk6H3xmEAI/review"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline"
-                style={{ color: BRAND.primary }}
-              >
-                Had a great experience? Leave us a review {icons.arrowRight}
-              </a>
-            </FadeUp>
           </section>
 
           {/* ── Final CTA — dark, full-width ──────────────────────────── */}
@@ -610,6 +597,8 @@ export default function HomePage() {
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                     <Link
                       href="/services"
+                      data-track="final_quote_click"
+                      data-track-label="Homepage final quote"
                       className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[15px] font-semibold shadow-xl transition-shadow hover:shadow-2xl"
                       style={{ background: BRAND.accent, color: '#fff' }}
                     >
@@ -619,6 +608,8 @@ export default function HomePage() {
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                     <Link
                       href="/get-involved"
+                      data-track="donation_interest_click"
+                      data-track-label="Homepage join or donate"
                       className="inline-flex rounded-full px-8 py-4 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
                       style={{ borderColor: 'rgba(221,243,228,0.24)', color: BRAND.onDark }}
                     >

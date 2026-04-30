@@ -46,7 +46,15 @@ function toStageAgeLabel(input: string | null | undefined) {
 
 function availabilityLabel(slots: string[], status: string | null | undefined) {
   if (status === 'suspended') return 'Unavailable';
-  return slots.length > 0 ? 'Available this week' : 'Unavailable';
+  if (slots.length === 0) return 'Unavailable';
+  const days = slots.map((s) => {
+    const m = s.match(/^(\w{3}):/);
+    if (!m) { const lm = s.match(/^(\w{3})_/); return lm ? lm[1] : null; }
+    return m[1];
+  }).filter(Boolean);
+  const unique = [...new Set(days)];
+  const labels: Record<string, string> = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+  return unique.map((d) => labels[d!] || d).join(', ');
 }
 
 function extractNoteFlags(note: string | null | undefined) {
@@ -92,7 +100,7 @@ function buildFlags({
   hasOwnTransport: boolean;
   rosterActive: boolean;
 }) {
-  const prefersWeekends = availability.some((slot) => slot.startsWith('sat_') || slot.startsWith('sun_'));
+  const prefersWeekends = availability.some((slot) => slot.startsWith('sat') || slot.startsWith('sun'));
 
   return uniq([
     hasOwnTransport ? 'Has own transport' : null,

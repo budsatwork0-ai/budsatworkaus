@@ -31,7 +31,6 @@ const navLinks = [
   { href: '/about', label: 'About' },
   { href: '/services', label: 'Services' },
   { href: '/faq', label: 'FAQ' },
-  { href: '/shop', label: 'Shop' },
   { href: '/get-involved', label: 'Get involved' },
 ];
 

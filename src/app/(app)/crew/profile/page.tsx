@@ -7,17 +7,68 @@ import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { ServiceType } from '@/types/orders';
 
-const AVAILABILITY_LABELS: Record<string, string> = {
-  mon_am: 'Mon AM', mon_pm: 'Mon PM', tue_am: 'Tue AM', tue_pm: 'Tue PM',
-  wed_am: 'Wed AM', wed_pm: 'Wed PM', thu_am: 'Thu AM', thu_pm: 'Thu PM',
-  fri_am: 'Fri AM', fri_pm: 'Fri PM', sat_am: 'Sat AM', sat_pm: 'Sat PM',
-  sun_am: 'Sun AM', sun_pm: 'Sun PM',
+const DAYS = [
+  { key: 'mon', label: 'Monday' },
+  { key: 'tue', label: 'Tuesday' },
+  { key: 'wed', label: 'Wednesday' },
+  { key: 'thu', label: 'Thursday' },
+  { key: 'fri', label: 'Friday' },
+  { key: 'sat', label: 'Saturday' },
+  { key: 'sun', label: 'Sunday' },
+];
+
+const DAY_LABELS: Record<string, string> = {
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
 };
+
+type DaySchedule = { enabled: boolean; start: string; end: string };
+type AvailabilityMap = Record<string, DaySchedule>;
+
+function defaultAvailabilityMap(): AvailabilityMap {
+  return Object.fromEntries(DAYS.map((d) => [d.key, { enabled: false, start: '09:00', end: '17:00' }]));
+}
+
+// Parses "mon:09:00-15:00" → { day: 'mon', start: '09:00', end: '15:00' }
+// Also handles legacy "mon_am" / "mon_pm" slots gracefully
+function parseSlot(slot: string): { day: string; start: string; end: string } | null {
+  const newFmt = slot.match(/^(\w{3}):(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+  if (newFmt) return { day: newFmt[1], start: newFmt[2], end: newFmt[3] };
+  const legacyFmt = slot.match(/^(\w{3})_(am|pm)$/);
+  if (legacyFmt) {
+    return { day: legacyFmt[1], start: legacyFmt[2] === 'am' ? '09:00' : '13:00', end: legacyFmt[2] === 'am' ? '12:00' : '17:00' };
+  }
+  return null;
+}
+
+function slotsToMap(slots: string[]): AvailabilityMap {
+  const map = defaultAvailabilityMap();
+  for (const slot of slots) {
+    const parsed = parseSlot(slot);
+    if (parsed && map[parsed.day]) {
+      map[parsed.day] = { enabled: true, start: parsed.start, end: parsed.end };
+    }
+  }
+  return map;
+}
+
+function mapToSlots(map: AvailabilityMap): string[] {
+  return DAYS
+    .filter((d) => map[d.key]?.enabled)
+    .map((d) => `${d.key}:${map[d.key].start}-${map[d.key].end}`);
+}
+
+function formatSlotForDisplay(slot: string): string {
+  const parsed = parseSlot(slot);
+  if (!parsed) return slot;
+  const dayLabel = DAY_LABELS[parsed.day] || parsed.day;
+  return `${dayLabel} ${parsed.start}–${parsed.end}`;
+}
 
 export default function ProfilePage() {
   const { employee, isLoading, refetch } = useEmployee();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [availMap, setAvailMap] = useState<AvailabilityMap>(defaultAvailabilityMap());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -44,16 +95,14 @@ export default function ProfilePage() {
     }
   }
 
-  // Sync form state whenever fresh employee data arrives (initial load or after refetch).
-  // We only update when NOT in edit mode to avoid clobbering in-progress edits.
   useEffect(() => {
     if (employee && !editing) {
       setForm(buildFormFromEmployee(employee));
+      setAvailMap(slotsToMap((employee.availability || []) as string[]));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee]);
 
-  // Build a clean form snapshot from the current employee data.
   function buildFormFromEmployee(emp: typeof employee) {
     if (!emp) return {};
     return {
@@ -69,9 +118,8 @@ export default function ProfilePage() {
   }
 
   function handleCancel() {
-    // Reset form back to the last successfully loaded employee data so that
-    // re-opening edit mode doesn't show previously unsaved changes.
     setForm(buildFormFromEmployee(employee));
+    setAvailMap(slotsToMap((employee?.availability || []) as string[]));
     setSaveError('');
     setEditing(false);
   }
@@ -83,7 +131,7 @@ export default function ProfilePage() {
       const res = await fetch('/api/crew/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, availability: mapToSlots(availMap) }),
       });
       if (res.ok) {
         setEditing(false);
@@ -97,6 +145,14 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleDay(dayKey: string) {
+    setAvailMap((m) => ({ ...m, [dayKey]: { ...m[dayKey], enabled: !m[dayKey].enabled } }));
+  }
+
+  function setDayTime(dayKey: string, field: 'start' | 'end', value: string) {
+    setAvailMap((m) => ({ ...m, [dayKey]: { ...m[dayKey], [field]: value } }));
   }
 
   if (isLoading) {
@@ -117,6 +173,8 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  const currentSlots = (employee.availability || []) as string[];
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -251,49 +309,150 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Services & Availability */}
+      {/* Services */}
       <div className={`${glass} rounded-2xl p-6`}>
-        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Services & Availability</h2>
-
+        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Services</h2>
         {employee.services && employee.services.length > 0 ? (
-          <div className="mb-4">
-            <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: brand.muted }}>Services</p>
-            <div className="flex flex-wrap gap-2">
-              {employee.services.map((s) => (
-                <span
-                  key={s}
-                  className="px-3 py-1 rounded-full text-xs font-medium"
-                  style={{ background: 'rgba(15,61,46,0.08)', color: brand.primary }}
-                >
-                  {SERVICE_TYPE_LABELS[s as ServiceType] || s}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm mb-4" style={{ color: brand.muted }}>
-            No services selected. <Link href="/crew/onboarding/services" className="underline" style={{ color: brand.primary }}>Set up in onboarding</Link>
-          </p>
-        )}
-
-        {employee.availability && employee.availability.length > 0 ? (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: brand.muted }}>Availability</p>
-            <div className="flex flex-wrap gap-2">
-              {employee.availability.map((a) => (
-                <span
-                  key={a}
-                  className="px-2 py-1 rounded text-xs"
-                  style={{ background: 'rgba(15,61,46,0.05)', color: brand.text }}
-                >
-                  {AVAILABILITY_LABELS[a] || a}
-                </span>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {employee.services.map((s) => (
+              <span
+                key={s}
+                className="px-3 py-1 rounded-full text-xs font-medium"
+                style={{ background: 'rgba(15,61,46,0.08)', color: brand.primary }}
+              >
+                {SERVICE_TYPE_LABELS[s as ServiceType] || s}
+              </span>
+            ))}
           </div>
         ) : (
           <p className="text-sm" style={{ color: brand.muted }}>
-            No availability set. <Link href="/crew/onboarding/availability" className="underline" style={{ color: brand.primary }}>Set up in onboarding</Link>
+            No services selected.{' '}
+            <Link href="/crew/onboarding/services" className="underline" style={{ color: brand.primary }}>
+              Set up in onboarding
+            </Link>
+          </p>
+        )}
+      </div>
+
+      {/* Availability */}
+      <div className={`${glass} rounded-2xl p-6`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold" style={{ color: brand.text }}>Weekly Availability</h2>
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-slate-50"
+              style={{ borderColor: brand.border, color: brand.primary }}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="space-y-3">
+            <p className="text-xs mb-3" style={{ color: brand.muted }}>
+              Select the days you&apos;re available and set your working hours for each day.
+            </p>
+            {DAYS.map((d) => {
+              const day = availMap[d.key];
+              return (
+                <div
+                  key={d.key}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors"
+                  style={{
+                    borderColor: day.enabled ? brand.primary : brand.border,
+                    background: day.enabled ? `${brand.primary}06` : 'transparent',
+                  }}
+                >
+                  {/* Day toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleDay(d.key)}
+                    className="flex items-center gap-2.5 shrink-0"
+                    aria-pressed={day.enabled}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors"
+                      style={{
+                        borderColor: day.enabled ? brand.primary : brand.border,
+                        background: day.enabled ? brand.primary : 'white',
+                      }}
+                    >
+                      {day.enabled && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <span
+                      className="text-sm font-medium w-24"
+                      style={{ color: day.enabled ? brand.text : brand.muted }}
+                    >
+                      {d.label}
+                    </span>
+                  </button>
+
+                  {/* Time range */}
+                  {day.enabled ? (
+                    <div className="flex items-center gap-2 ml-auto">
+                      <input
+                        type="time"
+                        value={day.start}
+                        onChange={(e) => setDayTime(d.key, 'start', e.target.value)}
+                        className="px-2 py-1 rounded-lg border text-sm"
+                        style={{ borderColor: brand.border, color: brand.text }}
+                      />
+                      <span className="text-xs" style={{ color: brand.muted }}>to</span>
+                      <input
+                        type="time"
+                        value={day.end}
+                        onChange={(e) => setDayTime(d.key, 'end', e.target.value)}
+                        className="px-2 py-1 rounded-lg border text-sm"
+                        style={{ borderColor: brand.border, color: brand.text }}
+                      />
+                    </div>
+                  ) : (
+                    <span className="ml-auto text-xs" style={{ color: brand.muted }}>Unavailable</span>
+                  )}
+                </div>
+              );
+            })}
+
+            {saveError && <p className="text-xs text-red-600 pt-1">{saveError}</p>}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-60"
+                style={{ background: brand.primary }}
+              >
+                {saving ? 'Saving…' : 'Save Availability'}
+              </button>
+            </div>
+          </div>
+        ) : currentSlots.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {currentSlots.map((slot) => (
+              <span
+                key={slot}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium"
+                style={{ background: 'rgba(15,61,46,0.07)', color: brand.primary }}
+              >
+                {formatSlotForDisplay(slot)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm" style={{ color: brand.muted }}>
+            No availability set. Click <strong>Edit</strong> to add your working hours.
           </p>
         )}
       </div>

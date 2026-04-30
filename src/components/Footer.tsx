@@ -98,11 +98,6 @@ export function Footer() {
                   FAQ
                 </Link>
               </li>
-              <li>
-                <Link href="/shop" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
-                  Shop
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -142,12 +137,12 @@ export function Footer() {
                   Terms of Service
                 </Link>
               </li>
-              <li className="pt-1">
-                <a href="tel:0474766703" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
-                  0474 766 703
+              <li className="pt-1 text-sm" style={{ color: brand.muted }}>Business number coming soon</li>
+              <li>
+                <a href="mailto:admin@budsatwork.com" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
+                  admin@budsatwork.com
                 </a>
               </li>
-              <li className="text-sm" style={{ color: brand.muted }}>admin@budsatwork.com</li>
               <li>
                 <Link href="/account" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.accent }}>
                   Staff login

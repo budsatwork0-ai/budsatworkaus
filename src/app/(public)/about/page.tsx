@@ -198,9 +198,9 @@ export default async function AboutPage() {
   const siteStats = await getSiteSettings();
 
   const stats = [
-    { value: siteStats.jobs_completed, label: 'Jobs completed' },
-    { value: siteStats.avg_rating, label: 'Avg. rating' },
-    { value: siteStats.repeat_customers, label: 'Repeat customers' },
+    { value: siteStats.jobs_completed, label: 'Status' },
+    { value: siteStats.avg_rating, label: 'Customer proof' },
+    { value: siteStats.repeat_customers, label: 'Business stage' },
   ];
   return (
     <div className="relative overflow-hidden">

@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { LOCAL_LANDING_PAGE_LIST } from '@/lib/local-landing-pages';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://budsatwork.com';
@@ -8,7 +9,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/services', priority: 0.9, changeFrequency: 'weekly' as const },
     { path: '/pricing', priority: 0.8, changeFrequency: 'monthly' as const },
     { path: '/about', priority: 0.7, changeFrequency: 'monthly' as const },
-    // { path: '/shop', priority: 0.6, changeFrequency: 'weekly' as const }, // re-enable when shop launches
     { path: '/get-involved', priority: 0.6, changeFrequency: 'monthly' as const },
     { path: '/contact', priority: 0.5, changeFrequency: 'yearly' as const },
     { path: '/faq', priority: 0.5, changeFrequency: 'monthly' as const },
@@ -30,6 +30,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: 'monthly' as const,
       priority: 0.7,
+    })),
+    ...LOCAL_LANDING_PAGE_LIST.map((page) => ({
+      url: `${baseUrl}/services/${page.slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.8,
     })),
   ];
 }
