@@ -374,7 +374,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         console.error('[email] quote_finalized send failed:', err);
       }
     } else {
-      emailError = `Email service unavailable (key ${process.env.RESEND_API_KEY ? `present len=${process.env.RESEND_API_KEY.length}` : 'MISSING'})`;
+      emailError = 'Email service unavailable';
     }
   }
 
