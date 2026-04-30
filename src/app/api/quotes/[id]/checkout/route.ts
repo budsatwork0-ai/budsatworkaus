@@ -340,7 +340,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   let emailId: string | null = null;
 
   // Send "quote finalized" email and report provider errors back to the caller.
-  console.log('[checkout] RESEND_API_KEY present:', !!process.env.RESEND_API_KEY, 'length:', process.env.RESEND_API_KEY?.length ?? 0);
   if (quote.customer_email && session.url) {
     const resend = getResendClient();
     if (resend) {
@@ -375,8 +374,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         console.error('[email] quote_finalized send failed:', err);
       }
     } else {
-      emailError = 'Email service unavailable';
-      console.error('[email] quote_finalized send failed: Resend client unavailable');
+      emailError = `Email service unavailable (key ${process.env.RESEND_API_KEY ? `present len=${process.env.RESEND_API_KEY.length}` : 'MISSING'})`;
     }
   }
 
