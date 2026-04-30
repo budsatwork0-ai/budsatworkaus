@@ -340,6 +340,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   let emailId: string | null = null;
 
   // Send "quote finalized" email and report provider errors back to the caller.
+  console.log('[checkout] RESEND_API_KEY present:', !!process.env.RESEND_API_KEY, 'length:', process.env.RESEND_API_KEY?.length ?? 0);
   if (quote.customer_email && session.url) {
     const resend = getResendClient();
     if (resend) {
