@@ -65,17 +65,9 @@ export default function SchedulePage() {
     if (employee) fetchJobs();
   }, [employee, fetchJobs]);
 
-  if (empLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
-      </div>
-    );
-  }
-
   const todayStr = today.toISOString().split('T')[0];
 
-  // Weekly summary stats
+  // Weekly summary stats — must be above any early return (Rules of Hooks)
   const weekStats = useMemo(() => {
     const weekJobs = jobs.filter((j) => {
       const d = j.orders?.scheduled_date;
@@ -89,6 +81,14 @@ export default function SchedulePage() {
       .reduce((sum, j) => sum + (j.orders?.final_price ?? 0), 0);
     return { count: weekJobs.length, estHours, earnings };
   }, [jobs, dateFrom, dateTo]);
+
+  if (empLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+      </div>
+    );
+  }
 
   // Group jobs by date
   const jobsByDate = new Map<string, ScheduleJob[]>();
