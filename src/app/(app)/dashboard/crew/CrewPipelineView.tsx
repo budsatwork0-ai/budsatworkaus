@@ -57,6 +57,7 @@ type PipelinePerson = {
   canRequestDocs: boolean;
   canScheduleInduction: boolean;
   canConvertToStaff: boolean;
+  isApprovalAction: boolean;
   status: string | null;
 };
 
@@ -658,9 +659,13 @@ export function CrewPipelineView() {
                             <button
                               onClick={() => openConvertModal(person)}
                               className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
-                              style={{ borderColor: '#BBF7D0', background: '#ECFDF5', color: '#047857' }}
+                              style={
+                                person.isApprovalAction && person.onboarding?.missingRequiredDocs === 0
+                                  ? { background: '#047857', color: 'white', borderColor: '#047857' }
+                                  : { borderColor: '#BBF7D0', background: '#ECFDF5', color: '#047857' }
+                              }
                             >
-                              Convert to Staff
+                              {person.isApprovalAction ? 'Approve crew access' : 'Convert to Staff'}
                             </button>
                           )}
                         </div>
@@ -696,10 +701,15 @@ export function CrewPipelineView() {
       )}
 
       {convertTarget && (
-        <ModalShell title={`Convert ${convertTarget.fullName} to staff`} onClose={() => setConvertTarget(null)}>
+        <ModalShell
+          title={convertTarget.isApprovalAction ? `Approve ${convertTarget.fullName} for crew access` : `Convert ${convertTarget.fullName} to staff`}
+          onClose={() => setConvertTarget(null)}
+        >
           <div className="space-y-4">
             <p className="text-sm leading-6" style={{ color: brand.muted }}>
-              Save the core staff setup now so the crew member lands with a default role, pay settings, and roster status instead of just a label change.
+              {convertTarget.isApprovalAction
+                ? 'Confirm their role and pay setup, then approve to unlock the full crew portal. You can still request specific documents after approval.'
+                : 'Save the core staff setup now so the crew member lands with a default role, pay settings, and roster status instead of just a label change.'}
             </p>
             <div>
               <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Default role</label>
@@ -766,7 +776,9 @@ export function CrewPipelineView() {
                 className="rounded-xl px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 style={{ background: brand.primary }}
               >
-                {workingId === convertTarget.id ? 'Saving...' : 'Save and continue'}
+                {workingId === convertTarget.id
+                  ? (convertTarget.isApprovalAction ? 'Approving…' : 'Saving…')
+                  : (convertTarget.isApprovalAction ? 'Approve crew access' : 'Save and continue')}
               </button>
             </div>
           </div>

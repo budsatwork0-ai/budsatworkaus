@@ -364,9 +364,12 @@ export async function GET() {
       },
       canAdvanceStage: PIPELINE_STAGES.indexOf(stage) < PIPELINE_STAGES.length - 1,
       canRewindStage: PIPELINE_STAGES.indexOf(stage) > 0,
-      canRequestDocs: stage === 'verify' || stage === 'paperwork' || applicantMissingDocs.length > 0 || Boolean(onboarding?.requiredDocuments.some((document) => !document.submitted)),
+      canRequestDocs: stage === 'verify' || stage === 'paperwork' || applicantMissingDocs.length > 0
+        || Boolean(onboarding?.requiredDocuments.some((document) => !document.submitted))
+        || Boolean(onboarding?.requiredDocuments.some((document) => document.status === 'rejected' || document.status === 'expired')),
       canScheduleInduction: stage === 'paperwork' || stage === 'induct',
-      canConvertToStaff: stage === 'ready' && (!employee || !employee.crew_access_approved),
+      canConvertToStaff: !employee?.crew_access_approved && (stage === 'ready' || Boolean(onboarding?.awaitingApproval)),
+      isApprovalAction: Boolean(employee && !employee.crew_access_approved),
       status: employee?.status || null,
     };
   });
@@ -445,9 +448,11 @@ export async function GET() {
         },
         canAdvanceStage: false,
         canRewindStage: false,
-        canRequestDocs: Boolean(onboarding.requiredDocuments.some((document) => !document.submitted)),
+        canRequestDocs: Boolean(onboarding.requiredDocuments.some((document) => !document.submitted))
+          || Boolean(onboarding.requiredDocuments.some((document) => document.status === 'rejected' || document.status === 'expired')),
         canScheduleInduction: false,
         canConvertToStaff: !employee.crew_access_approved,
+        isApprovalAction: !employee.crew_access_approved,
         status: employee.status || null,
       };
     });

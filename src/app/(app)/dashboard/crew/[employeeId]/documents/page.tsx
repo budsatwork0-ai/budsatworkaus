@@ -43,11 +43,14 @@ interface Employee {
   full_name: string;
   email: string;
   ndis_worker: boolean;
+  crew_access_approved: boolean;
+  onboarding_complete: boolean;
 }
 
 interface OnboardingSnapshot {
   requiredDocuments: { docType: DocType; label: string; submitted: boolean; status: string }[];
   requiredDocumentsSubmitted: boolean;
+  awaitingApproval: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -245,6 +248,7 @@ export default function AdminEmployeeDocumentsPage({
   const [payroll, setPayroll] = useState<PayrollDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -267,6 +271,25 @@ export default function AdminEmployeeDocumentsPage({
     ...REQUIRED_DOCS,
     ...(employee?.ndis_worker ? NDIS_DOCS : []),
   ];
+
+  async function handleApprove() {
+    setApproving(true);
+    try {
+      const res = await fetch(`/api/crew/employees/${employeeId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Approval failed');
+      toast.success(`${employee?.full_name} approved for crew access`);
+      setEmployee((prev) => prev ? { ...prev, crew_access_approved: true } : prev);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Approval failed');
+    } finally {
+      setApproving(false);
+    }
+  }
 
   async function handleSave(
     id: string,
@@ -344,6 +367,40 @@ export default function AdminEmployeeDocumentsPage({
               All required submitted
             </span>
           )}
+        </div>
+      )}
+
+      {!loading && employee && !employee.crew_access_approved && onboarding?.awaitingApproval && (
+        <div
+          className="rounded-2xl border px-5 py-4 flex items-center justify-between gap-4"
+          style={{ background: '#ECFDF5', borderColor: '#A7F3D0' }}
+        >
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#065F46' }}>Ready for approval</p>
+            <p className="text-xs mt-0.5" style={{ color: '#047857' }}>
+              All onboarding sections complete and required documents submitted. Approving will unlock the full crew portal.
+            </p>
+          </div>
+          <button
+            onClick={handleApprove}
+            disabled={approving}
+            className="shrink-0 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-opacity hover:opacity-90"
+            style={{ background: '#047857' }}
+          >
+            {approving ? 'Approving…' : 'Approve crew access'}
+          </button>
+        </div>
+      )}
+
+      {!loading && employee?.crew_access_approved && (
+        <div
+          className="rounded-2xl border px-5 py-3 flex items-center gap-3"
+          style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <p className="text-sm font-medium" style={{ color: '#15803D' }}>Crew access approved — portal unlocked</p>
         </div>
       )}
 
