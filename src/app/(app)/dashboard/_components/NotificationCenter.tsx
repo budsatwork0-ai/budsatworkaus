@@ -137,7 +137,7 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
               initial={{ opacity: 0, y: -8, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              className="absolute right-0 mt-2 w-80 rounded-2xl border border-black/10 bg-white shadow-xl overflow-hidden z-50"
+              className="fixed right-3 top-[76px] w-[calc(100vw-24px)] sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 rounded-2xl border border-black/10 bg-white shadow-xl overflow-hidden z-50"
             >
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <p className="text-sm font-semibold" style={{ color: brand.text }}>Notifications</p>

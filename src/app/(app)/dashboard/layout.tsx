@@ -430,6 +430,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
+              className="w-full min-w-0 overflow-x-hidden"
             >
               {children}
             </motion.div>

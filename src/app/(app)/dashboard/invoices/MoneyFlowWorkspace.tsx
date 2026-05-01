@@ -319,7 +319,7 @@ function SectionCard({
 }) {
   return (
     <section
-      className={`rounded-[28px] border border-black/5 bg-white/92 p-5 shadow-[0_16px_42px_rgba(15,23,42,0.08)] ${className}`}
+      className={`min-w-0 rounded-[28px] border border-black/5 bg-white/92 p-5 shadow-[0_16px_42px_rgba(15,23,42,0.08)] ${className}`}
     >
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
@@ -871,7 +871,7 @@ export default function MoneyFlowWorkspace() {
   const recentHistory = payHistory.slice(0, 8);
 
   return (
-    <div className="grid gap-6 w-full overflow-x-hidden px-4 pb-14 md:px-10 lg:px-12">
+    <div className="grid gap-6 min-w-0 w-full overflow-x-hidden pb-14">
       <section className="rounded-[32px] border border-black/5 bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         <div className="flex flex-wrap items-start gap-4">
           <div className="min-w-0 flex-1">
