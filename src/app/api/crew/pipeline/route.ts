@@ -237,7 +237,7 @@ export async function GET() {
     employeeIds.length > 0
       ? (client as any)
           .from('employee_documents')
-          .select('employee_id, doc_type, file_url, file_name, status, created_at, expires_at')
+          .select('employee_id, doc_type, storage_path, file_url, file_name, status, created_at, expires_at')
           .in('employee_id', employeeIds)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),

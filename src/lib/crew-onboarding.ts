@@ -17,6 +17,7 @@ type EmployeeProgressSection = {
 type EmployeeProgressDocument = {
   id?: string;
   doc_type: string;
+  storage_path?: string | null;
   file_url?: string | null;
   file_name?: string | null;
   status?: string | null;
@@ -110,7 +111,7 @@ export function buildEmployeeOnboardingSnapshot({
 
   const requiredDocuments = requiredDocs.map((docType) => {
     const doc = documents.find((item) => item.doc_type === docType) || null;
-    const submitted = Boolean(doc?.file_url);
+    const submitted = Boolean(doc?.file_url || doc?.storage_path);
     const approved = doc?.status === 'approved';
     const status: RequiredDocumentStatus['status'] =
       doc?.status === 'pending' ||
@@ -186,7 +187,7 @@ export async function syncEmployeeOnboardingState(
       .eq('employee_id', employeeId),
     (client as any)
       .from('employee_documents')
-      .select('id, doc_type, file_url, file_name, status, created_at, expires_at')
+      .select('id, doc_type, storage_path, file_url, file_name, status, created_at, expires_at')
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false }),
   ]);
