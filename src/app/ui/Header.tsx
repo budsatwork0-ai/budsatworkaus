@@ -194,7 +194,10 @@ export default function Header() {
             {/* Hamburger — mobile only */}
             <button
               className="md:hidden p-2 rounded-xl border transition-colors hover:bg-gray-50"
-              style={{ borderColor: brand.border, color: brand.primary }}
+              style={{
+                borderColor: showLight && !menuOpen ? 'rgba(255,255,255,0.45)' : brand.border,
+                color: showLight && !menuOpen ? '#fff' : brand.primary,
+              }}
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((o) => !o)}

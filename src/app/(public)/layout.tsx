@@ -13,11 +13,11 @@ import { FeedbackWidget } from '@/components/FeedbackWidget';
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen overflow-x-hidden"
       style={{ background: brand.bg, color: brand.text }}
     >
       <Header />
-      <main className="px-4 md:px-8 py-8 md:py-10">{children}</main>
+      <main className="px-4 md:px-8 pt-8 md:pt-10 pb-20 md:pb-10">{children}</main>
       <Footer />
       <CookieBanner />
       <FeedbackWidget />

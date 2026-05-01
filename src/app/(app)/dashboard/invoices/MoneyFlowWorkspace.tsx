@@ -871,10 +871,10 @@ export default function MoneyFlowWorkspace() {
   const recentHistory = payHistory.slice(0, 8);
 
   return (
-    <div className="grid gap-6 w-full px-4 pb-14 md:px-10 lg:px-12">
+    <div className="grid gap-6 w-full overflow-x-hidden px-4 pb-14 md:px-10 lg:px-12">
       <section className="rounded-[32px] border border-black/5 bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         <div className="flex flex-wrap items-start gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Money Flow system</div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 md:text-[2rem]">
               Incoming, outgoing, labour, payroll, and client pricing acceptance in one operational view.
@@ -883,7 +883,7 @@ export default function MoneyFlowWorkspace() {
               The Money tab now follows the real flow of work: quotes become jobs, jobs accrue labour, labour becomes payroll, revenue lands, costs leave, and anything risky surfaces as an action queue.
             </p>
           </div>
-          <div className="ml-auto flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={handleRunPayroll}
@@ -909,7 +909,7 @@ export default function MoneyFlowWorkspace() {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-black/5 bg-white/70 p-1.5 w-fit">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-black/5 bg-white/70 p-1.5">
         {TOP_TABS.map((item) => (
           <button
             key={item.key}
