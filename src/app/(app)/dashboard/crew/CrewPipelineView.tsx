@@ -44,6 +44,7 @@ type PipelinePerson = {
       currentStep: number;
     };
     missingRequiredDocs: number;
+    missingRequiredDocLabels: string[];
   } | null;
   staffing: {
     assignable: boolean;
@@ -571,11 +572,24 @@ export function CrewPipelineView() {
                                 {person.onboarding.currentSectionLabel ? `Current: ${person.onboarding.currentSectionLabel}` : 'All sections complete'}
                               </span>
                               {person.onboarding.missingRequiredDocs > 0 && (
-                                <span style={{ color: '#B45309' }}>
+                                <span className="font-semibold" style={{ color: '#B45309' }}>
                                   {person.onboarding.missingRequiredDocs} doc{person.onboarding.missingRequiredDocs === 1 ? '' : 's'} missing
                                 </span>
                               )}
                             </div>
+                            {person.onboarding.missingRequiredDocLabels && person.onboarding.missingRequiredDocLabels.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {person.onboarding.missingRequiredDocLabels.map((label: string) => (
+                                  <span
+                                    key={label}
+                                    className="rounded px-1.5 py-0.5"
+                                    style={{ background: '#FEF3C7', color: '#92400E' }}
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -603,6 +617,15 @@ export function CrewPipelineView() {
                             >
                               Assign to job
                             </button>
+                          )}
+                          {person.employeeId && (
+                            <a
+                              href={`/dashboard/crew/${person.employeeId}/documents`}
+                              className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
+                              style={{ borderColor: brand.border, color: brand.accent }}
+                            >
+                              View documents
+                            </a>
                           )}
                           {messageHref && (
                             <a

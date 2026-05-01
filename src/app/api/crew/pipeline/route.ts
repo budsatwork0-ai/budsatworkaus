@@ -353,6 +353,7 @@ export async function GET() {
             currentSectionLabel: onboarding.currentSection ? titleize(onboarding.currentSection) : null,
             progress: onboarding.progress,
             missingRequiredDocs: docs.filter((document) => !document.submitted).length,
+            missingRequiredDocLabels: docs.filter((document) => !document.submitted).map((document) => document.label),
           }
         : null,
       staffing: {
@@ -434,6 +435,7 @@ export async function GET() {
           currentSectionLabel: onboarding.currentSection ? titleize(onboarding.currentSection) : null,
           progress: onboarding.progress,
           missingRequiredDocs: docs.filter((document) => !document.submitted).length,
+          missingRequiredDocLabels: docs.filter((document) => !document.submitted).map((document) => document.label),
         },
         staffing: {
           assignable: readiness.status === 'ready' && Boolean(employee.crew_access_approved) && employee.status === 'active' && employee.roster_active !== false,
