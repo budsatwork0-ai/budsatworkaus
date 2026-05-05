@@ -31,18 +31,21 @@ export type NdisYardSize = 'small' | 'medium' | 'large' | 'xlarge';
  * Price Limits 2024–25, household tasks pricing table. These are MMM 1-3
  * (metro/regional) caps — non-metro modifiers applied separately.
  *
+ * Buds At Work operating hours are 7am–5pm, so the Price Guide's
+ * weekday-evening band (20:00–24:00) is intentionally not exposed — we
+ * don't roster cleans or mows outside operating hours. Saturday, Sunday
+ * and public-holiday differentials still apply for weekend work.
+ *
  * Update once a year when the new Price Guide is published (1 July).
  */
 export type NdisRateSlot =
-  | 'weekday_day'      // Mon–Fri 06:00–20:00
-  | 'weekday_evening'  // Mon–Fri 20:00–24:00
+  | 'weekday_day'      // Mon–Fri 07:00–17:00 (our operating window)
   | 'saturday'
   | 'sunday'
   | 'public_holiday';
 
 export const NDIS_RATES: Record<NdisRateSlot, number> = {
   weekday_day: 57.10,
-  weekday_evening: 62.85,
   saturday: 80.32,
   sunday: 103.39,
   public_holiday: 126.46,
@@ -50,7 +53,6 @@ export const NDIS_RATES: Record<NdisRateSlot, number> = {
 
 export const NDIS_RATE_LABELS: Record<NdisRateSlot, string> = {
   weekday_day: 'Weekday daytime',
-  weekday_evening: 'Weekday evening',
   saturday: 'Saturday',
   sunday: 'Sunday',
   public_holiday: 'Public holiday',
@@ -87,11 +89,23 @@ const CONDITION_MULT: Record<NdisCondition, number> = {
   reset: 1.35,
 };
 
+/**
+ * Base yard-care hours by property size, calibrated to a market-quality
+ * NDIS visit: mow + edge + whipper-snip + blow-down, with a buffer for
+ * basic green-waste tidy. These mirror what an experienced operator
+ * actually spends on the ground, including setup/pack-down and walking
+ * a typical block — not just the time the mower is running.
+ *
+ *  small   ≈ courtyard / unit yard      → ~1.5 hr
+ *  medium  ≈ typical suburban block     → ~2.5 hr
+ *  large   ≈ 700–1500 m² yard           → ~4 hr
+ *  xlarge  ≈ acreage / dual-occupancy   → ~6 hr
+ */
 const YARD_BASE_HOURS: Record<NdisYardSize, number> = {
-  small: 2,
-  medium: 3,
-  large: 5,
-  xlarge: 7,
+  small: 1.5,
+  medium: 2.5,
+  large: 4,
+  xlarge: 6,
 };
 
 /**
@@ -116,11 +130,11 @@ export type NdisCleaningInputs = {
   bedrooms: number;
   bathrooms: number;
   living: number;
-  /** Kitchens — each adds ~0.75h on top of the base. */
+  /** Kitchens — each adds ~1.1h on top of the base. */
   kitchens?: number;
   /** Laundry rooms — each adds ~0.4h. */
   laundry?: number;
-  /** Storeys — each *additional* storey above 1 adds ~0.7h for stairs/movement. */
+  /** Storeys — each *additional* storey above 1 adds ~0.5h for stairs/movement. */
   storeys?: number;
   condition: NdisCondition;
 };
@@ -164,17 +178,27 @@ export function suggestNdisCleaningHours(
     condition,
   } = inputs;
 
-  // Baseline: ~1h setup, ~0.8h per bedroom, ~0.5h per bathroom,
-  // ~0.3h per living, ~0.75h per kitchen, ~0.4h per laundry,
-  // ~0.7h per *additional* storey.
+  // Baseline calibrated to market-standard "quality time" for an NDIS
+  // household clean (vacuum + dust + surfaces + bathrooms scrubbed
+  // + kitchen wiped down + floors mopped). Numbers reflect what an
+  // experienced cleaner takes per room when doing the job properly,
+  // not a once-over.
+  //
+  //  setup / walkthrough / pack-down  : 0.50 hr
+  //  per bedroom                      : 0.55 hr  (vacuum, dust, surfaces, mirrors)
+  //  per bathroom                     : 0.85 hr  (toilet, basin, shower, mop, splashback)
+  //  per kitchen                      : 1.10 hr  (surfaces, stovetop, splashback, sink, mop)
+  //  per living / lounge              : 0.50 hr  (vacuum, dust, surfaces)
+  //  per laundry                      : 0.40 hr  (surfaces, sink, mop)
+  //  per *additional* storey          : 0.50 hr  (stairs + extra transit)
   const base =
-    1 +
-    bedrooms * 0.8 +
-    bathrooms * 0.5 +
-    living * 0.3 +
-    kitchens * 0.75 +
+    0.5 +
+    bedrooms * 0.55 +
+    bathrooms * 0.85 +
+    living * 0.5 +
+    kitchens * 1.1 +
     laundry * 0.4 +
-    Math.max(0, storeys - 1) * 0.7;
+    Math.max(0, storeys - 1) * 0.5;
 
   return clampHours(base * (CONDITION_MULT[condition] ?? 1));
 }
@@ -209,6 +233,10 @@ export function ndisRateFor(
  * Pick the Price Guide slot for a given Date. Caller-supplied isPublicHoliday
  * (we don't ship a QLD holiday calendar — the wizard or caller knows the
  * calendar context). Times resolved in the local timezone of the Date object.
+ *
+ * Buds At Work only rosters between 07:00 and 17:00, so any weekday time
+ * resolves to `weekday_day`. The Price Guide's weekday-evening band is
+ * intentionally not represented here.
  */
 export function ndisSlotFor(
   when: Date,
@@ -218,12 +246,7 @@ export function ndisSlotFor(
   const dow = when.getDay(); // 0 = Sun, 6 = Sat
   if (dow === 0) return 'sunday';
   if (dow === 6) return 'saturday';
-  const hour = when.getHours();
-  // Weekday evening band per Price Guide: 20:00 — 24:00. Anything before 06:00
-  // technically falls into "weekday night" with its own cap, but those bookings
-  // are vanishingly rare for household tasks; we treat 00:00–06:00 as evening
-  // to avoid silently underquoting.
-  return hour >= 20 || hour < 6 ? 'weekday_evening' : 'weekday_day';
+  return 'weekday_day';
 }
 
 /**

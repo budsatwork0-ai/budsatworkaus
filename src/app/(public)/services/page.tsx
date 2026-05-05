@@ -355,11 +355,6 @@ const CONTEXT_LABELS: Record<Context, string> = {
   ndis: 'NDIS',
 };
 
-const NDIS_SERVICE_LEAD_TEXT: Partial<Record<ServiceType, string>> = {
-  cleaning: '2 hrs minimum',
-  yard: '2 hrs minimum',
-};
-
 type MmmDetectionState =
   | { status: 'idle' }
   | { status: 'checking' }
@@ -4865,9 +4860,11 @@ function winSessionMinutes(S: WizardState) {
                     .filter((s) => ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key))
                     .map((s) => {
                       const isActive = S.service === s.key;
-                      const leadText = isNdisContext
-                        ? NDIS_SERVICE_LEAD_TEXT[s.key] ?? s.from
-                        : s.from;
+                      // Step 1 lead text is intentionally non-numeric across all
+                      // contexts (Home / Commercial / NDIS) so we never anchor on
+                      // a "from $X" that doesn't reflect the final scoped quote.
+                      // Real pricing is computed in Step 2+ once scope is known.
+                      const leadText = 'Tailored quote';
                       return (
                         <Tile
                           key={s.key}

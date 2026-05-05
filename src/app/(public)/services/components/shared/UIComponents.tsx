@@ -121,7 +121,7 @@ export function Tile({
           )}
           {from && !disabled && (
             <div className={cls('font-semibold pt-1', isFeature ? 'text-[15px]' : 'text-[12px]')} style={{ color: 'var(--accent)' }}>
-              from {from}
+              {/^\$/.test(from) ? `from ${from}` : from}
             </div>
           )}
         </div>

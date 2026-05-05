@@ -302,7 +302,7 @@ export type WizardState = {
    * Saturday / Sunday / public-holiday differentials so the quote reflects
    * the actual cap that the plan manager will see on the invoice.
    */
-  ndisRateSlot: 'weekday_day' | 'weekday_evening' | 'saturday' | 'sunday' | 'public_holiday';
+  ndisRateSlot: 'weekday_day' | 'saturday' | 'sunday' | 'public_holiday';
   /** MMM region (metro/regional/remote/very_remote) — affects rate cap. */
   ndisRegion: 'metro' | 'regional' | 'remote' | 'very_remote';
   /** Whether the NDIS MMM region is address-detected or manually chosen. */

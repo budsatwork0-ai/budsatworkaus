@@ -75,12 +75,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <LocalBusinessSchema />
         <WebsiteSchema />
-        <script
-          id="keak-script"
-          src="https://script.keak.com/v1/1983"
-          type="text/javascript"
-          data-domain="1983"
-        ></script>
       </head>
       <ConsentAwareGoogleAnalytics gaId={gaId} />
       <body className="min-h-screen flex flex-col bg-white text-slate-900">
