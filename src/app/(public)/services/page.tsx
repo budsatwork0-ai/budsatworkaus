@@ -4848,38 +4848,46 @@ function winSessionMinutes(S: WizardState) {
                 )}
 
                 {/* Service tiles — only show services available for the selected context. */}
-                <div
-                  className={cls(
-                    'grid gap-3.5',
-                    isNdisContext
-                      ? 'grid-cols-1 xl:grid-cols-2'
-                      : 'grid-cols-2 sm:grid-cols-3'
-                  )}
-                >
-                  {SERVICES
-                    .filter((s) => ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key))
-                    .map((s) => {
-                      const isActive = S.service === s.key;
-                      // Step 1 lead text is intentionally non-numeric across all
-                      // contexts (Home / Commercial / NDIS) so we never anchor on
-                      // a "from $X" that doesn't reflect the final scoped quote.
-                      // Real pricing is computed in Step 2+ once scope is known.
-                      const leadText = 'Tailored quote';
-                      return (
-                        <Tile
-                          key={s.key}
-                          active={isActive}
-                          onClick={() => selectService(s.key)}
-                          title={s.label}
-                          subtitle={s.subtitle}
-                          icon={s.icon}
-                          popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
-                          from={leadText}
-                          variant={isNdisContext ? 'feature' : 'default'}
-                        />
-                      );
-                    })}
-                </div>
+                {(() => {
+                  const isCommercialContext = S.context === 'commercial';
+                  // Commercial only has 3 allowed services, so the default 2x3
+                  // grid leaves cards feeling stretched and short. Use the same
+                  // feature-sized tiles as NDIS for visual balance, with a
+                  // 3-up row on sm+ and a single column on narrow viewports.
+                  const gridClass = isNdisContext
+                    ? 'grid-cols-1 xl:grid-cols-2'
+                    : isCommercialContext
+                      ? 'grid-cols-1 sm:grid-cols-3'
+                      : 'grid-cols-2 sm:grid-cols-3';
+                  const tileVariant = isNdisContext || isCommercialContext ? 'feature' : 'default';
+                  return (
+                    <div className={cls('grid gap-3.5', gridClass)}>
+                      {SERVICES
+                        .filter((s) => ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key))
+                        .map((s) => {
+                          const isActive = S.service === s.key;
+                          // Step 1 lead text is intentionally non-numeric across all
+                          // contexts (Home / Commercial / NDIS) so we never anchor on
+                          // a "from $X" that doesn't reflect the final scoped quote.
+                          // Real pricing is computed in Step 2+ once scope is known.
+                          const leadText = 'Tailored quote';
+                          return (
+                            <Tile
+                              key={s.key}
+                              active={isActive}
+                              onClick={() => selectService(s.key)}
+                              title={s.label}
+                              subtitle={s.subtitle}
+                              icon={s.icon}
+                              popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
+                              from={leadText}
+                              variant={tileVariant}
+                            />
+                          );
+                        })}
+                    </div>
+                  );
+                })()}
 
               </section>
             </>

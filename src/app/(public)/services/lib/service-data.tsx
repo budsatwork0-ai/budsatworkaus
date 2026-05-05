@@ -517,14 +517,17 @@ export const COMM_PARAM_DEFS: Record<CommercialCleaningType, CommParamDef[]> = {
 };
 
 // Descriptive labels for commercial cleaning niches (used by Step 2 cards)
+// Pricing reflects 2026 Australian commercial cleaning market: per-visit minimums,
+// per-hour rate, and approximate per-square-metre rate. Rates align with modern
+// industry benchmarks for cleared, insured, GST-registered crews.
 export const COMM_LABELS: Record<CommercialCleaningType, CommMeta> = {
-  office: { title: 'Office & Corporate', covers: 'Offices · Co-Working · Banks · Call Centres', avg: '$120 / 2h · $60/hr', reason: '80% of market – weekly repeat' },
-  medical: { title: 'Medical & Hygiene', covers: 'Clinics · Dentists · Physios · Vets', avg: '$140 / 2h · $70/hr', reason: 'Higher rate, compliance-driven' },
-  fitness: { title: 'Fitness & Leisure', covers: 'Gyms · Yoga · Pools · Sports Clubs', avg: '$140 / 2h · $70/hr', reason: 'Equipment & mats attention' },
-  hospitality: { title: 'Hospitality', covers: 'Cafés · Restaurants · Bars · Venues', avg: '$140 / 2h · $70/hr', reason: 'Grease & spill intensive' },
-  education: { title: 'Education & Care', covers: 'Schools · Childcare · Tutoring · OSHC', avg: '$140 / 2h · $70/hr', reason: 'Child-safe, high-touch focus' },
-  event: { title: 'Event & Venue', covers: 'Conferences · Stadiums · Halls', avg: '$120 / 2h · $60/hr', reason: 'Pre/post-event turnaround' },
-  accommodation: { title: 'Accommodation', covers: 'Hotels · Airbnb · Strata · Serviced Apartments', avg: '$120 / 2h · $60/hr', reason: 'Room turnover + common areas' },
+  office: { title: 'Office & Corporate', covers: 'Offices · Co-Working · Banks · Call Centres', avg: 'From $135/visit · $68/hr · ~$0.11/m²', reason: 'Most popular niche · weekly contracts' },
+  medical: { title: 'Medical & Hygiene', covers: 'Clinics · Dentists · Physios · Vets', avg: 'From $185/visit · $92/hr · ~$0.17/m²', reason: 'Compliance-grade · medical-safe products' },
+  fitness: { title: 'Fitness & Leisure', covers: 'Gyms · Yoga · Pools · Sports Clubs', avg: 'From $155/visit · $78/hr · ~$0.10/m²', reason: 'Sweat-zone disinfection · equipment care' },
+  hospitality: { title: 'Hospitality', covers: 'Cafés · Restaurants · Bars · Venues', avg: 'From $175/visit · $88/hr · ~$0.13/m²', reason: 'Grease-cut + food-safe · open/close turnover' },
+  education: { title: 'Education & Care', covers: 'Schools · Childcare · Tutoring · OSHC', avg: 'From $155/visit · $78/hr · ~$0.09/m²', reason: 'Child-safe products · after-hours scheduling' },
+  event: { title: 'Event & Venue', covers: 'Conferences · Stadiums · Halls', avg: 'From $165/visit · $82/hr · turnaround premium', reason: 'Pre/post-event blitz · weekend & after-hours' },
+  accommodation: { title: 'Accommodation', covers: 'Hotels · Airbnb · Strata · Serviced Apartments', avg: 'From $145/visit · $72/hr · per-room rates', reason: 'Per-room turnover · common areas detailed' },
 };
 
 /* =========================

@@ -92,54 +92,62 @@ export const COMM_CLEAN_MIN_HOURS: Record<CommercialCleaningType, number> = {
   accommodation: 2.0,
 };
 
+// 2026 Australian commercial cleaning hourly rates (per cleaner, GST-incl.).
+// Calibrated to mid-market for cleared, insured operators — the 2024–2026 shift
+// reflects compliance overhead, supplies inflation, and after-hours premiums
+// that the previous flat $60–70/hr ladder no longer covered.
 export const COMM_CLEAN_RATES: Record<CommercialCleaningType, number> = {
-  office: 60,
-  medical: 70,
-  fitness: 70,
-  hospitality: 70,
-  education: 70,
-  event: 60,
-  accommodation: 60,
+  office: 68,         // mid-market office benchmark
+  medical: 92,        // compliance + medical-grade consumables
+  fitness: 78,        // sweat-zone disinfection + equipment care
+  hospitality: 88,    // grease-cut, food-safe, open/close turnover
+  education: 78,      // child-safe products, after-hours scheduling
+  event: 82,          // weekend/after-hours turnaround premium
+  accommodation: 72,  // per-room turnover + common areas
 };
 
+// Preset packages priced as `hours × COMM_CLEAN_RATES[niche]`, rounded to the
+// nearest $5 so the visible step-2 numbers stay tidy. Updating
+// COMM_CLEAN_RATES without bumping these would leave the package cards reading
+// 2024-era flat rates against a 2026 hourly figure.
 export const COMM_PRESET_PRICING: Record<
   CommercialCleaningType,
   Record<'essential' | 'standard' | 'intensive', { hours: number; price: number; sqm: number }>
 > = {
   office: {
-    essential: { hours: 2, price: 120, sqm: 600 },
-    standard: { hours: 3, price: 180, sqm: 900 },
-    intensive: { hours: 6, price: 360, sqm: 1800 },
+    essential: { hours: 2, price: 135, sqm: 600 },   // 2h × $68
+    standard: { hours: 3, price: 205, sqm: 900 },    // 3h × $68
+    intensive: { hours: 6, price: 410, sqm: 1800 }, // 6h × $68
   },
   medical: {
-    essential: { hours: 2, price: 140, sqm: 350 },
-    standard: { hours: 3, price: 210, sqm: 550 },
-    intensive: { hours: 6, price: 420, sqm: 1200 },
+    essential: { hours: 2, price: 185, sqm: 350 },   // 2h × $92
+    standard: { hours: 3, price: 275, sqm: 550 },    // 3h × $92
+    intensive: { hours: 6, price: 550, sqm: 1200 }, // 6h × $92
   },
   fitness: {
-    essential: { hours: 2, price: 140, sqm: 450 },
-    standard: { hours: 3, price: 210, sqm: 750 },
-    intensive: { hours: 6, price: 420, sqm: 1600 },
+    essential: { hours: 2, price: 155, sqm: 450 },   // 2h × $78
+    standard: { hours: 3, price: 235, sqm: 750 },    // 3h × $78
+    intensive: { hours: 6, price: 470, sqm: 1600 }, // 6h × $78
   },
   hospitality: {
-    essential: { hours: 2, price: 140, sqm: 550 },
-    standard: { hours: 3, price: 210, sqm: 850 },
-    intensive: { hours: 6, price: 420, sqm: 1800 },
+    essential: { hours: 2, price: 175, sqm: 550 },   // 2h × $88
+    standard: { hours: 3, price: 265, sqm: 850 },    // 3h × $88
+    intensive: { hours: 6, price: 530, sqm: 1800 }, // 6h × $88
   },
   education: {
-    essential: { hours: 2, price: 140, sqm: 550 },
-    standard: { hours: 3, price: 210, sqm: 850 },
-    intensive: { hours: 6, price: 420, sqm: 1700 },
+    essential: { hours: 2, price: 155, sqm: 550 },   // 2h × $78
+    standard: { hours: 3, price: 235, sqm: 850 },    // 3h × $78
+    intensive: { hours: 6, price: 470, sqm: 1700 }, // 6h × $78
   },
   event: {
-    essential: { hours: 2, price: 120, sqm: 700 },
-    standard: { hours: 3, price: 180, sqm: 1200 },
-    intensive: { hours: 6, price: 360, sqm: 2800 },
+    essential: { hours: 2, price: 165, sqm: 700 },   // 2h × $82
+    standard: { hours: 3, price: 245, sqm: 1200 },   // 3h × $82
+    intensive: { hours: 6, price: 490, sqm: 2800 }, // 6h × $82
   },
   accommodation: {
-    essential: { hours: 2, price: 120, sqm: 700 },
-    standard: { hours: 3, price: 180, sqm: 1100 },
-    intensive: { hours: 6, price: 360, sqm: 2400 },
+    essential: { hours: 2, price: 145, sqm: 700 },   // 2h × $72
+    standard: { hours: 3, price: 215, sqm: 1100 },   // 3h × $72
+    intensive: { hours: 6, price: 430, sqm: 2400 }, // 6h × $72
   },
 };
 

@@ -27,10 +27,13 @@ export const ROUTE_MIN_PRICE = 55;
 export const ROUTE_AVG_SPEED_KMH = 40;
 export const ROUTE_SCOPES = ['dump_delivery', 'dump_transport'] as const;
 
-// Window pricing
+// Window pricing — per-pane / per-track / per-screen rates (GST-incl.).
+// Commercial uplift reflects 2026 storefront, multi-storey access, and
+// ladder-safety overhead that the previous $10/pane figure no longer covered;
+// modern AU commercial window rates sit in the $12–$22/pane band.
 export const WINDOW_PRICES: Record<'home' | 'commercial', WindowContextPrice> = {
   home: { pane: 8.0, track: 4.0, screen: 4.0 },
-  commercial: { pane: 10.0, track: 8.0 }, // no screens for commercial
+  commercial: { pane: 14.0, track: 11.0 }, // no screens for commercial
 };
 
 // Price overrides
@@ -101,10 +104,13 @@ export const SNEAKER_TURNAROUND_META: SneakerTurnaroundMeta[] = [
 ];
 
 // Policy constants
+// Yard / general labour rate — commercial bumped to 2026 grounds-maintenance
+// market ($120–$150/hr range for commercial mowing, hedge, and tidy crews).
+// minBlock.commercial lifted so a site visit covers the modern callout floor.
 export const POLICY = {
   paceFactor: 1.1,
-  minBlock: { home: 75, commercial: 90 } as const,
-  labourRate: { home: 85, commercial: 110 } as const,
+  minBlock: { home: 75, commercial: 110 } as const,
+  labourRate: { home: 85, commercial: 130 } as const,
   guard: 1.25,
   roundingTo: 10,
   travelBaseKm: 25,
@@ -152,15 +158,20 @@ export const DEFAULT_DUMP_TRANSPORT = {
 } as const;
 
 // Windows constants
-export const WINDOWS_BASE_PER_STOREY_MIN = 150;
+// Per-storey minimum lifted to reflect 2026 commercial site-establishment
+// overhead (ladder/scaffold check, parking, sign-in).
+export const WINDOWS_BASE_PER_STOREY_MIN = 175;
 
+// Scope-level minimum service charges. Bumped to align with 2026 minimum
+// callout pricing — sub-$240 full-window jobs no longer cover travel,
+// consumables, and minimum crew time on a commercial site.
 export const WIN_RULES = {
   WEIGHT: { INT: 4, EXT: 5, TRACK: 5, SCREEN: 5 } as const,
   TARGETS: {
-    windows_full: 240,
-    windows_interior: 120,
-    windows_exterior: 120,
-    windows_tracks: 90,
+    windows_full: 265,
+    windows_interior: 145,
+    windows_exterior: 145,
+    windows_tracks: 115,
   },
 } as const;
 
