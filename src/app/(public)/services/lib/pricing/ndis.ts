@@ -76,7 +76,7 @@ export const NDIS_REGION_MULT: Record<NdisRegion, number> = {
 
 export const NDIS_REGION_LABELS: Record<NdisRegion, string> = {
   metro: 'Metro (MMM 1)',
-  regional: 'Regional centre (MMM 2-3)',
+  regional: 'Regional (MMM 2-5)',
   remote: 'Remote (MMM 6)',
   very_remote: 'Very remote (MMM 7)',
 };

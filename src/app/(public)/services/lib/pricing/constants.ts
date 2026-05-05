@@ -41,9 +41,14 @@ export const PRICE_OVERRIDE: Record<string, number> = {
   // Sneaker care pricing (turnaround surcharges: Express +$5/pair, Priority +$10/pair)
   'sneaker.basic': 40,  // Refresh Clean $40/pair
   'sneaker.full': 60,   // Deep Restore $60/pair
-  'auto.wash': 160,
-  'auto.interior': 170,
-  'auto.full': 290,
+  // Car detailing — base prices for a sedan-class vehicle.
+  // Size/luxury/row adjustments sit on top of these in pricing/engine.ts.
+  // Tuned to sit comfortably inside the typical AU mobile-detailer range
+  // (Express $80–130, Interior $150–220, Full $230–380) so the ladder
+  // between tiers feels fair instead of flat.
+  'auto.wash': 99,       // Express Detail (~2 hrs)
+  'auto.interior': 149,  // Interior Reset Detail (~2 hrs)
+  'auto.full': 239,      // Signature Full Detail (~4 hrs)
 };
 
 // Sneaker multi-pair fixed pricing tiers

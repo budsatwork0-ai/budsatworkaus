@@ -31,10 +31,24 @@ test.describe('Services Quote Flow', () => {
   test('should limit NDIS context to cleaning and yard care', async ({ page }) => {
     await page.getByRole('button', { name: /^ndis$/i }).click();
 
-    await expect(page.getByRole('button', { name: /select cleaning/i })).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByRole('button', { name: /select yard care/i })).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByRole('button', { name: /select window cleaning/i })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('button', { name: /select cleaning/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /select yard care/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /select window cleaning/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /select removal & delivery/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /select car detailing/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /select laundry & sneaker care/i })).toHaveCount(0);
     await expect(page.getByText(/malucare/i)).toBeVisible();
+  });
+
+  test('should limit commercial context to commercial services', async ({ page }) => {
+    await page.getByRole('button', { name: /select commercial context/i }).click();
+
+    await expect(page.getByRole('button', { name: /select window cleaning/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /select cleaning/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /select yard care/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /select removal & delivery/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /select car detailing/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /select laundry & sneaker care/i })).toHaveCount(0);
   });
 
   test('should select a service type', async ({ page }) => {

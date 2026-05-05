@@ -70,10 +70,23 @@ export default function SignInForm({ variant = 'customer' }: SignInFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const config = VARIANT_CONFIG[variant];
 
+  // If the OAuth callback bounced us back here because the email already
+  // belongs to another account, surface a friendly hint and pre-fill the
+  // address so they can sign in with their original method.
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get('reason');
+    const hintEmail = params.get('email');
+    if (reason === 'existing_account' && hintEmail) {
+      setEmail(hintEmail);
+      setInfo(
+        `Looks like ${hintEmail} is already registered with a password. Sign in below — or use “Forgot password?” if you need a reset.`
+      );
+    }
     emailRef.current?.focus();
   }, []);
 
@@ -189,6 +202,13 @@ export default function SignInForm({ variant = 'customer' }: SignInFormProps) {
             dark
           />
         </div>
+
+        {info && !error && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-300 flex items-start gap-2">
+            <AlertCircleIcon className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{info}</span>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 flex items-start gap-2">

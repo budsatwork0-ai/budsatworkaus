@@ -39,11 +39,35 @@ const DEFAULT_DURATIONS: Record<string, number> = {
   laundry_sneakers: 120,
 };
 
+// Availability format: "mon:09:00-15:00"
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+function parseAvailabilityForDate(
+  availability: string[],
+  dateStr: string
+): { startMin: number; endMin: number } | null {
+  const dayKey = DAY_KEYS[new Date(dateStr + 'T12:00:00').getDay()];
+  const slot = availability.find((s) => s.startsWith(dayKey + ':'));
+  if (!slot) return null;
+  const rest = slot.slice(dayKey.length + 1);
+  const dash = rest.indexOf('-');
+  if (dash === -1) return null;
+  return {
+    startMin: timeToMinutes(rest.slice(0, dash)),
+    endMin: timeToMinutes(rest.slice(dash + 1)),
+  };
+}
+
+function formatAvailRange(range: { startMin: number; endMin: number }): string {
+  return `${formatDisplayTime(minutesToTime(range.startMin))} – ${formatDisplayTime(minutesToTime(range.endMin))}`;
+}
+
 type CrewMember = {
   id: string;
   full_name: string;
   services: string[] | null;
   status: string;
+  availability: string[] | null;
 };
 
 type DayOrder = {
@@ -63,6 +87,7 @@ type AssignModal = {
   order: DayOrder;
   crewId: string;
   crewName: string;
+  crewAvail: { startMin: number; endMin: number } | null;
   time: string;
   duration: number;
   mode: 'assign' | 'edit';
@@ -105,6 +130,15 @@ function hasConflict(
     if (startMin < e && newEnd > s) return true;
   }
   return false;
+}
+
+function isOutsideAvailability(
+  avail: { startMin: number; endMin: number } | null,
+  startMin: number,
+  durationMin: number
+): boolean {
+  if (!avail) return false;
+  return startMin < avail.startMin || startMin + durationMin > avail.endMin;
 }
 
 function formatDisplayTime(time: string): string {
@@ -213,29 +247,45 @@ export default function DayScheduler() {
     }
   }
 
-  function handleColumnClick(e: React.MouseEvent<HTMLDivElement>, crewMember: CrewMember) {
+  function handleColumnClick(e: React.MouseEvent<HTMLDivElement>, member: CrewMember) {
     if (!selectedJob) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const minutes = pxToMinutes(y);
     const duration = selectedJob.estimated_duration_minutes || DEFAULT_DURATIONS[selectedJob.service_type] || 120;
+    const avail = member.availability?.length
+      ? parseAvailabilityForDate(member.availability, date)
+      : null;
+
+    if (avail && isOutsideAvailability(avail, minutes, duration)) {
+      toast.error(
+        `${member.full_name} is only available ${formatAvailRange(avail)} on this day.`
+      );
+      return;
+    }
+
     setModal({
       order: selectedJob,
-      crewId: crewMember.id,
-      crewName: crewMember.full_name,
+      crewId: member.id,
+      crewName: member.full_name,
+      crewAvail: avail,
       time: minutesToTime(minutes),
       duration,
       mode: 'assign',
     });
   }
 
-  function handleJobBlockClick(e: React.MouseEvent, order: DayOrder, crewMember: CrewMember) {
+  function handleJobBlockClick(e: React.MouseEvent, order: DayOrder, member: CrewMember) {
     e.stopPropagation();
     setSelectedJob(null);
+    const avail = member.availability?.length
+      ? parseAvailabilityForDate(member.availability, date)
+      : null;
     setModal({
       order,
-      crewId: crewMember.id,
-      crewName: crewMember.full_name,
+      crewId: member.id,
+      crewName: member.full_name,
+      crewAvail: avail,
       time: order.scheduled_time || '09:00',
       duration: order.estimated_duration_minutes || 120,
       mode: 'edit',
@@ -248,6 +298,10 @@ export default function DayScheduler() {
 
   const isConflict = modal
     ? hasConflict(orders, modal.crewId, modal.mode === 'edit' ? modal.order.id : null, timeToMinutes(modal.time), modal.duration)
+    : false;
+
+  const isAvailViolation = modal
+    ? isOutsideAvailability(modal.crewAvail, timeToMinutes(modal.time), modal.duration)
     : false;
 
   const timeLabels = Array.from({ length: HOURS + 1 }, (_, i) => {
@@ -305,7 +359,7 @@ export default function DayScheduler() {
           >
             <div className="w-2 h-2 rounded-full" style={{ background: SERVICE_COLORS[selectedJob.service_type] || brand.primary }} />
             {selectedJob.customer_name} — {SERVICE_LABELS[selectedJob.service_type] || selectedJob.service_type}
-            <span className="text-xs opacity-70">· click a crew column to place</span>
+            <span className="text-xs opacity-70">· click an available crew slot to place</span>
             <button onClick={() => setSelectedJob(null)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
           </div>
         )}
@@ -326,11 +380,9 @@ export default function DayScheduler() {
           <div className="flex min-w-max">
             {/* Time axis */}
             <div className="sticky left-0 z-10 bg-white/90 backdrop-blur-sm border-r" style={{ borderColor: brand.border }}>
-              {/* Header spacer */}
               <div className="h-12 border-b flex items-center px-3" style={{ borderColor: brand.border }}>
                 <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Time</span>
               </div>
-              {/* Hour labels */}
               <div className="relative" style={{ height: TIMELINE_HEIGHT }}>
                 {timeLabels.map(({ label, min }) => (
                   <div
@@ -348,6 +400,16 @@ export default function DayScheduler() {
             {crew.map((member) => {
               const memberOrders = orders.filter((o) => o.assigned_crew_id === member.id);
               const isClickable = !!selectedJob;
+              const avail = member.availability?.length
+                ? parseAvailabilityForDate(member.availability, date)
+                : null;
+
+              // Unavailable zone heights
+              const beforeAvailPx = avail ? Math.max(0, minutesToPx(avail.startMin)) : 0;
+              const afterAvailTop = avail ? minutesToPx(avail.endMin) : 0;
+              const afterAvailHeight = avail ? TIMELINE_HEIGHT - afterAvailTop : 0;
+              const wholeColumnUnavail = member.availability?.length && !avail;
+
               return (
                 <div key={member.id} className="flex flex-col border-r last:border-r-0" style={{ minWidth: 180, borderColor: brand.border }}>
                   {/* Column header */}
@@ -356,7 +418,17 @@ export default function DayScheduler() {
                       style={{ background: brand.primary }}>
                       {member.full_name.charAt(0)}
                     </div>
-                    <span className="text-xs font-semibold truncate" style={{ color: brand.text }}>{member.full_name}</span>
+                    <div className="min-w-0">
+                      <span className="text-xs font-semibold truncate block" style={{ color: brand.text }}>{member.full_name}</span>
+                      {avail && (
+                        <span className="text-[9px]" style={{ color: brand.muted }}>
+                          {formatAvailRange(avail)}
+                        </span>
+                      )}
+                      {wholeColumnUnavail && (
+                        <span className="text-[9px] text-amber-600">Off today</span>
+                      )}
+                    </div>
                     <span className="ml-auto text-[10px] shrink-0" style={{ color: brand.muted }}>
                       {memberOrders.length} job{memberOrders.length !== 1 ? 's' : ''}
                     </span>
@@ -391,6 +463,59 @@ export default function DayScheduler() {
                       />
                     ))}
 
+                    {/* Unavailable overlay — before availability window */}
+                    {avail && beforeAvailPx > 0 && (
+                      <div
+                        className="absolute left-0 right-0 z-[5] pointer-events-none"
+                        style={{
+                          top: 0,
+                          height: beforeAvailPx,
+                          background: 'repeating-linear-gradient(-45deg, #e2e8f030, #e2e8f030 3px, #f1f5f940 3px, #f1f5f940 8px)',
+                        }}
+                      >
+                        <span className="absolute bottom-1 left-2 text-[9px] font-medium text-slate-400">Unavailable</span>
+                      </div>
+                    )}
+
+                    {/* Available window highlight */}
+                    {avail && (
+                      <div
+                        className="absolute left-0 right-0 z-[4] pointer-events-none border-l-2"
+                        style={{
+                          top: minutesToPx(avail.startMin),
+                          height: minutesToPx(avail.endMin) - minutesToPx(avail.startMin),
+                          borderColor: `${brand.primary}40`,
+                          background: `${brand.primary}06`,
+                        }}
+                      />
+                    )}
+
+                    {/* Unavailable overlay — after availability window */}
+                    {avail && afterAvailHeight > 0 && (
+                      <div
+                        className="absolute left-0 right-0 z-[5] pointer-events-none"
+                        style={{
+                          top: afterAvailTop,
+                          height: afterAvailHeight,
+                          background: 'repeating-linear-gradient(-45deg, #e2e8f030, #e2e8f030 3px, #f1f5f940 3px, #f1f5f940 8px)',
+                        }}
+                      >
+                        <span className="absolute top-1 left-2 text-[9px] font-medium text-slate-400">Unavailable</span>
+                      </div>
+                    )}
+
+                    {/* Whole column unavailable (has availability set, but not this day) */}
+                    {wholeColumnUnavail && (
+                      <div
+                        className="absolute inset-0 z-[5] pointer-events-none flex items-center justify-center"
+                        style={{
+                          background: 'repeating-linear-gradient(-45deg, #e2e8f030, #e2e8f030 3px, #f1f5f940 3px, #f1f5f940 8px)',
+                        }}
+                      >
+                        <span className="text-xs font-medium text-slate-400 bg-white/80 px-2 py-1 rounded">Off today</span>
+                      </div>
+                    )}
+
                     {/* Job blocks */}
                     {memberOrders.map((order) => {
                       if (!order.scheduled_time) return null;
@@ -403,7 +528,6 @@ export default function DayScheduler() {
 
                       return (
                         <div key={order.id}>
-                          {/* Job block */}
                           <button
                             type="button"
                             onClick={(e) => handleJobBlockClick(e, order, member)}
@@ -427,7 +551,6 @@ export default function DayScheduler() {
                               )}
                             </div>
                           </button>
-                          {/* Travel buffer */}
                           <div
                             className="absolute left-1 right-1 z-10 rounded-b overflow-hidden"
                             style={{
@@ -455,7 +578,7 @@ export default function DayScheduler() {
             <h2 className="text-sm font-semibold" style={{ color: brand.text }}>
               Unscheduled Jobs ({unscheduled.length})
             </h2>
-            <p className="text-xs" style={{ color: brand.muted }}>Select a job, then click a crew column to place it</p>
+            <p className="text-xs" style={{ color: brand.muted }}>Select a job, then click within a crew member's available hours</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {unscheduled.map((job) => {
@@ -491,7 +614,7 @@ export default function DayScheduler() {
                   </div>
                   {isSelected && (
                     <p className="text-[10px] mt-2 font-medium" style={{ color }}>
-                      ↑ Now click a crew column to place
+                      ↑ Now click within a crew member's available hours
                     </p>
                   )}
                 </button>
@@ -533,7 +656,20 @@ export default function DayScheduler() {
                   <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: brand.primary }}>
                     {modal.crewName.charAt(0)}
                   </div>
-                  {modal.crewName}
+                  <div className="min-w-0">
+                    <span>{modal.crewName}</span>
+                    {modal.crewAvail && (
+                      <span className="ml-2 text-[10px] font-normal" style={{ color: brand.muted }}>
+                        Available {formatAvailRange(modal.crewAvail)}
+                      </span>
+                    )}
+                    {modal.crewAvail === null && (() => {
+                      const member = crew.find(c => c.id === modal.crewId);
+                      return member?.availability?.length ? (
+                        <span className="ml-2 text-[10px] font-normal text-amber-600">Off today</span>
+                      ) : null;
+                    })()}
+                  </div>
                 </div>
               </div>
 
@@ -554,8 +690,8 @@ export default function DayScheduler() {
                 <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Start Time</label>
                 <input
                   type="time"
-                  min="07:00"
-                  max="17:00"
+                  min={modal.crewAvail ? minutesToTime(modal.crewAvail.startMin) : '07:00'}
+                  max={modal.crewAvail ? minutesToTime(modal.crewAvail.endMin) : '17:00'}
                   step={30 * 60}
                   value={modal.time}
                   onChange={(e) => setModal((m) => m ? { ...m, time: e.target.value } : null)}
@@ -581,12 +717,26 @@ export default function DayScheduler() {
                 />
                 <p className="text-[10px] mt-0.5" style={{ color: brand.muted }}>
                   Finishes ~{formatDisplayTime(minutesToTime(timeToMinutes(modal.time) + modal.duration))}
-                  {' · '}Next slot available {formatDisplayTime(minutesToTime(timeToMinutes(modal.time) + modal.duration + TRAVEL_MIN))} (after 30m travel)
+                  {' · '}Next slot {formatDisplayTime(minutesToTime(timeToMinutes(modal.time) + modal.duration + TRAVEL_MIN))} (after 30m travel)
                 </p>
               </div>
 
+              {/* Availability violation — hard block */}
+              {isAvailViolation && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <svg className="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <p className="text-xs font-medium text-amber-800">
+                    Outside availability — {modal.crewName} is only available{' '}
+                    {modal.crewAvail ? formatAvailRange(modal.crewAvail) : 'not available today'}.
+                    You cannot assign work outside their set hours.
+                  </p>
+                </div>
+              )}
+
               {/* Conflict warning */}
-              {isConflict && (
+              {isConflict && !isAvailViolation && (
                 <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200">
                   <svg className="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -620,7 +770,7 @@ export default function DayScheduler() {
               </button>
               <button
                 type="button"
-                disabled={isConflict || isMutating === modal.order.id}
+                disabled={isAvailViolation || isConflict || isMutating === modal.order.id}
                 onClick={() => void applyAssignment({
                   orderId: modal.order.id,
                   scheduledDate: date,
@@ -629,7 +779,7 @@ export default function DayScheduler() {
                   crewId: modal.crewId,
                 })}
                 className="flex-1 py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: isConflict ? '#9ca3af' : brand.primary }}
+                style={{ background: (isAvailViolation || isConflict) ? '#9ca3af' : brand.primary }}
               >
                 {isMutating === modal.order.id ? 'Saving…' : 'Confirm'}
               </button>

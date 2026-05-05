@@ -673,6 +673,67 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      // ── NDIS organisation subscriptions ──────────────────────────────────────
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as Stripe.Subscription;
+        const ndisOrgId = sub.metadata?.ndis_org_id;
+        if (!ndisOrgId) break;
+
+        const subStatus = sub.status; // active | trialing | past_due | canceled | incomplete | etc.
+        const mappedStatus =
+          subStatus === 'active'    ? 'active' :
+          subStatus === 'trialing'  ? 'trialing' :
+          subStatus === 'past_due'  ? 'past_due' :
+          subStatus === 'canceled'  ? 'cancelled' : 'inactive';
+
+        // current_period_end moved to SubscriptionItem in Stripe API v2025+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const periodEnd = (sub as any).current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('ndis_organisations')
+          .update({
+            stripe_subscription_id: sub.id,
+            subscription_status: mappedStatus,
+            current_period_end: periodEnd
+              ? new Date(periodEnd * 1000).toISOString()
+              : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ndisOrgId);
+
+        logAudit(client, 'ndis_organisation', ndisOrgId, `subscription_${event.type.split('.')[2]}`, {
+          stripe_subscription_id: sub.id,
+          status: mappedStatus,
+        });
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const deletedSub = event.data.object as Stripe.Subscription;
+        const ndisOrgId = deletedSub.metadata?.ndis_org_id;
+        if (!ndisOrgId) break;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any)
+          .from('ndis_organisations')
+          .update({
+            subscription_status: 'cancelled',
+            stripe_subscription_id: null,
+            current_period_end: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ndisOrgId);
+
+        logAudit(client, 'ndis_organisation', ndisOrgId, 'subscription_cancelled', {
+          stripe_subscription_id: deletedSub.id,
+        });
+        break;
+      }
+
       case 'charge.dispute.created': {
         // A customer has disputed a charge — Stripe will debit the NAB account
         const dispute = event.data.object as Stripe.Dispute;

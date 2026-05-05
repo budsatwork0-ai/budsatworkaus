@@ -76,6 +76,7 @@ export function getInitialState(): WizardState {
     ndisCondition: 'lived_in',
     ndisRateSlot: 'weekday_day',
     ndisRegion: 'metro',
+    ndisRegionSource: 'auto',
     notes: '',
 
     // Yard polygon estimate
@@ -144,6 +145,10 @@ function migrateState(stored: any): any {
   if (stored.paramsByService?.sneakers) {
     stored.paramsByService.laundry_sneakers = stored.paramsByService.sneakers;
     delete stored.paramsByService.sneakers;
+  }
+
+  if (!stored.ndisRegionSource) {
+    stored.ndisRegionSource = 'auto';
   }
 
   return stored;

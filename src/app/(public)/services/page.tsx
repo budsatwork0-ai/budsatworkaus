@@ -132,9 +132,9 @@ import {
 } from './lib/pricing/engine';
 
 // NDIS pricing — shared with the Quote Assistant so live estimates and
-// Step 2 always agree. Rates are now Price-Guide-tabled (weekday daytime,
-// weekday evening, Saturday, Sunday, public holiday) with an MMM region
-// modifier on top.
+// Step 2 always agree. Rates are Price-Guide-tabled (weekday daytime,
+// Saturday, Sunday, public holiday) with an MMM region modifier on top.
+// Weekday evening intentionally omitted — we only operate 7am–5pm.
 import {
   NDIS_MIN_HOURS,
   NDIS_MAX_HOURS,
@@ -144,6 +144,7 @@ import {
   suggestNdisCleaningHours,
   suggestNdisYardHours,
 } from './lib/pricing/ndis';
+import type { NdisRegion } from './lib/pricing/ndis';
 
 // Extracted modules - Wizard state
 import { getInitialState, wizardReducer, useLocalStorageReducer } from './lib/wizard-state';
@@ -357,6 +358,24 @@ const CONTEXT_LABELS: Record<Context, string> = {
 const NDIS_SERVICE_LEAD_TEXT: Partial<Record<ServiceType, string>> = {
   cleaning: '2 hrs minimum',
   yard: '2 hrs minimum',
+};
+
+type MmmDetectionState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'detected'; label: string }
+  | { status: 'failed'; message: string };
+
+type MmmApiResponse = {
+  rawMMM: number;
+  pricingRegion: 'metro' | 'regional' | 'remote' | 'veryRemote';
+  label: string;
+  geocode?: {
+    address: string;
+    lat: number;
+    lng: number;
+    score: number;
+  };
 };
 
 const RESIDENTIAL_CLEANING_SCOPE_LABELS: Record<string, string> = {
@@ -3174,6 +3193,9 @@ function ServicesPageContent() {
   const [routeLookup, setRouteLookup] = useState<RouteLookupResult | null>(null);
   const [routeLookupLoading, setRouteLookupLoading] = useState(false);
   const [routeLookupMessage, setRouteLookupMessage] = useState<string | null>(null);
+  const [mmmDetection, setMmmDetection] = useState<MmmDetectionState>({ status: 'idle' });
+  const [showManualNdisRegion, setShowManualNdisRegion] = useState(false);
+  const lastMmmLookupRef = useRef<string>('');
   const set = React.useCallback(
     <K extends keyof WizardState>(key: K, value: WizardState[K]) => {
       dispatch({ type: 'set', key, value });
@@ -3193,6 +3215,135 @@ function ServicesPageContent() {
       eventData: payload,
     });
   }, []);
+  const isNdisMmmEligible = S.context === 'ndis' && (S.service === 'cleaning' || S.service === 'yard');
+  const detectNdisMmmRegion = React.useCallback(async (coords: { lat: number; lng: number }) => {
+    if (!isNdisMmmEligible) return;
+
+    setMmmDetection({ status: 'checking' });
+    try {
+      const params = new URLSearchParams({
+        context: 'ndis',
+        service: S.service,
+        lat: String(coords.lat),
+        lng: String(coords.lng),
+      });
+      const response = await fetch(`/api/geo/mmm?${params.toString()}`);
+      const data = (await response.json()) as Partial<MmmApiResponse> & { error?: string };
+
+      if (!response.ok || !data.label || !data.pricingRegion) {
+        throw new Error(data.error || 'MMM detection failed.');
+      }
+
+      const ndisRegion: NdisRegion =
+        data.pricingRegion === 'veryRemote' ? 'very_remote' : data.pricingRegion;
+
+      setMany({ ndisRegion, ndisRegionSource: 'auto' });
+      setShowManualNdisRegion(false);
+      if (data.geocode?.address) {
+        setMany({
+          address: data.geocode.address,
+          region: data.geocode.address,
+        });
+      }
+      setMmmDetection({ status: 'detected', label: data.label });
+    } catch {
+      setMmmDetection({
+        status: 'failed',
+        message: 'We couldn’t detect your MMM region. Please choose it manually.',
+      });
+      setShowManualNdisRegion(true);
+    }
+  }, [S.service, isNdisMmmEligible, setMany]);
+  const detectNdisMmmAddress = React.useCallback(async (address: string) => {
+    const trimmed = address.trim();
+    if (!isNdisMmmEligible || !trimmed) return;
+
+    setMmmDetection({ status: 'checking' });
+    try {
+      const params = new URLSearchParams({
+        context: 'ndis',
+        service: S.service,
+        address: trimmed,
+      });
+      const response = await fetch(`/api/geo/mmm?${params.toString()}`);
+      const data = (await response.json()) as Partial<MmmApiResponse> & { error?: string };
+
+      if (!response.ok || !data.label || !data.pricingRegion) {
+        throw new Error(data.error || 'MMM detection failed.');
+      }
+
+      const ndisRegion: NdisRegion =
+        data.pricingRegion === 'veryRemote' ? 'very_remote' : data.pricingRegion;
+
+      if (S.ndisRegionSource !== 'manual') {
+        setMany({ ndisRegion, ndisRegionSource: 'auto' });
+        setShowManualNdisRegion(false);
+      }
+      setMmmDetection({ status: 'detected', label: data.label });
+    } catch {
+      setMmmDetection({
+        status: 'failed',
+        message: 'We couldn’t detect your MMM region. Please choose it manually.',
+      });
+      setShowManualNdisRegion(true);
+    }
+  }, [S.ndisRegionSource, S.service, isNdisMmmEligible, setMany]);
+  const handleServiceAddressSelected = React.useCallback((formatted: string, suburb?: string, coords?: { lat: number; lng: number }) => {
+    setMany({
+      address: formatted,
+      region: suburb || formatted,
+    });
+    if (coords && isNdisMmmEligible) {
+      void detectNdisMmmRegion(coords);
+    } else if (isNdisMmmEligible) {
+      void detectNdisMmmAddress(formatted);
+    }
+    trackQuoteEvent('quote_step3_address_filled', { service: S.service, scope: S.scope });
+  }, [S.service, S.scope, detectNdisMmmAddress, detectNdisMmmRegion, isNdisMmmEligible, setMany, trackQuoteEvent]);
+  const handleYardMapAddressSelected = React.useCallback((address: string, coords?: { lat: number; lng: number }) => {
+    handleServiceAddressSelected(address, address, coords);
+  }, [handleServiceAddressSelected]);
+  const renderMmmStatus = React.useCallback(() => {
+    if (!isNdisMmmEligible || mmmDetection.status === 'idle') return null;
+
+    const text =
+      mmmDetection.status === 'checking'
+        ? 'Checking MMM region...'
+        : mmmDetection.status === 'detected'
+          ? `Detected: ${mmmDetection.label}`
+          : mmmDetection.message;
+
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+        <span
+          className={cls(
+            'inline-flex items-center rounded-full border px-2.5 py-1 font-medium',
+            mmmDetection.status === 'checking'
+              ? 'border-violet-200 bg-violet-50 text-violet-700'
+              : mmmDetection.status === 'detected'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+          )}
+        >
+          {text}
+        </span>
+      </div>
+    );
+  }, [isNdisMmmEligible, mmmDetection]);
+  useEffect(() => {
+    if (!isNdisMmmEligible) {
+      setMmmDetection({ status: 'idle' });
+      setShowManualNdisRegion(false);
+      lastMmmLookupRef.current = '';
+    }
+  }, [isNdisMmmEligible]);
+  useEffect(() => {
+    if (!isNdisMmmEligible || S.ndisRegionSource === 'manual') return;
+    const address = S.address?.trim() ?? '';
+    if (!address || lastMmmLookupRef.current === address) return;
+    lastMmmLookupRef.current = address;
+    void detectNdisMmmAddress(address);
+  }, [S.address, S.ndisRegionSource, detectNdisMmmAddress, isNdisMmmEligible]);
   const handlePartnerReferralClick = React.useCallback(() => {
     try {
       trackQuoteEvent('partner_referral_click', {
@@ -3424,6 +3575,7 @@ function ServicesPageContent() {
     set,
     getYardMeasurementConfig,
     computeYardQuote,
+    onAddressSelected: isNdisMmmEligible ? handleYardMapAddressSelected : undefined,
   });
 
   const yardMeasurementConfig = getYardMeasurementConfig(S.scope);
@@ -3527,10 +3679,17 @@ function ServicesPageContent() {
           Boolean((parsed.fullName as string | undefined)?.trim()) ||
           Boolean((parsed.email as string | undefined)?.trim());
         if (!hasProgress) return;
-        toast('Quote in progress', {
-          description: 'Continue where you left off, or start fresh.',
+        // Describe where they left off so the prompt is concrete, not vague.
+        const stepLabel = parsed.step === 3 ? 'Step 3 (contact)'
+          : parsed.step === 2 ? 'Step 2 (details)'
+          : 'in progress';
+        const ctxLabel = parsed.context ? ` · ${parsed.context}` : '';
+        toast('Quote resumed', {
+          description: `Picked up where you left off — ${stepLabel}${ctxLabel}.`,
           duration: 8_000,
-          action: { label: 'Continue', onClick: () => {} },
+          // No-op action just acknowledges; state is already restored by
+          // useLocalStorageReducer. We confirm rather than do nothing silently.
+          action: { label: 'Got it', onClick: () => {} },
           cancel: { label: 'Start fresh', onClick: () => hardResetQuote(true) },
         });
       } catch {}
@@ -3961,11 +4120,12 @@ function ServicesPageContent() {
   const hasMinimumWork = useMemo(() => {
     switch (S.service) {
       case 'cleaning':
-        return hasWork;
+        return isNdisMmmEligible ? hasWork && S.address.trim().length > 0 : hasWork;
       case 'windows':
         return S.winRows.some((r) => (r.int ?? 0) > 0 || (r.ext ?? 0) > 0);
       case 'yard':
         return (
+          (!isNdisMmmEligible || S.address.trim().length > 0) &&
           (S.yardJobs?.length ?? 0) > 0 &&
           (S.yardJobs ?? []).every((job: { polygon_geojson?: unknown[][] }) =>
             (job.polygon_geojson ?? []).some((z) => z.length >= 3)
@@ -3980,7 +4140,7 @@ function ServicesPageContent() {
       default:
         return hasWork;
     }
-  }, [S.service, S.winRows, S.yardJobs, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork]);
+  }, [S.service, S.address, S.winRows, S.yardJobs, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork, isNdisMmmEligible]);
 
   const conditionMult = useMemo(() => {
     // Flags
@@ -4007,38 +4167,17 @@ function ServicesPageContent() {
     setIsClient(true);
   }, []);
 
+  // Previously this effect detected reloads via performance.navigation and
+  // hard-reset the quote. That destroyed in-progress quotes for everyone
+  // (especially authenticated users returning to /services), and it ran
+  // BEFORE the "Quote in progress" toast could even read localStorage.
+  // Restoration is now handled exclusively by useLocalStorageReducer +
+  // the resume toast in the auth effect above. Reloads keep your progress.
   useEffect(() => {
     if (!isClient) return;
-
-    if (typeof performance === 'undefined') return;
-
-    let navType: string | undefined;
-    if (typeof performance.getEntriesByType === 'function') {
-      const entries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
-      navType = entries?.[0]?.type;
-    }
-
-    if (!navType) {
-      const { navigation } = performance as Performance & { navigation?: PerformanceNavigation };
-      switch (navigation?.type) {
-        case 1:
-          navType = 'reload';
-          break;
-        case 2:
-          navType = 'back_forward';
-          break;
-        case 0:
-          navType = 'navigate';
-          break;
-        default:
-          break;
-      }
-    }
-
-    if (navType === 'reload') {
-      hardResetQuote(true);
-    }
-  }, [hardResetQuote, isClient]);
+    // Intentionally a no-op: kept as a hook stub so future reload-aware
+    // logic (e.g. analytics) has an obvious place to live.
+  }, [isClient]);
 
   // Ensure at least one yard job exists
   useEffect(() => {
@@ -4324,9 +4463,27 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   // the chosen slot + region) — this bypasses scope-based pricing for cleaning
   // + yard. Defaults to weekday-day metro so quotes match the pre-rate-table
   // behaviour until the user explicitly picks a band.
+  const effectiveNdisHours =
+    S.context === 'ndis' && S.service === 'cleaning'
+      ? S.ndisHoursOrigin === 'manual' && S.ndisEstimatedHours
+        ? S.ndisEstimatedHours
+        : suggestNdisCleaningHours({
+            bedrooms: S.ndisPropertyBedrooms,
+            bathrooms: S.ndisPropertyBathrooms,
+            living: S.ndisPropertyLiving,
+            kitchens: S.ndisPropertyKitchens,
+            laundry: S.ndisPropertyLaundry,
+            storeys: S.ndisPropertyStoreys,
+            condition: S.ndisCondition,
+          })
+      : S.context === 'ndis' && S.service === 'yard'
+        ? S.ndisHoursOrigin === 'manual' && S.ndisEstimatedHours
+          ? S.ndisEstimatedHours
+          : suggestNdisYardHours(S.ndisYardSize, S.ndisCondition)
+        : null;
   const ndisHourlyPrice =
     S.context === 'ndis' && (S.service === 'cleaning' || S.service === 'yard')
-      ? Math.round((S.ndisEstimatedHours || NDIS_MIN_HOURS) * ndisRateFor(S.ndisRateSlot, S.ndisRegion))
+      ? Math.round((effectiveNdisHours || NDIS_MIN_HOURS) * ndisRateFor(S.ndisRateSlot, S.ndisRegion))
       : null;
   const effectivePrice = ndisHourlyPrice ?? routePriceOverride ?? scopedPricing.price;
   const isSneakerLot = S.service === 'laundry_sneakers' && (S.scope === 'sneaker_lot' || (S.scope === 'sneaker_care' && S.sneakerTier === 'multi'));
@@ -4412,11 +4569,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
     // NDIS cleaning + yard are billed on an hourly estimate — surface that
     // directly instead of deriving from scope-based estMinutes.
     if (S.context === 'ndis' && (S.service === 'cleaning' || S.service === 'yard')) {
-      const h = S.ndisEstimatedHours || NDIS_MIN_HOURS;
+      const h = effectiveNdisHours || NDIS_MIN_HOURS;
       return `~${h} hr`;
     }
     return `~${fmtHrMin(estMinutes)}`;
-  }, [estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround, S.context, S.service, S.ndisEstimatedHours]);
+  }, [effectiveNdisHours, estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround, S.context, S.service]);
 
   const isNdisContext = S.context === 'ndis';
   const serviceContextLabel = CONTEXT_LABELS[S.context];
@@ -4695,7 +4852,7 @@ function winSessionMinutes(S: WizardState) {
                   </section>
                 )}
 
-                {/* Service tiles — NDIS shows only the two funded services; home/commercial keep the full set */}
+                {/* Service tiles — only show services available for the selected context. */}
                 <div
                   className={cls(
                     'grid gap-3.5',
@@ -4705,14 +4862,9 @@ function winSessionMinutes(S: WizardState) {
                   )}
                 >
                   {SERVICES
-                    .filter((s) =>
-                      isNdisContext
-                        ? ALLOWED_SERVICES_BY_CONTEXT.ndis.includes(s.key)
-                        : true
-                    )
+                    .filter((s) => ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key))
                     .map((s) => {
-                      const allowed = ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key);
-                      const isActive = S.service === s.key && allowed;
+                      const isActive = S.service === s.key;
                       const leadText = isNdisContext
                         ? NDIS_SERVICE_LEAD_TEXT[s.key] ?? s.from
                         : s.from;
@@ -4720,8 +4872,7 @@ function winSessionMinutes(S: WizardState) {
                         <Tile
                           key={s.key}
                           active={isActive}
-                          disabled={!allowed}
-                          onClick={() => allowed && selectService(s.key)}
+                          onClick={() => selectService(s.key)}
                           title={s.label}
                           subtitle={s.subtitle}
                           icon={s.icon}
@@ -4817,6 +4968,11 @@ function winSessionMinutes(S: WizardState) {
         // short-circuits the regular scope picker. Hours are suggested from
         // house/yard size + condition, and priced at the NDIS Price Guide cap
         // ($57.10/hr). Users can still fine-tune hours manually.
+        //
+        // Visual layout: a hero band with the live price chip, then three
+        // grouped section cards (About → Schedule → Estimate) with one
+        // shared active-state vocabulary. Avoid restacking loose grids — they
+        // read as a wall of pills with no rhythm.
         const ndisStep2Panel =
           isNdisContext && (S.service === 'cleaning' || S.service === 'yard') ? (() => {
             const suggested = S.service === 'cleaning'
@@ -4859,326 +5015,642 @@ function winSessionMinutes(S: WizardState) {
             // Pretty-print hours that may now be fractional (e.g. 5.25 hr).
             const fmtHours = (h: number) =>
               Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
-            const Stepper = ({ label, value, onChange, min, max }: {
-              label: string; value: number; onChange: (n: number) => void; min: number; max: number;
-            }) => (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-100 bg-white/70 px-3 py-2">
-                <span className="text-sm font-medium text-slate-700">{label}</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    className="h-7 w-7 rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 disabled:opacity-40"
-                    onClick={() => onChange(Math.max(min, value - 1))}
-                    disabled={value <= min}
-                    aria-label={`Decrease ${label.toLowerCase()}`}
-                  >
-                    −
-                  </button>
-                  <span className="min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-slate-900">{value}</span>
-                  <button
-                    type="button"
-                    className="h-7 w-7 rounded-lg border border-violet-200 text-violet-700 hover:bg-violet-50 disabled:opacity-40"
-                    onClick={() => onChange(Math.min(max, value + 1))}
-                    disabled={value >= max}
-                    aria-label={`Increase ${label.toLowerCase()}`}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+
+            // Shared selectable-tile vocabulary. Every chip-style control on
+            // this panel — Yard size, When, Condition, Region — uses these so
+            // the panel reads as one design system rather than five. The
+            // active state earns its weight: a violet ring plus a small
+            // checkmark in the corner so users get unmistakable feedback.
+            const tileCls = (active: boolean) => cls(
+              'group relative overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1',
+              active
+                ? 'border-violet-500 bg-gradient-to-br from-violet-50 to-white ring-1 ring-violet-300/60 shadow-[0_4px_12px_-2px_rgba(124,58,237,0.18)]'
+                : 'border-slate-200 bg-white hover:-translate-y-px hover:border-violet-300 hover:bg-violet-50/40 hover:shadow-sm'
             );
-            return (
-              <section
-                aria-labelledby="ndis-step2-heading"
-                className="rounded-2xl border border-violet-200/80 bg-gradient-to-br from-violet-50/80 via-white to-white p-5 shadow-[0_12px_40px_-18px_rgba(109,40,217,0.35)]"
+            const tileTitle = (active: boolean) => cls(
+              'text-sm font-semibold leading-tight',
+              active ? 'text-violet-900' : 'text-slate-900'
+            );
+            const tileBlurb = (active: boolean) => cls(
+              'mt-0.5 text-[11px] leading-snug',
+              active ? 'text-violet-700/80' : 'text-slate-500'
+            );
+            const TileCheck = ({ active }: { active: boolean }) => (
+              <span
+                aria-hidden
+                className={cls(
+                  'pointer-events-none absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full transition-all',
+                  active
+                    ? 'bg-violet-600 text-white opacity-100 scale-100'
+                    : 'bg-slate-100 text-slate-300 opacity-0 scale-90'
+                )}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-600">
-                      NDIS · Household tasks
-                    </p>
-                    <h3 id="ndis-step2-heading" className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                      {S.service === 'cleaning' ? 'Estimate your cleaning hours' : 'Estimate your yard hours'}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-                      We quote NDIS household tasks at the NDIS Price Guide cap.
-                      Tell us about the space and when the visit is — we&apos;ll
-                      suggest the hours and apply the right rate band.
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Current band:{' '}
-                      <span className="font-semibold text-slate-700">
-                        {NDIS_RATE_LABELS[S.ndisRateSlot]} · {NDIS_REGION_LABELS[S.ndisRegion]} ·{' '}
-                        ${effectiveRate.toFixed(2)}/hr
-                      </span>
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-violet-600" />
-                    Price Guide 2024–25
+                <svg viewBox="0 0 12 12" width={9} height={9} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+                </svg>
+              </span>
+            );
+
+            // Stepper — promoted from a thin row to a small card, so each
+            // room type has its own dedicated tile with a generous tap-target.
+            const Stepper = ({ label, value, onChange, min, max, icon }: {
+              label: string; value: number; onChange: (n: number) => void; min: number; max: number; icon?: React.ReactNode;
+            }) => {
+              const has = value > 0;
+              return (
+                <div className={cls(
+                  'flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-colors',
+                  has
+                    ? 'border-violet-200 bg-violet-50/50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                )}>
+                  <span className={cls('flex items-center gap-2 text-sm font-medium', has ? 'text-violet-900' : 'text-slate-700')}>
+                    {icon && <span className={has ? 'text-violet-500' : 'text-slate-400'}>{icon}</span>}
+                    {label}
                   </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={cls(
+                        'h-8 w-8 rounded-lg border text-base font-medium transition-all active:scale-95 disabled:opacity-30 disabled:active:scale-100',
+                        has
+                          ? 'border-violet-300 bg-white text-violet-700 hover:border-violet-500 hover:bg-violet-50'
+                          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                      )}
+                      onClick={() => onChange(Math.max(min, value - 1))}
+                      disabled={value <= min}
+                      aria-label={`Decrease ${label.toLowerCase()}`}
+                    >
+                      −
+                    </button>
+                    <span className={cls(
+                      'min-w-[1.75rem] text-center text-base font-semibold tabular-nums',
+                      has ? 'text-violet-900' : 'text-slate-900'
+                    )}>{value}</span>
+                    <button
+                      type="button"
+                      className={cls(
+                        'h-8 w-8 rounded-lg border text-base font-medium transition-all active:scale-95 disabled:opacity-30 disabled:active:scale-100',
+                        has
+                          ? 'border-violet-300 bg-white text-violet-700 hover:border-violet-500 hover:bg-violet-50'
+                          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                      )}
+                      onClick={() => onChange(Math.min(max, value + 1))}
+                      disabled={value >= max}
+                      aria-label={`Increase ${label.toLowerCase()}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            };
+
+            // Section-card wrapper. Three of these stack with consistent
+            // breathing room and a subtle violet accent on the icon, plus a
+            // numbered badge so the user always knows where they are in the
+            // panel — no more "wall of generic cards" feel.
+            const SectionCard = ({
+              step,
+              icon,
+              title,
+              subtitle,
+              children,
+              aside,
+            }: {
+              step?: number;
+              icon: React.ReactNode;
+              title: string;
+              subtitle?: string;
+              children: React.ReactNode;
+              aside?: React.ReactNode;
+            }) => (
+              <section className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_4px_16px_-4px_rgba(15,23,42,0.08)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 text-violet-700 ring-1 ring-violet-200/60">
+                      {icon}
+                      {typeof step === 'number' && (
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[9px] font-bold text-white ring-2 ring-white">
+                          {step}
+                        </span>
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold tracking-tight text-slate-900">{title}</h4>
+                      {subtitle && (
+                        <p className="mt-0.5 text-[11px] text-slate-500">{subtitle}</p>
+                      )}
+                    </div>
+                  </div>
+                  {aside}
+                </div>
+                <div className="mt-5 space-y-5">{children}</div>
+              </section>
+            );
+
+            // Tiny inline SVGs — keeps us off lucide-react (the codebase
+            // already uses hand-rolled icons in ./utils/icons.tsx).
+            const sIconProps = {
+              viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none',
+              stroke: 'currentColor', strokeWidth: 1.75,
+              strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+            };
+            const sIcon = {
+              property: (
+                <svg {...sIconProps}><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></svg>
+              ),
+              yard: (
+                <svg {...sIconProps}><path d="M3 20h18" /><path d="M6 20v-5m3 5v-3m3 3v-6m3 6v-4m3 4v-5" /></svg>
+              ),
+              calendar: (
+                <svg {...sIconProps}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></svg>
+              ),
+              calculator: (
+                <svg {...sIconProps}><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M8 7h8M9 11h.01M13 11h.01M17 11h.01M9 15h.01M13 15h.01M17 15h.01M9 19h.01M13 19h.01M17 19h.01" /></svg>
+              ),
+            };
+
+            // Shared props for tile icons — slightly larger than section-card icons.
+            const tileIconProps = {
+              viewBox: '0 0 24 24', width: 16, height: 16, fill: 'none',
+              stroke: 'currentColor', strokeWidth: 1.75,
+              strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+            };
+            // Condition icons keyed by service then condition.
+            const condIcon: Record<string, Record<string, React.ReactNode>> = {
+              cleaning: {
+                tidy: <svg {...tileIconProps}><circle cx="12" cy="12" r="3" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>,
+                lived_in: <svg {...tileIconProps}><path d="M3 11l9-7 9 7v9a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><path d="M9 22V12h6v10" /></svg>,
+                reset: <svg {...tileIconProps}><path d="M3 12a9 9 0 0115-6.7L21 8M21 4v4h-4M21 12a9 9 0 01-15 6.7L3 16M3 20v-4h4" /></svg>,
+              },
+              yard: {
+                tidy: <svg {...tileIconProps}><path d="M11 20A7 7 0 019.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></svg>,
+                lived_in: <svg {...tileIconProps}><path d="M12 22V12M12 12C12 7 8 3 3 3c0 5 3.5 9 9 9zM12 12c0-5 4-9 9-9 0 5-3.5 9-9 9" /></svg>,
+                reset: <svg {...tileIconProps}><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg>,
+              },
+            };
+            // Schedule icons keyed by rate slot.
+            const schedIcon: Record<string, React.ReactNode> = {
+              weekday_day: <svg {...tileIconProps}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>,
+              saturday: <svg {...tileIconProps}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4M12 13v4M10 15h4" /></svg>,
+              sunday: <svg {...tileIconProps}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>,
+              public_holiday: <svg {...tileIconProps}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+            };
+            // Yard size icons — dot-grid to visually show relative area.
+            const yardSizeIcon: Record<string, React.ReactNode> = {
+              small: (
+                <svg viewBox="0 0 20 20" width={18} height={18} aria-hidden>
+                  <circle cx="6" cy="6" r="2.5" fill="currentColor" />
+                  <circle cx="14" cy="6" r="2.5" fill="currentColor" />
+                  <circle cx="6" cy="14" r="2.5" fill="currentColor" />
+                  <circle cx="14" cy="14" r="2.5" fill="currentColor" />
+                </svg>
+              ),
+              medium: (
+                <svg viewBox="0 0 20 20" width={18} height={18} aria-hidden>
+                  {[4, 10, 16].flatMap(y => [4, 10, 16].map(x => (
+                    <circle key={`${x}-${y}`} cx={x} cy={y} r="1.8" fill="currentColor" />
+                  )))}
+                </svg>
+              ),
+              large: (
+                <svg viewBox="0 0 20 20" width={18} height={18} aria-hidden>
+                  {[3, 8, 13, 18].flatMap(y => [3, 8, 13, 18].map(x => (
+                    <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" />
+                  )))}
+                </svg>
+              ),
+              xlarge: (
+                <svg viewBox="0 0 22 22" width={18} height={18} aria-hidden>
+                  {[2, 6, 10, 14, 18].flatMap(y => [2, 6, 10, 14, 18].map(x => (
+                    <circle key={`${x}-${y}`} cx={x} cy={y} r="1.1" fill="currentColor" />
+                  )))}
+                </svg>
+              ),
+            };
+            // Room icons for steppers — 13px render size.
+            const rIconProps = {
+              viewBox: '0 0 24 24', width: 13, height: 13, fill: 'none',
+              stroke: 'currentColor', strokeWidth: 1.75,
+              strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+            };
+            const roomIcon = {
+              bed: <svg {...rIconProps}><path d="M2 20V10a2 2 0 012-2h16a2 2 0 012 2v10M2 14h20M7 8V6.5a.5.5 0 01.5-.5h9a.5.5 0 01.5.5V8" /></svg>,
+              bath: <svg {...rIconProps}><path d="M9 6l2 2M3 11h18v2a6 6 0 01-6 6H9a6 6 0 01-6-6v-2z" /><path d="M3 11V7a2 2 0 114 0" /></svg>,
+              sofa: <svg {...rIconProps}><rect x="2" y="9" width="20" height="11" rx="2" /><path d="M2 14h20M7 9V6M17 9V6" /></svg>,
+              kitchen: <svg {...rIconProps}><path d="M6 3v9M4 9c0 1.1.9 2 2 2s2-.9 2-2M17 3v6M14 3c0 6 3 8 3 9v9" /></svg>,
+              laundry: <svg {...rIconProps}><rect x="2" y="2" width="20" height="20" rx="3" /><circle cx="12" cy="13" r="4" /><circle cx="8" cy="6" r="1" /></svg>,
+              stairs: <svg {...rIconProps}><path d="M3 20V14h4v-4h5V7h5V3M3 20h18" /></svg>,
+            };
+
+            const isOverridden = S.ndisHoursOrigin === 'manual' && hours !== suggested;
+            const showRegionPicker = showManualNdisRegion || S.ndisRegionSource === 'manual';
+
+            return (
+              <section aria-labelledby="ndis-step2-heading" className="space-y-5">
+                {/* Hero — title left, live price right. Distinctive violet
+                    gradient with a soft dot pattern overlay so the panel
+                    announces itself instead of fading into the page. The
+                    price tile uses inverted contrast (deep violet bg, white
+                    figures) so it reads as the unmistakable answer. */}
+                <div className="relative overflow-hidden rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6 shadow-[0_4px_24px_-8px_rgba(124,58,237,0.18)]">
+                  {/* Decorative dot pattern */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-[0.18]"
+                    style={{
+                      backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(124 58 237) 1px, transparent 0)',
+                      backgroundSize: '20px 20px',
+                      maskImage: 'radial-gradient(ellipse at top right, rgba(0,0,0,0.55), transparent 60%)',
+                      WebkitMaskImage: 'radial-gradient(ellipse at top right, rgba(0,0,0,0.55), transparent 60%)',
+                    }}
+                  />
+                  {/* Decorative blur orb */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-violet-300/40 to-fuchsia-200/20 blur-3xl"
+                  />
+
+                  <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white/80 px-2.5 py-1 backdrop-blur-sm">
+                        <span className="h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-700">
+                          NDIS · Household tasks
+                        </span>
+                      </div>
+                      <h3 id="ndis-step2-heading" className="mt-3 text-2xl md:text-[28px] font-semibold leading-tight tracking-tight text-slate-900">
+                        {S.service === 'cleaning' ? 'Estimate your cleaning hours' : 'Estimate your yard hours'}
+                      </h3>
+                      <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-slate-600">
+                        Tell us about the {S.service === 'cleaning' ? 'home' : 'yard'} and we&apos;ll suggest the hours.
+                        Adjust anytime — we only bill for time on-site.
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200/80">
+                          <svg viewBox="0 0 24 24" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                          Price-Guide capped
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200/80">
+                          <svg viewBox="0 0 24 24" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                          Quarter-hour billing
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="relative shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-violet-800 px-5 py-4 text-white shadow-[0_8px_24px_-8px_rgba(124,58,237,0.55)] sm:min-w-[220px]">
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10 blur-2xl"
+                      />
+                      <div className="relative">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-200">Live estimate</span>
+                        </div>
+                        <div className="mt-1.5 text-[34px] leading-none font-semibold tracking-tight tabular-nums">
+                          {fmtAUD(subtotal)}
+                        </div>
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] tabular-nums text-violet-100">
+                          <span className="rounded-md bg-white/15 px-1.5 py-0.5 font-semibold">{fmtHours(hours)} hr</span>
+                          <span className="text-violet-300">×</span>
+                          <span className="rounded-md bg-white/15 px-1.5 py-0.5 font-semibold">${effectiveRate.toFixed(2)}/hr</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {S.service === 'cleaning' ? (
-                  // Note: input changes do NOT touch ndisHoursOrigin. Previously
-                  // every change reset the user's manual override back to
-                  // 'suggested'. Now the override sticks until the user clicks
-                  // "Use suggestion" in the suggested-estimate panel below.
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    <Stepper
-                      label="Bedrooms"
-                      value={S.ndisPropertyBedrooms}
-                      min={0}
-                      max={8}
-                      onChange={(n) => setMany({ ndisPropertyBedrooms: n })}
-                    />
-                    <Stepper
-                      label="Bathrooms"
-                      value={S.ndisPropertyBathrooms}
-                      min={0}
-                      max={6}
-                      onChange={(n) => setMany({ ndisPropertyBathrooms: n })}
-                    />
-                    <Stepper
-                      label="Living rooms"
-                      value={S.ndisPropertyLiving}
-                      min={0}
-                      max={5}
-                      onChange={(n) => setMany({ ndisPropertyLiving: n })}
-                    />
-                    <Stepper
-                      label="Kitchens"
-                      value={S.ndisPropertyKitchens}
-                      min={0}
-                      max={3}
-                      onChange={(n) => setMany({ ndisPropertyKitchens: n })}
-                    />
-                    <Stepper
-                      label="Laundry"
-                      value={S.ndisPropertyLaundry}
-                      min={0}
-                      max={2}
-                      onChange={(n) => setMany({ ndisPropertyLaundry: n })}
-                    />
-                    <Stepper
-                      label="Storeys"
-                      value={S.ndisPropertyStoreys}
-                      min={1}
-                      max={3}
-                      onChange={(n) => setMany({ ndisPropertyStoreys: n })}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Yard size</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-4">
-                      {([
-                        { k: 'small', label: 'Small', blurb: 'Courtyard / unit' },
-                        { k: 'medium', label: 'Medium', blurb: 'Typical suburban' },
-                        { k: 'large', label: 'Large', blurb: '700–1500 m²' },
-                        { k: 'xlarge', label: 'X-Large', blurb: 'Acreage / dual' },
-                      ] as const).map(({ k, label, blurb }) => {
-                        const active = S.ndisYardSize === k;
+                {/* Card 1 — About the property/yard.
+                    Note: input changes do NOT touch ndisHoursOrigin. The
+                    manual override sticks until the user clicks "Use
+                    suggested" in the estimate card below. */}
+                <SectionCard
+                  step={1}
+                  icon={S.service === 'cleaning' ? sIcon.property : sIcon.yard}
+                  title={S.service === 'cleaning' ? 'About the home' : 'About the yard'}
+                  subtitle={S.service === 'cleaning' ? 'Helps us right-size the visit' : 'How big is the space?'}
+                >
+                  {S.service === 'cleaning' && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Service address</p>
+                      <div className="mt-2">
+                        <ServiceAddressInput
+                          address={S.address}
+                          onAddressChange={(formatted, suburb, coords) => {
+                            handleServiceAddressSelected(formatted, suburb, coords);
+                          }}
+                          onClear={() => {
+                            setMany({ address: '', region: '' });
+                            setMmmDetection({ status: 'idle' });
+                            lastMmmLookupRef.current = '';
+                          }}
+                        />
+                        {renderMmmStatus()}
+                      </div>
+                    </div>
+                  )}
+
+                  {S.service === 'cleaning' ? (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Rooms</p>
+                        <span className="text-[10px] text-slate-400">Tap ± to adjust</span>
+                      </div>
+                      <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                        <Stepper label="Bedrooms" value={S.ndisPropertyBedrooms} min={0} max={8} onChange={(n) => setMany({ ndisPropertyBedrooms: n })} icon={roomIcon.bed} />
+                        <Stepper label="Bathrooms" value={S.ndisPropertyBathrooms} min={0} max={6} onChange={(n) => setMany({ ndisPropertyBathrooms: n })} icon={roomIcon.bath} />
+                        <Stepper label="Living rooms" value={S.ndisPropertyLiving} min={0} max={5} onChange={(n) => setMany({ ndisPropertyLiving: n })} icon={roomIcon.sofa} />
+                        <Stepper label="Kitchens" value={S.ndisPropertyKitchens} min={0} max={3} onChange={(n) => setMany({ ndisPropertyKitchens: n })} icon={roomIcon.kitchen} />
+                        <Stepper label="Laundry" value={S.ndisPropertyLaundry} min={0} max={2} onChange={(n) => setMany({ ndisPropertyLaundry: n })} icon={roomIcon.laundry} />
+                        <Stepper label="Storeys" value={S.ndisPropertyStoreys} min={1} max={3} onChange={(n) => setMany({ ndisPropertyStoreys: n })} icon={roomIcon.stairs} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Yard size</p>
+                      <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+                        {([
+                          { k: 'small', label: 'Small', blurb: 'Courtyard / unit' },
+                          { k: 'medium', label: 'Medium', blurb: 'Typical suburban' },
+                          { k: 'large', label: 'Large', blurb: '700–1500 m²' },
+                          { k: 'xlarge', label: 'X-Large', blurb: 'Acreage / dual' },
+                        ] as const).map(({ k, label, blurb }) => {
+                          const active = S.ndisYardSize === k;
+                          return (
+                            <button key={k} type="button" className={tileCls(active)} onClick={() => setMany({ ndisYardSize: k })} aria-pressed={active}>
+                              <TileCheck active={active} />
+                              <span className={cls('mb-2 flex items-center', active ? 'text-violet-500' : 'text-slate-300')}>
+                                {yardSizeIcon[k]}
+                              </span>
+                              <div className={tileTitle(active)}>{label}</div>
+                              <div className={tileBlurb(active)}>{blurb}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                      {S.service === 'yard' ? 'Growth level' : 'Property condition'}
+                    </p>
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+                      {(S.service === 'yard'
+                        ? ([
+                            { k: 'tidy',     label: 'Maintained',     blurb: 'Recently mowed — quick trim & tidy' },
+                            { k: 'lived_in', label: 'Standard growth', blurb: 'Routine fortnightly mow & edge' },
+                            { k: 'reset',    label: 'Overgrown',      blurb: 'Heavy growth — full clearance & green-waste' },
+                          ] as const)
+                        : ([
+                            { k: 'tidy',     label: 'Tidy',     blurb: 'Maintained — light touch' },
+                            { k: 'lived_in', label: 'Lived-in', blurb: 'Typical ongoing support' },
+                            { k: 'reset',    label: 'Reset',    blurb: 'Needs a deeper pass' },
+                          ] as const)
+                      ).map(({ k, label, blurb }) => {
+                        const active = S.ndisCondition === k;
+                        const serviceKey = S.service === 'yard' ? 'yard' : 'cleaning';
                         return (
-                          <button
-                            key={k}
-                            type="button"
-                            className={cls(
-                              'rounded-xl border px-3 py-2.5 text-left transition',
-                              active
-                                ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
-                                : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
-                            )}
-                            onClick={() => setMany({ ndisYardSize: k })}
-                            aria-pressed={active}
-                          >
-                            <div className="text-sm font-semibold text-slate-900">{label}</div>
-                            <div className="text-[11px] text-slate-500">{blurb}</div>
+                          <button key={k} type="button" className={tileCls(active)} onClick={() => setMany({ ndisCondition: k })} aria-pressed={active}>
+                            <TileCheck active={active} />
+                            <span className={cls('mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors', active ? 'bg-violet-100 text-violet-600' : 'bg-slate-50 text-slate-400')}>
+                              {condIcon[serviceKey][k]}
+                            </span>
+                            <div className={tileTitle(active)}>{label}</div>
+                            <div className={tileBlurb(active)}>{blurb}</div>
                           </button>
                         );
                       })}
                     </div>
                   </div>
-                )}
+                </SectionCard>
 
-                <div className="mt-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">When?</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    Price Guide differentials apply outside weekday daytime — the rate above updates as you change this.
-                  </p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-5">
-                    {([
-                      { k: 'weekday_day',     label: 'Weekday day',     blurb: 'Mon–Fri 6am–8pm' },
-                      { k: 'weekday_evening', label: 'Weekday evening', blurb: 'After 8pm' },
-                      { k: 'saturday',        label: 'Saturday',        blurb: 'Sat any time' },
-                      { k: 'sunday',          label: 'Sunday',          blurb: 'Sun any time' },
-                      { k: 'public_holiday',  label: 'Public holiday',  blurb: 'QLD calendar' },
-                    ] as const).map(({ k, label, blurb }) => {
-                      const active = S.ndisRateSlot === k;
-                      return (
-                        <button
-                          key={k}
-                          type="button"
-                          className={cls(
-                            'rounded-xl border px-3 py-2.5 text-left transition',
-                            active
-                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
-                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
-                          )}
-                          onClick={() => setMany({ ndisRateSlot: k })}
-                          aria-pressed={active}
-                        >
-                          <div className="text-sm font-semibold text-slate-900">{label}</div>
-                          <div className="text-[11px] text-slate-500">{blurb}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Region</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    Remote and very-remote zones attract a Price Guide loading. Most Brisbane / Logan / Gold Coast bookings stay metro.
-                  </p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-4">
-                    {([
-                      { k: 'metro',       label: 'Metro',       blurb: 'MMM 1' },
-                      { k: 'regional',    label: 'Regional',    blurb: 'MMM 2-3' },
-                      { k: 'remote',      label: 'Remote',      blurb: 'MMM 6 · +40%' },
-                      { k: 'very_remote', label: 'Very remote', blurb: 'MMM 7 · +50%' },
-                    ] as const).map(({ k, label, blurb }) => {
-                      const active = S.ndisRegion === k;
-                      return (
-                        <button
-                          key={k}
-                          type="button"
-                          className={cls(
-                            'rounded-xl border px-3 py-2.5 text-left transition',
-                            active
-                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
-                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
-                          )}
-                          onClick={() => setMany({ ndisRegion: k })}
-                          aria-pressed={active}
-                        >
-                          <div className="text-sm font-semibold text-slate-900">{label}</div>
-                          <div className="text-[11px] text-slate-500">{blurb}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condition</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                    {([
-                      { k: 'tidy', label: 'Tidy', blurb: 'Maintained — light touch' },
-                      { k: 'lived_in', label: 'Lived-in', blurb: 'Typical ongoing support' },
-                      { k: 'reset', label: 'Reset', blurb: 'Needs a deeper pass' },
-                    ] as const).map(({ k, label, blurb }) => {
-                      const active = S.ndisCondition === k;
-                      return (
-                        <button
-                          key={k}
-                          type="button"
-                          className={cls(
-                            'rounded-xl border px-3 py-2.5 text-left transition',
-                            active
-                              ? 'border-violet-500 bg-violet-50 shadow-[0_0_0_3px_rgba(109,40,217,0.12)]'
-                              : 'border-violet-100 bg-white hover:border-violet-300 hover:bg-violet-50/50'
-                          )}
-                          onClick={() => setMany({ ndisCondition: k })}
-                          aria-pressed={active}
-                        >
-                          <div className="text-sm font-semibold text-slate-900">{label}</div>
-                          <div className="text-[11px] text-slate-500">{blurb}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
-                        Suggested estimate
-                      </p>
-                      <p className="mt-0.5 text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{fmtHours(suggested)} hr</span>{' '}
-                        <span className="text-slate-500">
-                          · based on your {S.service === 'cleaning' ? 'property size' : 'yard size'} and condition
-                        </span>
-                      </p>
+                {/* Card 2 — Schedule & rate. Day-of-week + region together so
+                    the user sees both inputs that drive the $/hr cap in one
+                    place, with the resolved rate shown as a chip. */}
+                <SectionCard
+                  step={2}
+                  icon={sIcon.calendar}
+                  title="Schedule & rate"
+                  subtitle="Day of week sets the Price Guide cap"
+                  aside={(
+                    <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-violet-700">
+                      <span className="h-1 w-1 rounded-full bg-violet-500" />
+                      ${effectiveRate.toFixed(2)}/hr
+                    </span>
+                  )}
+                >
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">When?</p>
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+                      {([
+                        { k: 'weekday_day',    label: 'Weekday day',    blurb: 'Mon–Fri 7am–5pm' },
+                        { k: 'saturday',       label: 'Saturday',       blurb: 'Sat 7am–5pm' },
+                        { k: 'sunday',         label: 'Sunday',         blurb: 'Sun 7am–5pm' },
+                        { k: 'public_holiday', label: 'Public holiday', blurb: 'QLD calendar' },
+                      ] as const).map(({ k, label, blurb }) => {
+                        const active = S.ndisRateSlot === k;
+                        return (
+                          <button key={k} type="button" className={tileCls(active)} onClick={() => setMany({ ndisRateSlot: k })} aria-pressed={active}>
+                            <TileCheck active={active} />
+                            <span className={cls('mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors', active ? 'bg-violet-100 text-violet-600' : 'bg-slate-50 text-slate-400')}>
+                              {schedIcon[k]}
+                            </span>
+                            <div className={tileTitle(active)}>{label}</div>
+                            <div className={tileBlurb(active)}>{blurb}</div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    {S.ndisHoursOrigin === 'manual' && hours !== suggested && (
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/70 bg-slate-50/60 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">Region</p>
                       <button
                         type="button"
-                        onClick={applySuggested}
-                        className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50"
+                        className="inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-violet-200 hover:bg-white hover:text-violet-700"
+                        onClick={() => setShowManualNdisRegion((v) => !v)}
+                        aria-expanded={showRegionPicker}
                       >
-                        Use suggestion
+                        <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          {showRegionPicker ? <path d="M5 15l7-7 7 7" /> : <path d="M12 5v14M5 12h14" />}
+                        </svg>
+                        {showRegionPicker ? 'Hide' : 'Change region'}
                       </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]">
+                        <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                        <span className="font-semibold text-slate-800">{NDIS_REGION_LABELS[S.ndisRegion]}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]">
+                        <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                        <span className="text-slate-700">{NDIS_RATE_LABELS[S.ndisRateSlot]}</span>
+                      </span>
+                    </div>
+                    {showRegionPicker && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+                        {([
+                          { k: 'metro',       label: 'Metro',       blurb: 'MMM 1' },
+                          { k: 'regional',    label: 'Regional',    blurb: 'MMM 2-5' },
+                          { k: 'remote',      label: 'Remote',      blurb: 'MMM 6 · +40%' },
+                          { k: 'very_remote', label: 'Very remote', blurb: 'MMM 7 · +50%' },
+                        ] as const).map(({ k, label, blurb }) => {
+                          const active = S.ndisRegion === k;
+                          return (
+                            <button key={k} type="button" className={tileCls(active)} onClick={() => setMany({ ndisRegion: k, ndisRegionSource: 'manual' })} aria-pressed={active}>
+                              <TileCheck active={active} />
+                              <div className={tileTitle(active)}>{label}</div>
+                              <div className={tileBlurb(active)}>{blurb}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
+                </SectionCard>
 
-                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="h-10 w-10 rounded-xl border border-violet-200 text-lg font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-40"
-                        onClick={() => bumpHours(hours - STEP)}
-                        disabled={hours <= NDIS_MIN_HOURS}
-                        aria-label="Decrease hours"
-                      >
-                        −
-                      </button>
-                      <div className="min-w-[5.5rem] rounded-xl border border-violet-200 bg-white px-3 py-2 text-center">
-                        <div className="text-2xl font-semibold tabular-nums text-slate-900">{fmtHours(hours)}</div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">hours</div>
+                {/* Card 3 — Hours estimate. The visual climax of the panel:
+                    deep violet gradient, oversized hour readout, and a
+                    custom slider track that shows the suggested-hours
+                    waypoint so users see how their override compares. */}
+                <SectionCard
+                  step={3}
+                  icon={sIcon.calculator}
+                  title="Hours estimate"
+                  subtitle={isOverridden ? 'Manual override active' : 'Suggested from your inputs above'}
+                  aside={isOverridden ? (
+                    <button
+                      type="button"
+                      onClick={applySuggested}
+                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+                    >
+                      <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115-6.7L21 8M21 4v4h-4M21 12a9 9 0 01-15 6.7L3 16M3 20v-4h4" /></svg>
+                      Use suggested ({fmtHours(suggested)} hr)
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200/70">
+                      <svg viewBox="0 0 24 24" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                      Auto
+                    </span>
+                  )}
+                >
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 p-5 text-white shadow-[0_12px_32px_-12px_rgba(124,58,237,0.6)]">
+                    {/* Decorative shimmer */}
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-3xl"
+                    />
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-fuchsia-400/15 blur-3xl"
+                    />
+
+                    <div className="relative">
+                      <div className="flex items-end justify-between gap-4">
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-200">You&apos;ll book</div>
+                          <div className="mt-1 flex items-baseline gap-1.5">
+                            <span className="text-[56px] leading-none font-semibold tracking-tight tabular-nums">{fmtHours(hours)}</span>
+                            <span className="text-base font-medium text-violet-200">hr</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-200">Total</div>
+                          <div className="mt-1 text-3xl leading-none font-semibold tracking-tight tabular-nums">{fmtAUD(subtotal)}</div>
+                          <div className="mt-1 text-[11px] tabular-nums text-violet-200">@ ${effectiveRate.toFixed(2)}/hr</div>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        className="h-10 w-10 rounded-xl border border-violet-200 text-lg font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-40"
-                        onClick={() => bumpHours(hours + STEP)}
-                        disabled={hours >= NDIS_MAX_HOURS}
-                        aria-label="Increase hours"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                        {fmtHours(hours)} hr × ${effectiveRate.toFixed(2)}/hr
+
+                      {/* Custom slider with suggested-hours marker */}
+                      <div className="mt-5">
+                        {(() => {
+                          const range = NDIS_MAX_HOURS - NDIS_MIN_HOURS;
+                          const suggestedPct = Math.max(0, Math.min(100, ((suggested - NDIS_MIN_HOURS) / range) * 100));
+                          const valuePct = Math.max(0, Math.min(100, ((hours - NDIS_MIN_HOURS) / range) * 100));
+                          return (
+                            <div className="relative">
+                              {/* Track background */}
+                              <div className="h-2 rounded-full bg-violet-900/60 ring-1 ring-inset ring-white/5" />
+                              {/* Filled portion */}
+                              <div
+                                aria-hidden
+                                className="absolute left-0 top-0 h-2 rounded-full bg-gradient-to-r from-violet-300 via-fuchsia-300 to-amber-200"
+                                style={{ width: `${valuePct}%` }}
+                              />
+                              {/* Suggested marker */}
+                              <div
+                                aria-hidden
+                                className="absolute -top-1 h-4 w-0.5 rounded-full bg-emerald-300/90 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]"
+                                style={{ left: `calc(${suggestedPct}% - 1px)` }}
+                                title={`Suggested ${fmtHours(suggested)} hr`}
+                              />
+                              {/* Native slider on top — invisible track, visible thumb via accent + custom styling */}
+                              <input
+                                type="range"
+                                min={NDIS_MIN_HOURS}
+                                max={NDIS_MAX_HOURS}
+                                step={STEP}
+                                value={hours}
+                                onChange={(e) => bumpHours(Number(e.target.value))}
+                                className="ndis-hours-slider absolute inset-0 -top-2 h-6 w-full cursor-pointer appearance-none bg-transparent"
+                                aria-label="Estimated hours"
+                              />
+                              <style jsx>{`
+                                :global(.ndis-hours-slider)::-webkit-slider-thumb {
+                                  -webkit-appearance: none;
+                                  appearance: none;
+                                  height: 22px;
+                                  width: 22px;
+                                  border-radius: 9999px;
+                                  background: white;
+                                  border: 3px solid rgb(124 58 237);
+                                  box-shadow: 0 4px 12px -2px rgba(0,0,0,0.3), 0 0 0 4px rgba(255,255,255,0.15);
+                                  cursor: grab;
+                                  transition: transform 0.1s ease;
+                                }
+                                :global(.ndis-hours-slider)::-webkit-slider-thumb:active {
+                                  cursor: grabbing;
+                                  transform: scale(1.1);
+                                }
+                                :global(.ndis-hours-slider)::-moz-range-thumb {
+                                  height: 22px;
+                                  width: 22px;
+                                  border-radius: 9999px;
+                                  background: white;
+                                  border: 3px solid rgb(124 58 237);
+                                  box-shadow: 0 4px 12px -2px rgba(0,0,0,0.3), 0 0 0 4px rgba(255,255,255,0.15);
+                                  cursor: grab;
+                                }
+                              `}</style>
+                            </div>
+                          );
+                        })()}
                       </div>
-                      <div className="text-3xl font-semibold tracking-tight text-slate-900">
-                        {fmtAUD(subtotal)}
+
+                      <div className="mt-3 flex items-center justify-between text-[11px] tabular-nums">
+                        <span className="text-violet-200/80">{NDIS_MIN_HOURS} hr min</span>
+                        <span className="inline-flex items-center gap-1 text-emerald-200/90">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                          Suggested {fmtHours(suggested)} hr
+                        </span>
+                        <span className="text-violet-200/80">{NDIS_MAX_HOURS} hr cap</span>
                       </div>
                     </div>
                   </div>
 
-                  <input
-                    type="range"
-                    min={NDIS_MIN_HOURS}
-                    max={NDIS_MAX_HOURS}
-                    step={1}
-                    value={hours}
-                    onChange={(e) => bumpHours(Number(e.target.value))}
-                    className="mt-4 w-full accent-violet-600"
-                    aria-label="Estimated hours"
-                  />
-                  <div className="mt-1 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    <span>{NDIS_MIN_HOURS} hr min</span>
-                    <span>{NDIS_MAX_HOURS} hr cap</span>
+                  <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
+                    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-slate-500"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      <span className="font-medium text-slate-700">Estimate only.</span>{' '}
+                      Adjust anytime before the visit — we log time on-site so your plan is only
+                      charged for actual delivered hours.
+                    </p>
                   </div>
-                </div>
-
-                <p className="mt-4 text-[11px] text-slate-500">
-                  Hours are an estimate — you can adjust anytime before the visit. We log time on-site so your plan
-                  is only charged for actual delivered hours.
-                </p>
+                </SectionCard>
               </section>
             );
           })() : null;
@@ -5400,73 +5872,87 @@ function winSessionMinutes(S: WizardState) {
 
                 {mapVisible && (
                   <div className="flex flex-col gap-4 xl:order-2 xl:self-start xl:sticky xl:top-4">
-                    {/* Quick-access scope icons for easy switching */}
-                    <div className="grid grid-cols-5 gap-1 p-1.5 rounded-xl border border-black/5 bg-white/90 backdrop-blur-sm shadow-sm">
-                      {[
-                        { key: 'yard_mow', label: 'Mow', icon: (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <rect x="3" y="14" width="18" height="6" rx="1" strokeLinejoin="round"/>
-                            <circle cx="6" cy="20" r="2"/>
-                            <circle cx="18" cy="20" r="2"/>
-                            <path d="M7 14V10a2 2 0 0 1 2-2h2" strokeLinecap="round"/>
-                            <path d="M11 8l3-4" strokeLinecap="round"/>
-                          </svg>
-                        )},
-                        { key: 'yard_hedge', label: 'Hedge', icon: (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <ellipse cx="6" cy="10" rx="4" ry="5"/>
-                            <ellipse cx="12" cy="8" rx="4" ry="5"/>
-                            <ellipse cx="18" cy="10" rx="4" ry="5"/>
-                            <path d="M6 15v5M12 13v7M18 15v5" strokeLinecap="round"/>
-                          </svg>
-                        )},
-                        { key: 'yard_leaves', label: 'Garden', icon: (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M12 22V12"/>
-                            <path d="M12 12C12 12 6 10 6 5c0-2 2-3 6-3s6 1 6 3c0 5-6 7-6 7z"/>
-                            <path d="M8 22c0-2 1.5-4 4-4s4 2 4 4" strokeLinecap="round"/>
-                          </svg>
-                        )},
-                        { key: 'blast_and_shine', label: 'Wash', icon: (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M12 3v3M12 9v3M12 15v3M12 21v0" strokeLinecap="round"/>
-                            <path d="M7 5l1 2M7 11l1 2M7 17l1 2" strokeLinecap="round"/>
-                            <path d="M17 5l-1 2M17 11l-1 2M17 17l-1 2" strokeLinecap="round"/>
-                            <path d="M4 8l2 1M4 14l2 1" strokeLinecap="round"/>
-                            <path d="M20 8l-2 1M20 14l-2 1" strokeLinecap="round"/>
-                          </svg>
-                        )},
-                        { key: 'gutter_clean', label: 'Gutter', icon: (
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M4 6l2-2h12l2 2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M4 6v4c0 1 1 2 2 2h12c1 0 2-1 2-2V6" strokeLinejoin="round"/>
-                            <path d="M8 12v8M16 12v8" strokeLinecap="round"/>
-                            <path d="M12 12v4" strokeLinecap="round" strokeDasharray="2 2"/>
-                          </svg>
-                        )},
-                      ].map((scope) => (
-                        <button
-                          key={scope.key}
-                          type="button"
-                          onClick={() => {
-                            trackQuoteEvent('scope_selected', { service: S.service, scope: scope.key, context: S.context });
-                            set('scope', scope.key);
-                            applyScopePreset(S.service, scope.key);
-                            setHasInteractedStep2(true);
-                          }}
-                          className={cls(
-                            'flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all text-[11px] font-semibold',
-                            S.scope === scope.key
-                              ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-600 ring-offset-1'
-                              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-                          )}
-                          title={scope.label}
-                        >
-                          {scope.icon}
-                          <span>{scope.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {isNdisContext ? (
+                      <div className="rounded-2xl border border-violet-100 bg-white/90 p-3 text-xs text-slate-600 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-800">Service address</span>
+                          <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                            {NDIS_REGION_LABELS[S.ndisRegion]}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+                          {S.address || 'Search the map address to detect MMM before reviewing the quote.'}
+                        </p>
+                        {renderMmmStatus()}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-5 gap-1 p-1.5 rounded-xl border border-black/5 bg-white/90 backdrop-blur-sm shadow-sm">
+                        {[
+                          { key: 'yard_mow', label: 'Mow', icon: (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <rect x="3" y="14" width="18" height="6" rx="1" strokeLinejoin="round"/>
+                              <circle cx="6" cy="20" r="2"/>
+                              <circle cx="18" cy="20" r="2"/>
+                              <path d="M7 14V10a2 2 0 0 1 2-2h2" strokeLinecap="round"/>
+                              <path d="M11 8l3-4" strokeLinecap="round"/>
+                            </svg>
+                          )},
+                          { key: 'yard_hedge', label: 'Hedge', icon: (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <ellipse cx="6" cy="10" rx="4" ry="5"/>
+                              <ellipse cx="12" cy="8" rx="4" ry="5"/>
+                              <ellipse cx="18" cy="10" rx="4" ry="5"/>
+                              <path d="M6 15v5M12 13v7M18 15v5" strokeLinecap="round"/>
+                            </svg>
+                          )},
+                          { key: 'yard_leaves', label: 'Garden', icon: (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M12 22V12"/>
+                              <path d="M12 12C12 12 6 10 6 5c0-2 2-3 6-3s6 1 6 3c0 5-6 7-6 7z"/>
+                              <path d="M8 22c0-2 1.5-4 4-4s4 2 4 4" strokeLinecap="round"/>
+                            </svg>
+                          )},
+                          { key: 'blast_and_shine', label: 'Wash', icon: (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M12 3v3M12 9v3M12 15v3M12 21v0" strokeLinecap="round"/>
+                              <path d="M7 5l1 2M7 11l1 2M7 17l1 2" strokeLinecap="round"/>
+                              <path d="M17 5l-1 2M17 11l-1 2M17 17l-1 2" strokeLinecap="round"/>
+                              <path d="M4 8l2 1M4 14l2 1" strokeLinecap="round"/>
+                              <path d="M20 8l-2 1M20 14l-2 1" strokeLinecap="round"/>
+                            </svg>
+                          )},
+                          { key: 'gutter_clean', label: 'Gutter', icon: (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M4 6l2-2h12l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M4 6v4c0 1 1 2 2 2h12c1 0 2-1 2-2V6" strokeLinejoin="round"/>
+                              <path d="M8 12v8M16 12v8" strokeLinecap="round"/>
+                              <path d="M12 12v4" strokeLinecap="round" strokeDasharray="2 2"/>
+                            </svg>
+                          )},
+                        ].map((scope) => (
+                          <button
+                            key={scope.key}
+                            type="button"
+                            onClick={() => {
+                              trackQuoteEvent('scope_selected', { service: S.service, scope: scope.key, context: S.context });
+                              set('scope', scope.key);
+                              applyScopePreset(S.service, scope.key);
+                              setHasInteractedStep2(true);
+                            }}
+                            className={cls(
+                              'flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all text-[11px] font-semibold',
+                              S.scope === scope.key
+                                ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-600 ring-offset-1'
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                            )}
+                            title={scope.label}
+                          >
+                            {scope.icon}
+                            <span>{scope.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-col gap-4 relative">
                       <StableMapSlot
                         className="w-full rounded-2xl border border-black/10 shadow-lg overflow-hidden h-[400px] sm:h-[500px] xl:h-[600px] xl:max-h-[70vh]"
@@ -5482,7 +5968,7 @@ function winSessionMinutes(S: WizardState) {
                           onLoad={() => {
                             const zones = activeYardJob?.polygon_geojson || [];
                             postZonesToIframe(zones);
-                            postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: S.scope });
+                            postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: isNdisContext ? 'yard_mow' : S.scope });
                           }}
                         />
                         {isCalculating && (
@@ -5513,8 +5999,11 @@ function winSessionMinutes(S: WizardState) {
                         const unit = measurement.mode === 'perimeter' ? 'm' : 'm²';
                         const activeZones = (S.yardPolygon ?? []).filter((z: any[]) => z.length >= 3);
                         const hasPolygon = activeZones.length > 0;
-                        const scopeLabel = SCOPES_BY_SERVICE.yard.find((s) => s.key === S.scope)?.label ?? S.scope;
+                        const scopeLabel = isNdisContext
+                          ? 'NDIS Yard Care'
+                          : SCOPES_BY_SERVICE.yard.find((s) => s.key === S.scope)?.label ?? S.scope;
                         const jobPrice = activeYardJob?.price ?? 0;
+                        const displayPrice = isNdisContext ? ndisHourlyPrice : jobPrice;
 
                         return (
                           <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white">
@@ -5523,20 +6012,26 @@ function winSessionMinutes(S: WizardState) {
                                 <span className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold">{scopeLabel}</span>
                                 {hasPolygon ? (
                                   <span className="text-lg font-bold text-emerald-900">
-                                    {(value ?? 0).toLocaleString()} {unit}
-                                    {activeZones.length > 1 && (
-                                      <span className="ml-1.5 text-[11px] font-normal text-emerald-600">({activeZones.length} zones)</span>
-                                    )}
+                                    {isNdisContext
+                                      ? `About ${effectiveNdisHours || NDIS_MIN_HOURS} hours · ${NDIS_REGION_LABELS[S.ndisRegion]}`
+                                      : (
+                                        <>
+                                          {(value ?? 0).toLocaleString()} {unit}
+                                          {activeZones.length > 1 && (
+                                            <span className="ml-1.5 text-[11px] font-normal text-emerald-600">({activeZones.length} zones)</span>
+                                          )}
+                                        </>
+                                      )}
                                   </span>
                                 ) : (
                                   <span className="text-sm text-slate-500">Tap Draw and outline your area</span>
                                 )}
                               </div>
                             </div>
-                            {hasPolygon && jobPrice > 0 && (
+                            {hasPolygon && displayPrice !== null && displayPrice > 0 && (
                               <div className="flex flex-col items-end">
                                 <span className="text-[10px] uppercase tracking-wide text-slate-500">Est. price</span>
-                                <span className="text-xl font-bold text-slate-900">${jobPrice.toLocaleString()}</span>
+                                <span className="text-xl font-bold text-slate-900">{fmtAUD(displayPrice)}</span>
                               </div>
                             )}
                           </div>
@@ -5891,8 +6386,8 @@ function winSessionMinutes(S: WizardState) {
                     Location & access
                   </span>
                 </S3_Title>
-                <div className="mt-3">
-                  {savedPropertyAddress && !S.address.trim() && (
+                <div id="s3-service-address" className="mt-3">
+                  {savedPropertyAddress && !S.address.trim() && !(isNdisContext && S.service === 'yard') && (
                     <div className="mb-2 flex items-center gap-2 p-2.5 rounded-xl border border-black/10 bg-white/70">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500 flex-shrink-0" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                       <span className="text-[11px] text-slate-600 flex-1 truncate">{savedPropertyAddress}</span>
@@ -5900,8 +6395,7 @@ function winSessionMinutes(S: WizardState) {
                         type="button"
                         className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[color:var(--accent)] text-[color:var(--accent)] hover:bg-emerald-50 transition-colors flex-shrink-0"
                         onClick={() => {
-                          set('address', savedPropertyAddress as any);
-                          set('region', savedPropertyAddress as any);
+                          handleServiceAddressSelected(savedPropertyAddress, savedPropertyAddress);
                           trackQuoteEvent('quote_step3_address_filled', { service: S.service, scope: S.scope, source: 'saved_property' });
                         }}
                       >
@@ -5909,18 +6403,35 @@ function winSessionMinutes(S: WizardState) {
                       </button>
                     </div>
                   )}
-                  <ServiceAddressInput
-                    address={S.address}
-                    onAddressChange={(formatted, suburb) => {
-                      set('address', formatted as any);
-                      set('region', (suburb || formatted) as any);
-                      trackQuoteEvent('quote_step3_address_filled', { service: S.service, scope: S.scope });
-                    }}
-                    onClear={() => {
-                      set('address', '' as any);
-                      set('region', '' as any);
-                    }}
-                  />
+                  {isNdisContext ? (
+                    <div className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-700">
+                      {S.address ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 truncate">{S.address}</span>
+                          <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                            {NDIS_REGION_LABELS[S.ndisRegion]}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">
+                          {S.service === 'yard'
+                            ? 'Search the address on the map before reviewing the quote.'
+                            : 'Add the service address in Job details before reviewing the quote.'}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <ServiceAddressInput
+                      address={S.address}
+                      onAddressChange={(formatted, suburb, coords) => {
+                        handleServiceAddressSelected(formatted, suburb, coords);
+                      }}
+                      onClear={() => {
+                        setMany({ address: '', region: '' });
+                      }}
+                    />
+                  )}
+                  {renderMmmStatus()}
                 </div>
 
                 <div className="mt-4">
@@ -6232,6 +6743,50 @@ function winSessionMinutes(S: WizardState) {
                           </>
                         );
                       }
+                      // For NDIS cleaning + yard the user doesn't pick a
+                      // scope on Step 2 — they configure hours via the
+                      // dedicated estimator. Surface the actual inputs
+                      // (rooms / yard size + condition) so this row reflects
+                      // their Step 2 selections.
+                      if (isNdisContext && S.service === 'cleaning') {
+                        const rooms =
+                          S.ndisPropertyBedrooms +
+                          S.ndisPropertyBathrooms +
+                          S.ndisPropertyLiving +
+                          S.ndisPropertyKitchens +
+                          S.ndisPropertyLaundry;
+                        const condLabel =
+                          S.ndisCondition === 'tidy' ? 'Tidy'
+                          : S.ndisCondition === 'lived_in' ? 'Lived-in'
+                          : 'Reset';
+                        return (
+                          <>
+                            {S.ndisPropertyBedrooms} bed · {S.ndisPropertyBathrooms} bath
+                            <span className="mx-1.5 text-slate-400">·</span>
+                            {rooms} rooms total
+                            <span className="mx-1.5 text-slate-400">·</span>
+                            {condLabel}
+                          </>
+                        );
+                      }
+                      if (isNdisContext && S.service === 'yard') {
+                        const sizeLabel =
+                          S.ndisYardSize === 'small' ? 'Small yard'
+                          : S.ndisYardSize === 'medium' ? 'Medium yard'
+                          : S.ndisYardSize === 'large' ? 'Large yard'
+                          : 'X-Large yard';
+                        const condLabel =
+                          S.ndisCondition === 'tidy' ? 'Maintained'
+                          : S.ndisCondition === 'lived_in' ? 'Standard growth'
+                          : 'Overgrown';
+                        return (
+                          <>
+                            {sizeLabel}
+                            <span className="mx-1.5 text-slate-400">·</span>
+                            {condLabel}
+                          </>
+                        );
+                      }
                       // For other services, show the scope label
                       if (S.service === 'cleaning' && S.context !== 'commercial') {
                         return RESIDENTIAL_CLEANING_SCOPE_LABELS[S.scope] ?? S.scope ?? 'Select a scope';
@@ -6263,6 +6818,54 @@ function winSessionMinutes(S: WizardState) {
 
                 {S.service === 'yard' ? (
                   (() => {
+                    // NDIS yard is priced as (estimated hours × Price-Guide
+                    // rate) — there's no polygon flow, so the regular
+                    // siteCount + estimate.minutes detail row is wrong and
+                    // wouldn't reflect Step 2 inputs (yard size, condition,
+                    // rate slot, region). Surface the same hourly breakdown
+                    // we use for NDIS cleaning instead.
+                    if (isNdisContext && ndisHourlyPrice !== null) {
+                      const rate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
+                      const hours = effectiveNdisHours || NDIS_MIN_HOURS;
+                      const fmtHours = (h: number) =>
+                        Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
+                      const sizeLabel =
+                        S.ndisYardSize === 'small' ? 'Small'
+                        : S.ndisYardSize === 'medium' ? 'Medium'
+                        : S.ndisYardSize === 'large' ? 'Large'
+                        : 'X-Large';
+                      const condLabel =
+                        S.ndisCondition === 'tidy' ? 'Maintained'
+                        : S.ndisCondition === 'lived_in' ? 'Standard growth'
+                        : 'Overgrown';
+                      return (
+                        <div className="mt-4 space-y-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-600">
+                            Final yard price
+                          </div>
+                          <div className="text-4xl font-semibold mt-1 text-slate-900">
+                            {priceLabel}
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {sizeLabel} yard · {condLabel} · ~{fmtHours(hours)} hr
+                          </div>
+                          <div className="mt-3 space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                            <S3_Row k="Estimated hours" v={`${fmtHours(hours)} hr`} />
+                            <S3_Row
+                              k={`Rate · ${NDIS_RATE_LABELS[S.ndisRateSlot]}`}
+                              v={`${fmtAUD(rate)}/hr`}
+                            />
+                            <S3_Row k="Region" v={NDIS_REGION_LABELS[S.ndisRegion]} />
+                            <div className="h-[1px] bg-white/60 my-1" />
+                            <S3_Row k="Total" v={priceLabel} bold />
+                          </div>
+                          <div className="rounded-lg border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-900">
+                            <span className="font-semibold">Hourly billing.</span>{' '}
+                            We log time on-site so your plan is only charged for actual delivered hours.
+                          </div>
+                        </div>
+                      );
+                    }
                     const siteCount = S.yardJobs?.length || 0;
                     const siteLabel = `${siteCount} site${siteCount === 1 ? '' : 's'}`;
                     const yardDetail = `${siteLabel} · ${fmtHrMin(estimate.minutes)}`;
@@ -6360,6 +6963,40 @@ function winSessionMinutes(S: WizardState) {
                             </div>
                             <div className="text-[11px] text-slate-500">
                               Large or long-distance jobs may require a custom quote.
+                            </div>
+                          </>
+                        );
+                      })() : isNdisContext && S.service === 'cleaning' && ndisHourlyPrice !== null ? (() => {
+                        // NDIS cleaning is billed strictly as
+                        // (estimated hours × Price-Guide rate). The
+                        // scope-based `estimate.*` rows don't apply here —
+                        // they ignore the hour/rate slot/region inputs from
+                        // Step 2, which made the breakdown look frozen
+                        // whenever the user changed any of those. (Yard is
+                        // handled separately in its own branch above.)
+                        const rate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
+                        const hours = effectiveNdisHours || NDIS_MIN_HOURS;
+                        const fmtHours = (h: number) =>
+                          Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
+                        return (
+                          <>
+                            <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
+                            <S3_Row k="Estimated hours" v={`${fmtHours(hours)} hr`} />
+                            <S3_Row
+                              k={`Rate · ${NDIS_RATE_LABELS[S.ndisRateSlot]}`}
+                              v={`${fmtAUD(rate)}/hr`}
+                            />
+                            <S3_Row k="Region" v={NDIS_REGION_LABELS[S.ndisRegion]} />
+                            <div className="h-[1px] bg-white/60 my-2" />
+                            <S3_Row k="Subtotal" v={fmtAUD(Math.round(hours * rate))} />
+                            <S3_Row k="Total" v={priceLabel} bold />
+                            <div className="mt-2 rounded-lg border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-900">
+                              <span className="font-semibold">Hourly billing.</span>{' '}
+                              We log time on-site so your plan is only charged for actual delivered hours.
+                              Quarter-hour units, capped at the NDIS Price Guide rate.
+                            </div>
+                            <div className="text-[11px] text-slate-600 mt-2">
+                              {FAIRNESS_PROMISE_COPY}
                             </div>
                           </>
                         );
@@ -6529,6 +7166,7 @@ function winSessionMinutes(S: WizardState) {
                           (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
                           : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
                           : normalisedPhone.length < 10 ? 's3-phone'
+                          : !S.address.trim() ? 's3-service-address'
                           : isNdisContext && !S.ndisManagementType ? 's3-ndis-routing'
                           : isNdisContext && !hasValidNdisForwardEmail ? 's3-ndis-forward-email'
                           : null;
@@ -6591,7 +7229,7 @@ function winSessionMinutes(S: WizardState) {
                             ndis_management_type: isNdisContext ? S.ndisManagementType : null,
                             ndis_forward_contact: isNdisContext ? (S.ndisForwardContactName.trim() || null) : null,
                             ndis_forward_email: isNdisContext ? (ndisForwardEmail || null) : null,
-                            ndis_estimated_hours: isNdisContext && ndisHourlyPrice !== null ? S.ndisEstimatedHours : null,
+                            ndis_estimated_hours: isNdisContext && ndisHourlyPrice !== null ? effectiveNdisHours : null,
                             ndis_hourly_rate: isNdisContext && ndisHourlyPrice !== null
                               ? ndisRateFor(S.ndisRateSlot, S.ndisRegion)
                               : null,
@@ -6619,7 +7257,7 @@ function winSessionMinutes(S: WizardState) {
                                 ? `NDIS forward email: ${ndisForwardEmail}`
                                 : '',
                               isNdisContext && ndisHourlyPrice !== null
-                                ? `NDIS quote: ${S.ndisEstimatedHours} hr × $${ndisRateFor(S.ndisRateSlot, S.ndisRegion).toFixed(2)}/hr (${NDIS_RATE_LABELS[S.ndisRateSlot]} · ${NDIS_REGION_LABELS[S.ndisRegion]} · Price Guide cap)`
+                                ? `NDIS quote: ${effectiveNdisHours} hr × $${ndisRateFor(S.ndisRateSlot, S.ndisRegion).toFixed(2)}/hr (${NDIS_RATE_LABELS[S.ndisRateSlot]} · ${NDIS_REGION_LABELS[S.ndisRegion]} · Price Guide cap)`
                                 : '',
                               isNdisContext
                                 ? 'NDIS quote flow supported under the Buds At Work x MaluCare partnership.'
@@ -6802,9 +7440,11 @@ function winSessionMinutes(S: WizardState) {
 
 
 {/* Live orders strip — positioned further down, visible after completing the flow */}
-<section className="mt-20 mb-16">
-  <LiveOrdersStrip />
-</section>
+{!isNdisContext && (
+  <section className="mt-20 mb-16">
+    <LiveOrdersStrip />
+  </section>
+)}
 
 {/* Spacer for sticky footers */}
 {(S.step === 2 || S.step === 3) && <div className="h-48 md:h-36" />}
@@ -6873,19 +7513,20 @@ function winSessionMinutes(S: WizardState) {
         role="region"
         aria-label="Step 2 price bar"
       >
-        {/* Row 1: price info + buttons */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-baseline gap-3">
             <div>
               <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-500">
-                Price for this scope
+                {isNdisContext && S.service === 'cleaning' ? 'Total' : 'Price for this scope'}
               </div>
               <div className="text-xl md:text-2xl font-bold leading-none mt-0.5">{priceLabelBase}</div>
             </div>
             <div className="text-[11px] md:text-xs text-slate-500" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {timeLabel}
+              {isNdisContext && S.service === 'cleaning'
+                ? `About ${effectiveNdisHours || NDIS_MIN_HOURS} hours`
+                : timeLabel}
             </div>
-            {usesRoutePricing && (
+            {!isNdisContext && usesRoutePricing && (
               <div className="hidden md:block text-xs text-slate-500" aria-live="polite">
                 {routeDistanceLabel ??
                   (routeLookupLoading ? 'Calculating travel details…' : 'Add both addresses for travel info.')}
@@ -6893,26 +7534,27 @@ function winSessionMinutes(S: WizardState) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <M.button
-              className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
-              onClick={() => goToStep(1)}
-              aria-label="Back to step 1"
-            >
-              Back
-            </M.button>
+            {!(isNdisContext && S.service === 'cleaning') && (
+              <M.button
+                className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
+                onClick={() => goToStep(1)}
+                aria-label="Back to step 1"
+              >
+                Back
+              </M.button>
+            )}
             <M.button
               className={`h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
               style={{ background: 'var(--accent)' }}
               onClick={() => hasMinimumWork && goToStep(3)}
-              aria-label="Get my quote"
+              aria-label={isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get my quote'}
               title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
             >
-              Get My Quote →
+              {isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get My Quote →'}
             </M.button>
           </div>
         </div>
-        {/* Row 2: disclaimer text — spans full width */}
-        <div className="hidden md:block text-[11px] text-slate-500 mt-2 leading-relaxed">
+        <div className={cls('hidden md:block text-[11px] text-slate-500 mt-2 leading-relaxed', isNdisContext && S.service === 'cleaning' && 'md:hidden')}>
           {PRICE_SCOPE_DISCLAIMER} {FAIRNESS_PROMISE_COPY}
         </div>
       </div>
@@ -6923,7 +7565,8 @@ function winSessionMinutes(S: WizardState) {
 {S.service === 'yard' && S.step === 2 && (() => {
   const zones = S.yardPolygon ?? [];
   const polygonReady = zones.some((z: any[]) => z.length >= 3);
-  const priceReady = polygonReady && estimate.total > 0;
+  const ndisYardAddressReady = !isNdisContext || S.address.trim().length > 0;
+  const priceReady = polygonReady && ndisYardAddressReady && (isNdisContext ? ndisHourlyPrice !== null : estimate.total > 0);
   const siteCount = S.yardJobs?.length || 0;
   const zoneCount = zones.filter((z: any[]) => z.length >= 3).length;
   const siteLabel = `${siteCount} site${siteCount === 1 ? '' : 's'} · ${zoneCount} zone${zoneCount !== 1 ? 's' : ''}`;
@@ -6936,7 +7579,7 @@ function winSessionMinutes(S: WizardState) {
     blast_and_shine: 360, gutter_clean: 360,
   };
   const scopeMax = YARD_SCOPE_MAX[S.scope] ?? 420;
-  const isAtCap = priceReady && estimate.total >= scopeMax;
+  const isAtCap = !isNdisContext && priceReady && estimate.total >= scopeMax;
   // Large-property warning: when area/perimeter exceeds one-visit threshold
   const YARD_VISIT_MAX_M2: Partial<Record<string, number>> = {
     yard_mow: 3000, yard_leaves: 2000, blast_and_shine: 800,
@@ -6954,7 +7597,7 @@ function winSessionMinutes(S: WizardState) {
   const perVisitParams = isPerimeterScope
     ? { ...S.paramsByService.yard, yard_perimeter: perVisitMeasurement }
     : { ...S.paramsByService.yard, yard_area: perVisitMeasurement };
-  const perVisitQuote = isLargeProperty
+  const perVisitQuote = !isNdisContext && isLargeProperty
     ? computeYardQuote(perVisitParams, {
         scope: S.scope,
         conditionMultiplier: conditionMult,
@@ -6975,7 +7618,7 @@ function winSessionMinutes(S: WizardState) {
         className="mx-auto max-w-3xl px-4 space-y-2"
       >
         {/* Large property — multi-visit pricing */}
-        {isLargeProperty && priceReady && perVisitQuote && (
+        {!isNdisContext && isLargeProperty && priceReady && perVisitQuote && (
           <div className="pointer-events-auto rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900 shadow-lg">
             <div className="font-semibold mb-0.5">Large property — {numVisits} visits recommended</div>
             <div className="text-blue-800">
@@ -6993,7 +7636,9 @@ function winSessionMinutes(S: WizardState) {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Price for this scope</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                  {isNdisContext ? 'Total' : 'Price for this scope'}
+                </div>
                 {isCalculating && (
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 border border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -7007,10 +7652,14 @@ function winSessionMinutes(S: WizardState) {
                 )}
               </div>
               <div className="text-3xl font-semibold text-slate-900" aria-live="polite">
-                {priceReady ? priceLabel : 'Draw a zone to reveal price'}
+                {priceReady ? priceLabel : polygonReady && !ndisYardAddressReady ? 'Search address to set region' : 'Draw a zone to reveal price'}
               </div>
               <div className="text-xs text-slate-600 mt-1">
-                {isAtCap && !isLargeProperty
+                {polygonReady && !ndisYardAddressReady
+                  ? 'Use the map address search so MMM can set the NDIS rate band.'
+                  : isNdisContext && priceReady
+                    ? `About ${effectiveNdisHours || NDIS_MIN_HOURS} hours · ${NDIS_REGION_LABELS[S.ndisRegion]}`
+                  : isAtCap && !isLargeProperty
                   ? `Max for this service — we'll honour this price regardless of area.`
                   : isLargeProperty && priceReady
                     ? `Price per visit · ${numVisits} visits recommended`
@@ -7018,13 +7667,15 @@ function winSessionMinutes(S: WizardState) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <M.button
-                className="px-4 py-2 rounded-2xl text-sm font-semibold text-white bg-[color:var(--accent)]"
-                onClick={() => goToStep(1)}
-                aria-label="Back to step 1"
-              >
-                Back
-              </M.button>
+              {!isNdisContext && (
+                <M.button
+                  className="px-4 py-2 rounded-2xl text-sm font-semibold text-white bg-[color:var(--accent)]"
+                  onClick={() => goToStep(1)}
+                  aria-label="Back to step 1"
+                >
+                  Back
+                </M.button>
+              )}
               <M.button
                 className={cls(
                   'px-4 py-2 rounded-2xl text-sm font-semibold text-white transition',

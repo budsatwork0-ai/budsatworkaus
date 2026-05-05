@@ -34,6 +34,7 @@ type UseYardMappingProps = {
   set: SetFunction;
   getYardMeasurementConfig: (scope: string) => YardMeasurementConfig;
   computeYardQuote: (params: any, options: any) => { cost: number };
+  onAddressSelected?: (address: string, coords?: { lat: number; lng: number }) => void;
 };
 
 // Debounce utility — kept for legacy callers, but useYardMapping now uses a
@@ -61,6 +62,7 @@ export function useYardMapping({
   set,
   getYardMeasurementConfig,
   computeYardQuote,
+  onAddressSelected,
 }: UseYardMappingProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const yardJobsRef = useRef<YardJob[]>(yardJobs || []);
@@ -151,7 +153,8 @@ export function useYardMapping({
       setIsCalculating(true);
 
       const { area, perimeter } = computeMeasurements(zones);
-      const measurement = getYardMeasurementConfig(scopeRef.current);
+      const pricingScope = contextRef.current === 'ndis' ? 'yard_mow' : scopeRef.current;
+      const measurement = getYardMeasurementConfig(pricingScope);
       const measurementValue = measurement.mode === 'perimeter' ? perimeter : area;
 
       const currentYardParams = paramsRef.current.yard || {};
@@ -172,16 +175,17 @@ export function useYardMapping({
         heavy: 1.18,
       };
 
-      const yardQuote = computeYardQuote(nextYardParams, {
-        scope: scopeRef.current,
-        isTwoStoreyGutter: secondStoreyRef.current,
-        conditionMultiplier: yardCondMap[conditionLevelRef.current] ?? 1,
-        accessTight: clutterAccessRef.current,
-        conditionLevel: conditionLevelRef.current,
-        context: contextRef.current,
-      });
-
-      const price = Math.max(0, yardQuote.cost);
+      const price =
+        contextRef.current === 'ndis'
+          ? 0
+          : Math.max(0, computeYardQuote(nextYardParams, {
+              scope: pricingScope,
+              isTwoStoreyGutter: secondStoreyRef.current,
+              conditionMultiplier: yardCondMap[conditionLevelRef.current] ?? 1,
+              accessTight: clutterAccessRef.current,
+              conditionLevel: conditionLevelRef.current,
+              context: contextRef.current,
+            }).cost);
       const activeId = yardActiveJobIdRef.current || yardJobsRef.current[0]?.job_id || null;
 
       // Batch: params + geometry state
@@ -279,7 +283,8 @@ export function useYardMapping({
       set('yardActiveJobId', nextActive);
       if (!nextActive) {
         postZonesToIframe([]);
-        const measurement = getYardMeasurementConfig(scopeRef.current);
+        const pricingScope = contextRef.current === 'ndis' ? 'yard_mow' : scopeRef.current;
+        const measurement = getYardMeasurementConfig(pricingScope);
         const yardParams = paramsRef.current.yard || {};
         const clearedParams = {
           ...yardParams,
@@ -303,7 +308,8 @@ export function useYardMapping({
     set('yardArea', null);
     set('yardPerimeter', null);
 
-    const measurement = getYardMeasurementConfig(scopeRef.current);
+    const pricingScope = contextRef.current === 'ndis' ? 'yard_mow' : scopeRef.current;
+    const measurement = getYardMeasurementConfig(pricingScope);
     const yardParams = paramsRef.current.yard || {};
     const clearedParams = {
       ...yardParams,
@@ -372,6 +378,11 @@ export function useYardMapping({
       if (data.type === 'YARD_ADDRESS') {
         const address = typeof data.address === 'string' ? data.address.trim() : '';
         if (!address) return;
+        const coordsCandidate = data.coords as { lat?: unknown; lng?: unknown } | undefined;
+        const coords =
+          Number.isFinite(Number(coordsCandidate?.lat)) && Number.isFinite(Number(coordsCandidate?.lng))
+            ? { lat: Number(coordsCandidate?.lat), lng: Number(coordsCandidate?.lng) }
+            : undefined;
         const jobs = yardJobsRef.current || [];
         const activeId = yardActiveJobIdRef.current || jobs[0]?.job_id;
         if (!activeId) return;
@@ -379,12 +390,13 @@ export function useYardMapping({
           job.job_id === activeId ? { ...job, address } : job
         );
         set('yardJobs', nextJobs as any);
+        onAddressSelected?.(address, coords);
       }
     };
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [handlePolygonChange, set]);
+  }, [handlePolygonChange, onAddressSelected, set]);
 
   // Sync zones to the iframe when active job or scope changes, and trigger a
   // single canonical recompute through computeAndCommit.
@@ -400,7 +412,7 @@ export function useYardMapping({
 
     const zones = activeYardJob?.polygon_geojson || [];
     postZonesToIframe(zones);
-    postMessageToIframe({ type: 'YARD_SET_SCOPE', scope });
+    postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: context === 'ndis' ? 'yard_mow' : scope });
 
     // If there's nothing drawn, just clear geometry state — no price to compute.
     if (!zones.some((z) => z.length >= 3)) {
@@ -418,7 +430,7 @@ export function useYardMapping({
     }
     computeAndCommit(zones);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeYardJob?.job_id, scope, postZonesToIframe, postMessageToIframe, computeAndCommit, set]);
+  }, [activeYardJob?.job_id, context, scope, postZonesToIframe, postMessageToIframe, computeAndCommit, set]);
 
   return {
     iframeRef,

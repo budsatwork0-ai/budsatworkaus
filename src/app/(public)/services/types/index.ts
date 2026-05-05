@@ -305,6 +305,8 @@ export type WizardState = {
   ndisRateSlot: 'weekday_day' | 'weekday_evening' | 'saturday' | 'sunday' | 'public_holiday';
   /** MMM region (metro/regional/remote/very_remote) — affects rate cap. */
   ndisRegion: 'metro' | 'regional' | 'remote' | 'very_remote';
+  /** Whether the NDIS MMM region is address-detected or manually chosen. */
+  ndisRegionSource: 'auto' | 'manual';
   notes: string;
   yardPolygon: { lat: number; lng: number }[][];
   yardArea: number | null;

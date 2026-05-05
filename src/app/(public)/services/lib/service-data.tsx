@@ -15,7 +15,7 @@ export const SERVICES = [
   { key: 'cleaning', label: 'Cleaning',             icon: <CleanIcon />,  subtitle: 'Weekly · Deep · EoL',      from: '$99',  popular: true },
   { key: 'yard',     label: 'Yard Care',            icon: <LawnIcon />,   subtitle: 'Mow · Hedge · Tidy',       from: '$79',  popular: true },
   { key: 'dump',     label: 'Removal & Delivery',   icon: <TruckIcon />,  subtitle: 'Dump · Delivery',          from: '$105' },
-  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full',           from: '$160' },
+  { key: 'auto',     label: 'Car Detailing',        icon: <CarIcon />,    subtitle: 'Express · Full',           from: '$99' },
   { key: 'laundry_sneakers', label: 'Laundry & Sneaker Care', icon: <ShoeIcon />, subtitle: 'Wash · Fold · Sneakers', from: '$74' },
 ] as const;
 
@@ -298,9 +298,9 @@ export const TASKS: Task[] = [
   { code: 'dump.bin', service: 'dump', name: 'Wheelie bin clean', unit: 'bin', minutes: 8 },
 
   // ===== CAR DETAILING =====
-  { code: 'auto.wash', service: 'auto', name: 'Express Detail', unit: 'vehicle', minutes: 120, p10: 160, median: 160, p90: 160 },
-  { code: 'auto.interior', service: 'auto', name: 'Interior Reset Detail', unit: 'vehicle', minutes: 120, p10: 170, median: 170, p90: 170 },
-  { code: 'auto.full', service: 'auto', name: 'Signature Full Detail', unit: 'vehicle', minutes: 240, p10: 290, median: 290, p90: 290 },
+  { code: 'auto.wash', service: 'auto', name: 'Express Detail', unit: 'vehicle', minutes: 120, p10: 99, median: 99, p90: 99 },
+  { code: 'auto.interior', service: 'auto', name: 'Interior Reset Detail', unit: 'vehicle', minutes: 120, p10: 149, median: 149, p90: 149 },
+  { code: 'auto.full', service: 'auto', name: 'Signature Full Detail', unit: 'vehicle', minutes: 240, p10: 239, median: 239, p90: 239 },
 
   // ===== LAUNDRY & SNEAKER CARE =====
   { code: 'laundry.fold', service: 'laundry_sneakers', name: 'Wash & Fold (per load)', unit: 'load', minutes: 0 },

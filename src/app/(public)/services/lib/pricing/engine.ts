@@ -712,9 +712,9 @@ export function selectedFromParams(
     // Extra seat-row surcharge, expressed as a fraction of the base unit price.
     // Flat additive per extra row above 2 — NOT a multiplier — so a 3-row SUV
     // adds a small, predictable amount instead of nearly doubling the price.
-    // auto.interior base = $170 → each extra row ≈ $40 (AUTO_EXTRA_ROW_SURCHARGE / base).
-    // auto.full base     = $290 → each extra row ≈ $40 (same).
-    const AUTO_EXTRA_ROW_SURCHARGE = 40;
+    // auto.interior base = $149 → each extra row = +$25 (AUTO_EXTRA_ROW_SURCHARGE / base).
+    // auto.full base     = $239 → each extra row = +$25 (same).
+    const AUTO_EXTRA_ROW_SURCHARGE = 25;
     const extraRowsAboveBase = Math.max(0, rows - 2);
 
     if (scope === 'auto_interior' && rows > 0) {
@@ -722,17 +722,17 @@ export function selectedFromParams(
       // than a hatch even when both have 2 rows.
       const sizeMultipliers = [1, 1.1, 1.2, 1.3, 1.4, 1.5];
       const sizeMultiplier = size > 0 ? (sizeMultipliers[size - 1] || 1) : 1;
-      const base = PRICE_OVERRIDE['auto.interior'] || 170;
-      // Child seats still billed at $30 each (roughly 3 × 0.75 of the old
-      // fractional-unit pricing × base $170 ≈ $30/seat on average).
+      const base = PRICE_OVERRIDE['auto.interior'] || 149;
+      // Child seats add $20 each — covers extra wipe-down and harness work
+      // without inflating the bill on family cars.
       const extraFromRows = (extraRowsAboveBase * AUTO_EXTRA_ROW_SURCHARGE) / base;
-      const extraFromChild = (child * 30) / base;
+      const extraFromChild = (child * 20) / base;
       sel['auto.interior'] = sizeMultiplier + extraFromRows + extraFromChild;
     }
     if (scope === 'auto_full' && rows > 0) {
       const sizeMultipliers = [1, 1.1, 1.2, 1.3, 1.4, 1.5];
       const sizeMultiplier = size > 0 ? (sizeMultipliers[size - 1] || 1) : 1;
-      const base = PRICE_OVERRIDE['auto.full'] || 290;
+      const base = PRICE_OVERRIDE['auto.full'] || 239;
       const extraFromRows = (extraRowsAboveBase * AUTO_EXTRA_ROW_SURCHARGE) / base;
       sel['auto.full'] = sizeMultiplier + extraFromRows;
     }

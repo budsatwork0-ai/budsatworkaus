@@ -22,7 +22,7 @@ export async function GET() {
 
   const { data: employees, error } = await (client as any)
     .from('employees')
-    .select('id, user_id, full_name, email, services, suburb, status, onboarding_complete, crew_access_approved, ndis_worker, hourly_rate, default_role, employment_type, roster_active, created_at')
+    .select('id, user_id, full_name, email, services, suburb, status, availability, onboarding_complete, crew_access_approved, ndis_worker, hourly_rate, default_role, employment_type, roster_active, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {

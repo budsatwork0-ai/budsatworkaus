@@ -7,7 +7,7 @@ import { loadGoogleMapsOnce } from '@/map/yardMapLoader';
 
 type Props = {
   address: string;
-  onAddressChange: (address: string, suburb: string) => void;
+  onAddressChange: (address: string, suburb: string, coords?: { lat: number; lng: number }) => void;
   onClear: () => void;
 };
 
@@ -115,7 +115,10 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
       setInputValue(formatted);
       setConfirmed(true);
       setError(null);
-      onAddressChange(formatted, suburb);
+      onAddressChange(formatted, suburb, {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+      });
     });
 
     return () => {
