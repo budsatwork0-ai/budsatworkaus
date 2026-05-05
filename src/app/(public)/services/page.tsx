@@ -6140,15 +6140,15 @@ function winSessionMinutes(S: WizardState) {
         Step 3: Request your booking
       </h2>
 
-      <div className={`rounded-2xl p-5 ${glass}`}>
+      <div className={`rounded-2xl p-3 sm:p-5 ${glass} min-w-0 overflow-x-hidden`}>
         {!hasWork ? (
           <div className="text-sm text-slate-800">
             Add a preset on Step 2 to see an estimate.
           </div>
         ) : (
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-6 min-w-0">
             {/* MAIN: form */}
-            <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
+            <div className="min-w-0 lg:col-span-2 space-y-6 order-2 lg:order-1">
               {/* Header */}
               <div>
                 <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
@@ -6696,7 +6696,7 @@ function winSessionMinutes(S: WizardState) {
             </div>
 
             {/* SIDEBAR */}
-            <aside className={cls('lg:col-span-1 h-fit order-1 lg:order-2', !yardActive && 'lg:sticky lg:top-6')}>
+            <aside className={cls('min-w-0 lg:col-span-1 h-fit order-1 lg:order-2', !yardActive && 'lg:sticky lg:top-6')}>
               <S3_Card className="relative overflow-hidden">
                 <div
                   className="absolute inset-x-0 -top-1 h-1 rounded-t-2xl"
