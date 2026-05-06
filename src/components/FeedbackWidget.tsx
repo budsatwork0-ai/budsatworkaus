@@ -209,21 +209,28 @@ export function FeedbackWidget() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────────────
-          3. Demoted feedback tab — desktop only, bottom-right corner
+          3. Feedback pill — bottom-right corner, all screen sizes
           Hidden on /services — the quote assistant occupies that space.
          ───────────────────────────────────────────────────────────────────── */}
-      <div className="hidden md:block fixed bottom-6 right-4 z-40">
-        <button
-          onClick={() => setFeedbackOpen(true)}
-          aria-label="Report an issue"
-          data-tracking-name="feedback_entry"
-          className="flex items-center gap-1 text-[11px] transition-opacity hover:opacity-100"
-          style={{ color: 'rgba(0,0,0,0.28)', opacity: 0.7 }}
-        >
-          <ChatIcon size={11} />
-          Report issue
-        </button>
-      </div>
+      {!onServices && (
+        <div className="fixed bottom-5 right-4 z-40">
+          <button
+            onClick={() => setFeedbackOpen(true)}
+            aria-label="Report an issue"
+            data-tracking-name="feedback_entry"
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all hover:shadow-sm active:scale-95"
+            style={{
+              color: 'rgba(0,0,0,0.45)',
+              borderColor: 'rgba(0,0,0,0.1)',
+              background: 'rgba(255,255,255,0.88)',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <ChatIcon size={11} />
+            <span className="hidden sm:inline">Report issue</span>
+          </button>
+        </div>
+      )}
 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>

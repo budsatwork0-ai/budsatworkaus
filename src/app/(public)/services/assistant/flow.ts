@@ -38,12 +38,12 @@ export const QUESTION_DEFS: Record<QuestionId, QuestionDef> = {
     prompt: 'What service do you need?',
     kind: 'button-grid',
     options: [
-      { value: 'windows',          label: 'Window Cleaning',    sublabel: 'From $79' },
-      { value: 'cleaning',         label: 'Home Cleaning',      sublabel: 'From $99' },
-      { value: 'yard',             label: 'Yard Care',          sublabel: 'From $79' },
-      { value: 'dump',             label: 'Removal & Delivery', sublabel: 'From $105' },
-      { value: 'auto',             label: 'Car Detailing',      sublabel: 'From $99' },
-      { value: 'laundry_sneakers', label: 'Laundry & Sneakers', sublabel: 'From $74' },
+      { value: 'windows',          label: 'Window Cleaning',    sublabel: 'Homes & Small Properties' },
+      { value: 'cleaning',         label: 'Home Cleaning',      sublabel: 'Houses, Units & Apartments' },
+      { value: 'yard',             label: 'Yard Care',          sublabel: 'Mowing, Hedging & Tidy-Ups' },
+      { value: 'dump',             label: 'Removal & Delivery', sublabel: 'Junk, Bulk Items & Deliveries' },
+      { value: 'auto',             label: 'Car Detailing',      sublabel: 'Any Vehicle, At Your Place' },
+      { value: 'laundry_sneakers', label: 'Laundry & Sneakers', sublabel: 'Wash, Fold & Sneaker Care' },
     ],
   },
 
