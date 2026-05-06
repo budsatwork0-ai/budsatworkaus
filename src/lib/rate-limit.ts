@@ -23,6 +23,16 @@ export const ipRatelimit = createLimiter(5, '15 m');
 export const emailRatelimit = createLimiter(3, '1 h');
 // 10 quote submissions per IP per 15 minutes
 export const quoteSubmitRatelimit = createLimiter(10, '15 m');
+// 5 confirmation-email resends per IP per 15 minutes
+export const resendIpRatelimit = createLimiter(5, '15 m');
+// 3 confirmation-email resends per email per 15 minutes
+export const resendEmailRatelimit = createLimiter(3, '15 m');
+// 120 visitor-tracking writes per IP per 10 minutes (one heartbeat ≈ 30s,
+// so this caps a single visitor's session at ~60min before throttle).
+export const trackRatelimit = createLimiter(120, '10 m');
+// 3 site-feedback submissions per IP per 15 minutes — enough for a real
+// bug-report-with-screenshot retry, tight enough to stop bucket flooding.
+export const feedbackRatelimit = createLimiter(3, '15 m');
 
 export async function checkRateLimit(
   limiter: Ratelimit | null,
@@ -57,4 +67,34 @@ export function getClientIp(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
   if (xff) return xff.split(',')[0].trim();
   return 'unknown';
+}
+
+// Verify a Cloudflare Turnstile token server-side.
+// Returns:
+//   { ok: true }                       — token verified, OR no TURNSTILE_SECRET_KEY set (dev/local)
+//   { ok: false, status, error }       — caller should return NextResponse.json({error}, {status})
+// Gating on the env var keeps local dev working without a Turnstile account.
+export async function verifyTurnstile(
+  token: string | undefined | null
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return { ok: true };
+  if (!token) {
+    return { ok: false, status: 400, error: 'Bot verification required.' };
+  }
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, response: token }),
+    });
+    const data = (await res.json()) as { success: boolean };
+    if (!data.success) {
+      return { ok: false, status: 403, error: 'Bot verification failed. Please try again.' };
+    }
+    return { ok: true };
+  } catch {
+    // Fail closed on network error — better to ask the user to retry than to bypass the gate.
+    return { ok: false, status: 503, error: 'Bot verification unavailable. Please try again.' };
+  }
 }

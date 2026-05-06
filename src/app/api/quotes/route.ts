@@ -6,6 +6,7 @@ import {
   createRateLimiter,
   getClientIp,
   quoteSubmitRatelimit,
+  verifyTurnstile,
 } from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReceivedEmail, ndisForwardQuoteEmail } from '@/lib/email/templates';
@@ -133,6 +134,18 @@ export async function POST(request: NextRequest) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  // Cloudflare Turnstile check for anonymous submissions. Authenticated users
+  // skip the captcha — they've already cleared one at sign-up. No-op when
+  // TURNSTILE_SECRET_KEY isn't configured (local dev).
+  if (!authUser) {
+    const tsCheck = await verifyTurnstile(
+      typeof body.turnstileToken === 'string' ? body.turnstileToken : null
+    );
+    if (!tsCheck.ok) {
+      return NextResponse.json({ error: tsCheck.error }, { status: tsCheck.status });
+    }
   }
 
   if (!body.customer_name || !body.service_type || !body.context) {

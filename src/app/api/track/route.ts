@@ -6,17 +6,29 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
-import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  createRateLimiter,
+  getClientIp,
+  trackRatelimit,
+} from '@/lib/rate-limit';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 
-const rateLimiter = createRateLimiter({ limit: 120, windowMs: 10 * 60 * 1000 });
+// In-memory fallback for local dev (Upstash env vars unset). On Vercel the
+// in-memory map resets per cold-start, so production MUST run on Upstash —
+// trackRatelimit returns null when the env vars aren't configured, in which
+// case we drop into this fallback. Keep limits identical between the two.
+const fallbackTrackLimiter = createRateLimiter({ limit: 120, windowMs: 10 * 60 * 1000 });
 
 const BOT_RE = /bot|crawler|spider|googlebot|bingbot|slurp|duckduckbot|facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|WhatsApp|Discordbot|Applebot|AhrefsBot|SemrushBot|MJ12bot|DotBot/i;
 
 export async function POST(req: NextRequest) {
-  // Rate limit by IP
+  // Rate limit by IP — durable, shared across serverless instances via Upstash
+  // Redis when configured. Falls back to per-instance in-memory in dev.
   const ip = getClientIp(req);
-  const { allowed } = rateLimiter(ip);
+  const { allowed } = trackRatelimit
+    ? await checkRateLimit(trackRatelimit, ip)
+    : fallbackTrackLimiter(ip);
   if (!allowed) return new NextResponse(null, { status: 429 });
 
   // Parse body

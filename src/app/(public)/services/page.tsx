@@ -7519,35 +7519,31 @@ function winSessionMinutes(S: WizardState) {
         aria-label="Step 2 price bar"
       >
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-baseline gap-3">
-            <div>
-              <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-500">
-                {isNdisContext && S.service === 'cleaning' ? 'Total' : 'Price for this scope'}
-              </div>
-              <div className="text-xl md:text-2xl font-bold leading-none mt-0.5">{priceLabelBase}</div>
+          <div>
+            <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-500">
+              {isNdisContext && S.service === 'cleaning' ? 'Total' : 'Price for this scope'}
             </div>
-            <div className="text-[11px] md:text-xs text-slate-500" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <div className="text-xl md:text-2xl font-bold leading-none mt-0.5">{priceLabelBase}</div>
+            <div className="text-[11px] md:text-xs text-slate-500 mt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {isNdisContext && S.service === 'cleaning'
                 ? `About ${effectiveNdisHours || NDIS_MIN_HOURS} hours`
                 : timeLabel}
             </div>
             {!isNdisContext && usesRoutePricing && (
-              <div className="hidden md:block text-xs text-slate-500" aria-live="polite">
+              <div className="hidden md:block text-xs text-slate-500 mt-0.5" aria-live="polite">
                 {routeDistanceLabel ??
                   (routeLookupLoading ? 'Calculating travel details…' : 'Add both addresses for travel info.')}
               </div>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {!(isNdisContext && S.service === 'cleaning') && (
-              <M.button
-                className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
-                onClick={() => goToStep(1)}
-                aria-label="Back to step 1"
-              >
-                Back
-              </M.button>
-            )}
+            <M.button
+              className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
+              onClick={() => goToStep(1)}
+              aria-label="Back to step 1"
+            >
+              Back
+            </M.button>
             <M.button
               className={`h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
               style={{ background: 'var(--accent)' }}
@@ -7672,15 +7668,13 @@ function winSessionMinutes(S: WizardState) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {!isNdisContext && (
-                <M.button
-                  className="px-4 py-2 rounded-2xl text-sm font-semibold text-white bg-[color:var(--accent)]"
-                  onClick={() => goToStep(1)}
-                  aria-label="Back to step 1"
-                >
-                  Back
-                </M.button>
-              )}
+              <M.button
+                className="px-4 py-2 rounded-2xl text-sm font-semibold border border-black/15 bg-white/80 text-slate-700"
+                onClick={() => goToStep(1)}
+                aria-label="Back to step 1"
+              >
+                Back
+              </M.button>
               <M.button
                 className={cls(
                   'px-4 py-2 rounded-2xl text-sm font-semibold text-white transition',

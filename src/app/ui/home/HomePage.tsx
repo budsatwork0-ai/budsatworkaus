@@ -53,7 +53,8 @@ const SERVICES = MARKETING_SERVICE_LIST.map((service) => ({
     service.key === 'dump' ? icons.dump :
     service.key === 'auto' ? icons.auto :
     icons.laundry,
-  popular: service.key === 'cleaning' || service.key === 'yard',
+  // Removed "Popular" flag — no usage data yet to justify the badge.
+  popular: false,
 }));
 
 const STEPS = [
@@ -82,6 +83,7 @@ const TRUST = [
   { icon: icons.shield, label: 'Fully insured' },
   { icon: icons.users,  label: 'Vetted crew' },
   { icon: icons.tag,    label: 'No surprise fees' },
+  { icon: icons.calc,   label: '7-day price lock' },
 ];
 
 const PROMISES = [
@@ -92,14 +94,25 @@ const PROMISES = [
 ];
 
 // ─── Animated counter ─────────────────────────────────────────────────────────
+// Renders the target value statically on first paint (so SSR + pre-scroll users
+// never see a misleading "0"), then animates from 0 to target the first time
+// it scrolls into view.
 function AnimatedStat({ target, suffix = '', prefix = '' }: { target: number; suffix?: string; prefix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
-  const mv = useMotionValue(0);
+  const mv = useMotionValue(target);
   const spring = useSpring(mv, { damping: 40, stiffness: 120 });
-  const [display, setDisplay] = useState('0');
-  useEffect(() => { if (inView) mv.set(target); }, [inView, mv, target]);
-  useEffect(() => { return spring.on('change', v => setDisplay(Math.round(v).toString())); }, [spring]);
+  const [display, setDisplay] = useState(target.toString());
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (inView && !startedRef.current) {
+      startedRef.current = true;
+      mv.set(0);
+      const id = requestAnimationFrame(() => mv.set(target));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [inView, mv, target]);
+  useEffect(() => spring.on('change', v => setDisplay(Math.round(v).toString())), [spring]);
   return <span ref={ref}>{prefix}{display}{suffix}</span>;
 }
 
@@ -248,29 +261,32 @@ export default function HomePage() {
             transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
           >
             Your{' '}
-            {/* Rotating word — clipped vertical slide */}
+            {/* Rotating word — opacity crossfade in a fixed-width container so
+                the animation never overlaps the "Your" text or shifts the comma. */}
             <span
               style={{
                 display: 'inline-block',
-                overflow: 'hidden',
-                verticalAlign: 'bottom',
+                position: 'relative',
+                verticalAlign: 'baseline',
                 lineHeight: 'inherit',
+                minWidth: '5ch',
               }}
+              aria-live="polite"
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={ROTATING_WORDS[wordIndex]}
-                  style={{ display: 'inline-block', color: BRAND.onDark }}
-                  initial={{ y: '100%', opacity: 0 }}
-                  animate={{ y: '0%', opacity: 1 }}
-                  exit={{ y: '-100%', opacity: 0 }}
-                  transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                  style={{ display: 'inline-block', color: BRAND.onDark, whiteSpace: 'nowrap' }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.28, ease: 'easeOut' }}
                 >
                   {ROTATING_WORDS[wordIndex].charAt(0).toUpperCase() + ROTATING_WORDS[wordIndex].slice(1)}
                 </motion.span>
               </AnimatePresence>
             </span>
-            ,<br />
+            , <br />
             <span style={{
               color: '#7BBFA0',
               padding: '0 10px 4px',
@@ -377,7 +393,7 @@ export default function HomePage() {
               {[
                 { val: 6,   suf: '',    pre: '',  lbl: 'Services quoted online' },
                 { val: 2,   suf: '',    pre: '',  lbl: 'Service regions' },
-                { val: 48,  suf: 'h',   pre: '<', lbl: 'Weekday quote review' },
+                { val: 4,   suf: 'h',   pre: '<', lbl: 'Weekday quote review' },
                 { val: 0,   suf: '',    pre: '',  lbl: 'Surprise fees' },
               ].map(({ val, suf, pre, lbl }) => (
                 <div key={lbl} className="flex flex-col items-center py-1">
@@ -545,9 +561,9 @@ export default function HomePage() {
 
             <div className="grid md:grid-cols-3 gap-4">
               {[
-                { title: 'Quote first', text: 'You see the scope and estimated price before we ask you to commit.' },
-                { title: 'Local crew', text: 'We are building around Logan and South Brisbane, not pretending to cover everywhere.' },
-                { title: 'Community-backed', text: 'Bookings, partners, and donations help us create practical local work opportunities.' },
+                { title: 'Quote first', text: 'You see the scope and estimated price before we ask you to commit.', tag: 'Visible before you commit' },
+                { title: 'Local crew', text: 'We are building around Logan and South Brisbane, not pretending to cover everywhere.', tag: 'Same names, every visit' },
+                { title: 'Community-backed', text: 'Bookings, partners, and donations help us create practical local work opportunities.', tag: 'Bookings fund local work' },
               ].map((item, i) => (
                 <FadeUp key={item.title} delay={i * 0.08}>
                   <motion.div
@@ -559,7 +575,7 @@ export default function HomePage() {
                     <p className="mt-3 text-[14px] leading-relaxed flex-1" style={{ color: BRAND.muted }}>{item.text}</p>
                     <div className="mt-4 pt-4 border-t" style={{ borderColor: BRAND.border }}>
                       <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: BRAND.primary }}>
-                        {icons.check} Built into every quote
+                        {icons.check} {item.tag}
                       </span>
                     </div>
                   </motion.div>

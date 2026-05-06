@@ -137,7 +137,7 @@ export function Footer() {
                   Terms of Service
                 </Link>
               </li>
-              <li className="pt-1 text-sm" style={{ color: brand.muted }}>Business number coming soon</li>
+              <li className="pt-1 text-sm" style={{ color: brand.muted }}>Servicing Logan &amp; South Brisbane</li>
               <li>
                 <a href="mailto:admin@budsatwork.com" className="text-sm transition-opacity hover:opacity-75" style={{ color: brand.muted }}>
                   admin@budsatwork.com

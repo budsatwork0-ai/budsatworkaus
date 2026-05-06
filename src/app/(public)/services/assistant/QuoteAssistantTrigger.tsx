@@ -26,12 +26,12 @@ export function QuoteAssistantTrigger({ onOpen, visible, context }: Props) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="fixed bottom-16 right-4 z-40"
+          className="fixed bottom-24 right-3 z-40 sm:bottom-20 sm:right-4"
         >
           <button
             onClick={onOpen}
             aria-label="Open quote assistant"
-            className="flex items-center gap-2 rounded-full px-4 py-2.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.97]"
+            className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.97] sm:gap-2 sm:px-4 sm:py-2.5 sm:text-[12px]"
             style={{
               background: brand.primary,
               boxShadow: '0 4px 14px rgba(15,61,46,0.25)',

@@ -2,7 +2,10 @@ import type { Metadata } from 'next';
 import HomePage from '@/app/ui/home/HomePage';
 
 export const metadata: Metadata = {
-  title: 'Home',
+  // Intentionally no `title` override here — falls back to the root layout's
+  // default ("Buds At Work | Local Home & Property Services in Logan & South
+  // Brisbane"), which is brand-first and search-intent-aware. The root template
+  // would otherwise turn this into the weaker "Home | Buds At Work".
   description: 'Quote-first local services in Logan & South Brisbane: home cleaning, window cleaning, yard care, dump runs, car detailing. NDIS-friendly support available.',
   alternates: { canonical: 'https://budsatwork.com' },
   openGraph: {
