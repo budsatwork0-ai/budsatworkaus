@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { brand } from '@/app/ui/theme';
@@ -266,6 +266,18 @@ export default function PortalQuotesPage() {
   const [confirmingQuote, setConfirmingQuote] = useState<Quote | null>(null);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newBanner, setNewBanner] = useState(false);
+  const bannerCleared = useRef(false);
+
+  useEffect(() => {
+    if (bannerCleared.current) return;
+    if (new URLSearchParams(window.location.search).get('new')) {
+      bannerCleared.current = true;
+      setNewBanner(true);
+      const t = setTimeout(() => setNewBanner(false), 8000);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   useEffect(() => {
     fetch('/api/quotes')
@@ -304,6 +316,37 @@ export default function PortalQuotesPage() {
             onClose={() => !paying && setConfirmingQuote(null)}
             loading={paying}
           />
+        )}
+      </AnimatePresence>
+
+      {/* New quote success banner */}
+      <AnimatePresence>
+        {newBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm"
+            style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46' }}
+            role="status"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5" aria-hidden="true">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-semibold">Quote submitted — nice one!</p>
+              <p className="text-xs mt-0.5 opacity-80">We'll review the details and email you a payment link within 2–4 business hours. You can track progress right here.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewBanner(false)}
+              className="text-emerald-600 hover:text-emerald-800 transition-colors ml-1 shrink-0"
+              aria-label="Dismiss"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
 

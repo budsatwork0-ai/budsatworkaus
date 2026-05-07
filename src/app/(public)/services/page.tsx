@@ -25,7 +25,7 @@ const FloorPlanBuilder = dynamic(() => import('@/app/ui/floor/FloorPlanBuilder')
 import type { VehicleSizeCategory } from '@/lib/rego/types';
 import { useYardMapping } from '@/app/hooks/useYardMapping';
 // Loaded lazily — only when the user reaches the contact form (step 3).
-const Turnstile = dynamic(() => import('@/components/Turnstile'), { ssr: false });
+const QuoteAuthGate = dynamic(() => import('@/components/QuoteAuthGate').then(m => ({ default: m.QuoteAuthGate })), { ssr: false });
 
 // Extracted modules - Types
 import type {
@@ -109,7 +109,6 @@ import {
   getYardMeasurementConfig,
   COMM_PARAM_DEFS,
   COMM_LABELS,
-  TURNSTILE_SITE_KEY,
 } from './lib/service-data';
 import {
   defaultParamsByService,
@@ -3383,11 +3382,6 @@ function ServicesPageContent() {
   }, [handleAuthSignIn]);
 
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [captchaExpired, setCaptchaExpired] = useState(false);
-  // Gate Turnstile render until the user first interacts with the contact form,
-  // avoiding an eager network request on step-3 mount for users who abandon early.
-  const [captchaReady, setCaptchaReady] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const [saveToProfile, setSaveToProfile] = useState(true);
   // True once the /api/portal/profile fetch has settled (success or failure).
@@ -3882,8 +3876,6 @@ function ServicesPageContent() {
 
     if (n === 3) {
       trackQuoteEvent('quote_step_3', { service: S.service, scope: S.scope });
-      // Pre-fill users already have their contact details — prime captcha immediately.
-      if (authedUser) setCaptchaReady(true);
     }
 
     set('step', n);
@@ -6148,43 +6140,41 @@ function winSessionMinutes(S: WizardState) {
         ) : (
           <div className="grid lg:grid-cols-3 gap-6 min-w-0">
             {/* MAIN: form */}
-            <div className="min-w-0 lg:col-span-2 space-y-6 order-2 lg:order-1">
+            <div className="min-w-0 lg:col-span-2 space-y-4 order-2 lg:order-1">
               {/* Header */}
-              <div>
+              <div className="pb-1">
                 <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
-                  Request your booking
+                  Almost there
                 </h3>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   {authedUser
-                    ? 'Review your details below and confirm your service address.'
-                    : 'We\u2019ll confirm times and any changes before work proceeds.'}
+                    ? 'Review your details and confirm your service address.'
+                    : 'We\u2019ll confirm timing and pricing before any work begins \u2014 no payment needed now.'}
                 </p>
               </div>
 
               {/* Contact */}
               <S3_Card>
-                <S3_Title>
-                  <span className="flex items-center gap-2">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Contact details
-                  </span>
-                </S3_Title>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] font-bold" aria-hidden="true">1</span>
+                  <S3_Title>Your details</S3_Title>
+                </div>
                 {authedUser && !profileHydrated && (
-                  <div className="mt-2 mb-1 text-[11px] text-slate-400">Loading your details&hellip;</div>
+                  <div className="mb-3 text-[11px] text-slate-400">Loading your details&hellip;</div>
                 )}
                 {authedUser && profileHydrated && S.phone.trim() && (
-                  <div className="mt-2 mb-1 flex items-center gap-1.5 text-[11px] font-medium" style={{ color: '#15803d' }}>
+                  <div className="mb-3 flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-[11px] font-medium text-emerald-700">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                    We&apos;ve filled this from your account &mdash; edit below to change
+                    Prefilled from your account — edit below if needed
                   </div>
                 )}
                 {authedUser && profileHydrated && !S.phone.trim() && (
-                  <div className="mt-2 mb-1 flex items-center gap-1.5 text-[11px] font-medium text-amber-600">
+                  <div className="mb-3 flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] font-medium text-amber-700">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    We filled what we could from your account &mdash; add your phone to continue.
+                    Add your phone number to continue
                   </div>
                 )}
-                <div className="grid sm:grid-cols-2 gap-4 mt-3">
+                <div className="grid sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-fullname">Full name <span className="text-red-500">*</span></label>
                     <input
@@ -6196,7 +6186,6 @@ function winSessionMinutes(S: WizardState) {
                       placeholder="Jane Smith"
                       value={S.fullName}
                       onChange={(e) => set('fullName', e.target.value)}
-                      onFocus={() => setCaptchaReady(true)}
                       onBlur={() => touchField('fullName')}
                       aria-label="Full name"
                       required
@@ -6220,7 +6209,6 @@ function winSessionMinutes(S: WizardState) {
                       placeholder="jane@example.com"
                       value={S.email}
                       onChange={(e) => set('email', e.target.value)}
-                      onFocus={() => setCaptchaReady(true)}
                       onBlur={(e) => {
                         touchField('email');
                         set('email', (e.target.value || '').trim().toLowerCase());
@@ -6250,7 +6238,6 @@ function winSessionMinutes(S: WizardState) {
                         fieldTouched.phone && (!authedUser || profileHydrated) && !S.phone.trim() ? "border-red-400" : "border-black/10"
                       )}
                       placeholder="04XX XXX XXX"
-                      onFocus={() => setCaptchaReady(true)}
                       onBlur={() => touchField('phone')}
                       value={S.phone}
                       onChange={(e) => {
@@ -6292,18 +6279,17 @@ function winSessionMinutes(S: WizardState) {
               </S3_Card>
 
               {isNdisContext && (
-                <S3_Card className="scroll-mt-24" >
+                <S3_Card className="scroll-mt-24">
                   <div id="s3-ndis-routing" className="sr-only" aria-hidden="true" />
-                  <S3_Title>
-                    <span className="flex items-center gap-2">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-600" aria-hidden="true"><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>
-                      NDIS quote routing
-                    </span>
-                  </S3_Title>
-                  <p className="mt-2 text-[12px] text-slate-600">
-                    Routed with Buds At Work and <span className="font-semibold text-violet-800">MaluCare</span> so the quote lands with the right person from the start.
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-white text-[10px] font-bold" aria-hidden="true">2</span>
+                    <S3_Title>NDIS routing</S3_Title>
+                    <span className="ml-auto text-[10px] font-medium text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">Required</span>
+                  </div>
+                  <p className="mb-3 text-[12px] text-slate-500">
+                    How is this participant managed? We&apos;ll route the quote directly to the right contact.
                   </p>
-                  <div className="mt-3 grid gap-2">
+                  <div className="grid gap-2">
                     {NDIS_MANAGEMENT_OPTIONS.map((option) => {
                       const active = S.ndisManagementType === option.key;
                       return (
@@ -6311,30 +6297,27 @@ function winSessionMinutes(S: WizardState) {
                           key={option.key}
                           type="button"
                           className={cls(
-                            'rounded-2xl border px-4 py-3 text-left transition-colors',
+                            'rounded-xl border px-3 py-2.5 text-left transition-colors',
                             active
-                              ? 'border-violet-500 bg-violet-50 shadow-[0_8px_24px_rgba(109,40,217,0.10)]'
-                              : 'border-black/10 bg-white/70 hover:border-violet-300 hover:bg-violet-50/50'
+                              ? 'border-violet-500 bg-violet-50 shadow-[0_4px_16px_rgba(109,40,217,0.10)]'
+                              : 'border-black/10 bg-white/70 hover:border-violet-300 hover:bg-violet-50/40'
                           )}
                           onClick={() => set('ndisManagementType', option.key)}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold text-slate-900">{option.title}</div>
-                              <div className="mt-1 text-xs text-slate-600">{option.description}</div>
-                              <div className="mt-2 text-[11px] font-medium text-violet-800">{option.destination}</div>
-                            </div>
+                          <div className="flex items-center gap-3">
                             <span
                               className={cls(
-                                'mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border',
+                                'flex-shrink-0 inline-flex h-4 w-4 items-center justify-center rounded-full border',
                                 active ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-300 bg-white text-transparent'
                               )}
                               aria-hidden="true"
                             >
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M20 6L9 17l-5-5" />
-                              </svg>
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                             </span>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-900">{option.title}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{option.destination}</div>
+                            </div>
                           </div>
                         </button>
                       );
@@ -6342,56 +6325,62 @@ function winSessionMinutes(S: WizardState) {
                   </div>
                   {!S.ndisManagementType && (
                     <div className="mt-2 text-[11px] text-amber-700">
-                      Select how this participant is managed so we know who should receive the quote.
+                      Select how this participant is managed to continue.
                     </div>
                   )}
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-contact">
-                        Forward contact
-                      </label>
-                      <input
-                        id="s3-ndis-forward-contact"
-                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                        placeholder="Plan manager, nominee, or participant"
-                        value={S.ndisForwardContactName}
-                        onChange={(e) => set('ndisForwardContactName', e.target.value)}
-                        onFocus={() => setCaptchaReady(true)}
-                      />
+                  {S.ndisManagementType === 'self_managed' && (
+                    <div className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-[11px] text-emerald-800">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>Self-managed — the quote goes directly to the participant email above. No forwarding needed.</span>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-email">
-                        Forward quote email
-                      </label>
-                      <input
-                        id="s3-ndis-forward-email"
-                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                        placeholder="billing@provider.com.au"
-                        value={S.ndisForwardEmail}
-                        onChange={(e) => set('ndisForwardEmail', e.target.value)}
-                        onBlur={(e) => set('ndisForwardEmail', (e.target.value || '').trim().toLowerCase())}
-                        onFocus={() => setCaptchaReady(true)}
-                      />
-                      {S.ndisForwardEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.ndisForwardEmail.trim()) && (
-                        <div className="mt-1 text-[11px] text-red-600">Enter a valid forwarding email or leave this blank.</div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] text-slate-600">
-                    Leave the forwarding email blank if the quote should go to the participant email above first. We’ll include the routing notes for the team either way.
-                  </div>
+                  )}
+                  {(S.ndisManagementType === 'plan_managed' || S.ndisManagementType === 'agency_managed') && (
+                    <>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-contact">
+                            {S.ndisManagementType === 'plan_managed' ? 'Plan manager name' : 'Contact name'}
+                          </label>
+                          <input
+                            id="s3-ndis-forward-contact"
+                            className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            placeholder={S.ndisManagementType === 'plan_managed' ? 'Plan manager or provider name' : 'Contact name'}
+                            value={S.ndisForwardContactName}
+                            onChange={(e) => set('ndisForwardContactName', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="s3-ndis-forward-email">
+                            {S.ndisManagementType === 'plan_managed' ? 'Plan manager email' : 'Forward quote email'}
+                          </label>
+                          <input
+                            id="s3-ndis-forward-email"
+                            className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            placeholder="billing@provider.com.au"
+                            value={S.ndisForwardEmail}
+                            onChange={(e) => set('ndisForwardEmail', e.target.value)}
+                            onBlur={(e) => set('ndisForwardEmail', (e.target.value || '').trim().toLowerCase())}
+                          />
+                          {S.ndisForwardEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.ndisForwardEmail.trim()) && (
+                            <div className="mt-1 text-[11px] text-red-600">Enter a valid email address.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] text-violet-800">
+                        Leave the forwarding email blank to send to the participant first &mdash; we&apos;ll note the routing for the team.
+                      </div>
+                    </>
+                  )}
                 </S3_Card>
               )}
 
               {/* Location & access */}
               <S3_Card>
-                <S3_Title>
-                  <span className="flex items-center gap-2">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    Location & access
-                  </span>
-                </S3_Title>
-                <div id="s3-service-address" className="mt-3">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] font-bold" aria-hidden="true">{isNdisContext ? 3 : 2}</span>
+                  <S3_Title>Service address</S3_Title>
+                </div>
+                <div id="s3-service-address">
                   {savedPropertyAddress && !S.address.trim() && !(isNdisContext && S.service === 'yard') && (
                     <div className="mb-2 flex items-center gap-2 p-2.5 rounded-xl border border-black/10 bg-white/70">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500 flex-shrink-0" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -6439,8 +6428,8 @@ function winSessionMinutes(S: WizardState) {
                   {renderMmmStatus()}
                 </div>
 
-                <div className="mt-4">
-                  <div className="text-xs text-slate-600 mb-2">Access notes</div>
+                <div className="mt-4 pt-3 border-t border-black/5">
+                  <div className="text-xs font-medium text-slate-600 mb-2">Access &amp; site notes</div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -6506,37 +6495,11 @@ function winSessionMinutes(S: WizardState) {
                 </div>
               </S3_Card>
 
-              {/* Inline quick-note chips — most common access notes surfaced before the expand toggle */}
-              <div className="flex flex-wrap gap-1.5 -mt-2">
-                {(['Gate code', 'Key in lockbox'] as const).map((chip) => {
-                  const alreadyAdded = S.notes.includes(chip);
-                  return (
-                    <button
-                      key={chip}
-                      type="button"
-                      disabled={alreadyAdded}
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border transition-colors',
-                        alreadyAdded
-                          ? 'border-[color:var(--accent)] bg-white text-slate-500 cursor-default'
-                          : 'border-black/10 bg-white/70 text-slate-600 hover:border-[color:var(--accent)] hover:bg-white'
-                      )}
-                      onClick={() => {
-                        const sep = S.notes.trim() ? '\n' : '';
-                        set('notes', `${S.notes.trim()}${sep}${chip}: `);
-                      }}
-                    >
-                      {alreadyAdded ? '✓ ' : '+ '}{chip}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Expandable: Availability + Notes */}
+              {/* Optional extras */}
               <div>
                 <button
                   type="button"
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-black/10 bg-white/60 text-sm font-medium text-slate-700 hover:bg-white/80 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-dashed border-slate-300/70 bg-white/40 text-sm text-slate-600 hover:bg-white/60 transition-colors"
                   onClick={() => {
                     setS3DetailsOpen((v) => {
                       trackQuoteEvent('quote_step3_details_toggled', { opened: !v });
@@ -6545,9 +6508,10 @@ function winSessionMinutes(S: WizardState) {
                   }}
                   aria-expanded={s3DetailsOpen}
                 >
-                  <span className="flex items-center gap-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                    Add scheduling preferences &amp; notes
+                  <span className="flex items-center gap-2.5">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-dashed border-slate-400 text-slate-500 text-xs font-medium" aria-hidden="true">+</span>
+                    <span className="font-medium text-slate-700">Optional extras</span>
+                    <span className="text-slate-400 text-[11px] font-normal">scheduling, notes, photos</span>
                     {(S.preferredAvailability?.length > 0 || S.notes.trim()) && (
                       <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium">
                         {[S.preferredAvailability?.length > 0 && 'availability', S.notes.trim() && 'notes'].filter(Boolean).join(' · ')}
@@ -6564,134 +6528,123 @@ function winSessionMinutes(S: WizardState) {
                 </button>
 
                 {s3DetailsOpen && (
-                  <div className="mt-3 space-y-4">
+                  <S3_Card className="mt-2 space-y-0">
+                    {/* Availability */}
+                    <div>
+                      <div className="text-xs font-medium text-slate-700 mb-2">When works best?</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(['Weekday mornings', 'Weekday afternoons', 'Weekends', 'Flexible / ASAP'] as const).map((slot) => {
+                          const active = (S.preferredAvailability || []).includes(slot);
+                          return (
+                            <button
+                              key={slot}
+                              type="button"
+                              className={cls(
+                                'px-3 py-1.5 rounded-full text-xs border transition-colors',
+                                active
+                                  ? 'border-[color:var(--accent)] bg-white font-medium'
+                                  : 'border-black/10 bg-white/70'
+                              )}
+                              onClick={() => {
+                                const current: string[] = S.preferredAvailability || [];
+                                const next = active ? current.filter((v) => v !== slot) : [...current, slot];
+                                set('preferredAvailability', next);
+                                trackQuoteEvent('quote_step3_availability_selected', { slot, selected: !active });
+                              }}
+                            >
+                              {slot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-              {/* Availability */}
-              <S3_Card>
-                <S3_Title>
-                  <span className="flex items-center gap-2">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    When works best for you?
-                  </span>
-                </S3_Title>
-                <p className="text-[11px] text-slate-500 mt-1">Select all that apply — we&apos;ll try to match your schedule.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(['Weekday mornings', 'Weekday afternoons', 'Weekends', 'Flexible / ASAP'] as const).map((slot) => {
-                    const active = (S.preferredAvailability || []).includes(slot);
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        className={cls(
-                          'px-3 py-1.5 rounded-full text-xs border transition-colors',
-                          active
-                            ? 'border-[color:var(--accent)] bg-white font-medium'
-                            : 'border-black/10 bg-white/70'
-                        )}
-                        onClick={() => {
-                          const current: string[] = S.preferredAvailability || [];
-                          const next = active ? current.filter((v) => v !== slot) : [...current, slot];
-                          set('preferredAvailability', next);
-                          trackQuoteEvent('quote_step3_availability_selected', { slot, selected: !active });
+                    {/* Notes */}
+                    <div className="mt-4 pt-4 border-t border-black/5">
+                      <div className="text-xs font-medium text-slate-700 mb-2">Anything else to note?</div>
+                      {savedPropertyAccess && !S.notes?.trim() && (
+                        <div className="mb-2 flex items-center justify-between p-2.5 rounded-xl border border-black/10 bg-white/70">
+                          <span className="text-[11px] text-slate-600 truncate">Saved access details available</span>
+                          <button
+                            type="button"
+                            className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[color:var(--accent)] text-[color:var(--accent)] hover:bg-emerald-50 transition-colors flex-shrink-0 ml-2"
+                            onClick={() => {
+                              const parts: string[] = [];
+                              if (savedPropertyAccess.gate_code?.trim()) parts.push(`Gate code: ${savedPropertyAccess.gate_code.trim()}`);
+                              if (savedPropertyAccess.pet_warnings?.trim()) parts.push(`Pets: ${savedPropertyAccess.pet_warnings.trim()}`);
+                              if (savedPropertyAccess.parking?.trim()) parts.push(`Parking: ${savedPropertyAccess.parking.trim()}`);
+                              if (savedPropertyAccess.special_instructions?.trim()) parts.push(savedPropertyAccess.special_instructions.trim());
+                              set('notes', parts.join('\n'));
+                            }}
+                          >
+                            Use saved
+                          </button>
+                        </div>
+                      )}
+                      <textarea
+                        className="w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)] resize-none"
+                        rows={3}
+                        placeholder="Gate code, parking notes, pets, anything specific…"
+                        value={S.notes}
+                        maxLength={2000}
+                        onChange={(e) => set('notes', e.target.value.slice(0, 2000))}
+                        aria-label="Notes"
+                      />
+                      <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {(['Gate code', 'Key in lockbox', 'Driveway access', 'Pool or spa', 'Extra mess', 'Fragile items'] as const).map((chip) => {
+                            const alreadyAdded = S.notes.includes(chip);
+                            return (
+                              <button
+                                key={chip}
+                                type="button"
+                                disabled={alreadyAdded}
+                                className={cls(
+                                  'px-2 py-0.5 rounded-full text-[11px] border transition-colors',
+                                  alreadyAdded
+                                    ? 'border-[color:var(--accent)] bg-white text-slate-500 cursor-default'
+                                    : 'border-black/10 bg-white/70 text-slate-600 hover:border-[color:var(--accent)] hover:bg-white'
+                                )}
+                                onClick={() => {
+                                  const sep = S.notes.trim() ? '\n' : '';
+                                  set('notes', `${S.notes.trim()}${sep}${chip}: `);
+                                }}
+                              >
+                                {alreadyAdded ? '✓ ' : '+ '}{chip}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <span className={`text-[10px] flex-shrink-0 ml-2 ${S.notes.length > 1800 ? 'text-amber-600' : 'text-slate-400'}`}>
+                          {S.notes.length}/2000
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Photos */}
+                    <label className="mt-4 pt-4 border-t border-black/5 flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={S.photosOK}
+                        onChange={(e) => {
+                          set('photosOK', e.target.checked);
+                          trackQuoteEvent('quote_step3_photos_ok', { checked: e.target.checked });
                         }}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
-                </div>
-                <label className="mt-4 flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={S.photosOK}
-                    onChange={(e) => {
-                      set('photosOK', e.target.checked);
-                      trackQuoteEvent('quote_step3_photos_ok', { checked: e.target.checked });
-                    }}
-                    className="mt-0.5 accent-emerald-600"
-                  />
-                  <span className="text-xs text-slate-700">
-                    Send a few photos for a faster, more accurate quote
-                    <span className="block text-[11px] text-slate-400 mt-0.5">Customers who share photos get a confirmed price sooner — we&apos;ll follow up via SMS or email, no app needed.</span>
-                  </span>
-                </label>
-              </S3_Card>
-
-              {/* Notes */}
-              <S3_Card>
-                <S3_Title>
-                  <span className="flex items-center gap-2">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    Anything else?
-                  </span>
-                </S3_Title>
-                {savedPropertyAccess && !S.notes?.trim() && (
-                  <div className="mt-3 mb-2 flex items-center justify-between p-2.5 rounded-xl border border-black/10 bg-white/70">
-                    <span className="text-[11px] text-slate-600 truncate">Saved access details available</span>
-                    <button
-                      type="button"
-                      className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[color:var(--accent)] text-[color:var(--accent)] hover:bg-emerald-50 transition-colors flex-shrink-0 ml-2"
-                      onClick={() => {
-                        const parts: string[] = [];
-                        if (savedPropertyAccess.gate_code?.trim()) parts.push(`Gate code: ${savedPropertyAccess.gate_code.trim()}`);
-                        if (savedPropertyAccess.pet_warnings?.trim()) parts.push(`Pets: ${savedPropertyAccess.pet_warnings.trim()}`);
-                        if (savedPropertyAccess.parking?.trim()) parts.push(`Parking: ${savedPropertyAccess.parking.trim()}`);
-                        if (savedPropertyAccess.special_instructions?.trim()) parts.push(savedPropertyAccess.special_instructions.trim());
-                        set('notes', parts.join('\n'));
-                      }}
-                    >
-                      Use saved
-                    </button>
-                  </div>
-                )}
-                <textarea
-                  className="mt-3 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)] resize-none"
-                  rows={3}
-                  placeholder="Gate code, parking instructions, pets, anything specific…"
-                  value={S.notes}
-                  maxLength={2000}
-                  onChange={(e) => set('notes', e.target.value.slice(0, 2000))}
-                  aria-label="Notes"
-                />
-                <div className="flex justify-end mt-1">
-                  <span className={`text-[10px] ${S.notes.length > 1800 ? 'text-amber-600' : 'text-slate-400'}`}>
-                    {S.notes.length}/2000
-                  </span>
-                </div>
-                {/* Quick-add chips — tap to append a prompt to the notes field */}
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {(['Gate code', 'Driveway access', 'Pool or spa', 'Extra mess', 'Fragile items', 'Key in lockbox'] as const).map((chip) => {
-                    const alreadyAdded = S.notes.includes(chip);
-                    return (
-                      <button
-                        key={chip}
-                        type="button"
-                        disabled={alreadyAdded}
-                        className={cls(
-                          'px-2 py-0.5 rounded-full text-[11px] border transition-colors',
-                          alreadyAdded
-                            ? 'border-[color:var(--accent)] bg-white text-slate-500 cursor-default'
-                            : 'border-black/10 bg-white/70 text-slate-600 hover:border-[color:var(--accent)] hover:bg-white'
-                        )}
-                        onClick={() => {
-                          const sep = S.notes.trim() ? '\n' : '';
-                          set('notes', `${S.notes.trim()}${sep}${chip}: `);
-                        }}
-                      >
-                        {alreadyAdded ? '✓ ' : '+ '}{chip}
-                      </button>
-                    );
-                  })}
-                </div>
-              </S3_Card>
-
-                  </div>
+                        className="mt-0.5 accent-emerald-600"
+                      />
+                      <span className="text-xs text-slate-700">
+                        Share a few photos for a faster, more accurate quote
+                        <span className="block text-[11px] text-slate-400 mt-0.5">We&apos;ll follow up via SMS or email — no app needed.</span>
+                      </span>
+                    </label>
+                  </S3_Card>
                 )}
               </div>
 
-              <div className="text-[11px] text-slate-600 text-center space-y-1">
-                <div>You won&apos;t be charged now — we&apos;ll confirm times and any price changes before work proceeds.</div>
-                <div className="text-slate-400">We typically respond within 2 hours on business days.</div>
+              {/* Reassurance banner */}
+              <div className="flex items-center gap-2.5 rounded-xl border border-black/5 bg-slate-50/70 px-4 py-3 text-[11px] text-slate-500">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="flex-shrink-0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>No payment now — we confirm times and any price changes before work begins. Typically within 2 hours on business days.</span>
               </div>
             </div>
 
@@ -7078,66 +7031,25 @@ function winSessionMinutes(S: WizardState) {
                   </>
                 )}
 
-                {/* CAPTCHA verification — deferred until first contact-field interaction */}
-                <div className="mt-4">
-                  <div className="text-xs text-slate-600 mb-2">Verify you&apos;re human</div>
-                  {captchaReady ? (
-                    TURNSTILE_SITE_KEY ? (
-                      <Turnstile
-                        siteKey={TURNSTILE_SITE_KEY}
-                        onVerify={(token) => { setCaptchaToken(token); setCaptchaExpired(false); }}
-                        onExpire={() => { setCaptchaToken(null); setCaptchaExpired(true); }}
-                        onError={() => { setCaptchaToken(null); setCaptchaExpired(false); }}
-                        theme="light"
-                      />
-                    ) : (
-                      <div
-                        role="status"
-                        className="text-[11px] text-amber-600 mt-1"
-                      >
-                        Turnstile site key missing. Set <code>NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> so the CAPTCHA can render.
-                      </div>
-                    )
-                  ) : (
-                    <div className="text-[11px] text-slate-400 italic">
-                      Verification will appear when you start filling in your details.
-                    </div>
-                  )}
-                  {!captchaToken && !!TURNSTILE_SITE_KEY && captchaExpired && (
-                    <div className="text-[11px] text-amber-600 mt-1">
-                      Verification expired — please re-verify above.
-                    </div>
-                  )}
-                  {!captchaToken && !!TURNSTILE_SITE_KEY && !captchaExpired && captchaReady && (
-                    <div className="text-[11px] text-amber-600 mt-1">
-                      Please complete the verification above to submit your quote.
-                    </div>
-                  )}
-                </div>
-
-                {/* Captcha directional hint — only shown when captcha is ready but not yet verified */}
-                {captchaReady && !captchaToken && !!TURNSTILE_SITE_KEY && (
-                  <div className="mt-3 flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Complete the verification above to unlock the submit button.
+                {/* Auth gate or submit — gate IS the action when not signed in */}
+                {!authedUser ? (
+                  <div id="step3-submit-btn" className="mt-4">
+                    <QuoteAuthGate
+                      prefillEmail={S.email}
+                      prefillName={S.fullName}
+                    />
                   </div>
-                )}
-
-                {/* Actions */}
-                <div className="mt-5 flex flex-col gap-2.5">
+                ) : (
+                  <div className="mt-5">
                   <M.button
                     id="step3-submit-btn"
                     className={cls(
-                      "px-4 py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(20,83,45,0.28)]",
-                      ((!captchaToken && !!TURNSTILE_SITE_KEY) || isCheckoutLoading) && "opacity-60 cursor-not-allowed"
+                      "w-full px-4 py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(20,83,45,0.28)]",
+                      isCheckoutLoading && "opacity-60 cursor-not-allowed"
                     )}
                     style={{ background: 'var(--accent)' }}
                     disabled={isCheckoutLoading}
                     onClick={async () => {
-                      if (!captchaToken && TURNSTILE_SITE_KEY) {
-                        toast.error('Please complete the verification to submit.');
-                        return;
-                      }
 
                       const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
                       const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
@@ -7319,7 +7231,7 @@ function winSessionMinutes(S: WizardState) {
                             }
                           }
 
-                          window.location.href = `/services/checkout/success?quote_id=${encodeURIComponent(quote.id)}`;
+                          window.location.href = `/portal/quotes?new=${encodeURIComponent(quote.id)}`;
                         } else {
                           throw new Error('No quote reference returned');
                         }
@@ -7371,7 +7283,8 @@ function winSessionMinutes(S: WizardState) {
                   >
                     ← Back to scope
                   </M.button>
-                </div>
+                  </div>
+                )}
 
                 {/* Trust signals */}
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-slate-500 mt-1">
