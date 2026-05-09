@@ -3383,6 +3383,7 @@ function ServicesPageContent() {
 
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [guestSubmitSuccess, setGuestSubmitSuccess] = useState<{ quoteId: string; email: string } | null>(null);
   const [saveToProfile, setSaveToProfile] = useState(true);
   // True once the /api/portal/profile fetch has settled (success or failure).
   // Used to gate autofocus and validation errors so they never fire before hydration.
@@ -4575,6 +4576,196 @@ function winSessionMinutes(S: WizardState) {
 /* =========================
    UI
    ========================= */
+
+  const handleSubmitQuote = async (isGuest = false) => {
+    const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
+    const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
+    const hasValidNdisForwardEmail =
+      !ndisForwardEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ndisForwardEmail);
+    const okInputs =
+      S.fullName?.trim().length >= 2 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '') &&
+      normalisedPhone.length >= 10 &&
+      S.address.trim().length > 0 &&
+      (!isNdisContext || !!S.ndisManagementType) &&
+      hasValidNdisForwardEmail;
+
+    if (!okInputs) {
+      const missingFields = [
+        (!S.fullName?.trim() || S.fullName.trim().length < 2) && 'name',
+        !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) && 'email',
+        normalisedPhone.length < 10 && 'phone',
+        !S.address.trim() && 'address',
+        (isNdisContext && !S.ndisManagementType) && 'ndis_management',
+        (isNdisContext && !hasValidNdisForwardEmail) && 'ndis_forward_email',
+      ].filter(Boolean).join(',');
+      trackQuoteEvent('quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
+      toast.error(
+        isNdisContext
+          ? 'Please complete your details, service address, and NDIS routing fields.'
+          : 'Please complete your details and confirm your service address.'
+      );
+      const firstInvalid =
+        (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
+        : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
+        : normalisedPhone.length < 10 ? 's3-phone'
+        : !S.address.trim() ? 's3-service-address'
+        : isNdisContext && !S.ndisManagementType ? 's3-ndis-routing'
+        : isNdisContext && !hasValidNdisForwardEmail ? 's3-ndis-forward-email'
+        : null;
+      if (firstInvalid) {
+        document.getElementById(firstInvalid)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById(firstInvalid)?.focus();
+      }
+      return;
+    }
+
+    let effectiveTotal = scopedPricing?.price ?? estimate.total;
+    if (ndisHourlyPrice !== null) {
+      effectiveTotal = ndisHourlyPrice;
+    }
+    if (isLaundryService) {
+      const laundryBase = Math.max(LAUNDRY_MIN, laundryLoads * 30) + laundryAddOnTotal;
+      effectiveTotal = laundryBase + LAUNDRY_FEE;
+    } else if (isSneakerLot) {
+      const sneakerOpt = SNEAKER_MULTI_PRICING.find((o) => o.pairs === (S.sneakerPairCount ?? 3));
+      effectiveTotal = (sneakerOpt?.price ?? 95) + SNEAKER_FEE;
+    } else if (isSneakerService) {
+      effectiveTotal = Math.max(SNEAKER_MIN + SNEAKER_FEE, effectiveTotal + SNEAKER_FEE);
+    }
+    if (!effectiveTotal || effectiveTotal <= 0) {
+      toast.error('Unable to calculate a price. Please adjust your selections.');
+      return;
+    }
+
+    submitAbortRef.current?.abort();
+    submitAbortRef.current = new AbortController();
+    setIsCheckoutLoading(true);
+
+    try {
+      const res = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: submitAbortRef.current.signal,
+        body: JSON.stringify({
+          customer_name: S.fullName.trim(),
+          customer_email: S.email.trim(),
+          customer_phone: S.phone.trim(),
+          service_type: S.service,
+          context: S.context,
+          scope: S.scope,
+          frequency: S.commFrequency || 'none',
+          analytics_session_id: getPublicAnalyticsSessionId(),
+          submitted_total: effectiveTotal,
+          total: effectiveTotal,
+          service_address: S.address.trim(),
+          ndis_management_type: isNdisContext ? S.ndisManagementType : null,
+          ndis_forward_contact: isNdisContext ? (S.ndisForwardContactName.trim() || null) : null,
+          ndis_forward_email: isNdisContext ? (ndisForwardEmail || null) : null,
+          ndis_estimated_hours: isNdisContext && ndisHourlyPrice !== null ? effectiveNdisHours : null,
+          ndis_hourly_rate: isNdisContext && ndisHourlyPrice !== null
+            ? ndisRateFor(S.ndisRateSlot, S.ndisRegion)
+            : null,
+          ndis_rate_slot: isNdisContext && ndisHourlyPrice !== null ? S.ndisRateSlot : null,
+          ndis_region: isNdisContext && ndisHourlyPrice !== null ? S.ndisRegion : null,
+          notes: [
+            S.notes || '',
+            S.preferredAvailability?.length
+              ? `Availability: ${S.preferredAvailability.join(', ')}`
+              : '',
+            S.photosOK ? 'Happy to share photos for quoting.' : '',
+            isNdisContext && S.ndisManagementType
+              ? `NDIS management: ${
+                  S.ndisManagementType === 'plan_managed'
+                    ? 'Plan-managed participant'
+                    : S.ndisManagementType === 'self_managed'
+                    ? 'Self-managed participant'
+                    : 'Agency-managed (NDIA) participant'
+                }`
+              : '',
+            isNdisContext && S.ndisForwardContactName.trim()
+              ? `NDIS forward contact: ${S.ndisForwardContactName.trim()}`
+              : '',
+            isNdisContext && ndisForwardEmail
+              ? `NDIS forward email: ${ndisForwardEmail}`
+              : '',
+            isNdisContext && ndisHourlyPrice !== null
+              ? `NDIS quote: ${effectiveNdisHours} hr × $${ndisRateFor(S.ndisRateSlot, S.ndisRegion).toFixed(2)}/hr (${NDIS_RATE_LABELS[S.ndisRateSlot]} · ${NDIS_REGION_LABELS[S.ndisRegion]} · Price Guide cap)`
+              : '',
+            isNdisContext
+              ? 'NDIS quote flow supported under the Buds At Work x MaluCare partnership.'
+              : '',
+          ].filter(Boolean).join('\n').trim() || '',
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error || `Error ${res.status}`);
+      }
+
+      const { quote } = await res.json() as { quote: { id: string } };
+
+      if (quote?.id) {
+        const timeToSubmit = step3StartTsRef.current
+          ? Math.round((Date.now() - step3StartTsRef.current) / 1000)
+          : null;
+        const submittedPayload: AnalyticsEventData = {
+          service: S.service,
+          scope: S.scope,
+          value: effectiveTotal,
+          ...(timeToSubmit !== null ? { time_to_submit_seconds: timeToSubmit } : {}),
+        };
+        sendGAEvent('event', 'quote_submitted', submittedPayload);
+        void trackPublicAnalyticsEvent({
+          eventName: 'quote_submitted',
+          quoteId: quote.id,
+          eventValue: effectiveTotal,
+          eventData: submittedPayload,
+          useBeacon: true,
+        });
+        trackQuoteSubmitted(effectiveTotal);
+
+        if (isGuest) {
+          setGuestSubmitSuccess({ quoteId: quote.id, email: S.email.trim() });
+          setIsCheckoutLoading(false);
+          return;
+        }
+
+        if (authedUser && saveToProfile) {
+          const profileUpdate: Record<string, string> = {
+            full_name: S.fullName.trim(),
+            phone: S.phone.trim(),
+          };
+          if (S.address.trim()) {
+            profileUpdate.default_address = S.address.trim();
+            if (S.region?.trim()) profileUpdate.region = S.region.trim();
+          }
+          try {
+            await fetch('/api/portal/profile', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(profileUpdate),
+            });
+          } catch (e) {
+            console.warn('[profile-save] failed silently:', e);
+          }
+        }
+
+        window.location.href = `/portal/quotes?new=${encodeURIComponent(quote.id)}`;
+      } else {
+        throw new Error('No quote reference returned');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('Quote request error:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      );
+      setIsCheckoutLoading(false);
+    }
+  };
+
   return (
     <MotionContext.Provider value={motionEnabled}>
       <div
@@ -7031,219 +7222,38 @@ function winSessionMinutes(S: WizardState) {
                   </>
                 )}
 
-                {/* Auth gate or submit — gate IS the action when not signed in */}
-                {!authedUser ? (
+                {/* Auth gate or submit */}
+                {!authedUser && guestSubmitSuccess ? (
+                  <div className="mt-4 py-3 text-center space-y-1.5">
+                    <p className="text-[13.5px] font-semibold text-slate-800">✓ Quote submitted</p>
+                    <p className="text-[12px] text-slate-400 leading-snug">
+                      We&apos;ll be in touch at <span className="text-slate-600">{guestSubmitSuccess.email}</span>
+                    </p>
+                    <button
+                      className="text-[11.5px] text-slate-400 hover:text-slate-600 transition-colors"
+                      onClick={() => { dispatch({ type: 'reset' }); setGuestSubmitSuccess(null); }}
+                    >
+                      Start another quote
+                    </button>
+                  </div>
+                ) : !authedUser ? (
                   <div id="step3-submit-btn" className="mt-4">
                     <QuoteAuthGate
                       prefillEmail={S.email}
-                      prefillName={S.fullName}
+                      onGuestContinue={() => void handleSubmitQuote(true)}
                     />
                   </div>
                 ) : (
-                  <div className="mt-5">
+                  <div className="mt-4 space-y-2">
                   <M.button
                     id="step3-submit-btn"
                     className={cls(
-                      "w-full px-4 py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(20,83,45,0.28)]",
+                      "w-full px-4 py-2.5 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-2",
                       isCheckoutLoading && "opacity-60 cursor-not-allowed"
                     )}
                     style={{ background: 'var(--accent)' }}
                     disabled={isCheckoutLoading}
-                    onClick={async () => {
-
-                      const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
-                      const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
-                      const hasValidNdisForwardEmail =
-                        !ndisForwardEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ndisForwardEmail);
-                      const okInputs =
-                        S.fullName?.trim().length >= 2 &&
-                        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '') &&
-                        normalisedPhone.length >= 10 &&
-                        S.address.trim().length > 0 &&
-                        (!isNdisContext || !!S.ndisManagementType) &&
-                        hasValidNdisForwardEmail;
-
-                      if (!okInputs) {
-                        const missingFields = [
-                          (!S.fullName?.trim() || S.fullName.trim().length < 2) && 'name',
-                          !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) && 'email',
-                          normalisedPhone.length < 10 && 'phone',
-                          !S.address.trim() && 'address',
-                          (isNdisContext && !S.ndisManagementType) && 'ndis_management',
-                          (isNdisContext && !hasValidNdisForwardEmail) && 'ndis_forward_email',
-                        ].filter(Boolean).join(',');
-                        trackQuoteEvent('quote_step3_submit_failed', { service: S.service, scope: S.scope, missing_fields: missingFields });
-                        toast.error(
-                          isNdisContext
-                            ? 'Please complete your details, service address, and NDIS routing fields.'
-                            : 'Please complete your details and confirm your service address.'
-                        );
-                        // Scroll to the first invalid field so it's visible.
-                        const firstInvalid =
-                          (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
-                          : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
-                          : normalisedPhone.length < 10 ? 's3-phone'
-                          : !S.address.trim() ? 's3-service-address'
-                          : isNdisContext && !S.ndisManagementType ? 's3-ndis-routing'
-                          : isNdisContext && !hasValidNdisForwardEmail ? 's3-ndis-forward-email'
-                          : null;
-                        if (firstInvalid) {
-                          document.getElementById(firstInvalid)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          document.getElementById(firstInvalid)?.focus();
-                        }
-                        return;
-                      }
-
-                      // Compute the total that matches what the customer saw in the UI,
-                      // including any delivery/service fees for laundry and sneaker services.
-                      let effectiveTotal = scopedPricing?.price ?? estimate.total;
-                      // NDIS cleaning + yard are billed at (estimated hours × NDIS hourly rate) —
-                      // mirror the override used in the live price display.
-                      if (ndisHourlyPrice !== null) {
-                        effectiveTotal = ndisHourlyPrice;
-                      }
-                      if (isLaundryService) {
-                        // Match priceLabel: base service cost + pickup/delivery + service fee
-                        const laundryBase = Math.max(LAUNDRY_MIN, laundryLoads * 30) + laundryAddOnTotal;
-                        effectiveTotal = laundryBase + LAUNDRY_FEE;
-                      } else if (isSneakerLot) {
-                        // Match priceLabel: fixed multi-pair price + sneaker fee
-                        const sneakerOpt = SNEAKER_MULTI_PRICING.find((o) => o.pairs === (S.sneakerPairCount ?? 3));
-                        effectiveTotal = (sneakerOpt?.price ?? 95) + SNEAKER_FEE;
-                      } else if (isSneakerService) {
-                        // Match priceLabel: service price + sneaker fee, floored at minimum
-                        effectiveTotal = Math.max(SNEAKER_MIN + SNEAKER_FEE, effectiveTotal + SNEAKER_FEE);
-                      }
-                      if (!effectiveTotal || effectiveTotal <= 0) {
-                        toast.error('Unable to calculate a price. Please adjust your selections.');
-                        return;
-                      }
-
-                      // Abort any in-flight request and create a fresh controller.
-                      submitAbortRef.current?.abort();
-                      submitAbortRef.current = new AbortController();
-                      setIsCheckoutLoading(true);
-
-                      try {
-                        const res = await fetch('/api/quotes', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          signal: submitAbortRef.current.signal,
-                          body: JSON.stringify({
-                            customer_name: S.fullName.trim(),
-                            customer_email: S.email.trim(),
-                            customer_phone: S.phone.trim(),
-                            service_type: S.service,
-                            context: S.context,
-                            scope: S.scope,
-                            frequency: S.commFrequency || 'none',
-                            analytics_session_id: getPublicAnalyticsSessionId(),
-                            submitted_total: effectiveTotal,
-                            total: effectiveTotal,
-                            service_address: S.address.trim(),
-                            // Structured NDIS fields — the API and admin dashboard read these
-                            // first and fall back to parsing notes for older quotes.
-                            ndis_management_type: isNdisContext ? S.ndisManagementType : null,
-                            ndis_forward_contact: isNdisContext ? (S.ndisForwardContactName.trim() || null) : null,
-                            ndis_forward_email: isNdisContext ? (ndisForwardEmail || null) : null,
-                            ndis_estimated_hours: isNdisContext && ndisHourlyPrice !== null ? effectiveNdisHours : null,
-                            ndis_hourly_rate: isNdisContext && ndisHourlyPrice !== null
-                              ? ndisRateFor(S.ndisRateSlot, S.ndisRegion)
-                              : null,
-                            ndis_rate_slot: isNdisContext && ndisHourlyPrice !== null ? S.ndisRateSlot : null,
-                            ndis_region: isNdisContext && ndisHourlyPrice !== null ? S.ndisRegion : null,
-                            notes: [
-                              S.notes || '',
-                              S.preferredAvailability?.length
-                                ? `Availability: ${S.preferredAvailability.join(', ')}`
-                                : '',
-                              S.photosOK ? 'Happy to share photos for quoting.' : '',
-                              isNdisContext && S.ndisManagementType
-                                ? `NDIS management: ${
-                                    S.ndisManagementType === 'plan_managed'
-                                      ? 'Plan-managed participant'
-                                      : S.ndisManagementType === 'self_managed'
-                                      ? 'Self-managed participant'
-                                      : 'Agency-managed (NDIA) participant'
-                                  }`
-                                : '',
-                              isNdisContext && S.ndisForwardContactName.trim()
-                                ? `NDIS forward contact: ${S.ndisForwardContactName.trim()}`
-                                : '',
-                              isNdisContext && ndisForwardEmail
-                                ? `NDIS forward email: ${ndisForwardEmail}`
-                                : '',
-                              isNdisContext && ndisHourlyPrice !== null
-                                ? `NDIS quote: ${effectiveNdisHours} hr × $${ndisRateFor(S.ndisRateSlot, S.ndisRegion).toFixed(2)}/hr (${NDIS_RATE_LABELS[S.ndisRateSlot]} · ${NDIS_REGION_LABELS[S.ndisRegion]} · Price Guide cap)`
-                                : '',
-                              isNdisContext
-                                ? 'NDIS quote flow supported under the Buds At Work x MaluCare partnership.'
-                                : '',
-                            ].filter(Boolean).join('\n').trim() || '',
-                          }),
-                        });
-
-                        if (!res.ok) {
-                          const errData = await res.json().catch(() => ({}));
-                          throw new Error(errData.error || `Error ${res.status}`);
-                        }
-
-                        const { quote } = await res.json();
-
-                        if (quote?.id) {
-                          const timeToSubmit = step3StartTsRef.current
-                            ? Math.round((Date.now() - step3StartTsRef.current) / 1000)
-                            : null;
-                          const submittedPayload: AnalyticsEventData = {
-                            service: S.service,
-                            scope: S.scope,
-                            value: effectiveTotal,
-                            ...(timeToSubmit !== null ? { time_to_submit_seconds: timeToSubmit } : {}),
-                          };
-                          sendGAEvent('event', 'quote_submitted', submittedPayload);
-                          void trackPublicAnalyticsEvent({
-                            eventName: 'quote_submitted',
-                            quoteId: quote.id,
-                            eventValue: effectiveTotal,
-                            eventData: submittedPayload,
-                            useBeacon: true,
-                          });
-                          trackQuoteSubmitted(effectiveTotal);
-
-                          // Await profile sync before navigating so it cannot be silently dropped.
-                          if (authedUser && saveToProfile) {
-                            const profileUpdate: Record<string, string> = {
-                              full_name: S.fullName.trim(),
-                              phone: S.phone.trim(),
-                            };
-                            if (S.address.trim()) {
-                              profileUpdate.default_address = S.address.trim();
-                              if (S.region?.trim()) profileUpdate.region = S.region.trim();
-                            }
-                            try {
-                              await fetch('/api/portal/profile', {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(profileUpdate),
-                              });
-                            } catch (e) {
-                              console.warn('[profile-save] failed silently:', e);
-                            }
-                          }
-
-                          window.location.href = `/portal/quotes?new=${encodeURIComponent(quote.id)}`;
-                        } else {
-                          throw new Error('No quote reference returned');
-                        }
-                      } catch (err) {
-                        if (err instanceof Error && err.name === 'AbortError') return;
-                        console.error('Quote request error:', err);
-                        toast.error(
-                          err instanceof Error ? err.message : 'Something went wrong. Please try again.'
-                        );
-                        setIsCheckoutLoading(false);
-                      }
-                    }}
+                    onClick={() => void handleSubmitQuote(false)}
                     aria-label="Get my quote"
                   >
                     {isCheckoutLoading ? (
@@ -7254,35 +7264,17 @@ function winSessionMinutes(S: WizardState) {
                         Submitting...
                       </>
                     ) : (
-                      <>
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          className="opacity-90"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M20 6L9 17l-5-5"
-                            fill="none"
-                            stroke="white"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Get my quote →
-                      </>
+                      'Get my quote →'
                     )}
                   </M.button>
 
-                  <M.button
-                    className="px-4 py-2 rounded-2xl text-sm font-medium text-slate-700 border border-black/10 bg-white/70 hover:bg-white/90 transition-colors"
+                  <button
+                    type="button"
+                    className="w-full text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
                     onClick={() => goToStep(2)}
-                    aria-label="Back to Step 2"
                   >
                     ← Back to scope
-                  </M.button>
+                  </button>
                   </div>
                 )}
 
