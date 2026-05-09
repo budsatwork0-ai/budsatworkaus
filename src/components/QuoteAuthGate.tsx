@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { brand } from '@/app/ui/theme';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface Props {
   prefillEmail: string;
-  onGuestContinue?: () => void;
+  onGuestContinue?: (token: string) => void;
   className?: string;
 }
+
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 const GOOGLE_ICON = (
   <svg width="15" height="15" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -20,11 +23,14 @@ const GOOGLE_ICON = (
 );
 
 export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }: Props) {
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [emailExpanded, setEmailExpanded] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const guestBlocked = !!SITE_KEY && !turnstileToken;
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
@@ -67,14 +73,27 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
         We&apos;ll send updates by SMS or email. No password needed.
       </p>
 
+      {/* Turnstile — loads quietly, auto-verifies in managed mode */}
+      {SITE_KEY && (
+        <div className="mt-3">
+          <Turnstile
+            siteKey={SITE_KEY}
+            onSuccess={setTurnstileToken}
+            onExpire={() => setTurnstileToken('')}
+            options={{ theme: 'light', size: 'flexible' }}
+          />
+        </div>
+      )}
+
       {/* Primary — guest */}
       <button
         type="button"
-        onClick={onGuestContinue}
-        className="mt-3 w-full py-2.5 rounded-xl text-[13.5px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.99]"
+        onClick={() => onGuestContinue?.(turnstileToken)}
+        disabled={guestBlocked}
+        className="mt-3 w-full py-2.5 rounded-xl text-[13.5px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ background: brand.primary }}
       >
-        Submit as guest
+        {guestBlocked ? 'Verifying…' : 'Submit as guest'}
       </button>
 
       {/* Secondary — Google */}

@@ -4577,7 +4577,7 @@ function winSessionMinutes(S: WizardState) {
    UI
    ========================= */
 
-  const handleSubmitQuote = async (isGuest = false) => {
+  const handleSubmitQuote = async (isGuest = false, guestToken = '') => {
     const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
     const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
     const hasValidNdisForwardEmail =
@@ -4656,6 +4656,7 @@ function winSessionMinutes(S: WizardState) {
           scope: S.scope,
           frequency: S.commFrequency || 'none',
           analytics_session_id: getPublicAnalyticsSessionId(),
+          ...(isGuest && guestToken ? { turnstileToken: guestToken } : {}),
           submitted_total: effectiveTotal,
           total: effectiveTotal,
           service_address: S.address.trim(),
@@ -7240,7 +7241,7 @@ function winSessionMinutes(S: WizardState) {
                   <div id="step3-submit-btn" className="mt-4">
                     <QuoteAuthGate
                       prefillEmail={S.email}
-                      onGuestContinue={() => void handleSubmitQuote(true)}
+                      onGuestContinue={(token) => void handleSubmitQuote(true, token)}
                     />
                   </div>
                 ) : (
