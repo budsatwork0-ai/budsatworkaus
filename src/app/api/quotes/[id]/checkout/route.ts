@@ -234,10 +234,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     stripeCustomerId,
   });
 
+  // Build payment method list — card is always included; BNPL methods are
+  // gated by each provider's AUD amount limits so Stripe doesn't reject the session.
+  const paymentMethodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = ['card'];
+  if (amountCents >= 100 && amountCents <= 200000) paymentMethodTypes.push('afterpay_clearpay');
+  if (amountCents >= 3500 && amountCents <= 150000) paymentMethodTypes.push('zip');
+
   try {
     session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'aud',
+      payment_method_types: paymentMethodTypes,
       // Use Stripe Customer when available (enables saved cards for returning customers),
       // otherwise fall back to customer_email so Stripe can prefill the form.
       ...(stripeCustomerId
@@ -339,6 +346,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   let emailError: string | null = null;
   let emailId: string | null = null;
 
+  // Custom payment page — customer lands here and can choose Stripe, PayPal, etc.
+  const payPageUrl = `${origin}/pay/${quote.id}`;
+
   // Send "quote finalized" email and report provider errors back to the caller.
   if (quote.customer_email && session.url) {
     const resend = getResendClient();
@@ -348,7 +358,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         serviceLabel: SERVICE_LABELS[quote.service_type] || quote.service_type,
         total: amount,
         quoteId: quote.id,
-        paymentUrl: session.url,
+        paymentUrl: payPageUrl,
       });
       try {
         const result = await resend.emails.send({
@@ -379,7 +389,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   return NextResponse.json({
-    url: session.url,
+    url: payPageUrl,
     session_id: session.id,
     order_id: orderId,
     email_sent: emailSent,

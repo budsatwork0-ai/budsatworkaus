@@ -196,8 +196,8 @@ export function quoteFinalizedEmail({ customerName, serviceLabel, total, quoteId
         <div style="font-size:11px;color:${MUTED};margin-top:4px;">Quote #${quoteId.slice(0, 8).toUpperCase()}</div>
       </div>
       <a href="${paymentUrl}" style="display:inline-block;background:${PRIMARY};color:#fff;text-decoration:none;border-radius:10px;padding:12px 24px;font-weight:600;font-size:15px;margin-bottom:12px;">Pay Now</a>
-      <p style="color:${MUTED};font-size:12px;margin:0 0 16px;">This link is valid for 48 hours. After that, you can re-request it from your <a href="https://budsatwork.com/portal/payments" style="color:${PRIMARY};">client portal</a>.</p>
-      <p style="color:${MUTED};font-size:13px;margin:0;">We accept card, Apple Pay, Google Pay and more — checkout takes under 30 seconds.</p>
+      <p style="color:${MUTED};font-size:12px;margin:0 0 16px;">If you have any trouble with the link, you can also pay from your <a href="https://budsatwork.com/portal/payments" style="color:${PRIMARY};">client portal</a>.</p>
+      <p style="color:${MUTED};font-size:13px;margin:0;">We accept card, Apple Pay, Google Pay, Afterpay, Zip, and PayPal — choose what works best for you at checkout.</p>
     `),
   };
 }
