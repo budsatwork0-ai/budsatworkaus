@@ -276,6 +276,18 @@ function CommSqmSlider({ value, onChange }: CommSqmSliderProps) {
 
 // Module-level constants — pure static data, hoisted out of the render IIFE so they
 // are allocated once per module load rather than on every Step 2 render.
+
+const ACCESS_TOGGLES: ReadonlyArray<{
+  key: 'paidParking' | 'secondStorey' | 'afterHours' | 'clutterAccess' | 'petHair';
+  label: string;
+}> = [
+  { key: 'paidParking',   label: 'Paid/Street parking' },
+  { key: 'secondStorey',  label: 'Second storey' },
+  { key: 'afterHours',    label: 'After-hours (post-6pm)' },
+  { key: 'clutterAccess', label: 'Tight access' },
+  { key: 'petHair',       label: 'Pets present' },
+];
+
 const COMM_FEATURES: Record<CommercialCleaningType, string[]> = {
   office: ['Desks & bins', 'Kitchens/tea rooms', 'Restrooms', 'High-touch points'],
   medical: ['Consult rooms', 'Waiting area', 'Restrooms', 'Infection-control touchpoints'],
@@ -4767,6 +4779,105 @@ function winSessionMinutes(S: WizardState) {
     }
   };
 
+  function renderPriceBreakdown() {
+    if (S.service === 'dump' && (S.scope === 'dump_transport' || S.scope === 'dump_delivery')) {
+      const isTransport = S.scope === 'dump_transport';
+      const quoteResult = isTransport
+        ? calcTransportQuote(S.dumpTransport, S.distanceKm)
+        : calcDeliveryQuote(S.dumpDelivery, S.distanceKm);
+      if (quoteResult.isCustomQuote) {
+        return (
+          <>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="font-semibold mb-1">Custom quote required</div>
+              <div className="text-[11px]">{quoteResult.customQuoteReason ?? 'This job may require a custom quote based on distance, access, or item size.'}</div>
+            </div>
+            <div className="text-[11px] text-slate-600 mt-2">
+              Contact us and we&apos;ll provide a fair, itemised quote.
+            </div>
+          </>
+        );
+      }
+      return (
+        <>
+          <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
+          {quoteResult.lineItems.map((item, i) => (
+            <S3_Row
+              key={i}
+              k={item.label}
+              v={item.note === 'Included' ? 'Included' : fmtAUD(item.amount)}
+            />
+          ))}
+          <div className="h-[1px] bg-white/60 my-2" />
+          <S3_Row k="Total" v={priceLabel} bold />
+          <div className="text-[11px] text-slate-500 mt-1">Transparent pricing — no hidden fees.</div>
+          <div className="text-[11px] text-slate-500">Large or long-distance jobs may require a custom quote.</div>
+        </>
+      );
+    }
+
+    if (isNdisContext && S.service === 'cleaning' && ndisHourlyPrice !== null) {
+      const rate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
+      const hours = effectiveNdisHours || NDIS_MIN_HOURS;
+      const fmtHours = (h: number) =>
+        Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
+      return (
+        <>
+          <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
+          <S3_Row k="Estimated hours" v={`${fmtHours(hours)} hr`} />
+          <S3_Row k={`Rate · ${NDIS_RATE_LABELS[S.ndisRateSlot]}`} v={`${fmtAUD(rate)}/hr`} />
+          <S3_Row k="Region" v={NDIS_REGION_LABELS[S.ndisRegion]} />
+          <div className="h-[1px] bg-white/60 my-2" />
+          <S3_Row k="Subtotal" v={fmtAUD(Math.round(hours * rate))} />
+          <S3_Row k="Total" v={priceLabel} bold />
+          <div className="mt-2 rounded-lg border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-900">
+            <span className="font-semibold">Hourly billing.</span>{' '}
+            We log time on-site so your plan is only charged for actual delivered hours.
+            Quarter-hour units, capped at the NDIS Price Guide rate.
+          </div>
+          <div className="text-[11px] text-slate-600 mt-2">{FAIRNESS_PROMISE_COPY}</div>
+        </>
+      );
+    }
+
+    const mats = S.service === 'cleaning' ? (S.context === 'commercial' ? 12 : 8) : 0;
+    return (
+      <>
+        {estimate.labourFloor ? <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} /> : null}
+        <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
+        {isLaundryService && (
+          <>
+            {(S.laundryPerLoadAddOns ?? []).map((k) => (
+              <S3_Row key={k} k={LAUNDRY_PER_LOAD_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_LOAD_ADDONS[k].price * laundryLoads)}`} />
+            ))}
+            {(S.laundryPerOrderAddOns ?? []).map((k) => (
+              <S3_Row key={k} k={LAUNDRY_PER_ORDER_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_ORDER_ADDONS[k].price)}`} />
+            ))}
+            {(S.laundryIroningItems ?? []).filter((i) => i.count > 0).map((item) => (
+              <S3_Row key={item.type} k={`Ironing – ${LAUNDRY_IRONING_PRICES[item.type].label}`} v={`+${fmtAUD(LAUNDRY_IRONING_PRICES[item.type].price * item.count)}`} />
+            ))}
+            <S3_Row k="Pickup & delivery" v={fmtAUD(12)} />
+            <S3_Row k="Service fee" v={fmtAUD(2)} />
+          </>
+        )}
+        {(isSneakerService || isSneakerLot) && (
+          <>
+            <S3_Row k="Pickup & delivery" v={fmtAUD(8)} />
+            <S3_Row k="Service fee" v={fmtAUD(2)} />
+          </>
+        )}
+        {estimate.travel > 0 && <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />}
+        {estimate.parking > 0 && <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />}
+        {estimate.tip > 0 && <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />}
+        {mats > 0 && <S3_Row k="Materials" v={fmtAUD(mats)} />}
+        <div className="h-[1px] bg-white/60 my-2" />
+        <S3_Row k="Total" v={priceLabel} bold />
+        <div className="text-[11px] text-slate-600">{PRICE_SCOPE_DISCLAIMER}</div>
+        <div className="text-[11px] text-slate-600">{FAIRNESS_PROMISE_COPY}</div>
+      </>
+    );
+  }
+
   return (
     <MotionContext.Provider value={motionEnabled}>
       <div
@@ -6623,66 +6734,25 @@ function winSessionMinutes(S: WizardState) {
                 <div className="mt-4 pt-3 border-t border-black/5">
                   <div className="text-xs font-medium text-slate-600 mb-2">Access &amp; site notes</div>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border',
-                        S.paidParking
-                          ? 'border-[color:var(--accent)] bg-white'
-                          : 'border-black/10 bg-white/70'
-                      )}
-                      onClick={() => { set('paidParking', !S.paidParking); trackQuoteEvent('quote_step3_access_toggle', { field: 'paidParking', value: !S.paidParking }); }}
-                    >
-                      Paid/Street parking
-                    </button>
-                    <button
-                      type="button"
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border',
-                        S.secondStorey
-                          ? 'border-[color:var(--accent)] bg-white'
-                          : 'border-black/10 bg-white/70'
-                      )}
-                      onClick={() => { set('secondStorey', !S.secondStorey); trackQuoteEvent('quote_step3_access_toggle', { field: 'secondStorey', value: !S.secondStorey }); }}
-                    >
-                      Second storey
-                    </button>
-                    <button
-                      type="button"
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border',
-                        S.afterHours
-                          ? 'border-[color:var(--accent)] bg-white'
-                          : 'border-black/10 bg-white/70'
-                      )}
-                      onClick={() => { set('afterHours', !S.afterHours); trackQuoteEvent('quote_step3_access_toggle', { field: 'afterHours', value: !S.afterHours }); }}
-                    >
-                      After-hours (post-6pm)
-                    </button>
-                    <button
-                      type="button"
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border',
-                        S.clutterAccess
-                          ? 'border-[color:var(--accent)] bg-white'
-                          : 'border-black/10 bg-white/70'
-                      )}
-                      onClick={() => { set('clutterAccess', !S.clutterAccess); trackQuoteEvent('quote_step3_access_toggle', { field: 'clutterAccess', value: !S.clutterAccess }); }}
-                    >
-                      Tight access
-                    </button>
-                    <button
-                      type="button"
-                      className={cls(
-                        'px-2.5 py-1 rounded-full text-xs border',
-                        S.petHair
-                          ? 'border-[color:var(--accent)] bg-white'
-                          : 'border-black/10 bg-white/70'
-                      )}
-                      onClick={() => { set('petHair', !S.petHair); trackQuoteEvent('quote_step3_access_toggle', { field: 'petHair', value: !S.petHair }); }}
-                    >
-                      Pets present
-                    </button>
+                    {ACCESS_TOGGLES.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={cls(
+                          'px-2.5 py-1 rounded-full text-xs border',
+                          S[key]
+                            ? 'border-[color:var(--accent)] bg-white'
+                            : 'border-black/10 bg-white/70'
+                        )}
+                        onClick={() => {
+                          const next = !S[key];
+                          set(key, next);
+                          trackQuoteEvent('quote_step3_access_toggle', { field: key, value: next });
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </S3_Card>
@@ -7075,133 +7145,7 @@ function winSessionMinutes(S: WizardState) {
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      {/* Transport / Delivery: dedicated transparent breakdown */}
-                      {S.service === 'dump' && (S.scope === 'dump_transport' || S.scope === 'dump_delivery') ? (() => {
-                        const isTransport = S.scope === 'dump_transport';
-                        const quoteResult = isTransport
-                          ? calcTransportQuote(S.dumpTransport, S.distanceKm)
-                          : calcDeliveryQuote(S.dumpDelivery, S.distanceKm);
-
-                        if (quoteResult.isCustomQuote) {
-                          return (
-                            <>
-                              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                                <div className="font-semibold mb-1">Custom quote required</div>
-                                <div className="text-[11px]">{quoteResult.customQuoteReason ?? 'This job may require a custom quote based on distance, access, or item size.'}</div>
-                              </div>
-                              <div className="text-[11px] text-slate-600 mt-2">
-                                Contact us and we&apos;ll provide a fair, itemised quote.
-                              </div>
-                            </>
-                          );
-                        }
-
-                        return (
-                          <>
-                            <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
-                            {quoteResult.lineItems.map((item, i) => (
-                              <S3_Row
-                                key={i}
-                                k={item.label}
-                                v={item.note === 'Included' ? 'Included' : fmtAUD(item.amount)}
-                              />
-                            ))}
-                            <div className="h-[1px] bg-white/60 my-2" />
-                            <S3_Row k="Total" v={priceLabel} bold />
-                            <div className="text-[11px] text-slate-500 mt-1">
-                              Transparent pricing — no hidden fees.
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              Large or long-distance jobs may require a custom quote.
-                            </div>
-                          </>
-                        );
-                      })() : isNdisContext && S.service === 'cleaning' && ndisHourlyPrice !== null ? (() => {
-                        // NDIS cleaning is billed strictly as
-                        // (estimated hours × Price-Guide rate). The
-                        // scope-based `estimate.*` rows don't apply here —
-                        // they ignore the hour/rate slot/region inputs from
-                        // Step 2, which made the breakdown look frozen
-                        // whenever the user changed any of those. (Yard is
-                        // handled separately in its own branch above.)
-                        const rate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
-                        const hours = effectiveNdisHours || NDIS_MIN_HOURS;
-                        const fmtHours = (h: number) =>
-                          Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, '');
-                        return (
-                          <>
-                            <div className="text-[11px] font-medium text-slate-700 mb-1">Price breakdown</div>
-                            <S3_Row k="Estimated hours" v={`${fmtHours(hours)} hr`} />
-                            <S3_Row
-                              k={`Rate · ${NDIS_RATE_LABELS[S.ndisRateSlot]}`}
-                              v={`${fmtAUD(rate)}/hr`}
-                            />
-                            <S3_Row k="Region" v={NDIS_REGION_LABELS[S.ndisRegion]} />
-                            <div className="h-[1px] bg-white/60 my-2" />
-                            <S3_Row k="Subtotal" v={fmtAUD(Math.round(hours * rate))} />
-                            <S3_Row k="Total" v={priceLabel} bold />
-                            <div className="mt-2 rounded-lg border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-900">
-                              <span className="font-semibold">Hourly billing.</span>{' '}
-                              We log time on-site so your plan is only charged for actual delivered hours.
-                              Quarter-hour units, capped at the NDIS Price Guide rate.
-                            </div>
-                            <div className="text-[11px] text-slate-600 mt-2">
-                              {FAIRNESS_PROMISE_COPY}
-                            </div>
-                          </>
-                        );
-                      })() : (
-                        <>
-                          {estimate.labourFloor ? (
-                            <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} />
-                          ) : null}
-                          <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
-                          {isLaundryService && (
-                            <>
-                              {(S.laundryPerLoadAddOns ?? []).map((k) => (
-                                <S3_Row key={k} k={LAUNDRY_PER_LOAD_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_LOAD_ADDONS[k].price * laundryLoads)}`} />
-                              ))}
-                              {(S.laundryPerOrderAddOns ?? []).map((k) => (
-                                <S3_Row key={k} k={LAUNDRY_PER_ORDER_ADDONS[k].label} v={`+${fmtAUD(LAUNDRY_PER_ORDER_ADDONS[k].price)}`} />
-                              ))}
-                              {(S.laundryIroningItems ?? []).filter((i) => i.count > 0).map((item) => (
-                                <S3_Row key={item.type} k={`Ironing – ${LAUNDRY_IRONING_PRICES[item.type].label}`} v={`+${fmtAUD(LAUNDRY_IRONING_PRICES[item.type].price * item.count)}`} />
-                              ))}
-                              <S3_Row k="Pickup & delivery" v={fmtAUD(12)} />
-                              <S3_Row k="Service fee" v={fmtAUD(2)} />
-                            </>
-                          )}
-                          {(isSneakerService || isSneakerLot) && (
-                            <>
-                              <S3_Row k="Pickup & delivery" v={fmtAUD(8)} />
-                              <S3_Row k="Service fee" v={fmtAUD(2)} />
-                            </>
-                          )}
-                          {estimate.travel > 0 && (
-                            <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />
-                          )}
-                          {estimate.parking > 0 && (
-                            <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />
-                          )}
-                          {estimate.tip > 0 && (
-                            <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />
-                          )}
-                          {(() => {
-                            const mats = S.service === 'cleaning'
-                              ? S.context === 'commercial' ? 12 : 8
-                              : 0;
-                            return mats > 0 ? <S3_Row k="Materials" v={fmtAUD(mats)} /> : null;
-                          })()}
-                          <div className="h-[1px] bg-white/60 my-2" />
-                          <S3_Row k="Total" v={priceLabel} bold />
-                          <div className="text-[11px] text-slate-600">
-                            {PRICE_SCOPE_DISCLAIMER}
-                          </div>
-                          <div className="text-[11px] text-slate-600">
-                            {FAIRNESS_PROMISE_COPY}
-                          </div>
-                        </>
-                      )}
+                      {renderPriceBreakdown()}
                       <div className="text-[11px] text-slate-600">
                         {TERMS_SNIPPET}
                       </div>

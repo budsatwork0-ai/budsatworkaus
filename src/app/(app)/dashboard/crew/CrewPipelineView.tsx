@@ -201,6 +201,17 @@ export function CrewPipelineView() {
     rosterActive: true,
   });
 
+  const [contractTarget, setContractTarget] = useState<PipelinePerson | null>(null);
+  const [contractSending, setContractSending] = useState(false);
+  const [contractForm, setContractForm] = useState({
+    contractType: 'pay_amendment' as 'pay_amendment' | 'employment_type_change' | 'role_change' | 'general_amendment',
+    newRate: '',
+    newEmploymentType: '',
+    newRole: '',
+    effectiveDate: '',
+    notes: '',
+  });
+
   const fetchPipeline = useCallback(async () => {
     setLoading(true);
     try {
@@ -369,6 +380,58 @@ export function CrewPipelineView() {
       toast.error(err instanceof Error ? err.message : 'Failed to assign job');
     } finally {
       setWorkingId(null);
+    }
+  };
+
+  const openContractModal = (person: PipelinePerson) => {
+    setContractTarget(person);
+    setContractForm({
+      contractType: 'pay_amendment',
+      newRate: person.hourlyRate != null ? String(person.hourlyRate) : '',
+      newEmploymentType: person.employmentType || 'casual',
+      newRole: person.defaultRole || '',
+      effectiveDate: '',
+      notes: '',
+    });
+  };
+
+  const submitContract = async () => {
+    if (!contractTarget?.employeeId) return;
+    setContractSending(true);
+    try {
+      const payload: Record<string, unknown> = {
+        employee_id: contractTarget.employeeId,
+        contract_type: contractForm.contractType,
+        effective_date: contractForm.effectiveDate || undefined,
+        notes: contractForm.notes || undefined,
+      };
+      if (contractForm.contractType === 'pay_amendment') {
+        const rate = Number(contractForm.newRate);
+        if (!rate || rate <= 0) { toast.error('Enter a valid new hourly rate'); return; }
+        payload.new_rate = rate;
+      }
+      if (contractForm.contractType === 'employment_type_change') {
+        if (!contractForm.newEmploymentType) { toast.error('Select a new employment type'); return; }
+        payload.new_employment_type = contractForm.newEmploymentType;
+      }
+      if (contractForm.contractType === 'role_change') {
+        if (!contractForm.newRole.trim()) { toast.error('Enter the new role title'); return; }
+        payload.new_role = contractForm.newRole.trim();
+      }
+
+      const res = await fetch('/api/admin/docusign/send-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to send contract');
+      toast.success(`Contract sent to ${contractTarget.fullName} via DocuSign`);
+      setContractTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send contract');
+    } finally {
+      setContractSending(false);
     }
   };
 
@@ -628,6 +691,15 @@ export function CrewPipelineView() {
                               View documents
                             </a>
                           )}
+                          {person.employeeId && person.email && (
+                            <button
+                              onClick={() => openContractModal(person)}
+                              className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
+                              style={{ borderColor: '#C7D2FE', background: '#EEF2FF', color: '#4338CA' }}
+                            >
+                              Send contract
+                            </button>
+                          )}
                           {messageHref && (
                             <a
                               href={messageHref}
@@ -824,6 +896,130 @@ export function CrewPipelineView() {
                 ))}
               </div>
             )}
+          </div>
+        </ModalShell>
+      )}
+
+      {contractTarget && (
+        <ModalShell
+          title={`Send contract to ${contractTarget.fullName}`}
+          onClose={() => setContractTarget(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm leading-6" style={{ color: brand.muted }}>
+              The contract will be emailed to <strong>{contractTarget.email}</strong> via DocuSign for electronic signature. A copy goes to admin@budsatwork.com once signed.
+            </p>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Contract type</label>
+              <select
+                value={contractForm.contractType}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, contractType: e.target.value as typeof contractForm.contractType }))}
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{ borderColor: brand.border }}
+              >
+                <option value="pay_amendment">Pay Rate Amendment</option>
+                <option value="employment_type_change">Change of Employment Type</option>
+                <option value="role_change">Change of Role</option>
+                <option value="general_amendment">General Employment Amendment</option>
+              </select>
+            </div>
+
+            {contractForm.contractType === 'pay_amendment' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New hourly rate ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={contractForm.newRate}
+                  onChange={(e) => setContractForm((prev) => ({ ...prev, newRate: e.target.value }))}
+                  placeholder="e.g. 32.50"
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: brand.border }}
+                />
+                {contractTarget.hourlyRate != null && (
+                  <p className="mt-1 text-xs" style={{ color: brand.muted }}>
+                    Current rate: ${contractTarget.hourlyRate}/hr
+                  </p>
+                )}
+              </div>
+            )}
+
+            {contractForm.contractType === 'employment_type_change' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New employment type</label>
+                <select
+                  value={contractForm.newEmploymentType}
+                  onChange={(e) => setContractForm((prev) => ({ ...prev, newEmploymentType: e.target.value }))}
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: brand.border }}
+                >
+                  {EMPLOYMENT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {contractTarget.employmentType && (
+                  <p className="mt-1 text-xs" style={{ color: brand.muted }}>
+                    Current type: {formatEmploymentType(contractTarget.employmentType)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {contractForm.contractType === 'role_change' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New role title</label>
+                <input
+                  value={contractForm.newRole}
+                  onChange={(e) => setContractForm((prev) => ({ ...prev, newRole: e.target.value }))}
+                  placeholder="e.g. Senior Cleaner, Team Lead"
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: brand.border }}
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Effective date</label>
+              <input
+                type="date"
+                value={contractForm.effectiveDate}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, effectiveDate: e.target.value }))}
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{ borderColor: brand.border }}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Additional notes (optional)</label>
+              <textarea
+                value={contractForm.notes}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Any other terms, context, or conditions to include in the contract…"
+                rows={3}
+                className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{ borderColor: brand.border }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setContractTarget(null)}
+                className="rounded-xl border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitContract}
+                disabled={contractSending}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: '#4338CA' }}
+              >
+                {contractSending ? 'Sending…' : 'Send via DocuSign'}
+              </button>
+            </div>
           </div>
         </ModalShell>
       )}

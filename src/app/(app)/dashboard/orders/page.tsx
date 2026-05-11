@@ -95,6 +95,17 @@ export default function OrdersPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [employees, setEmployees] = useState<Array<{ id: string; full_name: string; services: string[] | null }>>([]);
   const [assignLoading, setAssignLoading] = useState(false);
+
+  // Variation order state
+  const [variationModal, setVariationModal] = useState(false);
+  const [variationForm, setVariationForm] = useState({ description: '', additionalCost: '', reason: '' });
+  const [variationSending, setVariationSending] = useState(false);
+
+  // Service agreement state
+  const [agreementModal, setAgreementModal] = useState(false);
+  const [agreementForm, setAgreementForm] = useState({ filmingOps: true, filmingMarketing: false });
+  const [agreementSending, setAgreementSending] = useState(false);
+
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -266,6 +277,59 @@ export default function OrdersPage() {
       toast.error('Failed to assign job');
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const sendVariation = async () => {
+    if (!selectedOrder) return;
+    const cost = Number(variationForm.additionalCost);
+    if (!variationForm.description.trim()) { toast.error('Describe the additional work'); return; }
+    if (!Number.isFinite(cost) || cost < 0) { toast.error('Enter a valid additional cost'); return; }
+    setVariationSending(true);
+    try {
+      const res = await fetch('/api/admin/docusign/send-variation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
+          variation_description: variationForm.description.trim(),
+          additional_cost: cost,
+          reason: variationForm.reason.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to send');
+      toast.success(`Variation order sent to ${selectedOrder.customer_name} via DocuSign`);
+      setVariationModal(false);
+      setVariationForm({ description: '', additionalCost: '', reason: '' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send variation');
+    } finally {
+      setVariationSending(false);
+    }
+  };
+
+  const sendAgreement = async () => {
+    if (!selectedOrder) return;
+    setAgreementSending(true);
+    try {
+      const res = await fetch('/api/admin/docusign/send-agreement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
+          filming_consent_ops: agreementForm.filmingOps,
+          filming_consent_marketing: agreementForm.filmingMarketing,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to send');
+      toast.success(`Service agreement sent to ${selectedOrder.customer_name} via DocuSign`);
+      setAgreementModal(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send agreement');
+    } finally {
+      setAgreementSending(false);
     }
   };
 
@@ -479,6 +543,32 @@ export default function OrdersPage() {
                     style={{ borderColor: brand.border, color: brand.primary }}
                   >
                     Assign to Crew
+                  </button>
+                )}
+                {selectedOrder.customer_email && selectedOrder.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAgreementForm({ filmingOps: true, filmingMarketing: false });
+                      setAgreementModal(true);
+                    }}
+                    className="rounded-lg border px-3 py-2 text-xs font-semibold"
+                    style={{ borderColor: '#C7D2FE', background: '#EEF2FF', color: '#4338CA' }}
+                  >
+                    Send service agreement
+                  </button>
+                )}
+                {selectedOrder.customer_email && ['scheduled', 'in_progress', 'completed'].includes(selectedOrder.status) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVariationForm({ description: '', additionalCost: '', reason: '' });
+                      setVariationModal(true);
+                    }}
+                    className="rounded-lg border px-3 py-2 text-xs font-semibold"
+                    style={{ borderColor: '#FDE68A', background: '#FFFBEB', color: '#92400E' }}
+                  >
+                    Request variation sign-off
                   </button>
                 )}
                 {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' && (
@@ -823,6 +913,169 @@ export default function OrdersPage() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Service Agreement Modal */}
+      {agreementModal && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setAgreementModal(false)} aria-hidden />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: brand.text }}>Send service agreement</h2>
+                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  Sent to <strong>{selectedOrder.customer_email}</strong> via DocuSign. Covers booking details, payment terms, cancellation policy, liability, and filming consent.
+                </p>
+              </div>
+              <button onClick={() => setAgreementModal(false)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium" style={{ color: brand.text }}>Filming consent to include</p>
+              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: brand.border }}>
+                <input
+                  type="checkbox"
+                  checked={agreementForm.filmingOps}
+                  onChange={(e) => setAgreementForm((p) => ({ ...p, filmingOps: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 accent-emerald-700"
+                />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: brand.text }}>Quality control &amp; training</p>
+                  <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                    Internal use only — quality assurance, staff training, record-keeping. Not shared publicly.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: brand.border }}>
+                <input
+                  type="checkbox"
+                  checked={agreementForm.filmingMarketing}
+                  onChange={(e) => setAgreementForm((p) => ({ ...p, filmingMarketing: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 accent-emerald-700"
+                />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: brand.text }}>Marketing &amp; promotional use</p>
+                  <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                    Before/after photos or clips (not identifying the customer personally) for website, social media, or ads.
+                  </p>
+                </div>
+              </label>
+              {(selectedOrder.context as string) === 'ndis' && (
+                <div className="rounded-xl border px-4 py-3 text-xs" style={{ background: '#FFF5F5', borderColor: '#FECACA', color: '#7F1D1D' }}>
+                  ⚠️ NDIS participant — filming consent clause will include mandatory NDIS privacy and participant rights obligations.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setAgreementModal(false)}
+                className="rounded-xl border px-4 py-2 text-sm font-medium"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendAgreement}
+                disabled={agreementSending}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: '#4338CA' }}
+              >
+                {agreementSending ? 'Sending…' : 'Send via DocuSign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Variation Order Modal */}
+      {variationModal && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setVariationModal(false)} aria-hidden />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: brand.text }}>Request variation sign-off</h2>
+                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  Sent to <strong>{selectedOrder.customer_email}</strong> via DocuSign. Gets the customer&apos;s written approval before you carry out additional work.
+                </p>
+              </div>
+              <button onClick={() => setVariationModal(false)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>
+                  Description of additional work <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={variationForm.description}
+                  onChange={(e) => setVariationForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="e.g. Customer requested we clean the oven interior and wipe down the laundry room walls in addition to the standard clean."
+                  rows={3}
+                  className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: brand.border }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Original price</label>
+                  <div className="rounded-xl border px-3 py-2 text-sm bg-slate-50" style={{ borderColor: brand.border, color: brand.muted }}>
+                    ${Number(selectedOrder.final_price).toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>
+                    Additional cost ($) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={variationForm.additionalCost}
+                    onChange={(e) => setVariationForm((p) => ({ ...p, additionalCost: e.target.value }))}
+                    placeholder="e.g. 45.00"
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: brand.border }}
+                  />
+                </div>
+              </div>
+              {variationForm.additionalCost && Number(variationForm.additionalCost) >= 0 && (
+                <div className="rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: '#ECFDF5', color: '#065F46' }}>
+                  New total: ${(Number(selectedOrder.final_price) + Number(variationForm.additionalCost)).toFixed(2)}
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Reason / context (optional)</label>
+                <input
+                  value={variationForm.reason}
+                  onChange={(e) => setVariationForm((p) => ({ ...p, reason: e.target.value }))}
+                  placeholder="e.g. Customer pointed out the area during the job walkthrough."
+                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: brand.border }}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setVariationModal(false)}
+                className="rounded-xl border px-4 py-2 text-sm font-medium"
+                style={{ borderColor: brand.border, color: brand.muted }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendVariation}
+                disabled={variationSending}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: '#92400E' }}
+              >
+                {variationSending ? 'Sending…' : 'Send variation for sign-off'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -19,6 +19,7 @@ const ALL_NAV = [
   { href: '/crew/schedule', label: 'Schedule' },
   { href: '/crew/earnings', label: 'Earnings' },
   { href: '/crew/documents', label: 'Docs' },
+  { href: '/crew/handbook', label: 'Handbook' },
   { href: '/crew/profile', label: 'Profile' },
 ];
 
