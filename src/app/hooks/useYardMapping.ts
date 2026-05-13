@@ -392,11 +392,32 @@ export function useYardMapping({
         set('yardJobs', nextJobs as any);
         onAddressSelected?.(address, coords);
       }
+
+      // The iframe map has finished initialising (Google Maps loaded, message
+      // listener wired up, polygon-applier ready). Re-send zones + scope now
+      // so the freshly-mounted map renders them — this fixes the "Step 3 →
+      // Edit zones lands on the default Brisbane view" bug, where the
+      // parent's iframe.onLoad fired too early (before the map was ready) and
+      // the zones were silently dropped.
+      if (data.type === 'YARD_MAP_READY') {
+        const job = yardJobsRef.current?.find(
+          (j) => j.job_id === yardActiveJobIdRef.current
+        ) ?? yardJobsRef.current?.[0];
+        const zones = job?.polygon_geojson ?? [];
+        postZonesToIframe(zones);
+        // Reuse the same scope-resolution rule as the iframe.onLoad path so
+        // perimeter scopes (yard_hedge, gutter_clean) re-style correctly.
+        postMessageToIframe({
+          type: 'YARD_SET_SCOPE',
+          scope: contextRef.current === 'ndis' ? 'yard_mow' : scopeRef.current,
+        });
+        return;
+      }
     };
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [handlePolygonChange, onAddressSelected, set]);
+  }, [handlePolygonChange, onAddressSelected, set, postZonesToIframe, postMessageToIframe]);
 
   // Sync zones to the iframe when active job or scope changes, and trigger a
   // single canonical recompute through computeAndCommit.
