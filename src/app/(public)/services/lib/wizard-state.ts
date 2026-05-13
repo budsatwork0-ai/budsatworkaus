@@ -124,7 +124,7 @@ export function wizardReducer(state: WizardState, action: Action): WizardState {
 }
 
 // Migrate old localStorage data to new schema
-function migrateState(stored: any): any {
+export function migrateState(stored: any): any {
   if (!stored) return stored;
 
   // Migrate 'sneakers' service to 'laundry_sneakers'
@@ -154,9 +154,15 @@ function migrateState(stored: any): any {
   return stored;
 }
 
-export function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T, any>, init: () => T) {
+export function useLocalStorageReducer<T>(
+  key: string,
+  reducer: React.Reducer<T, any>,
+  init: () => T,
+  restoreOnMount = true,
+) {
   const [state, dispatch] = React.useReducer(reducer, undefined as any, init);
   useEffect(() => {
+    if (!restoreOnMount) return;
     if (RESET_ON_MOUNT) {
       try {
         localStorage.removeItem(key);
@@ -171,6 +177,8 @@ export function useLocalStorageReducer<T>(key: string, reducer: React.Reducer<T,
         dispatch({ type: 'merge', value: migrated });
       }
     } catch {}
+  // restoreOnMount is captured from initial render and never changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const first = useRef(true);
   useEffect(() => {

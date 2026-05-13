@@ -11,6 +11,7 @@ import { getPublicAnalyticsSessionId, trackPublicAnalyticsEvent } from '@/lib/an
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
 import StableMapSlot from '@/components/StableMapSlot';
+import YardZonesPreview from '@/components/YardZonesPreview';
 import {
   usePolygonQuote,
   computeAreaFromPath,
@@ -146,7 +147,7 @@ import {
 import type { NdisRegion } from './lib/pricing/ndis';
 
 // Extracted modules - Wizard state
-import { getInitialState, wizardReducer, useLocalStorageReducer } from './lib/wizard-state';
+import { getInitialState, wizardReducer, useLocalStorageReducer, migrateState } from './lib/wizard-state';
 
 // Extracted modules - Estimation
 import {
@@ -3152,17 +3153,19 @@ const ScopeCard = React.memo(function ScopeCard({
           <div className="text-[11px] text-slate-600">
             Builds a clear to-do list for our techs and your peace of mind.
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd(sc.key);
-            }}
-            className="text-sm px-4 py-2 rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]"
-            style={{ background: 'var(--accent)' }}
-          >
-            Add to quote
-          </button>
+          {S.service !== 'yard' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdd(sc.key);
+              }}
+              className="text-sm px-4 py-2 rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]"
+              style={{ background: 'var(--accent)' }}
+            >
+              Add to quote
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -3171,10 +3174,18 @@ const ScopeCard = React.memo(function ScopeCard({
 
 function ServicesPageContent() {
   const searchParams = useSearchParams();
+  // True only when the user is navigating within an active wizard session (e.g. browser
+  // back/forward within the steps). False on any fresh entry to the page (link click, new
+  // tab, re-visit after navigating away). Checked synchronously so useLocalStorageReducer
+  // can skip its restore before the first render, avoiding a flash of old state.
+  const [restoreSession] = useState(() =>
+    typeof window !== 'undefined' && sessionStorage.getItem('svc:session') === '1'
+  );
   const [S, dispatch] = useLocalStorageReducer<WizardState>(
     STORAGE_KEY,
     wizardReducer,
-    getInitialState
+    getInitialState,
+    restoreSession,
   );
   const yardActive = S.service === 'yard';
   const motionEnabled = !yardActive;
@@ -3555,6 +3566,31 @@ function ServicesPageContent() {
   const yardStep2 = yardActive && normalizedStep === 2;
   const mapVisible = yardStep2;
 
+  const [isDesktop, setIsDesktop] = React.useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false
+  );
+  const [headerH, setHeaderH] = React.useState(72);
+
+  React.useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mq.matches);
+    const fn = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+
+  React.useEffect(() => {
+    // Yard step 2 always uses the inline (fixed) layout — match the body-scroll lock to that.
+    const usesInline = mapVisible && (isDesktop || S.service === 'yard');
+    if (usesInline) {
+      setHeaderH(document.querySelector('header')?.getBoundingClientRect().height ?? 72);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mapVisible, isDesktop]);
+
   // Optimized yard mapping logic with debouncing, batched updates, and memoization
   const {
     iframeRef,
@@ -3600,13 +3636,6 @@ function ServicesPageContent() {
       : zones.reduce((sum, zone) => sum + computeAreaFromPath(zone), 0);
   };
 
-  const measurementLabelForJob = (job: YardJob) => {
-    const value = getMeasurementValueForJob(job);
-    if (value > 0) {
-      return `${yardMeasurementConfig.label}: ${Math.round(value)} ${yardMeasurementUnit}`;
-    }
-    return `Draw the ${yardMeasurementConfig.label.toLowerCase()} to capture ${yardMeasurementUnit}`;
-  };
 
   const mapFrameSrc = '/yard-map-frame';
 
@@ -3642,12 +3671,65 @@ function ServicesPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Session tracking: mark that the user is actively mid-wizard once they pass step 1.
+  // The flag lives in sessionStorage (per-tab, cleared on tab close).
+  useEffect(() => {
+    if (S.step > 1) {
+      try { sessionStorage.setItem('svc:session', '1'); } catch {}
+    }
+  }, [S.step]);
+
+  // Clear the session flag when the user navigates away from this page so that
+  // a fresh re-entry (clicking the link from home, new tab, etc.) always starts
+  // from step 1 rather than restoring a stale quote.
+  useEffect(() => {
+    return () => {
+      try { sessionStorage.removeItem('svc:session'); } catch {}
+    };
+  }, []);
+
+  // Browser back button support within the wizard.
+  // Push a history entry whenever the step advances so the back button returns
+  // to the previous step instead of leaving the services page entirely.
+  const prevStepRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevStepRef.current === null) {
+      // First run: tag the current history entry with the initial step so that
+      // pressing back from step 1 navigates away naturally.
+      window.history.replaceState({ ...window.history.state, wizardStep: S.step }, '');
+    } else if (S.step > prevStepRef.current) {
+      window.history.pushState({ ...window.history.state, wizardStep: S.step }, '');
+    }
+    prevStepRef.current = S.step;
+  // S.step change is the only trigger; window.history.state is read live
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [S.step]);
+
+  // Handle browser back/forward within the wizard.
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      const targetStep = e.state?.wizardStep;
+      if (typeof targetStep === 'number' && targetStep >= 1 && targetStep <= 3) {
+        dispatch({ type: 'set', key: 'step', value: targetStep });
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [dispatch]);
+
   // On mount: pre-fill contact fields for already-signed-in users, then prompt
   // to resume if there is meaningful quote progress in localStorage.
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return; // anonymous visitors: restore silently, no prompt
+      if (!data.user) {
+        // Unauthenticated fresh visit: wipe any stale quote so the next re-entry
+        // also starts clean. Skip if we're in an active session (browser back/forward).
+        if (!restoreSession) {
+          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        }
+        return;
+      }
 
       // Pre-fill contact fields even if the user didn't just sign in here —
       // e.g. they were already signed in when they navigated to /services.
@@ -3681,19 +3763,36 @@ function ServicesPageContent() {
           Boolean((parsed.fullName as string | undefined)?.trim()) ||
           Boolean((parsed.email as string | undefined)?.trim());
         if (!hasProgress) return;
-        // Describe where they left off so the prompt is concrete, not vague.
         const stepLabel = parsed.step === 3 ? 'Step 3 (contact)'
           : parsed.step === 2 ? 'Step 2 (details)'
           : 'in progress';
         const ctxLabel = parsed.context ? ` · ${parsed.context}` : '';
-        toast('Quote resumed', {
-          description: `Picked up where you left off — ${stepLabel}${ctxLabel}.`,
-          duration: 8_000,
-          // No-op action just acknowledges; state is already restored by
-          // useLocalStorageReducer. We confirm rather than do nothing silently.
-          action: { label: 'Got it', onClick: () => {} },
-          cancel: { label: 'Start fresh', onClick: () => hardResetQuote(true) },
-        });
+        if (!restoreSession) {
+          // Fresh re-entry: state was NOT auto-restored. Let the user choose to resume.
+          toast('Quote in progress', {
+            description: `Resume where you left off — ${stepLabel}${ctxLabel}.`,
+            duration: 10_000,
+            action: {
+              label: 'Resume',
+              onClick: () => {
+                try {
+                  dispatch({ type: 'merge', value: migrateState(JSON.parse(raw)) });
+                } catch {}
+              },
+            },
+            cancel: { label: 'Start fresh', onClick: () => {
+              try { localStorage.removeItem(STORAGE_KEY); } catch {}
+            }},
+          });
+        } else {
+          // In-session (e.g. hard-refresh mid-wizard): state already restored.
+          toast('Quote resumed', {
+            description: `Picked up where you left off — ${stepLabel}${ctxLabel}.`,
+            duration: 8_000,
+            action: { label: 'Got it', onClick: () => {} },
+            cancel: { label: 'Start fresh', onClick: () => hardResetQuote(true) },
+          });
+        }
       } catch {}
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3985,11 +4084,14 @@ function ServicesPageContent() {
     const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'];
     if (validServices.includes(serviceParam as ServiceType)) {
       setUrlServiceHandled(true);
-      // Clear URL parameter to prevent re-triggering
+      // Clear URL parameter to prevent re-triggering. IMPORTANT: preserve the
+      // existing history state (which carries our wizardStep marker), otherwise
+      // we wipe out the back-navigation breadcrumbs the popstate handler relies
+      // on — browser-back from a later step would then silently leave the page.
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
         url.searchParams.delete('service');
-        window.history.replaceState({}, '', url.pathname);
+        window.history.replaceState({ ...window.history.state }, '', url.pathname);
       }
       // Select the service and go to step 2
       selectService(serviceParam as ServiceType);
@@ -4011,14 +4113,20 @@ function ServicesPageContent() {
     const validServices: ServiceType[] = ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'];
     if (!rebookService || !validServices.includes(rebookService)) return;
 
-    // Strip rebook params from URL
+    // Strip rebook params from URL. Preserve existing history.state so the
+    // wizardStep marker survives — see the matching note in the URL-service
+    // handler above; without this, browser-back from step 3 skips step 2.
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.delete('rebook');
       url.searchParams.delete('context');
       url.searchParams.delete('scope');
       url.searchParams.delete('notes');
-      window.history.replaceState({}, '', url.pathname + (url.search || ''));
+      window.history.replaceState(
+        { ...window.history.state },
+        '',
+        url.pathname + (url.search || '')
+      );
     }
 
     const prefill: Partial<WizardState> = { service: rebookService };
@@ -4935,7 +5043,7 @@ function winSessionMinutes(S: WizardState) {
               }}
             />
           )}
-            <section className="mb-12">
+            <section className={cls('mb-12', S.service === 'yard' && 'hidden')}>
               <div>
                   <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">Build your quote</h1>
                   <p className="mt-2 text-slate-400 text-base">Instant pricing. No surprises.</p>
@@ -5142,6 +5250,20 @@ function winSessionMinutes(S: WizardState) {
                   </section>
                 )}
 
+                {/* New-user tap hint — visible only on step 1 */}
+                <div className="flex items-center gap-2 mb-4 px-1">
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
+                    style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M9 11V7a3 3 0 0 1 6 0v4" />
+                      <path d="M9 11H5l1 9h12l1-9h-4" />
+                    </svg>
+                    Tap a card to choose your service
+                  </span>
+                </div>
+
                 {/* Service tiles — only show services available for the selected context. */}
                 {(() => {
                   const isCommercialContext = S.context === 'commercial';
@@ -5177,6 +5299,7 @@ function winSessionMinutes(S: WizardState) {
                               popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
                               from={leadText}
                               variant={tileVariant}
+                              tapHint
                             />
                           );
                         })}
@@ -5961,6 +6084,7 @@ function winSessionMinutes(S: WizardState) {
                   <>
                     {/* Section heading */}
                     {S.service === 'yard' ? (
+                      !isDesktop ? (
                       <div>
                         <p className="text-emerald-700 text-sm font-semibold">Yard care</p>
                         <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
@@ -5971,6 +6095,7 @@ function winSessionMinutes(S: WizardState) {
                           time, and cost for every site across Greater Brisbane.
                         </p>
                       </div>
+                      ) : null
                     ) : (
                       <div>
                         <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
@@ -5983,8 +6108,14 @@ function winSessionMinutes(S: WizardState) {
                     )}
 
                     {/* Estimate summary for small screens */}
-                    {/* Scope cards (primary + more options) */}
-                    <div className="mt-4 space-y-6">
+                    {/* Scope cards (primary + more options) — only add top spacing when a
+                        heading is rendered above. For yard on desktop the heading is null,
+                        so any mt-* here would push the cards out of alignment with the
+                        map's search bar (which sits 16px from the iframe top). */}
+                    <div className={cls(
+                      'space-y-6',
+                      !(S.service === 'yard' && isDesktop) && 'mt-4'
+                    )}>
                       <div className={cls('grid gap-4 md:gap-5', mapVisible ? 'grid-cols-1' : 'md:grid-cols-2')}>
                         {(() => {
                           const scopes =
@@ -6155,276 +6286,352 @@ function winSessionMinutes(S: WizardState) {
                   </>
                 );
 
-        return (
-          <section className="mb-8" aria-labelledby="step2-heading">
-            <h2 id="step2-heading" className="sr-only">
-              Step 2: Pick what you need
-            </h2>
-
-            <div className={`rounded-2xl p-5 ${glass}`}>
-              <div
+        // Shared JSX fragments reused in both mobile and desktop layouts
+        const mapIframe = (
+          <iframe
+            ref={iframeRef}
+            title="Yard map"
+            src={mapFrameSrc}
+            loading="lazy"
+            allow="geolocation"
+            sandbox="allow-scripts allow-same-origin allow-popups"
+            className="h-full w-full border-0"
+            onLoad={() => {
+              const zones = activeYardJob?.polygon_geojson || [];
+              postZonesToIframe(zones);
+              postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: isNdisContext ? 'yard_mow' : S.scope });
+            }}
+          />
+        );
+        const calculatingOverlay = isCalculating ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 px-6 py-4 bg-white rounded-2xl border border-emerald-200 shadow-2xl">
+              <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-emerald-900 font-semibold">Calculating area & pricing...</span>
+            </div>
+          </div>
+        ) : null;
+        const ndisCard = isNdisContext ? (
+          <div className="rounded-2xl border border-violet-100 bg-white/90 p-3 text-xs text-slate-600 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold text-slate-800">Service address</span>
+              <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                {NDIS_REGION_LABELS[S.ndisRegion]}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+              {S.address || 'Search the map address to detect MMM before reviewing the quote.'}
+            </p>
+            {renderMmmStatus()}
+          </div>
+        ) : null;
+        const scopeTabs = !isNdisContext ? (
+          <div className="grid grid-cols-5 gap-1 p-1.5 rounded-xl border border-black/5 bg-white/90 backdrop-blur-sm shadow-sm">
+            {[
+              { key: 'yard_mow', label: 'Mow', icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="3" y="14" width="18" height="6" rx="1" strokeLinejoin="round"/>
+                  <circle cx="6" cy="20" r="2"/>
+                  <circle cx="18" cy="20" r="2"/>
+                  <path d="M7 14V10a2 2 0 0 1 2-2h2" strokeLinecap="round"/>
+                  <path d="M11 8l3-4" strokeLinecap="round"/>
+                </svg>
+              )},
+              { key: 'yard_hedge', label: 'Hedge', icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <ellipse cx="6" cy="10" rx="4" ry="5"/>
+                  <ellipse cx="12" cy="8" rx="4" ry="5"/>
+                  <ellipse cx="18" cy="10" rx="4" ry="5"/>
+                  <path d="M6 15v5M12 13v7M18 15v5" strokeLinecap="round"/>
+                </svg>
+              )},
+              { key: 'yard_leaves', label: 'Garden', icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 22V12"/>
+                  <path d="M12 12C12 12 6 10 6 5c0-2 2-3 6-3s6 1 6 3c0 5-6 7-6 7z"/>
+                  <path d="M8 22c0-2 1.5-4 4-4s4 2 4 4" strokeLinecap="round"/>
+                </svg>
+              )},
+              { key: 'blast_and_shine', label: 'Wash', icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 3v3M12 9v3M12 15v3M12 21v0" strokeLinecap="round"/>
+                  <path d="M7 5l1 2M7 11l1 2M7 17l1 2" strokeLinecap="round"/>
+                  <path d="M17 5l-1 2M17 11l-1 2M17 17l-1 2" strokeLinecap="round"/>
+                  <path d="M4 8l2 1M4 14l2 1" strokeLinecap="round"/>
+                  <path d="M20 8l-2 1M20 14l-2 1" strokeLinecap="round"/>
+                </svg>
+              )},
+              { key: 'gutter_clean', label: 'Gutter', icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M4 6l2-2h12l2 2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4 6v4c0 1 1 2 2 2h12c1 0 2-1 2-2V6" strokeLinejoin="round"/>
+                  <path d="M8 12v8M16 12v8" strokeLinecap="round"/>
+                  <path d="M12 12v4" strokeLinecap="round" strokeDasharray="2 2"/>
+                </svg>
+              )},
+            ].map((scope) => (
+              <button
+                key={scope.key}
+                type="button"
+                onClick={() => {
+                  trackQuoteEvent('scope_selected', { service: S.service, scope: scope.key, context: S.context });
+                  set('scope', scope.key);
+                  applyScopePreset(S.service, scope.key);
+                  setHasInteractedStep2(true);
+                }}
                 className={cls(
-                  'flex flex-col gap-6',
-                  mapVisible ? 'xl:grid xl:grid-cols-2 xl:gap-8' : ''
+                  'flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all text-[11px] font-semibold',
+                  S.scope === scope.key
+                    ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-600 ring-offset-1'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
                 )}
+                title={scope.label}
               >
-                <div className={cls('space-y-6', mapVisible ? 'xl:order-1' : '')}>{step2Body}</div>
+                {scope.icon}
+                <span>{scope.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null;
+        // Compute price readiness for the desktop dock
+        const yardZonesLocal = S.yardPolygon ?? [];
+        const polygonReadyLocal = yardZonesLocal.some((z: any[]) => z.length >= 3);
+        const ndisAddressReadyLocal = !isNdisContext || S.address.trim().length > 0;
+        const priceReadyLocal = polygonReadyLocal && ndisAddressReadyLocal && (isNdisContext ? ndisHourlyPrice !== null : estimate.total > 0);
 
-                {mapVisible && (
-                  <div className="flex flex-col gap-4 xl:order-2 xl:self-start xl:sticky xl:top-4">
-                    {isNdisContext ? (
-                      <div className="rounded-2xl border border-violet-100 bg-white/90 p-3 text-xs text-slate-600 shadow-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-semibold text-slate-800">Service address</span>
-                          <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
-                            {NDIS_REGION_LABELS[S.ndisRegion]}
-                          </span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
-                          {S.address || 'Search the map address to detect MMM before reviewing the quote.'}
-                        </p>
-                        {renderMmmStatus()}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-5 gap-1 p-1.5 rounded-xl border border-black/5 bg-white/90 backdrop-blur-sm shadow-sm">
-                        {[
-                          { key: 'yard_mow', label: 'Mow', icon: (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <rect x="3" y="14" width="18" height="6" rx="1" strokeLinejoin="round"/>
-                              <circle cx="6" cy="20" r="2"/>
-                              <circle cx="18" cy="20" r="2"/>
-                              <path d="M7 14V10a2 2 0 0 1 2-2h2" strokeLinecap="round"/>
-                              <path d="M11 8l3-4" strokeLinecap="round"/>
-                            </svg>
-                          )},
-                          { key: 'yard_hedge', label: 'Hedge', icon: (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <ellipse cx="6" cy="10" rx="4" ry="5"/>
-                              <ellipse cx="12" cy="8" rx="4" ry="5"/>
-                              <ellipse cx="18" cy="10" rx="4" ry="5"/>
-                              <path d="M6 15v5M12 13v7M18 15v5" strokeLinecap="round"/>
-                            </svg>
-                          )},
-                          { key: 'yard_leaves', label: 'Garden', icon: (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <path d="M12 22V12"/>
-                              <path d="M12 12C12 12 6 10 6 5c0-2 2-3 6-3s6 1 6 3c0 5-6 7-6 7z"/>
-                              <path d="M8 22c0-2 1.5-4 4-4s4 2 4 4" strokeLinecap="round"/>
-                            </svg>
-                          )},
-                          { key: 'blast_and_shine', label: 'Wash', icon: (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <path d="M12 3v3M12 9v3M12 15v3M12 21v0" strokeLinecap="round"/>
-                              <path d="M7 5l1 2M7 11l1 2M7 17l1 2" strokeLinecap="round"/>
-                              <path d="M17 5l-1 2M17 11l-1 2M17 17l-1 2" strokeLinecap="round"/>
-                              <path d="M4 8l2 1M4 14l2 1" strokeLinecap="round"/>
-                              <path d="M20 8l-2 1M20 14l-2 1" strokeLinecap="round"/>
-                            </svg>
-                          )},
-                          { key: 'gutter_clean', label: 'Gutter', icon: (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <path d="M4 6l2-2h12l2 2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M4 6v4c0 1 1 2 2 2h12c1 0 2-1 2-2V6" strokeLinejoin="round"/>
-                              <path d="M8 12v8M16 12v8" strokeLinecap="round"/>
-                              <path d="M12 12v4" strokeLinecap="round" strokeDasharray="2 2"/>
-                            </svg>
-                          )},
-                        ].map((scope) => (
-                          <button
-                            key={scope.key}
-                            type="button"
-                            onClick={() => {
-                              trackQuoteEvent('scope_selected', { service: S.service, scope: scope.key, context: S.context });
-                              set('scope', scope.key);
-                              applyScopePreset(S.service, scope.key);
-                              setHasInteractedStep2(true);
-                            }}
-                            className={cls(
-                              'flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all text-[11px] font-semibold',
-                              S.scope === scope.key
-                                ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-600 ring-offset-1'
-                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-                            )}
-                            title={scope.label}
-                          >
-                            {scope.icon}
-                            <span>{scope.label}</span>
-                          </button>
-                        ))}
+        const hasZones = (activeYardJob?.polygon_geojson ?? []).some((z: any[]) => z.length >= 3);
+        const clearZonesBtn = hasZones ? (
+          <M.button
+            className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors"
+            onClick={resetActivePolygon}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Clear zones
+          </M.button>
+        ) : null;
+        const instructionText = (
+          <div className="text-[11px] leading-snug text-slate-500 px-1">
+            Search your address, tap <strong>Draw</strong>, outline your yard, then tap <strong>Done</strong>.
+          </div>
+        );
+        const sitesWidget = (S.yardJobs?.length ?? 0) <= 1 ? (
+          <button
+            type="button"
+            onClick={addYardJob}
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-900 transition-colors px-1"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add another location
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {(S.yardJobs || []).map((job, idx) => {
+              const hasAddress = job.address && job.address.trim();
+              const label = hasAddress ? job.address : `Site ${idx + 1}`;
+              const isActive = job.job_id === activeYardJob?.job_id;
+              return (
+                <div key={job.job_id} className="group relative flex items-center gap-1">
+                  <button
+                    type="button"
+                    className={cls(
+                      'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all duration-200',
+                      isActive ? 'bg-emerald-600 text-white shadow-md' : 'border border-black/10 bg-white text-slate-700 hover:border-emerald-300'
+                    )}
+                    onClick={() => set('yardActiveJobId', job.job_id)}
+                  >
+                    <span className="max-w-[140px] truncate">{label}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${label}`}
+                    className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded-full flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 border border-rose-200 transition-all text-xs leading-none"
+                    onClick={(e) => { e.stopPropagation(); removeYardJob(job.job_id); }}
+                  >×</button>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={addYardJob}
+              className="flex items-center gap-1 rounded-full border border-dashed border-emerald-300 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 hover:border-emerald-500 hover:bg-emerald-50 transition-all"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add site
+            </button>
+          </div>
+        );
+
+        // For yard care we always want the side-by-side layout (cards left, map right),
+        // so the cards stay "in line with" the map at any width — not stacked below.
+        const inlineLayout = isDesktop || S.service === 'yard';
+
+        return (
+          <>
+            <h2 id="step2-heading" className="sr-only">Step 2: Pick what you need</h2>
+
+            {mapVisible ? (
+              /* ── Airtasker-style: scrollable cards left, full-height map right ── */
+              <>
+              <div
+                className={cls('z-40', inlineLayout ? 'fixed inset-x-0 bottom-0 flex' : 'mb-32 flex flex-col gap-4')}
+                style={inlineLayout ? { top: headerH } : undefined}
+              >
+                {/* LEFT PANEL: scope cards (inline) / stacked above map (mobile only when not yard) */}
+                <div
+                  className={cls(
+                    'flex flex-col',
+                    inlineLayout
+                      ? 'w-[300px] sm:w-[340px] md:w-[360px] lg:w-[420px] flex-shrink-0 h-full overflow-hidden border-r border-slate-200/60'
+                      : 'py-2'
+                  )}
+                  style={inlineLayout ? { background: 'linear-gradient(180deg, #f9fbfd 0%, #eef3f7 100%)' } : undefined}
+                >
+                  {/* Scrollable content */}
+                  <div className={inlineLayout ? 'flex-1 min-h-0 overflow-y-auto' : 'space-y-6'}>
+                    <div className={inlineLayout ? 'px-4 pt-4 pb-2 space-y-4' : undefined}>
+                      {step2Body}
+                    </div>
+                    {inlineLayout && (
+                      <div className="px-4 pt-2 pb-4 space-y-2.5">
+                        {ndisCard}
+                        {clearZonesBtn}
+                        {instructionText}
+                        {sitesWidget}
                       </div>
                     )}
-                    <div className="flex flex-col gap-4 relative">
-                      <StableMapSlot
-                        className="w-full rounded-2xl border border-black/10 shadow-lg overflow-hidden h-[400px] sm:h-[500px] xl:h-[600px] xl:max-h-[70vh]"
-                      >
-                        <iframe
-                          ref={iframeRef}
-                          title="Yard map"
-                          src={mapFrameSrc}
-                          loading="lazy"
-                          allow="geolocation"
-                          sandbox="allow-scripts allow-same-origin allow-popups"
-                          className="h-full w-full border-0"
-                          onLoad={() => {
-                            const zones = activeYardJob?.polygon_geojson || [];
-                            postZonesToIframe(zones);
-                            postMessageToIframe({ type: 'YARD_SET_SCOPE', scope: isNdisContext ? 'yard_mow' : S.scope });
-                          }}
-                        />
-                        {isCalculating && (
-                          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm">
-                            <div className="flex flex-col items-center gap-3 px-6 py-4 bg-white rounded-2xl border border-emerald-200 shadow-2xl">
-                              <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                              <span className="text-sm text-emerald-900 font-semibold">Calculating area & pricing...</span>
-                            </div>
-                          </div>
-                        )}
-                      </StableMapSlot>
-                      {(activeYardJob?.polygon_geojson ?? []).some((z: any[]) => z.length >= 3) && (
-                        <M.button
-                          className="self-start px-3 py-1.5 rounded-lg text-xs border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-1.5"
-                          onClick={resetActivePolygon}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                          Clear zones
-                        </M.button>
-                      )}
-                      {/* Live measurement & price display */}
-                      {(() => {
-                        const measurement = getYardMeasurementConfig(S.scope);
-                        const value = measurement.mode === 'perimeter' ? S.yardPerimeter : S.yardArea;
-                        const unit = measurement.mode === 'perimeter' ? 'm' : 'm²';
-                        const activeZones = (S.yardPolygon ?? []).filter((z: any[]) => z.length >= 3);
-                        const hasPolygon = activeZones.length > 0;
-                        const scopeLabel = isNdisContext
-                          ? 'NDIS Yard Care'
-                          : SCOPES_BY_SERVICE.yard.find((s) => s.key === S.scope)?.label ?? S.scope;
-                        const jobPrice = activeYardJob?.price ?? 0;
-                        const displayPrice = isNdisContext ? ndisHourlyPrice : jobPrice;
+                  </div>
 
-                        return (
-                          <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white">
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col">
-                                <span className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold">{scopeLabel}</span>
-                                {hasPolygon ? (
-                                  <span className="text-lg font-bold text-emerald-900">
-                                    {isNdisContext
-                                      ? `About ${effectiveNdisHours || NDIS_MIN_HOURS} hours · ${NDIS_REGION_LABELS[S.ndisRegion]}`
-                                      : (
-                                        <>
-                                          {(value ?? 0).toLocaleString()} {unit}
-                                          {activeZones.length > 1 && (
-                                            <span className="ml-1.5 text-[11px] font-normal text-emerald-600">({activeZones.length} zones)</span>
-                                          )}
-                                        </>
-                                      )}
-                                  </span>
-                                ) : (
-                                  <span className="text-sm text-slate-500">Tap Draw and outline your area</span>
-                                )}
-                              </div>
-                            </div>
-                            {hasPolygon && displayPrice !== null && displayPrice > 0 && (
-                              <div className="flex flex-col items-end">
-                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Est. price</span>
-                                <span className="text-xl font-bold text-slate-900">{fmtAUD(displayPrice)}</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <div className="text-xs text-slate-500 px-1">
-                        Search your address, tap <strong>Draw</strong> on the map, then outline your area — tap the first point or &ldquo;Close shape&rdquo; to finish. Tap a completed zone to edit it.
+                  {/* Sticky price dock — inline-layout only, never scrolls out of view */}
+                  {inlineLayout && (
+                    <div className="shrink-0 border-t border-slate-200/60 px-4 py-3.5" style={{ background: 'linear-gradient(180deg, #f3f7f5 0%, #eaeff3 100%)' }}>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                        {isNdisContext ? 'Total' : 'Price for this scope'}
                       </div>
-                      <div className="rounded-xl border border-black/5 bg-gradient-to-br from-white/80 to-slate-50/50 p-3">
-                        <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2 px-1">Your sites</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {(S.yardJobs || []).map((job, idx) => {
-                            const hasAddress = job.address && job.address.trim();
-                            const label = hasAddress ? job.address : `Site ${idx + 1}`;
-                            const measurement = measurementLabelForJob(job);
-                            const isActive = job.job_id === activeYardJob?.job_id;
-                            return (
-                              <div key={job.job_id} className="group relative flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  className={cls(
-                                    'flex flex-col text-left leading-tight rounded-xl px-3 py-2 text-[11px] transition-all duration-200',
-                                    'min-w-[140px] max-w-[200px]',
-                                    isActive
-                                      ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-900 shadow-[0_4px_12px_rgba(16,185,129,0.3)] scale-105'
-                                      : 'border border-black/10 bg-white text-slate-900 hover:border-emerald-300 hover:shadow-md'
-                                  )}
-                                  onClick={() => set('yardActiveJobId', job.job_id)}
-                                >
-                                  <span className="font-semibold truncate">{label}</span>
-                                  <span className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{measurement}</span>
-                                </button>
-                                {/* Action buttons - show on hover */}
-                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {/* Reset address button - only show if site has an address */}
-                                  {hasAddress && (
-                                    <button
-                                      type="button"
-                                      aria-label="Clear address"
-                                      title="Clear address"
-                                      className="w-5 h-5 rounded-full flex items-center justify-center text-amber-600 hover:text-white hover:bg-amber-500 border border-amber-200 hover:border-amber-500 transition-all"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        // Clear just the address for this job
-                                        const nextJobs = (S.yardJobs || []).map((j) =>
-                                          j.job_id === job.job_id ? { ...j, address: '' } : j
-                                        );
-                                        set('yardJobs', nextJobs as any);
-                                      }}
-                                    >
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <path d="M3 12h18M12 3l-4 4m4-4l4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                                      </svg>
-                                    </button>
-                                  )}
-                                  {/* Remove site button - only show if more than 1 site */}
-                                  {S.yardJobs && S.yardJobs.length > 1 && (
-                                    <button
-                                      type="button"
-                                      aria-label={`Remove ${label}`}
-                                      title="Remove site"
-                                      className="w-5 h-5 rounded-full flex items-center justify-center text-sm text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        removeYardJob(job.job_id);
-                                      }}
-                                    >
-                                      ×
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={addYardJob}
-                            className="flex items-center gap-1.5 rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 px-4 py-2 text-xs font-semibold text-emerald-700 hover:border-emerald-500 hover:bg-emerald-50 hover:shadow-md transition-all"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <line x1="12" y1="5" x2="12" y2="19" />
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                            Add site
-                          </button>
-                        </div>
+                      <div className="text-2xl font-bold text-slate-900 mt-0.5 truncate">
+                        {priceReadyLocal
+                          ? priceLabel
+                          : polygonReadyLocal && !ndisAddressReadyLocal
+                          ? 'Search address to set region'
+                          : 'Draw a zone to reveal price'}
+                      </div>
+                      {priceReadyLocal && (
+                        <div className="text-xs text-slate-500 mt-0.5 truncate">{activeMeasurementLabel}</div>
+                      )}
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => goToStep(1)}
+                          className="px-4 py-2 rounded-2xl text-sm font-semibold border border-black/15 bg-white text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { if (priceReadyLocal) goToStep(3); }}
+                          disabled={!priceReadyLocal}
+                          className={cls(
+                            'flex-1 min-w-0 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-opacity whitespace-nowrap',
+                            priceReadyLocal ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--accent)]/60 cursor-not-allowed'
+                          )}
+                        >
+                          Review quote →
+                        </button>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+
+                {/* RIGHT PANEL / BELOW PANEL: map */}
+                <div className={inlineLayout ? 'flex-1 relative overflow-hidden' : 'flex flex-col gap-3'}>
+                  {/* Stacked-mobile only: scope tabs or NDIS card above the map */}
+                  {!inlineLayout && (isNdisContext ? ndisCard : scopeTabs)}
+
+                  {/* The map — absolute fill in inline layout, fixed height in stacked-mobile */}
+                  <StableMapSlot
+                    className={
+                      inlineLayout
+                        ? ''
+                        : 'w-full h-[480px] sm:h-[560px] rounded-2xl border border-black/10 shadow-lg overflow-hidden'
+                    }
+                    style={inlineLayout ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } : undefined}
+                  >
+                    {mapIframe}
+                    {calculatingOverlay}
+                  </StableMapSlot>
+
+                  {/* Stacked-mobile only: actions below the map */}
+                  {!inlineLayout && (
+                    <div className="flex flex-col gap-2">
+                      {clearZonesBtn}
+                      {instructionText}
+                      {sitesWidget}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </section>
+
+              {/* Stacked-mobile sticky price dock — only when we're not using the inline layout */}
+              {!inlineLayout && mapVisible && (
+                <div
+                  className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/60 px-4 pt-3"
+                  style={{
+                    background: 'linear-gradient(180deg, #f3f7f5 0%, #eaeff3 100%)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 12px)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+                        {isNdisContext ? 'Total' : 'Price'}
+                      </div>
+                      <div className="text-base font-bold text-slate-900 truncate">
+                        {priceReadyLocal
+                          ? priceLabel
+                          : polygonReadyLocal && !ndisAddressReadyLocal
+                          ? 'Search address'
+                          : 'Draw a zone'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => goToStep(1)}
+                        className="px-3 py-2 rounded-2xl text-sm font-semibold border border-black/15 bg-white text-slate-700 whitespace-nowrap"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { if (priceReadyLocal) goToStep(3); }}
+                        disabled={!priceReadyLocal}
+                        className={cls(
+                          'px-4 py-2 rounded-2xl text-sm font-semibold text-white whitespace-nowrap transition-opacity',
+                          priceReadyLocal ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--accent)]/60 cursor-not-allowed'
+                        )}
+                      >
+                        Review quote →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
+            ) : (
+              /* ── Regular non-map layout ── */
+              <section className="mb-8" aria-labelledby="step2-heading">
+                <div className="space-y-6">{step2Body}</div>
+              </section>
+            )}
+          </>
         );
       })()}</Step2ErrorBoundary>}
       {/* ===== STEP 3 ===== */}
@@ -6435,7 +6642,7 @@ function winSessionMinutes(S: WizardState) {
         Step 3: Request your booking
       </h2>
 
-      <div className={`rounded-2xl p-3 sm:p-5 ${glass} min-w-0 overflow-x-hidden`}>
+      <div className="min-w-0 overflow-x-hidden">
         {!hasWork ? (
           <div className="text-sm text-slate-800">
             Add a preset on Step 2 to see an estimate.
@@ -7100,6 +7307,23 @@ function winSessionMinutes(S: WizardState) {
                         <div className="text-xs text-slate-600">
                           {yardDetail}
                         </div>
+                        {/* Aerial preview of the polygons the customer drew — confirms
+                            what they're booking and is included in the quote/booking record. */}
+                        <YardZonesPreview jobs={S.yardJobs} className="mt-3" />
+                        {/* Prominent "back to map" affordance — yard care doesn't have
+                            the "Edit scope or inclusions" button that other services
+                            get further down, so without this users had no visible
+                            way back to Step 2 above the fold. */}
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-black/15 bg-white/70 text-xs text-slate-700 font-medium hover:bg-white hover:border-black/25 transition-colors"
+                            onClick={() => goToStep(2)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Edit zones or scope
+                          </button>
+                        </div>
                       </div>
                     );
                   })()
@@ -7182,11 +7406,21 @@ function winSessionMinutes(S: WizardState) {
                     </button>
                   </div>
                 ) : !authedUser ? (
-                  <div id="step3-submit-btn" className="mt-4">
+                  <div id="step3-submit-btn" className="mt-4 space-y-2">
                     <QuoteAuthGate
                       prefillEmail={S.email}
                       onGuestContinue={(token) => void handleSubmitQuote(true, token)}
                     />
+                    {/* Back button — same wording/styling as the authed branch
+                        so guest users have an obvious way to return to Step 2
+                        to tweak their drawn zones / scope. */}
+                    <button
+                      type="button"
+                      className="w-full text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors"
+                      onClick={() => goToStep(2)}
+                    >
+                      ← Back to scope
+                    </button>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-2">
@@ -7295,7 +7529,7 @@ function winSessionMinutes(S: WizardState) {
 
 
 {/* Live orders strip — positioned further down, visible after completing the flow */}
-{!isNdisContext && (
+{!isNdisContext && S.service !== 'yard' && (
   <section className="mt-20 mb-16">
     <LiveOrdersStrip />
   </section>
@@ -7413,7 +7647,7 @@ function winSessionMinutes(S: WizardState) {
   </div>
 )}
 
-{S.service === 'yard' && S.step === 2 && (() => {
+{S.service === 'yard' && S.step === 2 && !isDesktop && (() => {
   const zones = S.yardPolygon ?? [];
   const polygonReady = zones.some((z: any[]) => z.length >= 3);
   const ndisYardAddressReady = !isNdisContext || S.address.trim().length > 0;

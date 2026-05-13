@@ -23,7 +23,7 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   streetViewControl: false,
   mapTypeControl: false,
   fullscreenControl: false,
-  zoomControl: true,
+  zoomControl: false,
   keyboardShortcuts: false,
   zoom: 18,
   minZoom: 15,
@@ -144,6 +144,9 @@ export default function YardMap({
   const [drawingEnabled, setDrawingEnabled] = React.useState(false);
   const [vertexCount, setVertexCount] = React.useState(0);
   const [zoneCount, setZoneCount] = React.useState(0);
+  const [locating, setLocating] = React.useState(false);
+  const [locateError, setLocateError] = React.useState<string | null>(null);
+  const [showAttrib, setShowAttrib] = React.useState(false);
 
   const initialCenterRef = React.useRef(initialCenter);
   const initialZonesRef = React.useRef(
@@ -246,6 +249,33 @@ export default function YardMap({
         suppressEmitRef.current = false;
       });
       setZoneCount(zonesRef.current.length);
+
+      // Re-frame the map onto the restored zones so the user lands looking at
+      // their drawn area — not the full-Brisbane default the map boots into.
+      // Without this, coming back from Step 3 makes the polygon look invisible
+      // and the user thinks their work was wiped.
+      const map = mapRef.current;
+      const googleLib = googleRef.current;
+      if (map && googleLib && zonesRef.current.length > 0) {
+        const bounds = new googleLib.maps.LatLngBounds();
+        zonesRef.current.forEach((zone) => {
+          const path = zone.polygon.getPath();
+          for (let i = 0; i < path.getLength(); i += 1) {
+            bounds.extend(path.getAt(i));
+          }
+        });
+        if (!bounds.isEmpty()) {
+          // 60px padding leaves room for the search bar (top) and right-rail
+          // control stack (right). Then guard against the auto-zoom going too
+          // deep on a tiny single zone — cap at 20 so it doesn't snap to
+          // street-level tile and lose orientation.
+          map.fitBounds(bounds, 60);
+          window.requestAnimationFrame(() => {
+            const z = map.getZoom();
+            if (typeof z === "number" && z > 20) map.setZoom(20);
+          });
+        }
+      }
     };
     applyZonesRef.current = applyZones;
 
@@ -275,6 +305,16 @@ export default function YardMap({
         },
       });
       mapRef.current = map;
+      // Defensive: force native zoom / map-type / streetview / fullscreen UI off, in case any
+      // stale/HMR state from a previous build re-enabled them. We render our own zoom controls.
+      map.setOptions({
+        zoomControl: false,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        rotateControl: false,
+        scaleControl: false,
+      });
       map.setMapTypeId(googleLib.maps.MapTypeId.HYBRID);
       map.setTilt(0);
       map.setHeading(0);
@@ -348,6 +388,20 @@ export default function YardMap({
         applyZones(pendingSetZonesRef.current);
         pendingSetZonesRef.current = null;
       }
+
+      // Tell the parent we're fully ready to receive state. Critical for the
+      // "re-enter Step 2 from Step 3" case: the parent's iframe.onLoad fires
+      // BEFORE Google Maps finishes loading inside us, so zones it posts then
+      // hit a half-initialised map. Once we send this READY signal, the parent
+      // re-posts the current zones/scope and we're guaranteed to have map +
+      // applyZones ready to render them.
+      if (isInIframe()) {
+        try {
+          window.parent.postMessage({ type: "YARD_MAP_READY" }, "*");
+        } catch {
+          /* parent gone — nothing to do */
+        }
+      }
     };
 
     const loadMaps = async () => {
@@ -407,6 +461,52 @@ export default function YardMap({
     drawingVerticesRef.current = [];
     previewPolylineRef.current?.setPath([]);
     setVertexCount(0);
+  }, []);
+
+  const handleLocateMe = React.useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocateError("Location not supported by your browser");
+      setTimeout(() => setLocateError(null), 3000);
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    setShowAttrib(false);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const inBounds =
+          lat >= BRISBANE_BOUNDS.south && lat <= BRISBANE_BOUNDS.north &&
+          lng >= BRISBANE_BOUNDS.west && lng <= BRISBANE_BOUNDS.east;
+        if (!inBounds) {
+          setLocateError("Outside service area — Brisbane & surrounds only");
+          setTimeout(() => setLocateError(null), 3500);
+          return;
+        }
+        const map = mapRef.current;
+        if (!map) return;
+        map.panTo({ lat, lng });
+        map.setZoom(Math.max(map.getZoom() ?? 18, 18));
+      },
+      () => {
+        setLocating(false);
+        setLocateError("Location access denied");
+        setTimeout(() => setLocateError(null), 3000);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, []);
+
+  const clearAllZones = React.useCallback(() => {
+    zonesRef.current.forEach((z) => {
+      z.listeners.forEach((l) => l.remove());
+      z.polygon.setMap(null);
+    });
+    zonesRef.current = [];
+    setZoneCount(0);
+    // Emit empty zones so the parent resets measurements and price
+    emitAllZonesRef.current?.();
   }, []);
 
   const closeShape = React.useCallback(() => {
@@ -525,10 +625,18 @@ export default function YardMap({
       const data = event.data;
       if (!data || typeof data !== "object") return;
 
-      // Multi-zone: set all zones at once
+      // Multi-zone: set all zones at once.
+      //
+      // IMPORTANT: applyZonesRef is wired up BEFORE the async Google-Maps load
+      // completes, so just checking `applyZonesRef.current` would let zones
+      // through too early — applyZones would then run with mapRef.current still
+      // null, createZoneFromCoords would silently produce orphan polygons (no
+      // map attached) and the viewport would never re-fit. We must also wait
+      // for mapRef and googleRef before applying, otherwise queue to pending so
+      // initMap picks them up after the map is fully ready.
       if (data.type === "YARD_SET_ZONES") {
         const zones = Array.isArray(data.zones) ? data.zones : [];
-        if (applyZonesRef.current) {
+        if (applyZonesRef.current && mapRef.current && googleRef.current) {
           applyZonesRef.current(zones);
         } else {
           pendingSetZonesRef.current = zones;
@@ -536,11 +644,12 @@ export default function YardMap({
         return;
       }
 
-      // Backward compat: single polygon → treat as one zone
+      // Backward compat: single polygon → treat as one zone. Same readiness
+      // guard as YARD_SET_ZONES above.
       if (data.type === "YARD_SET_POLYGON") {
         const coords = Array.isArray(data.coords) ? normalizeCoords(data.coords as LatLng[]) : [];
         const zones = coords.length >= 3 ? [coords] : [];
-        if (applyZonesRef.current) {
+        if (applyZonesRef.current && mapRef.current && googleRef.current) {
           applyZonesRef.current(zones);
         } else {
           pendingSetZonesRef.current = zones;
@@ -607,7 +716,7 @@ export default function YardMap({
   const drawingStatusText = () => {
     if (vertexCount === 0) return "Tap to place points on the map";
     if (vertexCount < 3) return `${vertexCount} point${vertexCount > 1 ? "s" : ""} placed — keep tapping to outline`;
-    return `${vertexCount} points placed — tap "Close shape" to finish`;
+    return `${vertexCount} points placed — tap "Done" to finish`;
   };
 
   return (
@@ -617,9 +726,7 @@ export default function YardMap({
         height: "100%",
         minHeight: 520,
         position: "relative",
-        borderRadius: 30,
         overflow: "hidden",
-        boxShadow: "0 20px 45px rgba(15,23,42,0.15)",
         background: "#f8fafc",
       }}
     >
@@ -661,7 +768,7 @@ export default function YardMap({
           position: "absolute",
           top: 16,
           left: 16,
-          right: 16,
+          right: 76,
         }}
       >
         <input
@@ -671,7 +778,7 @@ export default function YardMap({
             loadError
               ? "Search unavailable"
               : searchEnabled
-              ? "Search Brisbane, Logan, Ipswich, Gold Coast, Scenic Rim…"
+              ? "Search your address…"
               : "Search unavailable"
           }
           aria-label="Search address"
@@ -685,76 +792,337 @@ export default function YardMap({
             background: searchEnabled ? "rgba(255,255,255,0.97)" : "rgba(255,255,255,0.6)",
             color: searchEnabled ? "#0f172a" : "rgba(15,23,42,0.5)",
             boxShadow: "0 12px 30px rgba(15,23,42,0.12)",
+            textOverflow: "ellipsis",
           }}
         />
       </div>
-      {/* Zone count badge */}
-      {!drawingEnabled && (
+      {/* Zone count badge — below the search bar, left side */}
+      {!drawingEnabled && zoneCount > 0 && (
         <div
           style={{
             position: "absolute",
             top: 68,
             left: 16,
-            right: 16,
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
             gap: 8,
           }}
         >
-          {zoneCount > 0 ? (
-            <div
-              style={{
-                padding: "5px 12px",
-                borderRadius: 9999,
-                background: "rgba(22,163,74,0.92)",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 600,
-                boxShadow: "0 4px 12px rgba(15,23,42,0.15)",
-              }}
-            >
-              {zoneCount} zone{zoneCount !== 1 ? "s" : ""} drawn
-            </div>
-          ) : (
-            <div
-              style={{
-                padding: "6px 12px",
-                borderRadius: 9999,
-                background: "rgba(255,255,255,0.85)",
-                color: "#0f5132",
-                fontSize: 12,
-                boxShadow: "0 4px 12px rgba(15,23,42,0.1)",
-              }}
-            >
-              Search your address, then tap Draw
-            </div>
-          )}
-          <button
-            onClick={() => setDrawingEnabled(true)}
+          <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
+              padding: "5px 12px",
               borderRadius: 9999,
-              border: "none",
-              background: "#0f5132",
+              background: "rgba(22,163,74,0.92)",
               color: "#fff",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(15,81,50,0.35)",
-              whiteSpace: "nowrap",
+              boxShadow: "0 4px 12px rgba(15,23,42,0.15)",
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            Draw
-          </button>
+            {zoneCount} zone{zoneCount !== 1 ? "s" : ""} drawn
+          </div>
         </div>
       )}
+
+      {/* Keyframe for locate spinner + hide native Google attribution & default controls */}
+      <style>{`
+        @keyframes __ym_spin { to { transform: rotate(360deg); } }
+        #__MAP_ROOT__ .gm-style-cc { display: none !important; }
+        #__MAP_ROOT__ .gm-style > div > a { display: none !important; }
+        /* Defensive: suppress Google's native zoom / fullscreen / map-type / streetview
+           controls in case they slip through the options API. We render our own. */
+        #__MAP_ROOT__ .gm-bundled-control,
+        #__MAP_ROOT__ .gm-bundled-control-on-bottom,
+        #__MAP_ROOT__ .gmnoprint.gm-bundled-control,
+        #__MAP_ROOT__ .gm-svpc,
+        #__MAP_ROOT__ .gm-fullscreen-control,
+        #__MAP_ROOT__ button[aria-label="Keyboard shortcuts"],
+        #__MAP_ROOT__ .gm-style div[title="Zoom in"],
+        #__MAP_ROOT__ .gm-style div[title="Zoom out"],
+        #__MAP_ROOT__ .gm-style button[title="Zoom in"],
+        #__MAP_ROOT__ .gm-style button[title="Zoom out"] { display: none !important; }
+      `}</style>
+
+      {/* Right-rail control stack — Draw at top, then locate/info, then zoom */}
+      {!loadError && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            right: 16,
+            transform: "translateY(-50%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+            gap: 10,
+            zIndex: 3,
+          }}
+        >
+          {/* Draw button — featured, only when not already drawing */}
+          {!drawingEnabled && (
+            <button
+              onClick={() => setDrawingEnabled(true)}
+              title="Draw a zone on the map"
+              aria-label="Start drawing a zone"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                width: 44,
+                padding: "10px 0",
+                borderRadius: 14,
+                border: "none",
+                background: "#0f5132",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.01em",
+                cursor: "pointer",
+                boxShadow: "0 6px 18px rgba(15,81,50,0.32)",
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              <span>Draw</span>
+            </button>
+          )}
+
+          {/* Locate me */}
+          <button
+            onClick={handleLocateMe}
+            disabled={locating}
+            title="Center on my location"
+            aria-label="Center map on my location"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: "1px solid rgba(15,23,42,0.08)",
+              background: "rgba(255,255,255,0.98)",
+              backdropFilter: "blur(8px)",
+              boxShadow: "0 4px 14px rgba(15,23,42,0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: locating ? "wait" : "pointer",
+              padding: 0,
+            }}
+          >
+            {locating ? (
+              <svg
+                width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="#0f5132" strokeWidth="2.5" strokeLinecap="round"
+                style={{ animation: "__ym_spin 0.8s linear infinite" }}
+              >
+                <path d="M12 3a9 9 0 1 0 9 9" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f5132" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="3" fill="#0f5132" fillOpacity="0.25" />
+                <circle cx="12" cy="12" r="8" />
+                <line x1="12" y1="2" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="2" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="22" y2="12" />
+              </svg>
+            )}
+          </button>
+
+          {/* Info / attribution toggle */}
+          <button
+            onClick={() => setShowAttrib((v) => !v)}
+            title={showAttrib ? "Hide map info" : "Map info"}
+            aria-label="Toggle map information"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: showAttrib ? "1.5px solid #0f5132" : "1px solid rgba(15,23,42,0.08)",
+              background: showAttrib ? "#0f5132" : "rgba(255,255,255,0.98)",
+              backdropFilter: "blur(8px)",
+              boxShadow: "0 4px 14px rgba(15,23,42,0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: showAttrib ? "#fff" : "#475569",
+              padding: 0,
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 16v-4M12 8h.01" />
+            </svg>
+          </button>
+
+          {/* Modern zoom control — joined pill, +/− stacked */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              width: 44,
+              borderRadius: 14,
+              overflow: "hidden",
+              background: "rgba(255,255,255,0.98)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(15,23,42,0.08)",
+              boxShadow: "0 4px 14px rgba(15,23,42,0.12)",
+            }}
+          >
+            <button
+              onClick={() => {
+                const m = mapRef.current;
+                if (!m) return;
+                const z = m.getZoom();
+                if (typeof z === "number") m.setZoom(Math.min(21, z + 1));
+              }}
+              title="Zoom in"
+              aria-label="Zoom in"
+              style={{
+                width: 44,
+                height: 40,
+                border: "none",
+                background: "transparent",
+                color: "#0f172a",
+                fontSize: 20,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <div style={{ height: 1, background: "rgba(15,23,42,0.08)" }} />
+            <button
+              onClick={() => {
+                const m = mapRef.current;
+                if (!m) return;
+                const z = m.getZoom();
+                if (typeof z === "number") m.setZoom(Math.max(15, z - 1));
+              }}
+              title="Zoom out"
+              aria-label="Zoom out"
+              style={{
+                width: 44,
+                height: 40,
+                border: "none",
+                background: "transparent",
+                color: "#0f172a",
+                fontSize: 20,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Clear-zones bin — sits below the zoom control. Always visible (when not
+              drawing), but greyed out & disabled when there are no zones to clear. */}
+          {!drawingEnabled && (
+            <button
+              onClick={clearAllZones}
+              disabled={zoneCount === 0}
+              title={zoneCount === 0 ? "No zones to clear" : "Clear all zones"}
+              aria-label="Clear all drawn zones"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                border: zoneCount === 0
+                  ? "1px solid rgba(15,23,42,0.08)"
+                  : "1px solid rgba(244,63,94,0.3)",
+                background: "rgba(255,255,255,0.98)",
+                backdropFilter: "blur(8px)",
+                boxShadow: "0 4px 14px rgba(15,23,42,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: zoneCount === 0 ? "not-allowed" : "pointer",
+                color: zoneCount === 0 ? "rgba(15,23,42,0.35)" : "#e11d48",
+                opacity: zoneCount === 0 ? 0.7 : 1,
+                padding: 0,
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Attribution popover */}
+      {showAttrib && !drawingEnabled && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 80,
+            left: 60,
+            background: "rgba(255,255,255,0.97)",
+            backdropFilter: "blur(8px)",
+            borderRadius: 14,
+            padding: "12px 16px",
+            boxShadow: "0 8px 28px rgba(15,23,42,0.18)",
+            border: "1px solid rgba(15,23,42,0.1)",
+            fontSize: 11,
+            color: "#475569",
+            maxWidth: 230,
+            lineHeight: 1.6,
+            zIndex: 3,
+          }}
+        >
+          <p style={{ fontWeight: 700, color: "#0f172a", margin: "0 0 6px" }}>Map data</p>
+          <p style={{ margin: "0 0 2px" }}>© 2026 Google</p>
+          <p style={{ margin: "0 0 8px" }}>Imagery: Airbus · CNES / Airbus · Maxar Technologies · Vexcel Imaging</p>
+          <p style={{ margin: 0, color: "#94a3b8", fontSize: 10, borderTop: "1px solid #f1f5f9", paddingTop: 6 }}>
+            Satellite view in hybrid mode. Draw zones to calculate area and price.
+          </p>
+        </div>
+      )}
+
+      {/* Locate error toast */}
+      {locateError && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 32,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(239,68,68,0.95)",
+            color: "#fff",
+            borderRadius: 9999,
+            padding: "6px 16px",
+            fontSize: 12,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 14px rgba(239,68,68,0.3)",
+            zIndex: 4,
+            pointerEvents: "none",
+          }}
+        >
+          {locateError}
+        </div>
+      )}
+
       {drawingEnabled && (
         <div
           style={{
@@ -769,7 +1137,6 @@ export default function YardMap({
             fontSize: 12,
             fontWeight: 500,
             boxShadow: "0 10px 30px rgba(15,23,42,0.18)",
-            textAlign: "center",
             backdropFilter: "blur(4px)",
             lineHeight: 1.5,
             display: "flex",
@@ -779,40 +1146,50 @@ export default function YardMap({
           }}
         >
           <span>{drawingStatusText()}</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {vertexCount > 0 && (
-              <button
-                onClick={closeShape}
-                disabled={vertexCount < 3}
-                style={{
-                  padding: "6px 16px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  background: vertexCount >= 3 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)",
-                  color: vertexCount >= 3 ? "#0f5132" : "rgba(255,255,255,0.45)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: vertexCount >= 3 ? "pointer" : "default",
-                  backdropFilter: "blur(4px)",
-                }}
-              >
-                Close shape
-              </button>
-            )}
+          {/* Centred button group: Done + clear icon close together */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button
-              onClick={() => setDrawingEnabled(false)}
+              onClick={() => {
+                if (vertexCount >= 3) {
+                  closeShape();
+                } else {
+                  setDrawingEnabled(false);
+                }
+              }}
               style={{
-                padding: "6px 14px",
+                padding: "6px 20px",
                 borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.3)",
-                background: "transparent",
-                color: "rgba(255,255,255,0.75)",
-                fontSize: 11,
-                fontWeight: 500,
+                border: "1px solid rgba(255,255,255,0.4)",
+                background: vertexCount >= 3 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)",
+                color: vertexCount >= 3 ? "#0f5132" : "rgba(255,255,255,0.65)",
+                fontSize: 13,
+                fontWeight: 600,
                 cursor: "pointer",
               }}
             >
               Done
+            </button>
+            <button
+              onClick={clearAllZones}
+              title="Clear all zones"
+              disabled={zoneCount === 0}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.25)",
+                background: "rgba(255,255,255,0.08)",
+                color: zoneCount === 0 ? "rgba(255,255,255,0.25)" : "rgba(255,200,200,0.9)",
+                cursor: zoneCount === 0 ? "default" : "pointer",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
             </button>
           </div>
         </div>

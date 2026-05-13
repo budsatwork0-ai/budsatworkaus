@@ -34,6 +34,7 @@ export function Tile({
   popular,
   from,
   variant = 'default',
+  tapHint = false,
 }: {
   active?: boolean;
   onClick?: () => void;
@@ -44,6 +45,7 @@ export function Tile({
   popular?: boolean;
   from?: string;
   variant?: 'default' | 'feature';
+  tapHint?: boolean;
 }) {
   const isFeature = variant === 'feature';
   return (
@@ -126,6 +128,19 @@ export function Tile({
           )}
         </div>
       </div>
+      {/* Tap affordance indicator — visible on mobile when no card has been selected yet */}
+      {tapHint && !active && !disabled && (
+        <div
+          className="absolute bottom-3 right-3 flex items-center gap-0.5 text-[10px] font-medium opacity-50"
+          style={{ color: 'var(--accent)' }}
+          aria-hidden="true"
+        >
+          Select
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </div>
+      )}
     </M.button>
   );
 }
