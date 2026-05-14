@@ -1,9 +1,10 @@
 'use client';
 
 import { Suspense, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ReportsView } from '../reports/ReportsView';
-import VisitorsTab from '../components/tabs/VisitorsTab';
+const VisitorsTab = dynamic(() => import('../components/tabs/VisitorsTab'), { ssr: false });
 import { WorkbenchHeader, WorkbenchQueue, WorkbenchStatGrid, WorkbenchTabs } from '../components/Workbench';
 import { ErrorMessage, Panel, RefreshIcon, StatRow } from '../components/shared';
 import { PanelSkeleton } from '../components/Skeletons';
@@ -167,7 +168,7 @@ function InsightSnapshotCard({
 function InsightsPageContent() {
   const [tab, setTab] = useTabbedNav<Tab>('tab', sanitizeTab);
   const [focusArea, setFocusArea] = useTabbedNav<FocusArea>('view', sanitizeFocusArea);
-  const { metrics, moneyFlow, receivables, payables, alertsFeed, quotes, crew, partnerReferrals, lastUpdated, isLoading, error, refetch } = useDashboardData();
+  const { metrics, moneyFlow, receivables, payables, alertsFeed, quotes, crew, partnerReferrals, lastUpdated, isLoading, error, refetch } = useDashboardData('full');
   const now = useMemo(() => new Date(), []);
 
   const reviewQuotes = useMemo(

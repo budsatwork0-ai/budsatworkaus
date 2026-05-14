@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, memo, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -65,6 +65,54 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 
+type NavListProps = {
+  entries: NavEntry[];
+  isAdmin: boolean;
+  navBadges: Record<NavBadgeKey, number>;
+};
+
+const ExpandedNav = memo(function ExpandedNav({ entries, isAdmin, navBadges }: NavListProps) {
+  return (
+    <>
+      {entries.map((entry) => {
+        if (entry.adminOnly && !isAdmin) return null;
+        const badge = entry.badgeKey ? navBadges[entry.badgeKey] : null;
+        const badgeHref = entry.badgeKey ? BADGE_HREFS[entry.badgeKey] : undefined;
+        return (
+          <SideNavItem
+            key={entry.href}
+            href={entry.href}
+            label={entry.label}
+            icon={entry.icon}
+            badge={badge}
+            badgeHref={badgeHref}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+const CompactNav = memo(function CompactNav({ entries, isAdmin, navBadges }: NavListProps) {
+  return (
+    <>
+      {entries.map((entry) => {
+        if (entry.adminOnly && !isAdmin) return null;
+        return (
+          <SideNavItem
+            key={entry.href}
+            href={entry.href}
+            label={entry.label}
+            icon={entry.icon}
+            badge={entry.badgeKey ? navBadges[entry.badgeKey] : null}
+            showLabel={false}
+          />
+        );
+      })}
+    </>
+  );
+});
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const router = useRouter();
@@ -99,17 +147,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { kind: 'link', href: '/dashboard/settings',  label: 'Settings',  icon: settingsIcon,  adminOnly: true       },
   ], []);
 
-  const shortcutLinks = useMemo(
-    () => navEntries.map((entry) => ({
-      href: entry.href,
-      label: entry.label,
-      icon: entry.icon,
-      badge: entry.badgeKey ? navBadges[entry.badgeKey] : 0,
-      adminOnly: entry.adminOnly,
-    })),
-    [navBadges, navEntries]
-  );
-
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
@@ -130,40 +167,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleBadgesUpdate = useCallback((badges: Record<NavBadgeKey, number>) => {
     setNavBadges(badges);
   }, []);
-
-  const renderExpandedNav = () => {
-    return navEntries.map((entry) => {
-      if (entry.adminOnly && !isAdmin) return null;
-      const badge = entry.badgeKey ? navBadges[entry.badgeKey] : null;
-      const badgeHref = entry.badgeKey ? BADGE_HREFS[entry.badgeKey] : undefined;
-      return (
-        <SideNavItem
-          key={entry.href}
-          href={entry.href}
-          label={entry.label}
-          icon={entry.icon}
-          badge={badge}
-          badgeHref={badgeHref}
-        />
-      );
-    });
-  };
-
-  const renderCompactNav = () => {
-    return shortcutLinks.map((item) => {
-      if (item.adminOnly && !isAdmin) return null;
-      return (
-        <SideNavItem
-          key={item.href}
-          href={item.href}
-          label={item.label}
-          icon={item.icon}
-          badge={item.badge}
-          showLabel={false}
-        />
-      );
-    });
-  };
 
   const currentTitle = PAGE_TITLES[pathname] || pathname.split('/').slice(-1)[0].replace(/^\w/, (c) => c.toUpperCase());
   const userDisplayName = sessionUser?.user_metadata?.full_name || sessionUser?.email?.split('@')[0] || 'Admin user';
@@ -218,7 +221,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <div className="space-y-2">
-          {sidebarOpen ? renderExpandedNav() : renderCompactNav()}
+          {sidebarOpen
+            ? <ExpandedNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
+            : <CompactNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
+          }
         </div>
 
         <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
@@ -283,7 +289,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </button>
               </div>
 
-              <div className="space-y-2">{renderExpandedNav()}</div>
+              <div className="space-y-2">
+                <ExpandedNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
+              </div>
 
               <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
                 <div className="flex items-center gap-3">

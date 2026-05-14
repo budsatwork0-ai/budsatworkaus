@@ -10,6 +10,7 @@ import { ErrorMessage, RefreshIcon } from './components/shared';
 import { ErrorBoundary } from './_components/ErrorBoundary';
 import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
 import { jobStatusLabels, normalizeQuoteStatus, type DashboardAlert, type DashboardCrewMember, type DashboardQuote, type JobRecord } from '@/types/dashboard';
+import { SummaryCardsSkeleton, TableSkeleton, PanelSkeleton, ActivitySkeleton } from './components/Skeletons';
 
 type AttentionTone = 'red' | 'amber' | 'blue' | 'emerald';
 type MobileGroup = 'priority' | 'performance';
@@ -97,11 +98,19 @@ export default function DashboardHome() {
     crew,
     quotes,
     applicantCount,
+    lastUpdated,
+    isLoading,
     error,
     refetch,
   } = useDashboardData();
   const { role } = useAuth();
-  const [mobileGroup, setMobileGroup] = useState<MobileGroup>('priority');
+  const [mobileGroup, setMobileGroup] = useState<MobileGroup>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dashboard_mobile_group');
+      if (saved === 'priority' || saved === 'performance') return saved;
+    }
+    return 'priority';
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const roleKey = (role === 'admin' || role === 'employee' || role === 'customer' ? role : 'customer') as 'admin' | 'employee' | 'customer';
@@ -249,7 +258,7 @@ export default function DashboardHome() {
   }, [applicantCount, crewSummary.ready.length, metrics.alerts.overdueAmount, metrics.alerts.overdueCount, reviewQueueCount, unscheduledJobs.length]);
 
 
-  const sections: Record<SectionKey, React.ReactNode | null> = {
+  const sections: Record<SectionKey, React.ReactNode | null> = useMemo(() => ({
     attention: alertsFeed.length === 0 ? null : (
       <SectionShell
         title="Alerts"
@@ -471,7 +480,7 @@ export default function DashboardHome() {
         </div>
       </SectionShell>
     ),
-  };
+  }), [alertsFeed, nextBestActions, todayJobs, inProgressCount, unscheduledJobs, nextScheduledJob, metrics, quotePipeline, maxPipelineCount, crewSummary, crewUtilization, visibleCrew, recentActivity]);
 
   const orderedSections = SECTION_ORDER_BY_ROLE[roleKey];
 
@@ -482,6 +491,36 @@ export default function DashboardHome() {
           <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Operations Console</h1>
         </div>
         <ErrorMessage message={error} onRetry={refetch} />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-5 w-full px-3 sm:px-4 md:px-8 xl:px-10 pb-14">
+        <div className="rounded-[28px] border border-black/5 bg-white/75 px-4 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.07)] backdrop-blur sm:px-6 animate-pulse">
+          <div className="h-8 w-56 bg-slate-200 rounded-xl mb-4" />
+          <div className="flex gap-2">
+            <div className="h-8 w-28 bg-slate-100 rounded-full" />
+            <div className="h-8 w-28 bg-slate-100 rounded-full" />
+          </div>
+        </div>
+        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+          <div className="h-5 w-20 bg-slate-200 rounded animate-pulse" />
+          <SummaryCardsSkeleton />
+        </div>
+        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+          <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
+          <TableSkeleton rows={4} />
+        </div>
+        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+          <div className="h-5 w-24 bg-slate-200 rounded animate-pulse" />
+          <PanelSkeleton rows={3} />
+        </div>
+        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+          <div className="h-5 w-28 bg-slate-200 rounded animate-pulse" />
+          <ActivitySkeleton items={4} />
+        </div>
       </div>
     );
   }
@@ -500,19 +539,26 @@ export default function DashboardHome() {
               <h1 className="text-3xl font-semibold tracking-[-0.03em]" style={{ color: brand.primary }}>
                 {roleCopy.title}
               </h1>
-              <motion.button
-                type="button"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                animate={isRefreshing ? { rotate: 360 } : { rotate: 0 }}
-                transition={isRefreshing ? { repeat: Infinity, duration: 0.7, ease: 'linear' } : { duration: 0.2 }}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm"
-                aria-label="Refresh dashboard"
-              >
-                <RefreshIcon />
-              </motion.button>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  animate={isRefreshing ? { rotate: 360 } : { rotate: 0 }}
+                  transition={isRefreshing ? { repeat: Infinity, duration: 0.7, ease: 'linear' } : { duration: 0.2 }}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm"
+                  aria-label="Refresh dashboard"
+                >
+                  <RefreshIcon />
+                </motion.button>
+                {lastUpdated && !isRefreshing && (
+                  <span className="text-xs text-slate-400">
+                    Updated {formatRelativeTime(lastUpdated)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -534,7 +580,7 @@ export default function DashboardHome() {
             <button
               key={item.key}
               type="button"
-              onClick={() => setMobileGroup(item.key)}
+              onClick={() => { setMobileGroup(item.key); localStorage.setItem('dashboard_mobile_group', item.key); }}
               className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition"
               style={mobileGroup === item.key ? { background: brand.primary, color: '#fff' } : { color: brand.muted }}
             >
@@ -545,12 +591,15 @@ export default function DashboardHome() {
       </div>
 
       <div className="grid gap-5">
-        {orderedSections.map((sectionKey) => {
+        {orderedSections.map((sectionKey, i) => {
           const node = sections[sectionKey];
           if (node === null) return null;
           return (
-            <div
+            <motion.div
               key={sectionKey}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.07 }}
               className={
                 SECTION_GROUPS[mobileGroup].includes(sectionKey)
                   ? 'block'
@@ -560,7 +609,7 @@ export default function DashboardHome() {
               <ErrorBoundary label={sectionKey}>
                 {node}
               </ErrorBoundary>
-            </div>
+            </motion.div>
           );
         })}
       </div>
@@ -591,12 +640,7 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28 }}
-      className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur"
-    >
+    <section className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: brand.primary }}>{title}</h2>
@@ -609,7 +653,7 @@ function SectionShell({
         ) : null}
       </div>
       {children}
-    </motion.section>
+    </section>
   );
 }
 

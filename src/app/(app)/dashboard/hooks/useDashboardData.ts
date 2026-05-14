@@ -115,11 +115,13 @@ const defaultMoneyFlow: MoneyFlowData = {
 };
 
 const CACHE_KEY = 'dashboard_cache';
+const CACHE_KEY_FULL = 'dashboard_cache_full';
 const CACHE_TTL_MS = 300_000; // 5 minutes
 
-export function readCache(): DashboardData | null {
+export function readCache(full = false): DashboardData | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const key = full ? CACHE_KEY_FULL : CACHE_KEY;
+    const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { data: DashboardData; fetchedAt: number };
     if (Date.now() - parsed.fetchedAt > CACHE_TTL_MS) return null;
@@ -129,15 +131,17 @@ export function readCache(): DashboardData | null {
   }
 }
 
-function writeCache(data: DashboardData) {
+function writeCache(data: DashboardData, full = false) {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() }));
+    const key = full ? CACHE_KEY_FULL : CACHE_KEY;
+    sessionStorage.setItem(key, JSON.stringify({ data, fetchedAt: Date.now() }));
   } catch {
     // sessionStorage may be unavailable (private browsing, storage quota)
   }
 }
 
-export function useDashboardData(): UseDashboardDataResult {
+export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDashboardDataResult {
+  const isFull = scope === 'full';
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<MoneyFlowData>(defaultMoneyFlow);
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
@@ -175,7 +179,7 @@ export function useDashboardData(): UseDashboardDataResult {
   const fetchData = useCallback(async (forceRefresh = false) => {
     // Serve from cache unless forcing refresh
     if (!forceRefresh) {
-      const cached = readCache();
+      const cached = readCache(isFull);
       if (cached) {
         applyData(cached);
         setIsLoading(false);
@@ -188,7 +192,8 @@ export function useDashboardData(): UseDashboardDataResult {
     setError(null);
 
     try {
-      const response = await fetch('/api/dashboard');
+      const url = isFull ? '/api/dashboard' : '/api/dashboard?scope=summary';
+      const response = await fetch(url);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -196,7 +201,7 @@ export function useDashboardData(): UseDashboardDataResult {
       }
 
       const data: DashboardData = await response.json();
-      writeCache(data);
+      writeCache(data, isFull);
       applyData(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load dashboard data';
@@ -205,7 +210,7 @@ export function useDashboardData(): UseDashboardDataResult {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isFull]);
 
   useEffect(() => {
     fetchData();

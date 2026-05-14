@@ -656,7 +656,7 @@ export default function MoneyFlowWorkspace() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { metrics, moneyFlow, receivables, payables, isLoading } = useDashboardData();
+  const { metrics, moneyFlow, receivables, payables, isLoading } = useDashboardData('full');
 
   const [tab, setTab] = useState<MoneyTab>(() => sanitizeTab(searchParams?.get('tab') ?? null));
   const [range, setRange] = useState<RangeKey>('month');

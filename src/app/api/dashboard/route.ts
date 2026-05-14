@@ -558,7 +558,10 @@ function createEmptyDailySeries(now: Date) {
   return points;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const isSummary = searchParams.get('scope') === 'summary';
+
   const client = createServiceClientSafe();
 
   if (!client) {
@@ -664,15 +667,17 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(200),
 
-      // Partner referral clicks for insights
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (client as any)
-        .from('visitor_events')
-        .select('session_id, created_at, event_data')
-        .eq('event_name', 'partner_referral_click')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(500),
+      // Partner referral clicks for insights (skipped in summary mode)
+      isSummary
+        ? Promise.resolve({ data: [], error: null })
+        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (client as any)
+            .from('visitor_events')
+            .select('session_id, created_at, event_data')
+            .eq('event_name', 'partner_referral_click')
+            .gte('created_at', thirtyDaysAgo.toISOString())
+            .order('created_at', { ascending: false })
+            .limit(500),
 
       // Intake applicants count (non-community roles)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1056,26 +1061,29 @@ export async function GET() {
       };
     });
 
-    const dailySeries = createEmptyDailySeries(now);
+    // --- Heavy money-flow computations (skipped in summary mode) ---
+    const dailySeries = isSummary ? [] : createEmptyDailySeries(now);
     const dailyIndex = new Map(dailySeries.map((point, index) => [point.date, index]));
 
-    for (const order of allCompletedOrders) {
-      const dateKey = (order.completed_at || order.created_at || '').slice(0, 10);
-      const index = dailyIndex.get(dateKey);
-      if (index !== undefined) {
-        dailySeries[index].revenue += order.final_price || 0;
+    if (!isSummary) {
+      for (const order of allCompletedOrders) {
+        const dateKey = (order.completed_at || order.created_at || '').slice(0, 10);
+        const index = dailyIndex.get(dateKey);
+        if (index !== undefined) {
+          dailySeries[index].revenue += order.final_price || 0;
+        }
+      }
+
+      for (const payable of paidPayables) {
+        const dateKey = (payable.paid_date || payable.created_at || '').slice(0, 10);
+        const index = dailyIndex.get(dateKey);
+        if (index !== undefined) {
+          dailySeries[index].expenses += payable.amount || 0;
+        }
       }
     }
 
-    for (const payable of paidPayables) {
-      const dateKey = (payable.paid_date || payable.created_at || '').slice(0, 10);
-      const index = dailyIndex.get(dateKey);
-      if (index !== undefined) {
-        dailySeries[index].expenses += payable.amount || 0;
-      }
-    }
-
-    const crewPayWorkers = crewData.map((employee) => {
+    const crewPayWorkers = isSummary ? [] : crewData.map((employee) => {
       const payRate = Number(employee.hourly_rate || 0);
       const assignments = assignmentsByEmployee.get(employee.id) || [];
       const awardReference = resolveAwardReference(employee);
@@ -1378,50 +1386,98 @@ export async function GET() {
     const cashBalance = totalRevenue - totalExpenses;
 
     // Build response
-    const data: DashboardData = {
-      metrics: {
-        cashBalance,
-        outstandingReceivables: {
-          total: outstandingTotal,
-          count: outstandingOrders.length,
-          change: receivablesChange,
-        },
-        upcomingPayables: {
-          total: upcomingPayablesTotal,
-          count: upcomingPayables.length,
-          change: upcomingChange,
-        },
-        netProfit: {
-          amount: netProfit,
-          margin: grossMargin,
-          change: profitChange,
-        },
-        revenueByService,
-        expensesByCategory,
-        alerts: {
-          overdueCount: overdueOrders.length,
-          overdueAmount: overdueOrders.reduce((sum, o) => sum + (o.final_price || 0), 0),
-          dueSoonCount: dueSoonOrders.length,
-          dueSoonAmount: dueSoonOrders.reduce((sum, o) => sum + (o.final_price || 0), 0),
-        },
-        operationsSnapshot: {
-          jobsCompleted: completedOrders.length,
-          averageJobValue: completedOrders.length > 0
-            ? Math.round(totalRevenue / completedOrders.length)
-            : 0,
-          labourPercent,
-          grossMargin,
-        },
-        revenueTrend,
-        goals: {
-          monthlyRevenueTarget,
-          currentRevenue: totalRevenue,
-          revenueChange,
-          monthlyJobsTarget,
-          currentJobs: completedOrders.length,
-        },
+    const metrics = {
+      cashBalance,
+      outstandingReceivables: {
+        total: outstandingTotal,
+        count: outstandingOrders.length,
+        change: receivablesChange,
       },
-      moneyFlow: {
+      upcomingPayables: {
+        total: upcomingPayablesTotal,
+        count: upcomingPayables.length,
+        change: upcomingChange,
+      },
+      netProfit: {
+        amount: netProfit,
+        margin: grossMargin,
+        change: profitChange,
+      },
+      revenueByService,
+      expensesByCategory,
+      alerts: {
+        overdueCount: overdueOrders.length,
+        overdueAmount: overdueOrders.reduce((sum, o) => sum + (o.final_price || 0), 0),
+        dueSoonCount: dueSoonOrders.length,
+        dueSoonAmount: dueSoonOrders.reduce((sum, o) => sum + (o.final_price || 0), 0),
+      },
+      operationsSnapshot: {
+        jobsCompleted: completedOrders.length,
+        averageJobValue: completedOrders.length > 0
+          ? Math.round(totalRevenue / completedOrders.length)
+          : 0,
+        labourPercent,
+        grossMargin,
+      },
+      revenueTrend,
+      goals: {
+        monthlyRevenueTarget,
+        currentRevenue: totalRevenue,
+        revenueChange,
+        monthlyJobsTarget,
+        currentJobs: completedOrders.length,
+      },
+    };
+
+    const data: DashboardData = {
+      metrics,
+      moneyFlow: isSummary ? {
+        overview: {
+          revenueThisMonth: totalRevenue,
+          expensesThisMonth: totalExpenses,
+          payrollOwed: 0,
+          outstandingInvoices: outstandingTotal,
+          grossMargin,
+          labourCostPercent: 0,
+          incomingReceived: 0,
+          outgoingPaid: totalExpenses,
+        },
+        series: [],
+        incoming: {
+          expected: outstandingTotal,
+          received: 0,
+          overdue: 0,
+          depositsCollected: 0,
+          quotesAccepted: 0,
+          invoicesIssued: 0,
+          invoicesPaid: 0,
+          revenueByService: [],
+          revenueByCustomer: [],
+        },
+        outgoing: {
+          due: upcomingPayablesTotal,
+          paid: totalExpenses,
+          payrollOwed: 0,
+          supplierCosts: 0,
+          subscriptionCosts: 0,
+          reimbursementCosts: 0,
+          settlementClearing: 0,
+          expenseByCategory: [],
+        },
+        crewPay: {
+          totalHours: 0,
+          approvedHours: 0,
+          pendingHours: 0,
+          payrollOwed: 0,
+          readyCount: 0,
+          needsReviewCount: 0,
+          missingAcceptanceCount: 0,
+          workers: [],
+        },
+        alerts: [],
+        transactions: [],
+        jobMargins: [],
+      } : {
         overview: {
           revenueThisMonth: totalRevenue,
           expensesThisMonth: totalExpenses,
@@ -1480,16 +1536,16 @@ export async function GET() {
         transactions,
         jobMargins,
       },
-      receivables,
-      payables: payableRecords,
+      receivables: isSummary ? [] : receivables,
+      payables: isSummary ? [] : payableRecords,
       jobs,
       recentActivity,
       alertsFeed,
       dismissedAlertCount: allAlerts.length - alertsFeed.length,
-      payouts: payoutsData,
+      payouts: isSummary ? [] : payoutsData,
       crew,
       quotes: quotesData,
-      partnerReferrals,
+      partnerReferrals: isSummary ? [] : partnerReferrals,
       applicantCount,
       lastUpdated: now.toISOString(),
     };

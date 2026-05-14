@@ -11,4 +11,4 @@ export { default as ReceivablesTab } from './ReceivablesTab';
 export { default as PayablesTab }    from './PayablesTab';
 export { default as JobsTab }        from './JobsTab';
 export { default as ReportsTab }     from './ReportsTab';
-export { default as VisitorsTab }    from './VisitorsTab';
+// VisitorsTab is heavy (charts + live data) — import via next/dynamic at the call site

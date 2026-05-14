@@ -12,9 +12,10 @@
  */
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReportsTab from './ReportsTab';
-import VisitorsTab from './VisitorsTab';
+const VisitorsTab = dynamic(() => import('./VisitorsTab'), { ssr: false });
 import type { DashboardMetrics, ReceivableRecord, PayableRecord } from '@/types/dashboard';
 
 type AnalyticsView = 'reports' | 'visitors';
