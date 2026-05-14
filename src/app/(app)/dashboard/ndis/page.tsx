@@ -1,8 +1,32 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { brand, glass } from '@/app/ui/theme';
+import { SERVICE_TYPE_LABELS } from '@/types/orders';
+import type { ServiceType } from '@/types/orders';
+
+type Tab = 'organisations' | 'job_matching';
+
+type MatchingJob = {
+  id: string;
+  customer_name: string;
+  service_type: string;
+  context: string;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  final_price: number;
+  estimated_duration_minutes: number;
+  status: string;
+  requirements: {
+    ndis_matching_enabled: boolean;
+    required_support_mode: string | null;
+    physical_intensity: string;
+    location_suburb: string | null;
+  } | null;
+  publication_count: number;
+};
 
 type OrgStatus = 'active' | 'inactive' | 'trialing' | 'past_due' | 'cancelled';
 
@@ -61,6 +85,9 @@ const EMPTY_ORG = { name: '', contact_name: '', contact_email: '', contact_phone
 const EMPTY_PART = { full_name: '', email: '', phone: '', ndis_number: '', notes: '' };
 
 export default function NdisPage() {
+  const [tab, setTab] = useState<Tab>('organisations');
+
+  // ── Organisations state ─────────────────────────────────────────────────────
   const [orgs, setOrgs] = useState<NdisOrg[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrg, setSelectedOrg] = useState<NdisOrg | null>(null);
@@ -72,6 +99,28 @@ export default function NdisPage() {
   const [orgForm, setOrgForm] = useState(EMPTY_ORG);
   const [partForm, setPartForm] = useState(EMPTY_PART);
   const [saving, setSaving] = useState(false);
+
+  // ── Job matching state ──────────────────────────────────────────────────────
+  const [matchingJobs, setMatchingJobs] = useState<MatchingJob[]>([]);
+  const [matchingJobsLoading, setMatchingJobsLoading] = useState(false);
+
+  const fetchMatchingJobs = useCallback(async () => {
+    setMatchingJobsLoading(true);
+    try {
+      const res = await fetch('/api/ndis/jobs/pending-match');
+      if (!res.ok) throw new Error('Failed to load jobs');
+      const data = await res.json();
+      setMatchingJobs(data.jobs || []);
+    } catch {
+      toast.error('Failed to load jobs for matching');
+    } finally {
+      setMatchingJobsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'job_matching') void fetchMatchingJobs();
+  }, [tab, fetchMatchingJobs]);
 
   const fetchOrgs = useCallback(async () => {
     setLoading(true);
@@ -208,19 +257,148 @@ export default function NdisPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: brand.text }}>NDIS Organisations</h1>
+          <h1 className="text-xl font-bold" style={{ color: brand.text }}>NDIS</h1>
           <p className="text-sm mt-0.5" style={{ color: brand.muted }}>
-            Manage NDIS company subscriptions and their participants
+            Manage NDIS organisations and match jobs to participants
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateOrg(true)}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: brand.primary }}
-        >
-          + Add Organisation
-        </button>
+        {tab === 'organisations' && (
+          <button
+            onClick={() => setShowCreateOrg(true)}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ background: brand.primary }}
+          >
+            + Add Organisation
+          </button>
+        )}
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'rgba(15,61,46,0.06)' }}>
+        {([
+          { key: 'organisations', label: 'Organisations' },
+          { key: 'job_matching', label: 'Job Matching' },
+        ] as { key: Tab; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className="px-4 py-1.5 rounded-lg text-sm transition-all"
+            style={{
+              background: tab === key ? 'white' : 'transparent',
+              color: tab === key ? brand.primary : brand.muted,
+              fontWeight: tab === key ? 600 : 400,
+              boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Job Matching tab ── */}
+      {tab === 'job_matching' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm" style={{ color: brand.muted }}>
+              Confirmed jobs that can be matched to NDIS participants. Click Match to assign compatible workers.
+            </p>
+            <button
+              onClick={() => void fetchMatchingJobs()}
+              className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-slate-50"
+              style={{ borderColor: brand.border, color: brand.muted }}
+            >
+              Refresh
+            </button>
+          </div>
+
+          {matchingJobsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+                  <div className="h-4 bg-slate-200 rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-slate-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : matchingJobs.length === 0 ? (
+            <div className={`${glass} rounded-2xl p-10 text-center`}>
+              <p className="font-medium" style={{ color: brand.text }}>No jobs awaiting matching</p>
+              <p className="text-sm mt-1" style={{ color: brand.muted }}>
+                Confirmed jobs will appear here once they are ready to be matched to participants.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {matchingJobs.map((job) => {
+                const serviceLabel = SERVICE_TYPE_LABELS[job.service_type as ServiceType] || job.service_type;
+                return (
+                  <div key={job.id} className={`${glass} rounded-2xl p-5`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+                            style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                          >
+                            {serviceLabel}
+                          </span>
+                          <span className="text-xs capitalize" style={{ color: brand.muted }}>{job.context}</span>
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            job.requirements?.ndis_matching_enabled
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {job.requirements?.ndis_matching_enabled ? 'Matching enabled' : 'Needs setup'}
+                          </span>
+                          {job.publication_count > 0 && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-800">
+                              Published to {job.publication_count}
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-semibold" style={{ color: brand.text }}>{job.customer_name}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          {job.scheduled_date && (
+                            <span className="text-xs" style={{ color: brand.muted }}>
+                              {new Date(job.scheduled_date).toLocaleDateString('en-AU', {
+                                weekday: 'short', day: 'numeric', month: 'short',
+                              })}
+                              {job.scheduled_time && ` at ${job.scheduled_time}`}
+                            </span>
+                          )}
+                          {job.requirements?.location_suburb && (
+                            <span className="text-xs" style={{ color: brand.muted }}>
+                              · {job.requirements.location_suburb}
+                            </span>
+                          )}
+                          <span className="text-xs" style={{ color: brand.muted }}>
+                            · ~{Math.round(job.estimated_duration_minutes / 60 * 10) / 10}h
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <p className="text-base font-bold" style={{ color: brand.primary }}>
+                          ${job.final_price.toFixed(2)}
+                        </p>
+                        <Link
+                          href={`/dashboard/ndis/match/${job.id}`}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                          style={{ background: brand.primary }}
+                        >
+                          {job.publication_count > 0 ? 'Manage matches' : 'Match participants'}
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Organisations tab ── */}
+      {tab === 'organisations' && <>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -411,6 +589,8 @@ export default function NdisPage() {
           )}
         </div>
       </div>
+
+      </> /* end organisations tab */}
 
       {/* Create org modal */}
       {showCreateOrg && (

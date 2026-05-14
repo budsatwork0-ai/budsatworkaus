@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 
-// GET /api/crew/jobs - List available jobs for current employee
+// GET /api/crew/jobs — List available job assignments for current employee.
+// Includes NDIS publication metadata (match score, flags, support requirements)
+// for jobs that were published via the NDIS matching flow.
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser();
   if (!authUser) {
@@ -14,7 +16,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  // Get employee record
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: employee } = await (client as any)
     .from('employees')
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-  // Get available assignments for this employee with order details
+  // Get available assignments with order details
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (client as any)
     .from('job_assignments')
@@ -52,13 +53,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Apply order-level filters client-side (since we're joining)
   let assignments = data || [];
+
+  // Apply order-level filters client-side
   if (serviceType && serviceType !== 'all') {
-    assignments = assignments.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (a: any) => a.orders?.service_type === serviceType
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    assignments = assignments.filter((a: any) => a.orders?.service_type === serviceType);
   }
   if (dateFrom) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,5 +69,51 @@ export async function GET(req: NextRequest) {
     assignments = assignments.filter((a: any) => a.orders?.scheduled_date <= dateTo);
   }
 
-  return NextResponse.json({ assignments, total: count });
+  if (assignments.length === 0) {
+    return NextResponse.json({ assignments: [], total: count ?? 0 });
+  }
+
+  // Enrich with NDIS publication + match data where available
+  const orderIds = assignments
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((a: any) => a.order_id)
+    .filter(Boolean);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [{ data: publications }, { data: matchScores }, { data: jobReqs }] = await Promise.all([
+    (client as any)
+      .from('job_publications')
+      .select('order_id, status, published_at, override_reason')
+      .eq('employee_id', employee.id)
+      .in('order_id', orderIds),
+    (client as any)
+      .from('job_participant_matches')
+      .select('order_id, score, max_score, flags')
+      .eq('employee_id', employee.id)
+      .in('order_id', orderIds),
+    (client as any)
+      .from('job_requirements')
+      .select('order_id, required_support_mode, transport_required, customer_facing_required, physical_intensity, location_suburb, start_time, end_time, estimated_duration_minutes')
+      .in('order_id', orderIds),
+  ]);
+
+  const pubMap: Record<string, { status: string; published_at: string; override_reason: string | null }> = {};
+  for (const p of publications ?? []) pubMap[p.order_id] = p;
+
+  const matchMap: Record<string, { score: number; max_score: number; flags: unknown[] }> = {};
+  for (const m of matchScores ?? []) matchMap[m.order_id] = m;
+
+  const reqMap: Record<string, Record<string, unknown>> = {};
+  for (const r of jobReqs ?? []) reqMap[r.order_id] = r;
+
+  // Merge NDIS data into assignments
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enriched = assignments.map((a: any) => ({
+    ...a,
+    ndis_publication: pubMap[a.order_id] ?? null,
+    ndis_match: matchMap[a.order_id] ?? null,
+    ndis_requirements: reqMap[a.order_id] ?? null,
+  }));
+
+  return NextResponse.json({ assignments: enriched, total: count });
 }

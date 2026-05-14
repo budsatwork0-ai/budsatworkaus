@@ -41,6 +41,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 
 ## Dev
 - [[Bug Tracker]] — quick-capture for bugs found during ops
+- [[NDIS Participant Matching — May 2026]] — participant support profiles, rule-based job matching, admin publish workflow, safety flags (2026-05-14)
 - [[Services Flow Improvements — April 2026]] — full funnel changes log (Phase 1 & 2)
 - [[Services Flow Improvements — April 2026 Phase 3]] — home page redesign, email re-engagement, step 3 mobile sticky bar (2026-04-15)
 - [[Services Flow Improvements — April 2026 Phase 4]] — rego lookup assistant, commercial preset tiles, window/auto/dump assistant steps (2026-04-17)

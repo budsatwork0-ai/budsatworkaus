@@ -65,6 +65,10 @@
 | Payables API | `src/app/api/payables/route.ts` |
 | Cron: 24h quote reminders | `src/app/api/cron/remind-quotes/route.ts` |
 | Conversion tracking | `src/lib/analytics/conversions.ts` |
+| NDIS matching algorithm | `src/lib/ndis/matching.ts` |
+| NDIS types | `src/types/ndis.ts` |
+| NDIS admin matching page | `src/app/(app)/dashboard/ndis/match/[orderId]/page.tsx` |
+| NDIS crew support profile | `src/app/(app)/crew/support-profile/page.tsx` |
 
 ---
 
@@ -104,6 +108,8 @@ If something breaks in production:
 - [x] Schedule Job form — now calls `POST /api/orders` with `status: 'scheduled'` *(2026-04-20)*
 - [ ] Goals targets are hardcoded ($15k revenue, 30 jobs) — make configurable in settings
 - [ ] Dashboard cache TTL is 60s — consider server-sent events for real-time
+- [ ] NDIS matching: add geocoding to travel radius check (currently passes by default when no coordinates)
+- [ ] NDIS matching: shift split UI (shift_segments table exists, no admin UI to create segments yet)
 
 ---
 
@@ -123,3 +129,4 @@ If something breaks in production:
 - [[Email Triggers]]
 - [[Data & Analytics]]
 - [[Services Flow Improvements — April 2026]]
+- [[NDIS Participant Matching — May 2026]]

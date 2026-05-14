@@ -154,6 +154,67 @@ Key compliance notes:
 
 ---
 
+---
+
+## NDIS Participant Workers
+
+Buds At Work employs NDIS participants as crew members (supported employment). These workers have additional support needs that must be checked before assigning jobs to them.
+
+### Support profile
+
+Each NDIS participant crew member fills in a **Support Profile** at `/crew/support-profile` (Crew Hub → Support). It captures:
+
+| Field | Purpose |
+|---|---|
+| Support window start/end | Hours during which their NDIS funding is active |
+| Max shift duration (mins) | Longest shift they can safely work |
+| Support mode | Independent / With Support Worker / Team Based |
+| Transport | Own / Needs transport / Transport arranged |
+| Support worker name + provider | If mode is "With Support Worker" |
+| Physical capacity | Light / Moderate / Heavy |
+| Preferred services | Which service types they want to work |
+| Customer-facing ok | Whether they're comfortable with direct customer contact |
+| Can work after funded hours | Whether they'll work outside their funded support window |
+| Emergency contact | |
+
+### Job matching workflow
+
+1. Go to **Dashboard → NDIS → Job Matching**
+2. Select a confirmed job → click **Match participants**
+3. Set the job's support requirements (intensity, transport needed, times, etc.)
+4. Click **Save & Find Matches** — the system scores all active employees against the requirements
+5. Review the ranked list with match scores (0–100) and any safety flags
+6. Select the participants who should receive the job
+7. Click **Publish job** — job appears immediately in their Find Jobs page
+
+### Safety flags
+
+The matching engine raises flags before publishing:
+
+| Flag | Severity | Action required |
+|---|---|---|
+| Outside support window | Warning | Informational — admin can still publish |
+| Cannot work after funded hours | **Blocker** | Must enter a documented override reason to proceed |
+| Shift exceeds max duration | Warning | Consider splitting the shift |
+| Transport not available | Warning | Arrange transport before publishing |
+| No support worker assigned | Warning | Assign a support worker in their profile |
+| Physical intensity too high | Warning | Consider a different participant |
+
+### What participants see
+
+Published jobs appear in **Crew Hub → Find Jobs** with:
+- An "NDIS matched" badge
+- Match score and grade (Strong / Good / Partial / Poor)
+- Safety flag badges
+- Location suburb only (full address is withheld)
+- Support requirements (mode, transport, time window, estimated duration)
+
+Accept/Decline flow is the same as for any job.
+
+**Full technical details:** [[NDIS Participant Matching — May 2026]]
+
+---
+
 ## Related
 - [[Admin]]
 - [[Operations]]
