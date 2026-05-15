@@ -20,6 +20,18 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const DEFAULT_MODEL = process.env.AGENT_DEFAULT_MODEL ?? 'claude-sonnet-4-6';
 
+// Hard cap on how long any single agent run is allowed to take. After this,
+// the run is marked failed and `runAgent` returns. The agent's own promise
+// keeps executing (we can't actually cancel JS), so this is mostly to make
+// the dashboard accurate and prevent rows being stuck in 'running' forever.
+// Keep this <= the platform's serverless function maxDuration.
+const RUN_TIMEOUT_MS = Number(process.env.AGENT_RUN_TIMEOUT_MS ?? 5 * 60 * 1000);
+
+// How aggressively we retry transient Anthropic errors (429 / 529 / 503).
+// 4 attempts with exponential backoff = up to ~15s of waiting before giving
+// up, which is comfortably less than typical Anthropic overload windows.
+const MAX_LLM_ATTEMPTS = 4;
+
 // Rough per-million-token pricing (USD). Update as your contract changes.
 const PRICING_PER_MTOK: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-6': { input: 3, output: 15 },
@@ -44,40 +56,64 @@ async function callModel(
 ): Promise<CallModelResult> {
   const model = opts.model ?? DEFAULT_MODEL;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 2048,
-      system: opts.system,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+  let attempt = 0;
+  let lastErr: Error | null = null;
 
-  if (!res.ok) {
-    throw new Error(`Anthropic API ${res.status}: ${await res.text()}`);
+  while (attempt < MAX_LLM_ATTEMPTS) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 2048,
+        system: opts.system,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (res.ok) {
+      const json = (await res.json()) as {
+        content: Array<{ type: string; text?: string }>;
+        usage: { input_tokens: number; output_tokens: number };
+      };
+
+      const text = json.content
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text ?? '')
+        .join('\n');
+
+      return {
+        text,
+        inputTokens: json.usage.input_tokens,
+        outputTokens: json.usage.output_tokens,
+      };
+    }
+
+    const body = await res.text();
+    lastErr = new Error(`Anthropic API ${res.status}: ${body}`);
+
+    // Retry only on transient errors. 401 (invalid key), 400 (bad request),
+    // 404, etc. are configuration bugs that won't fix themselves on retry.
+    const transient = res.status === 429 || res.status === 529 || res.status === 503;
+    if (!transient) throw lastErr;
+
+    attempt += 1;
+    if (attempt >= MAX_LLM_ATTEMPTS) break;
+
+    // Honour Retry-After (seconds) when present, otherwise exponential
+    // backoff with jitter: 1s, 2s, 4s ± up to 500ms.
+    const retryAfter = Number(res.headers.get('retry-after'));
+    const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
+    await new Promise((resolve) => setTimeout(resolve, backoffMs));
   }
 
-  const json = (await res.json()) as {
-    content: Array<{ type: string; text?: string }>;
-    usage: { input_tokens: number; output_tokens: number };
-  };
-
-  const text = json.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text ?? '')
-    .join('\n');
-
-  return {
-    text,
-    inputTokens: json.usage.input_tokens,
-    outputTokens: json.usage.output_tokens,
-  };
+  throw lastErr ?? new Error('Anthropic API: exhausted retries with no response');
 }
 
 export interface RunAgentArgs {
@@ -180,7 +216,20 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   };
 
   try {
-    const result = await (def as AgentDefinition).run(ctx);
+    const result = await Promise.race([
+      (def as AgentDefinition).run(ctx),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Agent run exceeded ${Math.round(RUN_TIMEOUT_MS / 1000)}s timeout`,
+              ),
+            ),
+          RUN_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     const durationMs = Date.now() - startedAt;
     const pricing = PRICING_PER_MTOK[llmModel] ?? { input: 0, output: 0 };
     const costCents = Math.round(

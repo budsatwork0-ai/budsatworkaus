@@ -49,11 +49,20 @@ export const competitorScoutAgent: AgentDefinition = {
     const region = (ctx.config?.region as string | undefined) ?? 'Logan,South Brisbane';
     const queries = SEARCH_QUERIES(region);
 
+    const backend = process.env.BRAVE_SEARCH_API_KEY
+      ? 'brave'
+      : process.env.SERPAPI_API_KEY
+        ? 'serpapi'
+        : 'duckduckgo';
+    ctx.log(`search_backend=${backend} region="${region}"`);
+
     let discovered = 0;
     let extracted = 0;
+    let parseFailures = 0;
 
     for (const q of queries) {
       const hits = await webSearch(q, 5);
+      ctx.log(`search query="${q}" hits=${hits.length}`);
       for (const hit of hits) {
         if (isOwnDomain(hit.url)) continue;
 
@@ -75,7 +84,16 @@ export const competitorScoutAgent: AgentDefinition = {
           { system: SYSTEM },
         );
         let parsed: { competitor_name: string; services: Array<{ service: string; price_aud: number | null; price_unit: string | null; promo: string | null; raw_snippet: string; confidence: number }> };
-        try { parsed = JSON.parse(raw); } catch { continue; }
+        try {
+          parsed = parseJsonResponse(raw) as typeof parsed;
+        } catch (err) {
+          parseFailures += 1;
+          ctx.log(`json_parse_failed url=${hit.url}`, {
+            error: err instanceof Error ? err.message : String(err),
+            rawHead: raw.slice(0, 200),
+          });
+          continue;
+        }
 
         for (const s of parsed.services ?? []) {
           await ctx.supabase.from('competitor_intel').upsert({
@@ -107,12 +125,41 @@ export const competitorScoutAgent: AgentDefinition = {
       });
     }
 
+    if (parseFailures > 0) {
+      ctx.log(`parse_failures_total=${parseFailures}`);
+    }
+
     return {
       summary: `Discovered ${discovered} new competitor page(s); extracted ${extracted} price entry(ies).`,
-      output: { discovered, extracted },
+      output: { discovered, extracted, parseFailures, backend },
     };
   },
 };
+
+/**
+ * Parse a JSON response that may be wrapped in markdown code fences or
+ * preceded by prose. Newer Claude models often respond with:
+ *
+ *   ```json
+ *   { ... }
+ *   ```
+ *
+ * which `JSON.parse` can't handle directly. This helper strips the fences
+ * and, as a fallback, extracts the first balanced object from the string.
+ */
+function parseJsonResponse(raw: string): unknown {
+  let cleaned = raw.trim();
+  // Strip ```json ... ``` or ``` ... ``` fences
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  }
+  // Fallback: extract first {...} if the response has leading prose
+  if (!cleaned.startsWith('{')) {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) cleaned = m[0];
+  }
+  return JSON.parse(cleaned);
+}
 
 // ---------------------------------------------------------------------
 // Search + fetch helpers
