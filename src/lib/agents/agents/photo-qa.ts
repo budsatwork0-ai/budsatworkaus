@@ -75,9 +75,9 @@ export const photoQaAgent: AgentDefinition = {
     }
 
     // Check for jobs with completed work but missing before/after pairs
-    const { data: incompleteJobs } = await ctx.supabase
-      .rpc('jobs_missing_photo_pairs', {})
-      .returns<Array<{ job_id: string; missing: string }>>();
+    type MissingPair = { job_id: string; missing: string };
+    const { data: rawIncomplete } = await ctx.supabase.rpc('jobs_missing_photo_pairs', {});
+    const incompleteJobs = rawIncomplete as MissingPair[] | null;
 
     for (const j of incompleteJobs ?? []) {
       await ctx.proposeAction({
