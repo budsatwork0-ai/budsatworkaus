@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Buds At Work — Agents Dashboard (Preview)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #fafafa; }
+  .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+</style>
+</head>
+<body class="text-zinc-900">
+
+<!-- Top bar -->
+<header class="border-b border-zinc-200 bg-white">
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-4">
+    <div class="font-semibold text-zinc-900">Buds At Work</div>
+    <nav class="text-sm text-zinc-500 flex gap-4 ml-4">
+      <span>Dashboard</span>
+      <span>Jobs</span>
+      <span>Customers</span>
+      <span>Crew</span>
+      <span class="text-zinc-900 font-medium border-b-2 border-emerald-500 pb-1">Agents</span>
+      <span>Settings</span>
+    </nav>
+    <div class="ml-auto text-sm text-zinc-600">Jackson · supermancapes56@gmail.com</div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-8">
+
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Agents</h1>
+      <p class="text-sm text-zinc-600 mt-1">Autonomous helpers running the back office of Buds At Work.</p>
+    </div>
+    <div class="flex gap-8 text-sm">
+      <div class="text-right">
+        <div class="text-xl font-semibold">8/8</div>
+        <div class="text-xs uppercase tracking-wide text-zinc-500">Active agents</div>
+      </div>
+      <div class="text-right">
+        <div class="text-xl font-semibold">147</div>
+        <div class="text-xs uppercase tracking-wide text-zinc-500">Runs (7d)</div>
+      </div>
+      <div class="text-right">
+        <div class="text-xl font-semibold">$4.82</div>
+        <div class="text-xs uppercase tracking-wide text-zinc-500">Cost (7d)</div>
+      </div>
+      <div class="text-right">
+        <div class="text-xl font-semibold text-amber-600">12</div>
+        <div class="text-xs uppercase tracking-wide text-zinc-500">Pending approvals</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity chart -->
+  <section class="rounded-xl border border-zinc-200 bg-white p-5 mb-8">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-medium text-zinc-700">Activity — last 14 days</h2>
+      <div class="flex gap-3 text-xs text-zinc-500">
+        <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>Succeeded</span>
+        <span><span class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1"></span>Needs approval</span>
+        <span><span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1"></span>Failed</span>
+      </div>
+    </div>
+    <canvas id="activity" height="80"></canvas>
+  </section>
+
+  <!-- Agent grid -->
+  <div id="agent-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+  <!-- Pending approvals -->
+  <section class="mt-10">
+    <h2 class="text-lg font-medium mb-3">Pending approvals</h2>
+    <div id="approval-queue" class="space-y-2"></div>
+  </section>
+
+  <!-- Recent runs -->
+  <section class="mt-10">
+    <h2 class="text-lg font-medium mb-3">Recent runs</h2>
+    <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <table class="w-full text-sm">
+        <thead class="bg-zinc-50 text-zinc-600">
+          <tr>
+            <th class="text-left text-xs font-medium uppercase tracking-wide px-3 py-2">Started</th>
+            <th class="text-left text-xs font-medium uppercase tracking-wide px-3 py-2">Agent</th>
+            <th class="text-left text-xs font-medium uppercase tracking-wide px-3 py-2">Trigger</th>
+            <th class="text-left text-xs font-medium uppercase tracking-wide px-3 py-2">Status</th>
+            <th class="text-left text-xs font-medium uppercase tracking-wide px-3 py-2">Summary</th>
+            <th class="text-right text-xs font-medium uppercase tracking-wide px-3 py-2">Cost</th>
+            <th class="text-right text-xs font-medium uppercase tracking-wide px-3 py-2">Duration</th>
+          </tr>
+        </thead>
+        <tbody id="runs-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="mt-12 mb-6 text-center text-xs text-zinc-400">
+    Preview mode · numbers are simulated · open <code>/dashboard/agents</code> in your app for the live version
+  </div>
+</main>
+
+<script>
+const AGENTS = [
+  { id:'quote-triage',       name:'Quote Triage',         cat:'sales',      desc:'Classifies incoming quotes & drafts replies. Auto-sends under $250.', autonomy:'review', schedule:'*/10 * * * *', runs:32, success:97, cost:1.12 },
+  { id:'customer-reply',     name:'Customer Reply',       cat:'support',    desc:'Drafts first-pass replies to contact-form messages.',                  autonomy:'review', schedule:'*/15 * * * *', runs:28, success:100, cost:0.84 },
+  { id:'scheduling',         name:'Job Scheduling',       cat:'ops',        desc:"Builds tomorrow's run sheet from confirmed jobs + weather.",           autonomy:'review', schedule:'0 16 * * *',   runs:7,  success:100, cost:0.41 },
+  { id:'applicant-screener', name:'Applicant Screener',   cat:'hiring',     desc:'First-pass screening on crew applicants. Drafts invites or declines.', autonomy:'review', schedule:'0 9 * * 1-5',  runs:5,  success:100, cost:0.18 },
+  { id:'ndis-compliance',    name:'NDIS Compliance',      cat:'compliance', desc:'Checks NDIS paperwork before invoicing. Flags missing docs.',          autonomy:'review', schedule:'0 8,16 * * *', runs:14, success:100, cost:0.02 },
+  { id:'reviews',            name:'Reviews & Reputation', cat:'support',    desc:'Post-job review requests + follow-ups. Flags negative feedback.',      autonomy:'review', schedule:'0 10 * * *',   runs:7,  success:100, cost:0.34 },
+  { id:'crew-briefing',      name:'Crew Today Briefing',  cat:'ops',        desc:"Sends each crew member's morning SMS run-sheet.",                      autonomy:'auto',   schedule:'0 6 * * *',    runs:7,  success:100, cost:0.00 },
+  { id:'reconciliation',     name:'Payment Reconciliation', cat:'finance',  desc:'Reconciles Stripe + PayPal vs orders. Flags overdue & mismatches.',    autonomy:'review', schedule:'0 7 * * *',    runs:7,  success:100, cost:0.91 },
+];
+
+const CAT_DOT = {
+  sales:'bg-emerald-500', support:'bg-sky-500', ops:'bg-violet-500',
+  hiring:'bg-amber-500', finance:'bg-rose-500', compliance:'bg-zinc-700'
+};
+const AUTONOMY_BADGE = { auto:'⚡ auto', review:'✋ review', manual:'👤 manual' };
+
+const grid = document.getElementById('agent-grid');
+AGENTS.forEach(a => {
+  grid.insertAdjacentHTML('beforeend', `
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 hover:shadow-sm transition-shadow flex flex-col">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-2 h-2 rounded-full ${CAT_DOT[a.cat]}"></span>
+        <span class="text-xs uppercase tracking-wide text-zinc-500">${a.cat}</span>
+        <span class="ml-auto text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ring-1 bg-emerald-50 text-emerald-700 ring-emerald-200">enabled</span>
+      </div>
+      <h3 class="text-base font-semibold text-zinc-900">${a.name}</h3>
+      <p class="text-sm text-zinc-600 mt-1 min-h-[2.5rem]">${a.desc}</p>
+      <div class="mt-3 flex items-center gap-3 text-xs text-zinc-500">
+        <span class="text-[11px]">${AUTONOMY_BADGE[a.autonomy]}</span>
+        <span class="font-mono">${a.schedule}</span>
+      </div>
+      <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+        <div class="rounded-md bg-zinc-50 px-2 py-1"><div class="text-zinc-900 font-medium">${a.runs}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wide">Runs 7d</div></div>
+        <div class="rounded-md bg-zinc-50 px-2 py-1"><div class="text-zinc-900 font-medium">${a.success}%</div><div class="text-[10px] text-zinc-500 uppercase tracking-wide">Success</div></div>
+        <div class="rounded-md bg-zinc-50 px-2 py-1"><div class="text-zinc-900 font-medium">$${a.cost.toFixed(2)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wide">Cost</div></div>
+      </div>
+      <div class="mt-4 flex items-center gap-2">
+        <button class="px-3 py-1.5 rounded-md bg-zinc-900 text-white text-sm hover:bg-zinc-800">Run now</button>
+        <a href="#" class="text-sm text-zinc-600 hover:text-zinc-900">History →</a>
+      </div>
+    </div>
+  `);
+});
+
+const APPROVALS = [
+  { agent:'Quote Triage',       type:'send_email',     preview:'Quote yard — Sarah M. in Springwood — AUD $185',          ago:'4 min ago' },
+  { agent:'Quote Triage',       type:'send_email',     preview:'Quote cleaning (NDIS) — David K. in Loganlea — AUD $420', ago:'11 min ago' },
+  { agent:'Customer Reply',     type:'send_email',     preview:'Reply to mel.harris@gmail.com — "do you do bond cleans?"',  ago:'18 min ago' },
+  { agent:'Scheduling',         type:'schedule_job',   preview:'Assign job #J-2241 → Jamie @ 08:30 (yard, Rochedale)',     ago:'1 hr ago'   },
+  { agent:'Applicant Screener', type:'send_email',     preview:'invite interview: Liam Patterson (score 82)',              ago:'2 hr ago'   },
+  { agent:'NDIS Compliance',    type:'flag_for_review',preview:'NDIS job #J-2198 missing: service_agreement, participant_plan', ago:'3 hr ago' },
+  { agent:'Reconciliation',     type:'flag_for_review',preview:'Overdue 11d — order #O-1042 ($612)',                       ago:'5 hr ago'   },
+];
+
+const q = document.getElementById('approval-queue');
+APPROVALS.forEach(a => {
+  q.insertAdjacentHTML('beforeend', `
+    <div class="rounded-lg border border-zinc-200 bg-white p-4 flex items-start gap-4">
+      <div class="flex-1">
+        <div class="flex items-center gap-2 text-xs text-zinc-500">
+          <span class="font-medium text-zinc-700">${a.agent}</span><span>·</span>
+          <span class="font-mono">${a.type}</span><span>·</span>
+          <span>${a.ago}</span>
+        </div>
+        <div class="mt-1 text-sm text-zinc-900">${a.preview}</div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <button class="px-3 py-1 rounded-md bg-emerald-600 text-white text-sm hover:bg-emerald-700">Approve</button>
+        <button class="px-3 py-1 rounded-md bg-zinc-100 text-zinc-700 text-sm hover:bg-zinc-200">Reject</button>
+      </div>
+    </div>
+  `);
+});
+
+const RUNS = [
+  { ago:'4 min ago',   agent:'Quote Triage',         trigger:'cron',   status:'needs_approval', summary:'Triaged 3 quote(s) — 1 auto-sent, 2 queued.',          cost:'$0.041', dur:'2.1s' },
+  { ago:'14 min ago',  agent:'Quote Triage',         trigger:'cron',   status:'succeeded',      summary:'Triaged 1 quote — auto-sent ($185 yard, Springwood).', cost:'$0.018', dur:'1.4s' },
+  { ago:'17 min ago',  agent:'Customer Reply',       trigger:'cron',   status:'needs_approval', summary:'Drafted 4 reply(ies).',                                cost:'$0.062', dur:'3.0s' },
+  { ago:'1 hr ago',    agent:'Scheduling',           trigger:'cron',   status:'needs_approval', summary:'Proposed 8 assignment(s). Unassigned: 1.',             cost:'$0.094', dur:'5.8s' },
+  { ago:'6 hr ago',    agent:'Crew Today Briefing',  trigger:'cron',   status:'succeeded',      summary:'Sent daily briefing to 5 crew member(s).',             cost:'$0.000', dur:'0.9s' },
+  { ago:'7 hr ago',    agent:'Reconciliation',       trigger:'cron',   status:'needs_approval', summary:'0 mismatch(es), 2 overdue order(s).',                  cost:'$0.131', dur:'1.7s' },
+  { ago:'Yesterday',   agent:'Reviews & Reputation', trigger:'cron',   status:'succeeded',      summary:'Queued 6 review email(s).',                            cost:'$0.049', dur:'2.4s' },
+];
+const STATUS_COLOR = {
+  succeeded:'text-emerald-700 bg-emerald-50',
+  needs_approval:'text-amber-700 bg-amber-50',
+  failed:'text-rose-700 bg-rose-50',
+  running:'text-sky-700 bg-sky-50',
+};
+const tbody = document.getElementById('runs-tbody');
+RUNS.forEach(r => {
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr class="border-t border-zinc-100">
+      <td class="px-3 py-2">${r.ago}</td>
+      <td class="px-3 py-2 font-medium">${r.agent}</td>
+      <td class="px-3 py-2 text-zinc-500">${r.trigger}</td>
+      <td class="px-3 py-2"><span class="inline-block px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[r.status]}">${r.status.replace('_',' ')}</span></td>
+      <td class="px-3 py-2 text-zinc-700 max-w-md truncate">${r.summary}</td>
+      <td class="px-3 py-2 text-right text-zinc-500">${r.cost}</td>
+      <td class="px-3 py-2 text-right text-zinc-500">${r.dur}</td>
+    </tr>
+  `);
+});
+
+// Chart
+const days = Array.from({length:14}, (_,i) => {
+  const d = new Date(Date.now() - (13-i)*24*3600_000);
+  return d.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+});
+const succeeded = [14,18,16,22,17,12,9,21,24,19,18,23,20,15];
+const needsApp =  [3, 4, 2, 5, 3, 1, 0, 4, 5, 3, 4, 6, 5, 4];
+const failed   =  [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1];
+
+new Chart(document.getElementById('activity'), {
+  type: 'bar',
+  data: {
+    labels: days,
+    datasets: [
+      { label:'Succeeded', data:succeeded, backgroundColor:'#10b981' },
+      { label:'Needs approval', data:needsApp, backgroundColor:'#f59e0b' },
+      { label:'Failed', data:failed, backgroundColor:'#f43f5e' },
+    ],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display:false } },
+    scales: {
+      x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:10 }, color:'#71717a' } },
+      y: { stacked:true, grid:{ color:'#f4f4f5' }, ticks:{ font:{ size:10 }, color:'#71717a' } },
+    },
+  },
+});
+</script>
+
+</body>
+</html>

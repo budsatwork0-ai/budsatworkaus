@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Buds At Work — Agent Lobby (Medieval Keep)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lora:wght@400;600&family=UnifrakturMaguntia&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg-outer:#0e0a06; --bg-inner:#1f160d;
+    --stone-dark:#1f1a16; --stone-mid:#3a3128; --stone-light:#5a4c40;
+    --wood-dark:#3a2616; --wood-mid:#6b3f1f; --wood-light:#8b6239;
+    --parchment:#ebd9ad; --parchment-edge:#b8a16d; --ink:#3a2a18;
+    --fire:#f59e0b; --ember:#b45309; --candle:#fde68a;
+    --gold:#d4a72c; --silver:#cbd5e1;
+    --banner-sales:#7a1a1a; --banner-support:#1a3b6b; --banner-ops:#3d2a6b;
+    --banner-finance:#2d5b2d; --banner-hiring:#6b4a1a; --banner-compliance:#3a3a3a;
+  }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background:
+      radial-gradient(ellipse at top, rgba(245,158,11,0.08), transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(180,83,9,0.10), transparent 70%),
+      linear-gradient(180deg, var(--bg-outer), var(--bg-inner));
+    color: var(--parchment);
+    min-height: 100vh;
+  }
+  .display-font { font-family: 'Cinzel', serif; letter-spacing: 0.08em; }
+  .blackletter { font-family: 'UnifrakturMaguntia', serif; }
+
+  /* Stone-tile floor pattern for the keep */
+  .floor-stone {
+    background-color: var(--stone-mid);
+    background-image:
+      linear-gradient(135deg, rgba(0,0,0,0.18) 0 25%, transparent 25% 50%, rgba(0,0,0,0.18) 50% 75%, transparent 75%),
+      linear-gradient(45deg, rgba(255,255,255,0.04) 0 25%, transparent 25% 50%, rgba(255,255,255,0.04) 50% 75%, transparent 75%);
+    background-size: 56px 56px;
+  }
+  /* Crenellation strip at the top of the floor */
+  .crenel {
+    background-image:
+      linear-gradient(90deg, var(--stone-dark) 0 24px, transparent 24px 48px),
+      linear-gradient(180deg, var(--stone-dark) 0 18px, transparent 18px);
+    background-size: 48px 18px, 48px 18px;
+    background-repeat: repeat-x, no-repeat;
+  }
+  /* Parchment cards / panels */
+  .parchment {
+    background: linear-gradient(180deg, #f3e5b8, #e6d099);
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.45), inset 0 0 24px rgba(120, 90, 40, 0.15);
+    position: relative;
+  }
+  .parchment::before, .parchment::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 8px;
+    background: radial-gradient(ellipse at top, transparent 0 50%, rgba(58,42,24,0.25) 100%);
+  }
+  .parchment::before { top: -1px; transform: scaleY(-1); }
+  .parchment::after  { bottom: -1px; }
+  /* Wooden plank panel */
+  .plank {
+    background:
+      repeating-linear-gradient(180deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 24px),
+      linear-gradient(180deg, var(--wood-mid), var(--wood-dark));
+    color: var(--parchment);
+    border: 1px solid #2a1810;
+    box-shadow: 0 6px 0 -2px rgba(0,0,0,0.55), 0 12px 24px rgba(0,0,0,0.5);
+  }
+  /* Banner that hangs from above */
+  .banner {
+    position: relative;
+    padding: 14px 12px 18px;
+    color: #fde6c2;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 88%, 0 100%);
+    box-shadow: inset 0 0 24px rgba(0,0,0,0.4), 0 6px 12px rgba(0,0,0,0.5);
+  }
+  .banner::before {
+    content: ''; position: absolute; top: -6px; left: 12%; right: 12%; height: 4px;
+    background: linear-gradient(180deg, var(--gold), #8b6916);
+    border-radius: 2px;
+  }
+  .banner.sales      { background: linear-gradient(180deg, var(--banner-sales), #4a0e0e); }
+  .banner.support    { background: linear-gradient(180deg, var(--banner-support), #0e2548); }
+  .banner.ops        { background: linear-gradient(180deg, var(--banner-ops), #221643); }
+  .banner.finance    { background: linear-gradient(180deg, var(--banner-finance), #1a3a1a); }
+  .banner.hiring     { background: linear-gradient(180deg, var(--banner-hiring), #432d0e); }
+  .banner.compliance { background: linear-gradient(180deg, var(--banner-compliance), #1f1f1f); }
+
+  /* Torch / candle flame */
+  .flame {
+    width: 14px; height: 22px;
+    background: radial-gradient(ellipse at center, var(--candle) 0%, var(--fire) 45%, var(--ember) 90%);
+    border-radius: 50% 50% 35% 35%;
+    filter: blur(0.3px) drop-shadow(0 0 8px rgba(245,158,11,0.7));
+    animation: flicker 1.6s ease-in-out infinite alternate;
+    transform-origin: bottom center;
+  }
+  @keyframes flicker {
+    0%   { transform: scale(1,1)   rotate(-2deg); opacity: .9; }
+    50%  { transform: scale(0.95,1.1) rotate(1deg); opacity: 1; }
+    100% { transform: scale(1.05,0.95) rotate(-1deg); opacity: .85; }
+  }
+
+  /* Crystal ball / scrying glass (the "monitor" replacement) */
+  .scry {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 30%, #ffffff 0%, transparent 14%),
+      radial-gradient(circle at 50% 60%, #5be4d6 0%, #2a8d8a 60%, #0e3a44 100%);
+    box-shadow: 0 0 0 2px #6b6055, 0 0 20px rgba(91,228,214,0.55), inset 0 -4px 6px rgba(0,0,0,0.35);
+    position: relative;
+  }
+  .scry.idle {
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,0.6) 0%, transparent 18%),
+      radial-gradient(circle at 50% 60%, #5a4c40 0%, #3a3128 100%);
+    box-shadow: 0 0 0 2px #3a3128, inset 0 -4px 6px rgba(0,0,0,0.5);
+  }
+  /* Pedestal under the crystal ball */
+  .pedestal {
+    width: 30px; height: 8px; margin: -2px auto 0;
+    background: linear-gradient(180deg, var(--wood-light), var(--wood-dark));
+    border-radius: 2px;
+  }
+
+  .pulse-mage { animation: pulseMage 1.8s ease-in-out infinite; }
+  @keyframes pulseMage {
+    0%,100% { transform: translateY(0) rotate(0deg); }
+    50%     { transform: translateY(-3px) rotate(0.5deg); }
+  }
+  .bubble {
+    background: linear-gradient(180deg, #f3e5b8, #e6d099);
+    color: var(--ink);
+    border: 1px solid var(--parchment-edge);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    animation: bubble-in .35s ease-out both;
+  }
+  .bubble::after {
+    content:''; position:absolute; left:14px; bottom:-6px; width:10px; height:10px;
+    background: #e6d099; transform: rotate(45deg);
+    border-right: 1px solid var(--parchment-edge); border-bottom: 1px solid var(--parchment-edge);
+  }
+  @keyframes bubble-in { from { opacity:0; transform: translateY(4px) scale(.96);} to { opacity:1; transform:none;} }
+
+  /* Sparkles for agent-to-agent handoffs (magic pulse along a path) */
+  .sparkline { stroke-dasharray: 4 6; animation: dash 0.9s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -10; } }
+
+  .ticker-row { animation: rowIn .35s ease-out both; }
+  @keyframes rowIn { from { opacity:0; transform: translateY(-4px);} to { opacity:1; transform:none;} }
+
+  /* Initial cap (illuminated manuscript) */
+  .initial-cap::first-letter {
+    font-family: 'UnifrakturMaguntia', serif;
+    font-size: 2.6em;
+    float: left;
+    color: #7a1a1a;
+    line-height: 0.85;
+    padding-right: 6px;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  }
+
+  /* Smoke layer for a touch of atmosphere */
+  .smoke {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 90%, rgba(245,158,11,0.10), transparent 40%),
+      radial-gradient(ellipse at 80% 90%, rgba(245,158,11,0.10), transparent 40%),
+      radial-gradient(ellipse at 50% 0%, rgba(0,0,0,0.5), transparent 50%);
+  }
+</style>
+</head>
+<body>
+
+<header class="border-b border-yellow-900/40 backdrop-blur-md bg-black/40 sticky top-0 z-30">
+  <div class="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-4">
+    <div class="display-font text-lg flex items-center gap-2">
+      <span style="color: var(--gold)">⚜</span>
+      <span class="text-white">Buds at Work</span>
+      <span class="text-yellow-700">·</span>
+      <span style="color: var(--candle)">Guild Hall</span>
+    </div>
+    <nav class="text-sm text-zinc-400 flex gap-4 ml-4 display-font">
+      <span>Keep</span><span>Agents</span>
+      <span class="text-yellow-300 border-b border-yellow-500/60 pb-1">Lobby</span>
+    </nav>
+    <div class="ml-auto flex items-center gap-4 text-xs text-zinc-400 display-font">
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400" style="box-shadow:0 0 8px #10b981"></span> Open · Simulated</span>
+      <span>Hour of <span id="clock">—</span> · Brisbane</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
+
+  <!-- LEFT: counsel & status -->
+  <aside class="col-span-12 lg:col-span-3 space-y-4">
+    <div class="parchment rounded-lg p-4">
+      <div class="display-font text-xs uppercase tracking-widest text-amber-900 mb-2">Roll of the Guilds</div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div><div class="text-stone-700 text-[10px] display-font uppercase">Online</div><div class="text-xl display-font" id="stat-online">31</div></div>
+        <div><div class="text-stone-700 text-[10px] display-font uppercase">At work</div><div class="text-xl display-font" id="stat-working">0</div></div>
+        <div><div class="text-stone-700 text-[10px] display-font uppercase">Awaiting Royal Seal</div><div class="text-xl display-font text-red-800" id="stat-pending">0</div></div>
+        <div><div class="text-stone-700 text-[10px] display-font uppercase">Coin / hour</div><div class="text-xl display-font" id="stat-spend">🪙 12</div></div>
+      </div>
+    </div>
+
+    <div class="parchment rounded-lg p-4 initial-cap">
+      <div class="display-font text-xs uppercase tracking-widest text-amber-900 mb-2">Hear ye</div>
+      A merchant's quote arrived from Springwood, the scrying mirrors are warm, and the gatekeeper's ledger shows the books are balanced. The guild prepares.
+    </div>
+
+    <div class="parchment rounded-lg p-4">
+      <div class="display-font text-xs uppercase tracking-widest text-amber-900 mb-2">Royal Decrees pending</div>
+      <ul id="insights" class="space-y-2 text-sm text-stone-800"></ul>
+    </div>
+  </aside>
+
+  <!-- CENTER: the keep -->
+  <section class="col-span-12 lg:col-span-6">
+    <div class="relative rounded-2xl overflow-hidden border border-yellow-900/40 shadow-2xl" style="aspect-ratio: 16/16;">
+      <!-- Floor + walls -->
+      <div class="absolute inset-0 floor-stone"></div>
+      <div class="absolute inset-x-0 top-0 h-5 crenel"></div>
+      <div class="smoke"></div>
+
+      <!-- Department banners -->
+      <svg viewBox="0 0 800 800" class="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        <!-- Subtle stone-room divisions -->
+        <rect x="20"  y="40"  width="380" height="290" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+        <rect x="420" y="40"  width="360" height="200" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+        <rect x="20"  y="360" width="380" height="240" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+        <rect x="420" y="260" width="170" height="340" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+        <rect x="610" y="260" width="170" height="340" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+        <rect x="20"  y="625" width="760" height="155" rx="10" fill="rgba(0,0,0,0.18)" stroke="rgba(212,167,44,0.20)" />
+
+        <g id="connectors"></g>
+      </svg>
+
+      <!-- Banners hanging from the top edge of each zone -->
+      <div class="absolute" style="left:5%; top:5%; width:18%;"><div class="banner sales display-font text-center text-xs">Merchants' Guild</div></div>
+      <div class="absolute" style="left:55%; top:5%; width:16%;"><div class="banner support display-font text-center text-xs">Town Crier</div></div>
+      <div class="absolute" style="left:5%; top:45%; width:18%;"><div class="banner ops display-font text-center text-xs">Captain's Quarters</div></div>
+      <div class="absolute" style="left:55%; top:33%; width:11%;"><div class="banner finance display-font text-center text-[10px]">Counting House</div></div>
+      <div class="absolute" style="left:78%; top:33%; width:11%;"><div class="banner hiring display-font text-center text-[10px]">Mercenary Hall</div></div>
+      <div class="absolute" style="left:5%; top:78%; width:16%;"><div class="banner compliance display-font text-center text-xs">Scribes' Tower</div></div>
+
+      <!-- Wall torches -->
+      <div class="absolute" style="left:1%; top:30%;"><div class="flame"></div></div>
+      <div class="absolute" style="right:1%; top:30%;"><div class="flame"></div></div>
+      <div class="absolute" style="left:1%; top:70%;"><div class="flame"></div></div>
+      <div class="absolute" style="right:1%; top:70%;"><div class="flame"></div></div>
+
+      <!-- Agent desks -->
+      <div id="lobby-floor" class="absolute inset-0"></div>
+
+      <!-- Floating bubbles -->
+      <div id="bubbles" class="absolute inset-0 pointer-events-none"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="mt-3 flex flex-wrap gap-3 text-xs text-yellow-200/70 display-font">
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-sales)"></span> Merchants</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-support)"></span> Crier</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-ops)"></span> Captain</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-finance)"></span> Counting</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-hiring)"></span> Mercenary</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--banner-compliance)"></span> Scribes</span>
+      <span class="ml-auto">⚡ at-will · 📜 by-decree · 👤 by-summons</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: town crier scroll -->
+  <aside class="col-span-12 lg:col-span-3">
+    <div class="parchment rounded-lg p-4 h-[700px] flex flex-col">
+      <div class="flex items-center justify-between mb-3">
+        <div class="display-font text-xs uppercase tracking-widest text-amber-900">Town Crier's Scroll</div>
+        <span class="text-[10px] text-red-800 display-font" style="animation: flicker 1.2s steps(2) infinite">● recording</span>
+      </div>
+      <div id="ticker" class="space-y-1.5 overflow-y-auto pr-1 text-sm text-stone-800"></div>
+    </div>
+  </aside>
+
+</main>
+
+<footer class="max-w-[1400px] mx-auto px-6 py-6 text-center text-xs text-yellow-200/40 display-font">
+  Preview · the keep awakens · open <code>/dashboard/agents/lobby</code> in your app for the live hall
+</footer>
+
+<script>
+const CAT = {
+  sales:      { bannerVar:'--banner-sales',      hex:'#7a1a1a' },
+  support:    { bannerVar:'--banner-support',    hex:'#1a3b6b' },
+  ops:        { bannerVar:'--banner-ops',        hex:'#3d2a6b' },
+  finance:    { bannerVar:'--banner-finance',    hex:'#2d5b2d' },
+  hiring:     { bannerVar:'--banner-hiring',     hex:'#6b4a1a' },
+  compliance: { bannerVar:'--banner-compliance', hex:'#3a3a3a' },
+};
+
+const AGENTS = [
+  // MERCHANTS' GUILD (sales/marketing)
+  { id:'quote-triage',         name:'Quote Herald',         cat:'sales',      autonomy:'review', x:60,  y:90,  emoji:'📜' },
+  { id:'copy-optimizer',       name:'Quill Master',         cat:'sales',      autonomy:'review', x:170, y:90,  emoji:'🪶' },
+  { id:'conversion-funnel',    name:'Funnel Sage',          cat:'sales',      autonomy:'review', x:280, y:90,  emoji:'⚱️' },
+  { id:'seo-meta',             name:'Scribe of Signs',      cat:'sales',      autonomy:'review', x:60,  y:170, emoji:'🔮' },
+  { id:'ab-test-architect',    name:'Trial Arbiter',        cat:'sales',      autonomy:'manual', x:170, y:170, emoji:'⚖️' },
+  { id:'lead-scorer',          name:'Lead Ranger',          cat:'sales',      autonomy:'auto',   x:280, y:170, emoji:'🏹' },
+  { id:'content-agent',        name:'Royal Chronicler',     cat:'sales',      autonomy:'review', x:60,  y:250, emoji:'✒️' },
+  { id:'lapsed-win-back',      name:'Candle-keeper',        cat:'sales',      autonomy:'review', x:170, y:250, emoji:'🕯️' },
+  { id:'competitor-watcher',   name:'Watcher of Rivals',    cat:'sales',      autonomy:'review', x:280, y:250, emoji:'🐦' },
+
+  // TOWN CRIER (support)
+  { id:'customer-reply',       name:'Town Crier',           cat:'support',    autonomy:'review', x:460, y:90,  emoji:'📯' },
+  { id:'reviews',              name:'Herald of Honour',     cat:'support',    autonomy:'review', x:570, y:90,  emoji:'🏆' },
+  { id:'phone-transcriber',    name:'Whisperwright',        cat:'support',    autonomy:'auto',   x:680, y:90,  emoji:'🌀' },
+  { id:'internal-qa',          name:'Court Wizard',         cat:'support',    autonomy:'manual', x:460, y:170, emoji:'🧙' },
+
+  // CAPTAIN'S QUARTERS (ops)
+  { id:'scheduling',           name:'Quartermaster',        cat:'ops',        autonomy:'review', x:60,  y:410, emoji:'🗺️' },
+  { id:'crew-briefing',        name:'Bugler',               cat:'ops',        autonomy:'auto',   x:170, y:410, emoji:'🐎' },
+  { id:'heatmap-analyst',      name:'Hearth-Reader',        cat:'ops',        autonomy:'review', x:280, y:410, emoji:'🔥' },
+  { id:'layout-critic',        name:'Stonemason',           cat:'ops',        autonomy:'review', x:60,  y:500, emoji:'📐' },
+  { id:'photo-qa',             name:'Portrait Master',      cat:'ops',        autonomy:'review', x:170, y:500, emoji:'🖼️' },
+  { id:'yard-map-geo',         name:'Falcon Scout',         cat:'ops',        autonomy:'auto',   x:280, y:500, emoji:'🦅' },
+
+  // COUNTING HOUSE (finance)
+  { id:'reconciliation',       name:'Treasurer',            cat:'finance',    autonomy:'review', x:460, y:310, emoji:'🪙' },
+  { id:'cash-flow-forecaster', name:'Oracle of Coin',       cat:'finance',    autonomy:'review', x:460, y:400, emoji:'💰' },
+  { id:'stripe-dispute-manager', name:'Shieldbearer',       cat:'finance',    autonomy:'review', x:460, y:490, emoji:'🛡️' },
+
+  // MERCENARY HALL (hiring)
+  { id:'applicant-screener',   name:'Sword Tester',         cat:'hiring',     autonomy:'review', x:650, y:310, emoji:'⚔️' },
+  { id:'crew-coach',           name:'Captain at Arms',      cat:'hiring',     autonomy:'review', x:650, y:400, emoji:'🐺' },
+
+  // SCRIBES' TOWER (compliance + design)
+  { id:'ndis-compliance',      name:'Royal Notary',         cat:'compliance', autonomy:'review', x:60,  y:680, emoji:'📋' },
+  { id:'ndis-plan-matcher',    name:'Pact Maker',           cat:'compliance', autonomy:'manual', x:170, y:680, emoji:'🤝' },
+  { id:'whs-safety-reminder',  name:'Steward of Safety',    cat:'compliance', autonomy:'auto',   x:280, y:680, emoji:'⚒️' },
+  { id:'admin-ux-designer',    name:'Court Architect',      cat:'ops',        autonomy:'review', x:390, y:680, emoji:'🪞' },
+  { id:'lobby-theme-curator',  name:'Banner Painter',       cat:'ops',        autonomy:'manual', x:500, y:680, emoji:'🎨' },
+  { id:'agent-architect',      name:'Master of Familiars',  cat:'ops',        autonomy:'review', x:610, y:680, emoji:'🦉' },
+  { id:'competitor-scout',     name:'Rover of the Realm',   cat:'sales',      autonomy:'review', x:720, y:680, emoji:'🐺' },
+];
+
+const TASKS = {
+  'quote-triage':       ['Reads a sealed parchment…','Estimating yard care · Springwood','Affixes seal to a 185 silver-coin quote'],
+  'copy-optimizer':     ['Dips quill in ink','Rewords the herald in plainer tongue','Tests three different rallying cries'],
+  'lead-scorer':        ['Sights the next traveller','Scores 87 · marked HOT','Sends a hawk to the Herald'],
+  'content-agent':      ['Drafting a proclamation','Choosing the boldest portrait','Composing a tale of Springwood'],
+  'competitor-watcher': ['Watching the rival merchant','Notes a half-price banner','Calls the council'],
+  'customer-reply':     ['Unrolls the inbound scroll','Drafts a warm reply','Marks for royal seal'],
+  'reviews':            ['Solicits a song of praise','Tracks a sour note for follow-up'],
+  'phone-transcriber':  ['Transcribes a herald horn','Extracts three duties','Marks frustrated tone'],
+  'scheduling':         ['Surveys the morning ride','Consults the sky-watcher (rain 20%)','Assigns 8 jobs to the company'],
+  'crew-briefing':      ['Calls Jamie at dawn','Five riders dispatched'],
+  'heatmap-analyst':    ['Reads the hearth-marks of /quote','Rage-clicks discovered','Logs two design decrees'],
+  'layout-critic':      ['Inspects the new wing on a small loom','Flags the hero stone misaligned'],
+  'photo-qa':           ['Inspects portraits from yesterday','Three deemed worthy of the great hall'],
+  'yard-map-geo':       ['Sends the falcon over 42 Brisbane Rd','280 sq paces · moderate'],
+  'reconciliation':     ['Tallies silver against the ledger','All balanced'],
+  'cash-flow-forecaster':['Casts the 8-week omen','Week 4 falls below the cellar floor'],
+  'stripe-dispute-manager':['Gathers the evidence chest','Drafts a defence'],
+  'applicant-screener': ['Three swordsmen tested today','One invited to spar'],
+  'crew-coach':         ['Reads 47 deeds','Pens praise for Jamie'],
+  'ndis-compliance':    ['Inspects sealed accords','Job 198 lacks two scrolls'],
+  'whs-safety-reminder':['Reads the muster roll','Reminds Jamie of WWCC renewal'],
+  'seo-meta':           ['Polishes the way-markers','Three signs need fresh paint'],
+  'conversion-funnel':  ['Pours the visit-jar','Spots a leak at quote-submitted'],
+  'admin-ux-designer':  ['Inspects the keep''s halls','Proposes a wider stairway at /dashboard/quotes'],
+  'lobby-theme-curator':['Idle — awaits the king''s decree'],
+  'agent-architect':    ['Reviews the familiars''  work','Pens a wiser spell for the Herald'],
+  'competitor-scout':   ['Saddles up to scout the realm','Returns with 12 prices from 4 rivals'],
+  'ab-test-architect':  ['Idle — awaits a trial'],
+  'lapsed-win-back':    ['Visits a quiet hearth','Drafts a warm letter'],
+  'internal-qa':        ['Idle — awaits a question'],
+  'ndis-plan-matcher':  ['Idle — awaits a plan'],
+};
+
+let workingSet = new Set();
+let pendingByAgent = Object.fromEntries(AGENTS.map(a => [a.id, 0]));
+
+const floor = document.getElementById('lobby-floor');
+function pctX(x) { return (x / 800) * 100 + '%'; }
+function pctY(y) { return (y / 800) * 100 + '%'; }
+
+AGENTS.forEach(a => {
+  const cat = CAT[a.cat];
+  const el = document.createElement('div');
+  el.dataset.agent = a.id;
+  el.className = 'absolute';
+  el.style.left = pctX(a.x);
+  el.style.top  = pctY(a.y);
+  el.style.width = '88px';
+  el.innerHTML = `
+    <div class="relative">
+      <div class="rounded-sm" style="background:linear-gradient(180deg,var(--wood-mid),var(--wood-dark)); height:11px; box-shadow: 0 6px 0 -2px rgba(0,0,0,0.55), 0 12px 18px rgba(0,0,0,0.55);"></div>
+      <div class="absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
+        <div data-scry class="scry idle"></div>
+        <div class="pedestal"></div>
+      </div>
+      <div class="absolute -top-[58px] -left-1 pulse-mage" data-avatar>
+        <div class="text-2xl select-none" style="filter: drop-shadow(0 1px 0 rgba(0,0,0,0.6))">${a.emoji}</div>
+      </div>
+      <div class="mt-1 flex items-center gap-1">
+        <span data-indicator class="w-1.5 h-1.5 rounded-full" style="background:${cat.hex}"></span>
+        <span class="text-[10px] leading-tight whitespace-nowrap overflow-hidden text-ellipsis display-font text-amber-100/90">${a.name}</span>
+      </div>
+      <div class="text-[9px] leading-none mt-0.5 text-yellow-200/60 display-font">${a.autonomy==='auto'?'⚡ at-will':a.autonomy==='manual'?'👤 summons':'📜 decree'} <span data-pending></span></div>
+    </div>
+  `;
+  floor.appendChild(el);
+});
+
+const deskByAgent = id => floor.querySelector(`[data-agent="${id}"]`);
+const scryOf = id => deskByAgent(id).querySelector('[data-scry]');
+const indicatorOf = id => deskByAgent(id).querySelector('[data-indicator]');
+const pendingOf = id => deskByAgent(id).querySelector('[data-pending]');
+
+function setWorking(id) {
+  workingSet.add(id);
+  const s = scryOf(id);
+  s.classList.remove('idle');
+  document.getElementById('stat-working').textContent = workingSet.size;
+}
+function setIdle(id) {
+  workingSet.delete(id);
+  scryOf(id).classList.add('idle');
+  document.getElementById('stat-working').textContent = workingSet.size;
+}
+function bumpPending(id, delta=1) {
+  pendingByAgent[id] = Math.max(0, pendingByAgent[id] + delta);
+  pendingOf(id).textContent = pendingByAgent[id] > 0 ? `· ${pendingByAgent[id]} sealed` : '';
+  document.getElementById('stat-pending').textContent =
+    Object.values(pendingByAgent).reduce((s,x)=>s+x, 0);
+}
+
+function speak(id, text) {
+  const desk = deskByAgent(id);
+  const r = desk.getBoundingClientRect();
+  const floorRect = floor.getBoundingClientRect();
+  const host = document.getElementById('bubbles');
+  const b = document.createElement('div');
+  b.className = 'absolute bubble rounded-md px-2 py-1 text-[11px] max-w-[180px] z-20';
+  b.style.left = (r.left - floorRect.left + 30) + 'px';
+  b.style.top  = (r.top  - floorRect.top  - 32) + 'px';
+  b.textContent = text;
+  host.appendChild(b);
+  setTimeout(() => { b.style.transition='opacity .4s'; b.style.opacity=0; }, 2600);
+  setTimeout(() => b.remove(), 3200);
+}
+
+function drawConnector(fromId, toId) {
+  const a = AGENTS.find(x => x.id===fromId), b = AGENTS.find(x => x.id===toId);
+  if (!a || !b) return;
+  const svg = document.getElementById('connectors');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','line');
+  path.setAttribute('x1', a.x + 30); path.setAttribute('y1', a.y + 10);
+  path.setAttribute('x2', b.x + 30); path.setAttribute('y2', b.y + 10);
+  path.setAttribute('stroke', '#d4a72c'); path.setAttribute('stroke-width','2');
+  path.setAttribute('opacity', '.8'); path.classList.add('sparkline');
+  path.setAttribute('filter', 'drop-shadow(0 0 4px rgba(212,167,44,0.7))');
+  svg.appendChild(path);
+  setTimeout(() => { path.style.transition='opacity .6s'; path.style.opacity='0'; }, 1800);
+  setTimeout(() => path.remove(), 2600);
+}
+
+const ticker = document.getElementById('ticker');
+function logEvent(agentId, type, text) {
+  const t = new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+  const a = AGENTS.find(x => x.id === agentId);
+  const row = document.createElement('div');
+  row.className = 'ticker-row border-l-2 pl-2 py-0.5';
+  row.style.borderColor = CAT[a?.cat ?? 'ops'].hex;
+  row.innerHTML = `
+    <div class="text-[10px] text-stone-600 display-font">⏳ ${t} · ${type}</div>
+    <div class="text-stone-800"><span class="display-font">${a?.name ?? agentId}</span> ${text}</div>
+  `;
+  ticker.prepend(row);
+  while (ticker.children.length > 40) ticker.lastChild.remove();
+}
+
+function pickHandoff(fromId) {
+  const H = {
+    'quote-triage':       ['scheduling','customer-reply','yard-map-geo'],
+    'customer-reply':     ['quote-triage'],
+    'heatmap-analyst':    ['copy-optimizer','layout-critic','ab-test-architect'],
+    'conversion-funnel':  ['ab-test-architect','copy-optimizer'],
+    'seo-meta':           ['copy-optimizer'],
+    'reviews':            ['customer-reply','photo-qa'],
+    'reconciliation':     ['customer-reply'],
+    'applicant-screener': ['customer-reply'],
+    'ndis-compliance':    ['reconciliation'],
+    'scheduling':         ['crew-briefing'],
+    'lead-scorer':        ['quote-triage','customer-reply'],
+    'yard-map-geo':       ['quote-triage'],
+    'photo-qa':           ['reviews','copy-optimizer','content-agent'],
+    'phone-transcriber':  ['customer-reply','quote-triage'],
+    'content-agent':      ['photo-qa'],
+    'lapsed-win-back':    ['customer-reply'],
+    'competitor-watcher': ['ab-test-architect'],
+    'competitor-scout':   ['competitor-watcher','ab-test-architect'],
+    'cash-flow-forecaster': ['reconciliation'],
+    'whs-safety-reminder':  ['crew-coach'],
+    'crew-coach':         ['applicant-screener'],
+    'admin-ux-designer':  ['layout-critic','copy-optimizer'],
+    'agent-architect':    ['admin-ux-designer'],
+    'lobby-theme-curator':[],
+  };
+  return H[fromId] ?? [];
+}
+
+function tick() {
+  if (Math.random() < 0.85) {
+    const a = AGENTS[Math.floor(Math.random() * AGENTS.length)];
+    if (a.autonomy === 'manual') return;
+    const tasks = TASKS[a.id] ?? ['…'];
+    const task = tasks[Math.floor(Math.random() * tasks.length)];
+    setWorking(a.id);
+    speak(a.id, task);
+    logEvent(a.id, 'begins', `· ${task}`);
+    const dur = 1800 + Math.random() * 3200;
+    setTimeout(() => {
+      setIdle(a.id);
+      const outcome = Math.random();
+      if (a.autonomy === 'auto' || outcome > 0.6) {
+        logEvent(a.id, 'completes', '· the deed is done');
+      } else {
+        bumpPending(a.id, 1);
+        logEvent(a.id, 'awaits seal', '· king must approve');
+      }
+      if (Math.random() < 0.35) {
+        const targets = pickHandoff(a.id);
+        if (targets.length) {
+          const t = targets[Math.floor(Math.random() * targets.length)];
+          drawConnector(a.id, t);
+          logEvent(a.id, 'sends hawk', `→ ${AGENTS.find(x=>x.id===t).name}`);
+        }
+      }
+    }, dur);
+  }
+}
+
+const INSIGHTS = [
+  { agent:'heatmap-analyst',   sev:'high',   text:'Rage clicks on /quote — the visitors curse the submit stone' },
+  { agent:'layout-critic',     sev:'medium', text:'Hero stone falls below the fold on a small loom' },
+  { agent:'copy-optimizer',    sev:'medium', text:'"Quote-first" reads cold — propose "Get your free quote"' },
+  { agent:'admin-ux-designer', sev:'medium', text:'Crew portal needs wider stairways (≥44px tap stones)' },
+  { agent:'competitor-scout',  sev:'high',   text:'A rival in Underwood now charges 18% less for windows' },
+];
+function renderInsights() {
+  const sevColor = { critical:'#7a1a1a', high:'#9a2a0e', medium:'#6b4a1a', low:'#3a2a18' };
+  document.getElementById('insights').innerHTML = INSIGHTS.map(i => `
+    <li class="border-l-2 pl-2" style="border-color:${sevColor[i.sev]}">
+      <div class="text-[10px] uppercase tracking-wide display-font" style="color:${sevColor[i.sev]}">${i.sev} · ${AGENTS.find(a=>a.id===i.agent).name}</div>
+      <div>${i.text}</div>
+    </li>
+  `).join('');
+}
+
+function tickClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', timeZone:'Australia/Brisbane' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+renderInsights();
+setInterval(tick, 700);
+
+setTimeout(() => { setWorking('quote-triage');   logEvent('quote-triage',  'begins','· '+TASKS['quote-triage'][0]); }, 200);
+setTimeout(() => { setWorking('heatmap-analyst');logEvent('heatmap-analyst','begins','· '+TASKS['heatmap-analyst'][0]); }, 450);
+setTimeout(() => { setWorking('competitor-scout'); logEvent('competitor-scout','begins','· '+TASKS['competitor-scout'][0]); }, 720);
+setTimeout(() => { setWorking('crew-briefing');  logEvent('crew-briefing', 'begins','· '+TASKS['crew-briefing'][0]); }, 950);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Lobby — Buds At Work</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg-grad-from:#0b1020; --bg-grad-to:#1a1f3d;
+    --grid:#1f2747; --wall:#293057;
+    --desk:#3a4378; --desk-edge:#252a52;
+    --screen:#0f1a3d; --screen-on:#2dd4bf;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         background: radial-gradient(ellipse at top, var(--bg-grad-from), var(--bg-grad-to)); color:#e5e7eb; min-height:100vh; }
+  .floor { background-image: linear-gradient(var(--grid) 1px, transparent 1px),
+                              linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+           background-size: 32px 32px; }
+  .desk-shadow { box-shadow: 0 12px 0 -4px rgba(0,0,0,0.35), 0 24px 32px -16px rgba(0,0,0,0.5); }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:.4; transform:scale(.9); } 50% { opacity:1; transform:scale(1.2); } }
+  .blink { animation: blink 0.8s steps(2) infinite; }
+  @keyframes blink { 0%,49% { opacity:1 } 50%,100% { opacity:0.3 } }
+  .bob { animation: bob 3s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  .float { animation: float 4.5s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+  .glow { box-shadow: 0 0 0 2px rgba(45,212,191,0.35), 0 0 24px rgba(45,212,191,0.45); }
+  .glow-amber { box-shadow: 0 0 0 2px rgba(245,158,11,0.4), 0 0 24px rgba(245,158,11,0.5); }
+  .glow-rose  { box-shadow: 0 0 0 2px rgba(244,63,94,0.4),  0 0 24px rgba(244,63,94,0.45); }
+  .glow-sky   { box-shadow: 0 0 0 2px rgba(56,189,248,0.4), 0 0 24px rgba(56,189,248,0.45); }
+  .bubble { animation: bubble-in .4s ease-out both; }
+  @keyframes bubble-in { from { opacity:0; transform: translateY(4px) scale(.95); } to { opacity:1; transform:none; } }
+  .connector { stroke-dasharray: 6 4; animation: dash 1s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -10; } }
+  .ticker-row { animation: rowIn .35s ease-out both; }
+  @keyframes rowIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform:none; } }
+  .scanline::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: repeating-linear-gradient( to bottom, rgba(255,255,255,.04) 0 1px, transparent 1px 3px);
+  }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="border-b border-white/5 backdrop-blur-md bg-black/20 sticky top-0 z-30">
+  <div class="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-4">
+    <div class="font-semibold tracking-wide">⏣ <span class="text-teal-300">Buds At Work</span> · Agent Lobby</div>
+    <nav class="text-sm text-zinc-400 flex gap-4 ml-4">
+      <span>Dashboard</span><span>Agents</span>
+      <span class="text-white font-medium border-b-2 border-teal-400 pb-1">Lobby</span>
+    </nav>
+    <div class="ml-auto flex items-center gap-4 text-xs text-zinc-400">
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse"></span> Live · simulated</span>
+      <span>Australia/Brisbane · <span id="clock"></span></span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
+
+  <!-- LEFT: command-center stats -->
+  <aside class="col-span-12 lg:col-span-3 space-y-4">
+    <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+      <div class="text-xs uppercase tracking-widest text-zinc-400">Team status</div>
+      <div class="mt-2 grid grid-cols-2 gap-3 text-sm">
+        <Stat label="Online" id="stat-online"   value="27" />
+        <Stat label="Working" id="stat-working" value="11" />
+        <Stat label="Pending" id="stat-pending" value="22" accent="amber" />
+        <Stat label="Spend / hr" id="stat-spend" value="$0.62" />
+      </div>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+      <div class="text-xs uppercase tracking-widest text-zinc-400 mb-2">Activity heartbeat</div>
+      <canvas id="spark" height="60"></canvas>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+      <div class="text-xs uppercase tracking-widest text-zinc-400 mb-2">Department roll-up</div>
+      <div id="dept-bars" class="space-y-2 text-xs"></div>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+      <div class="text-xs uppercase tracking-widest text-zinc-400 mb-2">Top design insights</div>
+      <ul id="insights" class="space-y-2 text-sm"></ul>
+    </div>
+  </aside>
+
+  <!-- CENTER: the lobby floor -->
+  <section class="col-span-12 lg:col-span-6">
+    <div class="rounded-2xl border border-white/10 bg-black/30 overflow-hidden relative scanline" style="aspect-ratio: 16/16;">
+      <div class="absolute inset-0 floor opacity-50"></div>
+
+      <!-- Office walls / departments backdrop -->
+      <svg viewBox="0 0 800 800" class="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        <!-- department zones (light tinted rectangles) -->
+        <defs>
+          <linearGradient id="grad-sales" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#10b981" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#10b981" stop-opacity=".04"/>
+          </linearGradient>
+          <linearGradient id="grad-support" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#38bdf8" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#38bdf8" stop-opacity=".04"/>
+          </linearGradient>
+          <linearGradient id="grad-ops" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#a78bfa" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#a78bfa" stop-opacity=".04"/>
+          </linearGradient>
+          <linearGradient id="grad-finance" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#f43f5e" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#f43f5e" stop-opacity=".04"/>
+          </linearGradient>
+          <linearGradient id="grad-hiring" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#f59e0b" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity=".04"/>
+          </linearGradient>
+          <linearGradient id="grad-compliance" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#94a3b8" stop-opacity=".18"/>
+            <stop offset="100%" stop-color="#94a3b8" stop-opacity=".04"/>
+          </linearGradient>
+        </defs>
+
+        <rect x="20"  y="40"  width="380" height="290" rx="14" fill="url(#grad-sales)"      stroke="rgba(16,185,129,.4)" />
+        <rect x="420" y="40"  width="360" height="200" rx="14" fill="url(#grad-support)"    stroke="rgba(56,189,248,.4)" />
+        <rect x="20"  y="360" width="380" height="240" rx="14" fill="url(#grad-ops)"        stroke="rgba(167,139,250,.4)" />
+        <rect x="420" y="260" width="170" height="340" rx="14" fill="url(#grad-finance)"    stroke="rgba(244,63,94,.4)" />
+        <rect x="610" y="260" width="170" height="340" rx="14" fill="url(#grad-hiring)"     stroke="rgba(245,158,11,.4)" />
+        <rect x="20"  y="625" width="760" height="155" rx="14" fill="url(#grad-compliance)" stroke="rgba(148,163,184,.4)" />
+
+        <text x="40"  y="62"  fill="#6ee7b7" font-size="11" letter-spacing="3" font-weight="600">SALES / MARKETING</text>
+        <text x="440" y="62"  fill="#7dd3fc" font-size="11" letter-spacing="3" font-weight="600">SUPPORT</text>
+        <text x="40"  y="382" fill="#c4b5fd" font-size="11" letter-spacing="3" font-weight="600">OPS</text>
+        <text x="440" y="282" fill="#fda4af" font-size="11" letter-spacing="3" font-weight="600">FINANCE</text>
+        <text x="630" y="282" fill="#fcd34d" font-size="11" letter-spacing="3" font-weight="600">HIRING</text>
+        <text x="40"  y="647" fill="#cbd5e1" font-size="11" letter-spacing="3" font-weight="600">COMPLIANCE / DESIGN</text>
+
+        <!-- live connectors drawn here -->
+        <g id="connectors"></g>
+      </svg>
+
+      <!-- Agent desks (absolute positioned) -->
+      <div id="lobby-floor" class="absolute inset-0"></div>
+
+      <!-- Floating bubbles -->
+      <div id="bubbles" class="absolute inset-0 pointer-events-none"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="mt-3 flex flex-wrap gap-3 text-xs text-zinc-400">
+      <Legend dot="bg-emerald-400" label="Sales" />
+      <Legend dot="bg-sky-400" label="Support" />
+      <Legend dot="bg-violet-400" label="Ops" />
+      <Legend dot="bg-rose-400" label="Finance" />
+      <Legend dot="bg-amber-400" label="Hiring" />
+      <Legend dot="bg-slate-300" label="Compliance" />
+      <span class="ml-auto">⚡ auto · ✋ review · 👤 manual</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: live event ticker -->
+  <aside class="col-span-12 lg:col-span-3">
+    <div class="rounded-xl bg-white/5 border border-white/10 p-4 h-[640px] flex flex-col">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-xs uppercase tracking-widest text-zinc-400">Live event feed</div>
+        <span class="text-[10px] text-zinc-500 blink">● REC</span>
+      </div>
+      <div id="ticker" class="space-y-1.5 overflow-y-auto pr-1 scrollbar-thin text-sm"></div>
+    </div>
+  </aside>
+
+</main>
+
+<footer class="max-w-[1400px] mx-auto px-6 py-6 text-center text-xs text-zinc-500">
+  Preview mode · This is what your team will look like running live. Open
+  <code>/dashboard/agents/lobby</code> in your app for the real-time version.
+</footer>
+
+<template id="stat-tpl">
+  <div>
+    <div class="text-zinc-400 text-[10px] uppercase tracking-wide" data-label></div>
+    <div class="text-lg font-semibold" data-value></div>
+  </div>
+</template>
+
+<script>
+// -------------------- Data --------------------
+const CAT = {
+  sales:      { color:'emerald', dot:'bg-emerald-400', glow:'glow',       hex:'#10b981' },
+  support:    { color:'sky',     dot:'bg-sky-400',     glow:'glow-sky',   hex:'#38bdf8' },
+  ops:        { color:'violet',  dot:'bg-violet-400',  glow:'glow',       hex:'#a78bfa' },
+  hiring:     { color:'amber',   dot:'bg-amber-400',   glow:'glow-amber', hex:'#f59e0b' },
+  finance:    { color:'rose',    dot:'bg-rose-400',    glow:'glow-rose',  hex:'#f43f5e' },
+  compliance: { color:'slate',   dot:'bg-slate-300',   glow:'',           hex:'#94a3b8' },
+};
+
+// Desk positions on the 800x800 SVG floor — each agent has a "room"
+const AGENTS = [
+  // SALES / MARKETING (top-left, 3 rows)
+  { id:'quote-triage',         name:'Quote Triage',          cat:'sales',      autonomy:'review', x:60,  y:90,  emoji:'📥' },
+  { id:'copy-optimizer',       name:'Copy Optimizer',        cat:'sales',      autonomy:'review', x:170, y:90,  emoji:'✍️' },
+  { id:'conversion-funnel',    name:'Funnel Watcher',        cat:'sales',      autonomy:'review', x:280, y:90,  emoji:'🪜' },
+  { id:'seo-meta',             name:'SEO & Meta',            cat:'sales',      autonomy:'review', x:60,  y:170, emoji:'🔎' },
+  { id:'ab-test-architect',    name:'A/B Test Architect',    cat:'sales',      autonomy:'manual', x:170, y:170, emoji:'⚖️' },
+  { id:'lead-scorer',          name:'Lead Scorer',           cat:'sales',      autonomy:'auto',   x:280, y:170, emoji:'🎯' },
+  { id:'content-agent',        name:'Content Agent',         cat:'sales',      autonomy:'review', x:60,  y:250, emoji:'📝' },
+  { id:'lapsed-win-back',      name:'Lapsed Win-back',       cat:'sales',      autonomy:'review', x:170, y:250, emoji:'🔄' },
+  { id:'competitor-watcher',   name:'Competitor Watcher',    cat:'sales',      autonomy:'review', x:280, y:250, emoji:'🕵️' },
+
+  // SUPPORT (top-right, 2 rows)
+  { id:'customer-reply',       name:'Customer Reply',        cat:'support',    autonomy:'review', x:460, y:90,  emoji:'💬' },
+  { id:'reviews',              name:'Reviews & Rep.',        cat:'support',    autonomy:'review', x:570, y:90,  emoji:'⭐' },
+  { id:'phone-transcriber',    name:'Phone Transcriber',     cat:'support',    autonomy:'auto',   x:680, y:90,  emoji:'📞' },
+  { id:'internal-qa',          name:'Internal Q&A',          cat:'support',    autonomy:'manual', x:460, y:170, emoji:'🧠' },
+
+  // OPS (mid-left, 2 rows)
+  { id:'scheduling',           name:'Job Scheduling',        cat:'ops',        autonomy:'review', x:60,  y:410, emoji:'🗓️' },
+  { id:'crew-briefing',        name:'Crew Briefing',         cat:'ops',        autonomy:'auto',   x:170, y:410, emoji:'📣' },
+  { id:'heatmap-analyst',      name:'Heatmap Analyst',       cat:'ops',        autonomy:'review', x:280, y:410, emoji:'🔥' },
+  { id:'layout-critic',        name:'Layout Critic',         cat:'ops',        autonomy:'review', x:60,  y:500, emoji:'📐' },
+  { id:'photo-qa',             name:'Photo QA',              cat:'ops',        autonomy:'review', x:170, y:500, emoji:'📷' },
+  { id:'yard-map-geo',         name:'Yard Map / Geo',        cat:'ops',        autonomy:'auto',   x:280, y:500, emoji:'🛰️' },
+
+  // FINANCE (3 rows, vertical)
+  { id:'reconciliation',       name:'Reconciliation',        cat:'finance',    autonomy:'review', x:460, y:310, emoji:'💰' },
+  { id:'cash-flow-forecaster', name:'Cash Flow Forecast',    cat:'finance',    autonomy:'review', x:460, y:400, emoji:'💵' },
+  { id:'stripe-dispute-manager', name:'Stripe Disputes',     cat:'finance',    autonomy:'review', x:460, y:490, emoji:'🛡️' },
+
+  // HIRING (2 rows)
+  { id:'applicant-screener',   name:'Applicant Screener',    cat:'hiring',     autonomy:'review', x:650, y:310, emoji:'🧑‍💼' },
+  { id:'crew-coach',           name:'Crew Coach',            cat:'hiring',     autonomy:'review', x:650, y:400, emoji:'📈' },
+
+  // COMPLIANCE / DESIGN (bottom strip)
+  { id:'ndis-compliance',      name:'NDIS Compliance',       cat:'compliance', autonomy:'review', x:60,  y:680, emoji:'📋' },
+  { id:'ndis-plan-matcher',    name:'NDIS Plan Matcher',     cat:'compliance', autonomy:'manual', x:170, y:680, emoji:'🤝' },
+  { id:'whs-safety-reminder',  name:'WHS Safety',            cat:'compliance', autonomy:'auto',   x:280, y:680, emoji:'🦺' },
+];
+
+const TASKS = {
+  'quote-triage':       ['Reading new quotes…','Estimating yard care · Springwood','Auto-sending $185 quote','Drafting NDIS quote for review'],
+  'copy-optimizer':     ['Auditing /services/yard-care…','Drafting CTA variants','Comparing voice consistency','Suggesting H1 rewrites'],
+  'conversion-funnel':  ['Pulling 14d funnel…','Computing step-over-step drop','Diagnosing quote_submitted leak'],
+  'seo-meta':           ['Crawling sitemap…','Checking LocalBusiness JSON-LD','Scoring meta descriptions'],
+  'ab-test-architect':  ['Idle — needs manual trigger'],
+  'lead-scorer':        ['Scoring inbound leads…','Tagging hot lead · Springwood NDIS','Lead 87/100 — flagged for Triage'],
+  'customer-reply':     ['Reading inbox…','Drafting reply to mel.harris@gmail.com','Drafting bond-clean enquiry reply'],
+  'reviews':            ['Queuing post-job review emails','Drafting follow-ups (3d cohort)','Flagging 2-star NPS for review'],
+  'phone-transcriber':  ['Transcribing voicemail · 47s','Extracting action items','Flagging frustrated caller for follow-up'],
+  'content-agent':      ['Drafting IG post · Springwood yard','Writing local blog · "Wet-season gutters"','Picking 3 marketing-ready photos'],
+  'lapsed-win-back':    ['Finding 90d-lapsed customers','Drafting win-back · "yard top-up?"','Segmenting by last service'],
+  'competitor-watcher': ['Fetching competitor pricing','Diffing snapshot · price up 8%','Flagging promo: "first clean half-price"'],
+  'cash-flow-forecaster':['Pulling 8-week receivables','Modelling payroll + dump fees','Flagging week 4 — below $2k floor'],
+  'stripe-dispute-manager':['Assembling evidence for dispute #dp_8821','Pulling job photos + signed quote','Drafting product_description'],
+  'whs-safety-reminder':['Scanning expiries · next 30d','Sending WWCC reminder · Jamie','Flagging lapsed first-aid'],
+  'internal-qa':        ['Idle — manual question only'],
+  'crew-coach':         ['Reading 47 completed jobs','Drafting coaching note · Jamie','Highlighting top photo QA scores'],
+  'ndis-plan-matcher':  ['Idle — manual trigger from plan upload'],
+  'scheduling':         ['Loading tomorrow\'s jobs…','Checking BOM rain forecast','Proposing 8 assignments'],
+  'crew-briefing':      ['Composing SMS for Jamie','Sending to 5 crew · ⚡ auto'],
+  'heatmap-analyst':    ['Reading Lucky Orange · /quote','Analyzing rage clicks on submit','Logging 2 design insights'],
+  'layout-critic':      ['Auditing /pricing on iPhone SE','Checking contrast on hero','Flagging tap-target size'],
+  'photo-qa':           ['Reviewing 6 photos · job #J-2241','Flagging missing "after" shot','Tagging 3 as marketing-ready'],
+  'yard-map-geo':       ['Fetching satellite · 42 Brisbane Rd','Estimating lawn 280m² · moderate','Feeding result to Quote Triage'],
+  'reconciliation':     ['Diffing Stripe ↔ orders','Found 0 mismatches','Flagging 2 overdue invoices'],
+  'applicant-screener': ['Reading 3 new applicants…','Screening Liam P. (Loganlea)','Drafting invite to interview'],
+  'ndis-compliance':    ['Scanning completed NDIS jobs','Flagging job #J-2198 missing docs'],
+};
+
+// State
+let workingSet = new Set();
+let pendingByAgent = Object.fromEntries(AGENTS.map(a => [a.id, 0]));
+
+// -------------------- Render desks --------------------
+const floor = document.getElementById('lobby-floor');
+function pctX(x) { return (x / 800) * 100 + '%'; }
+function pctY(y) { return (y / 800) * 100 + '%'; }
+
+AGENTS.forEach(a => {
+  const cat = CAT[a.cat];
+  const el = document.createElement('div');
+  el.dataset.agent = a.id;
+  el.className = 'absolute';
+  el.style.left = pctX(a.x);
+  el.style.top  = pctY(a.y);
+  el.style.width = '92px';
+  el.innerHTML = `
+    <!-- desk -->
+    <div class="relative">
+      <div class="rounded-md desk-shadow"
+           style="background:linear-gradient(180deg,#3a4378,#2a3060); height:14px;"></div>
+      <!-- monitor -->
+      <div class="absolute -top-9 left-1/2 -translate-x-1/2">
+        <div class="w-12 h-9 rounded-sm border-2 border-zinc-700 bg-[#0f1a3d] overflow-hidden relative">
+          <div data-screen class="absolute inset-0 flex items-center justify-center text-[8px] text-teal-300 font-mono px-1 text-center leading-tight">··</div>
+        </div>
+        <div class="w-6 h-1 bg-zinc-700 mx-auto"></div>
+        <div class="w-10 h-1 bg-zinc-700 mx-auto rounded"></div>
+      </div>
+      <!-- avatar -->
+      <div class="absolute -top-[58px] -left-1 bob" data-avatar>
+        <div class="text-2xl select-none">${a.emoji}</div>
+      </div>
+      <!-- nameplate + indicator -->
+      <div class="mt-1 flex items-center gap-1">
+        <span data-indicator class="w-2 h-2 rounded-full ${cat.dot}"></span>
+        <span class="text-[10px] text-zinc-300 leading-tight whitespace-nowrap overflow-hidden text-ellipsis">${a.name}</span>
+      </div>
+      <div class="text-[9px] text-zinc-500 leading-none mt-0.5">${a.autonomy === 'auto' ? '⚡' : a.autonomy === 'manual' ? '👤' : '✋'} <span data-pending></span></div>
+    </div>
+  `;
+  floor.appendChild(el);
+});
+
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const deskByAgent = id => floor.querySelector(`[data-agent="${id}"]`);
+const screenOf = id => deskByAgent(id).querySelector('[data-screen]');
+const indicatorOf = id => deskByAgent(id).querySelector('[data-indicator]');
+const pendingOf = id => deskByAgent(id).querySelector('[data-pending]');
+const monitorBoxOf = id => deskByAgent(id).querySelector('[data-screen]').parentElement;
+
+// -------------------- Live behavior --------------------
+function setWorking(id, task) {
+  workingSet.add(id);
+  screenOf(id).textContent = (task ?? '··').slice(0,28);
+  indicatorOf(id).classList.add('pulse');
+  monitorBoxOf(id).classList.remove('glow','glow-sky','glow-amber','glow-rose');
+  monitorBoxOf(id).classList.add(CAT[AGENTS.find(a=>a.id===id).cat].glow || 'glow');
+  document.getElementById('stat-working').textContent = workingSet.size;
+}
+function setIdle(id) {
+  workingSet.delete(id);
+  screenOf(id).textContent = '··';
+  indicatorOf(id).classList.remove('pulse');
+  monitorBoxOf(id).classList.remove('glow','glow-sky','glow-amber','glow-rose');
+  document.getElementById('stat-working').textContent = workingSet.size;
+}
+
+function bumpPending(id, delta=1) {
+  pendingByAgent[id] = Math.max(0, pendingByAgent[id] + delta);
+  pendingOf(id).textContent = pendingByAgent[id] > 0 ? `· ${pendingByAgent[id]} queued` : '';
+  document.getElementById('stat-pending').textContent =
+    Object.values(pendingByAgent).reduce((s,x)=>s+x, 0);
+}
+
+// Speech bubble pop-up
+function speak(id, text) {
+  const desk = deskByAgent(id);
+  const r = desk.getBoundingClientRect();
+  const floorRect = floor.getBoundingClientRect();
+  const bubbleHost = document.getElementById('bubbles');
+  const b = document.createElement('div');
+  b.className = 'absolute bubble bg-white/95 text-zinc-900 text-[11px] rounded-lg px-2 py-1 shadow-lg max-w-[180px] z-20';
+  b.style.left = (r.left - floorRect.left + 36) + 'px';
+  b.style.top  = (r.top  - floorRect.top  - 28) + 'px';
+  b.textContent = text;
+  bubbleHost.appendChild(b);
+  setTimeout(() => { b.style.transition='opacity .4s'; b.style.opacity=0; }, 2400);
+  setTimeout(() => b.remove(), 3000);
+}
+
+// Connector arrows between agents (data flow)
+function drawConnector(fromId, toId) {
+  const a = AGENTS.find(x => x.id===fromId), b = AGENTS.find(x => x.id===toId);
+  if (!a || !b) return;
+  const svg = document.getElementById('connectors');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','line');
+  path.setAttribute('x1', a.x + 30); path.setAttribute('y1', a.y + 10);
+  path.setAttribute('x2', b.x + 30); path.setAttribute('y2', b.y + 10);
+  path.setAttribute('stroke', CAT[a.cat].hex); path.setAttribute('stroke-width', '2');
+  path.setAttribute('opacity', '.6'); path.classList.add('connector');
+  svg.appendChild(path);
+  setTimeout(() => { path.style.transition='opacity .6s'; path.style.opacity='0'; }, 1800);
+  setTimeout(() => path.remove(), 2600);
+}
+
+// Event ticker
+const ticker = document.getElementById('ticker');
+function logEvent(agentId, type, text, color='zinc') {
+  const t = new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const colorMap = { zinc:'text-zinc-300', emerald:'text-emerald-300', sky:'text-sky-300', violet:'text-violet-300', rose:'text-rose-300', amber:'text-amber-300' };
+  const name = AGENTS.find(a => a.id===agentId)?.name ?? agentId;
+  const row = document.createElement('div');
+  row.className = 'ticker-row border-l-2 pl-2 py-0.5 border-' + (CAT[AGENTS.find(a=>a.id===agentId)?.cat]?.color ?? 'zinc') + '-400/40';
+  row.innerHTML = `
+    <div class="text-[10px] text-zinc-500">${t} · <span class="${colorMap[color] || 'text-zinc-300'}">${type}</span></div>
+    <div class="text-zinc-200"><span class="font-medium">${name}</span> ${text}</div>
+  `;
+  ticker.prepend(row);
+  while (ticker.children.length > 40) ticker.lastChild.remove();
+}
+
+// -------------------- Sim loop --------------------
+function tick() {
+  // Start work on a random agent
+  if (Math.random() < 0.85) {
+    const a = AGENTS[Math.floor(Math.random() * AGENTS.length)];
+    if (a.autonomy === 'manual') return;
+    const tasks = TASKS[a.id] ?? ['…'];
+    const task = tasks[Math.floor(Math.random() * tasks.length)];
+    setWorking(a.id, task);
+    speak(a.id, task);
+    logEvent(a.id, 'started', `· ${task}`, 'emerald');
+
+    // Finish after a delay
+    const dur = 1800 + Math.random() * 3200;
+    setTimeout(() => {
+      setIdle(a.id);
+      const outcome = Math.random();
+      if (a.autonomy === 'auto' || outcome > 0.6) {
+        logEvent(a.id, 'executed', '· action executed', 'sky');
+      } else {
+        bumpPending(a.id, 1);
+        logEvent(a.id, 'queued', '· awaiting your approval', 'amber');
+      }
+      // Sometimes hand off to another agent
+      if (Math.random() < 0.35) {
+        const targets = pickHandoff(a.id);
+        if (targets.length) {
+          const t = targets[Math.floor(Math.random() * targets.length)];
+          drawConnector(a.id, t);
+          logEvent(a.id, 'handoff', `→ ${AGENTS.find(x=>x.id===t).name}`, 'violet');
+        }
+      }
+    }, dur);
+  }
+}
+
+function pickHandoff(fromId) {
+  const HANDOFFS = {
+    'quote-triage':       ['scheduling','customer-reply','yard-map-geo'],
+    'customer-reply':     ['quote-triage'],
+    'heatmap-analyst':    ['copy-optimizer','layout-critic','ab-test-architect'],
+    'conversion-funnel':  ['ab-test-architect','copy-optimizer'],
+    'layout-critic':      ['ab-test-architect'],
+    'seo-meta':           ['copy-optimizer'],
+    'reviews':            ['customer-reply','photo-qa'],
+    'reconciliation':     ['customer-reply'],
+    'applicant-screener': ['customer-reply'],
+    'ndis-compliance':    ['reconciliation'],
+    'scheduling':         ['crew-briefing'],
+    'lead-scorer':        ['quote-triage','customer-reply'],
+    'yard-map-geo':       ['quote-triage'],
+    'photo-qa':           ['reviews','copy-optimizer'],
+    'phone-transcriber':  ['customer-reply','quote-triage'],
+    'content-agent':      ['photo-qa'],
+    'lapsed-win-back':    ['customer-reply'],
+    'competitor-watcher': ['ab-test-architect','copy-optimizer'],
+    'cash-flow-forecaster': ['reconciliation'],
+    'stripe-dispute-manager': ['customer-reply','photo-qa'],
+    'whs-safety-reminder':  ['crew-coach'],
+    'crew-coach':         ['applicant-screener'],
+    'ndis-plan-matcher':  ['quote-triage','ndis-compliance'],
+    'internal-qa':        [],
+  };
+  return HANDOFFS[fromId] ?? [];
+}
+
+// Department roll-up
+const deptBars = document.getElementById('dept-bars');
+function renderDept() {
+  const counts = {};
+  AGENTS.forEach(a => { counts[a.cat] = (counts[a.cat]||0) + (workingSet.has(a.id) ? 1 : 0); });
+  const max = Math.max(1, ...Object.values(counts));
+  deptBars.innerHTML = Object.entries(counts).map(([k,v]) => `
+    <div>
+      <div class="flex justify-between"><span class="text-zinc-300 capitalize">${k}</span><span class="text-zinc-500">${v}</span></div>
+      <div class="h-1.5 bg-white/5 rounded overflow-hidden mt-0.5">
+        <div class="h-full" style="width:${(v/max)*100}%; background:${CAT[k].hex};"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Sparkline
+const spark = document.getElementById('spark').getContext('2d');
+const sparkData = Array(40).fill(0);
+function drawSpark() {
+  const c = document.getElementById('spark');
+  const w = c.width = c.clientWidth; const h = c.height = 60;
+  spark.clearRect(0,0,w,h);
+  spark.strokeStyle = '#2dd4bf'; spark.lineWidth = 1.5;
+  spark.beginPath();
+  sparkData.forEach((v,i) => {
+    const x = (i / (sparkData.length-1)) * w;
+    const y = h - (v / 6) * h - 2;
+    if (i===0) spark.moveTo(x,y); else spark.lineTo(x,y);
+  });
+  spark.stroke();
+  spark.fillStyle = 'rgba(45,212,191,0.15)';
+  spark.lineTo(w, h); spark.lineTo(0, h); spark.closePath(); spark.fill();
+}
+
+// Top insights (cycle)
+const INSIGHTS = [
+  { agent:'heatmap-analyst', sev:'high',     text:'Rage clicks on /quote submit (18 sessions/wk)' },
+  { agent:'layout-critic',   sev:'medium',   text:'Hero CTA below the fold on iPhone SE' },
+  { agent:'copy-optimizer',  sev:'medium',   text:'"Quote-first" reads cold — try "Get your free quote"' },
+  { agent:'seo-meta',        sev:'high',     text:'/services/yard-care meta description is 19 chars' },
+  { agent:'conversion-funnel', sev:'high',   text:'48% drop quote_started → submitted' },
+];
+function renderInsights() {
+  const sevColor = { critical:'rose', high:'amber', medium:'sky', low:'zinc' };
+  document.getElementById('insights').innerHTML = INSIGHTS.map(i => `
+    <li class="border-l-2 border-${sevColor[i.sev]}-400/60 pl-2">
+      <div class="text-[10px] uppercase tracking-wide text-${sevColor[i.sev]}-300">${i.sev} · ${AGENTS.find(a=>a.id===i.agent).name}</div>
+      <div class="text-zinc-200">${i.text}</div>
+    </li>
+  `).join('');
+}
+
+// Stat helper
+function Stat() {} // tag placeholder removed by Tailwind; populated below
+window.addEventListener('DOMContentLoaded', () => {
+  const stats = [
+    { id:'stat-online',  label:'Online',     v:'27',     accent:null },
+    { id:'stat-working', label:'Working',    v:'0',      accent:null },
+    { id:'stat-pending', label:'Pending',    v:'22',     accent:'amber' },
+    { id:'stat-spend',   label:'Spend / hr', v:'$0.62',  accent:null },
+  ];
+  // Build stat blocks if not present
+  const container = document.querySelector('[id="stat-online"]')?.parentElement;
+  if (container && !container.firstElementChild?.dataset?.built) {
+    container.innerHTML = stats.map(s => `
+      <div data-built="1">
+        <div class="text-zinc-400 text-[10px] uppercase tracking-wide">${s.label}</div>
+        <div id="${s.id}" class="text-lg font-semibold ${s.accent ? `text-${s.accent}-300` : ''}">${s.v}</div>
+      </div>
+    `).join('');
+  }
+});
+
+// Clock
+function tickClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', timeZone:'Australia/Brisbane' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+// Init
+renderInsights(); renderDept();
+setInterval(() => {
+  sparkData.push(workingSet.size);
+  if (sparkData.length > 40) sparkData.shift();
+  drawSpark(); renderDept();
+}, 1500);
+setInterval(tick, 700);
+
+// Render Legend helper (Tailwind)
+function Legend() {}
+document.querySelectorAll('Legend, legend').forEach(el => {
+  const dot = el.getAttribute('dot') ?? '';
+  const label = el.getAttribute('label') ?? '';
+  const span = document.createElement('span');
+  span.className = 'flex items-center gap-1';
+  span.innerHTML = `<span class="w-2 h-2 rounded-full ${dot}"></span>${label}`;
+  el.replaceWith(span);
+});
+
+// Kick a few off immediately so it looks alive
+setTimeout(() => { setWorking('quote-triage',   TASKS['quote-triage'][0]);   logEvent('quote-triage',  'started','· '+TASKS['quote-triage'][0],'emerald'); }, 150);
+setTimeout(() => { setWorking('heatmap-analyst',TASKS['heatmap-analyst'][0]);logEvent('heatmap-analyst','started','· '+TASKS['heatmap-analyst'][0],'emerald'); }, 350);
+setTimeout(() => { setWorking('crew-briefing',  TASKS['crew-briefing'][0]);  logEvent('crew-briefing', 'started','· '+TASKS['crew-briefing'][0],'emerald'); }, 600);
+setTimeout(() => { setWorking('reconciliation', TASKS['reconciliation'][0]); logEvent('reconciliation','started','· '+TASKS['reconciliation'][0],'emerald'); }, 800);
+</script>
+
+</body>
+</html>

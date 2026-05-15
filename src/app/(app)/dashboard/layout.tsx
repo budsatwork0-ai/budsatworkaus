@@ -51,6 +51,8 @@ const crewIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" str
 const insightsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>;
 const settingsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
 const ndisIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /><line x1="19" y1="11" x2="23" y2="11" /></svg>;
+const agentsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="3" /><path d="M5 21a7 7 0 0114 0" /><circle cx="5" cy="6" r="2" /><circle cx="19" cy="6" r="2" /></svg>;
+const lobbyIcon  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /><circle cx="7" cy="15" r="1" /><circle cx="12" cy="15" r="1" /><circle cx="17" cy="15" r="1" /></svg>;
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -143,6 +145,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { kind: 'link', href: '/dashboard/invoices',  label: 'Money',     icon: moneyIcon,     badgeKey: 'invoices'  },
     { kind: 'link', href: '/dashboard/crew',      label: 'Crew',      icon: crewIcon,      badgeKey: 'applicants'},
     { kind: 'link', href: '/dashboard/insights',  label: 'Insights',  icon: insightsIcon,                        },
+    { kind: 'link', href: '/dashboard/agents',    label: 'Agents',    icon: agentsIcon,    adminOnly: true       },
+    { kind: 'link', href: '/dashboard/agents/lobby', label: 'Lobby',  icon: lobbyIcon,     adminOnly: true       },
+    { kind: 'link', href: '/dashboard/agents/intel', label: 'Intel',  icon: agentsIcon,    adminOnly: true       },
     { kind: 'link', href: '/dashboard/ndis',      label: 'NDIS',      icon: ndisIcon,      adminOnly: true       },
     { kind: 'link', href: '/dashboard/settings',  label: 'Settings',  icon: settingsIcon,  adminOnly: true       },
   ], []);
