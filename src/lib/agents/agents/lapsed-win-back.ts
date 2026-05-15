@@ -23,10 +23,12 @@ export const lapsedWinBackAgent: AgentDefinition = {
 
     // Customers whose most recent completed job is older than the cutoff,
     // and who we haven't already pinged in the last 60 days.
-    const { data: candidates } = await ctx.supabase.rpc('lapsed_customers', {
+    type LapsedRow = { customer_id: string; email: string; name: string; last_service: string; last_job_at: string };
+    const { data: raw_candidates } = await ctx.supabase.rpc('lapsed_customers', {
       cutoff_ts: cutoff,
       ping_cooldown_days: 60,
-    }).returns<Array<{ customer_id: string; email: string; name: string; last_service: string; last_job_at: string }>>();
+    });
+    const candidates = raw_candidates as LapsedRow[] | null;
 
     if (!candidates?.length) return { summary: 'No lapsed customers eligible for outreach.' };
 
