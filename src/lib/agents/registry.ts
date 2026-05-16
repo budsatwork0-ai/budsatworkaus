@@ -48,6 +48,9 @@ import { lobbyThemeCuratorAgent } from './agents/lobby-theme-curator';
 import { agentArchitectAgent } from './agents/agent-architect';
 import { competitorScoutAgent } from './agents/competitor-scout';
 
+// Batch 7 — pricing
+import { priceOptimizerAgent } from './agents/price-optimizer';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -80,6 +83,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [lobbyThemeCuratorAgent.id]: lobbyThemeCuratorAgent,
   [agentArchitectAgent.id]:    agentArchitectAgent,
   [competitorScoutAgent.id]:   competitorScoutAgent,
+  [priceOptimizerAgent.id]:    priceOptimizerAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

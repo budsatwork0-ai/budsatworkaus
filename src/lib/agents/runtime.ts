@@ -12,8 +12,16 @@ import { AGENT_REGISTRY } from './registry';
 import type {
   AgentContext,
   AgentDefinition,
+  AgentRunStatus,
   ProposedAction,
 } from './types';
+import {
+  GuardrailBlockedError,
+  PolicyRunner,
+  stableHash,
+  type LineageEntry,
+  type PolicyContext,
+} from './guardrails';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -121,11 +129,24 @@ export interface RunAgentArgs {
   trigger: 'cron' | 'manual' | 'webhook' | 'event';
   input?: Record<string, unknown>;
   triggeredBy?: string; // auth user id
+  /**
+   * What this run is meant to accomplish. Guardrails use this for
+   * drift + completion checks. If omitted, falls back to a generic
+   * "Run agent <id>" and the drift/completion policies degrade to warn.
+   */
+  intent?: string;
+  /**
+   * Lineage carried over from a parent run when invoked via
+   * `ctx.callAgent`. Top-level callers leave this undefined.
+   */
+  lineage?: LineageEntry[];
+  /** Cents already spent in the parent lineage. Internal use only. */
+  parentCumulativeCostCents?: number;
 }
 
 export interface RunAgentResult {
   runId: string;
-  status: 'succeeded' | 'failed' | 'needs_approval';
+  status: AgentRunStatus | 'succeeded' | 'failed' | 'needs_approval';
   summary: string;
 }
 
@@ -168,29 +189,100 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     .single();
 
   if (runErr || !run) throw new Error(`Failed to create run: ${runErr?.message}`);
+  const runId: string = run.id;
 
   let inputTokens = 0;
   let outputTokens = 0;
   let llmModel = DEFAULT_MODEL;
+  let runCostCents = 0;
+  let cumulativeCostCents = args.parentCumulativeCostCents ?? 0;
   let needsApproval = false;
   const logs: string[] = [];
 
+  // --- guardrail wiring ---
+  const agentConfig = (agentRow.config as Record<string, unknown>) ?? {};
+  const policiesCfg =
+    (agentConfig.policies as Record<string, unknown> | undefined) ?? {};
+  const disabledPolicies = Array.isArray(policiesCfg.disabled)
+    ? (policiesCfg.disabled as string[])
+    : [];
+
+  const intent =
+    args.intent?.trim() ||
+    `Run agent ${args.agentId} (trigger=${args.trigger})`;
+
+  // Build the lineage entry for this run. Parent (if any) is already
+  // included in args.lineage; we append ourselves so children we spawn
+  // see the full chain.
+  const parentLineage = args.lineage ?? [];
+  const selfLineageEntry: LineageEntry = {
+    runId,
+    agentId: args.agentId,
+    inputHash: stableHash({ agentId: args.agentId, input: args.input ?? {} }),
+    intent,
+    costCents: 0, // updated on each LLM call
+  };
+  const lineage: LineageEntry[] = [...parentLineage, selfLineageEntry];
+
+  function pctx(): PolicyContext {
+    // Keep the lineage entry's costCents in sync so policies reading the
+    // lineage see live per-level totals.
+    selfLineageEntry.costCents = runCostCents;
+    return {
+      agentId: args.agentId,
+      runId,
+      lineage,
+      intent,
+      cumulativeCostCents,
+      runCostCents,
+      supabase,
+      config: (policiesCfg.config as Record<string, unknown>) ?? policiesCfg,
+    };
+  }
+
+  const policies = new PolicyRunner({ disabled: disabledPolicies });
+  logs.push(
+    `[guardrails] active policies: ${policies.activeIds().join(', ') || '(none)'}`,
+  );
+
   const ctx: AgentContext = {
-    runId: run.id,
+    runId,
     agentId: args.agentId,
     trigger: args.trigger,
     input: args.input ?? {},
-    config: (agentRow.config as Record<string, unknown>) ?? {},
+    config: agentConfig,
+    intent,
+    depth: lineage.length,
     supabase,
 
     proposeAction: async (action: ProposedAction) => {
+      // Guardrails get the first look. A `block` with
+      // treatAsApprovalNeeded gets demoted to "force-review" rather than
+      // failing the run.
+      try {
+        const checked = await policies.preAction({ action }, pctx());
+        action = checked.action;
+      } catch (err) {
+        if (
+          err instanceof GuardrailBlockedError &&
+          err.treatAsApprovalNeeded
+        ) {
+          action = { ...action, requiresApproval: true };
+          logs.push(
+            `[guardrails:${err.policyId}] forced review on action ${action.action_type}: ${err.message}`,
+          );
+        } else {
+          throw err;
+        }
+      }
+
       const autoOk =
         agentRow.autonomy === 'auto' && action.requiresApproval !== true;
       const requires = !autoOk;
       if (requires) needsApproval = true;
 
       await supabase.from('agent_actions').insert({
-        run_id: run.id,
+        run_id: runId,
         agent_id: args.agentId,
         action_type: action.action_type,
         target_table: action.target_table ?? null,
@@ -203,11 +295,67 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     },
 
     llm: async (prompt, opts = {}) => {
-      llmModel = opts.model ?? DEFAULT_MODEL;
-      const out = await callModel(prompt, opts);
+      const pre = await policies.preLLM(
+        { prompt, system: opts.system, model: opts.model },
+        pctx(),
+      );
+      llmModel = pre.model ?? opts.model ?? DEFAULT_MODEL;
+      const out = await callModel(pre.prompt, {
+        model: llmModel,
+        system: pre.system,
+      });
       inputTokens += out.inputTokens;
       outputTokens += out.outputTokens;
+      const pricing = PRICING_PER_MTOK[llmModel] ?? { input: 0, output: 0 };
+      const callCostCents = Math.round(
+        ((out.inputTokens / 1_000_000) * pricing.input +
+          (out.outputTokens / 1_000_000) * pricing.output) *
+          100,
+      );
+      runCostCents += callCostCents;
+      cumulativeCostCents += callCostCents;
+      await policies.postLLM(
+        {
+          prompt: pre.prompt,
+          system: pre.system,
+          model: llmModel,
+          response: out.text,
+          inputTokens: out.inputTokens,
+          outputTokens: out.outputTokens,
+        },
+        pctx(),
+      );
       return out.text;
+    },
+
+    callAgent: async (childAgentId, childInput, childIntent) => {
+      // Guardrail check first — depth, loop, drift.
+      await policies.preAgentCall(
+        { childAgentId, childInput, childIntent },
+        pctx(),
+      );
+      const childResult = await runAgent({
+        agentId: childAgentId,
+        trigger: 'event',
+        input: childInput,
+        intent: childIntent,
+        triggeredBy: args.triggeredBy,
+        lineage,
+        parentCumulativeCostCents: cumulativeCostCents,
+      });
+      // The child's spend is already reflected because it inserts its
+      // own runs row; we approximate the lineage delta by re-reading the
+      // child's cost_cents. Cheaper than wiring a return value all the
+      // way through.
+      const { data: childRow } = await supabase
+        .from('agent_runs')
+        .select('cost_cents')
+        .eq('id', childResult.runId)
+        .single();
+      if (childRow?.cost_cents) {
+        cumulativeCostCents += childRow.cost_cents as number;
+      }
+      return childResult;
     },
 
     log: (msg, data) => {
@@ -238,6 +386,13 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         100,
     );
 
+    // Post-run guardrail: intent-completion (and anything else hooked
+    // into postAgentRun). Non-throwing — warnings land in logs.
+    await policies.postAgentRun(
+      { summary: result.summary, output: result.output ?? {} },
+      pctx(),
+    );
+
     const finalStatus = needsApproval ? 'needs_approval' : 'succeeded';
 
     await supabase
@@ -253,23 +408,29 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         finished_at: new Date().toISOString(),
         model: llmModel,
       })
-      .eq('id', run.id);
+      .eq('id', runId);
 
-    return { runId: run.id, status: finalStatus, summary: result.summary };
+    return { runId, status: finalStatus, summary: result.summary };
   } catch (err) {
     const durationMs = Date.now() - startedAt;
     const msg = err instanceof Error ? err.message : String(err);
+    const isGuardrail = err instanceof GuardrailBlockedError;
     await supabase
       .from('agent_runs')
       .update({
         status: 'failed',
         error: msg,
-        output: { logs },
+        output: {
+          logs,
+          ...(isGuardrail
+            ? { guardrail: { policy: err.policyId, hook: err.hook } }
+            : {}),
+        },
         duration_ms: durationMs,
         finished_at: new Date().toISOString(),
       })
-      .eq('id', run.id);
-    return { runId: run.id, status: 'failed', summary: msg };
+      .eq('id', runId);
+    return { runId, status: 'failed', summary: msg };
   }
 }
 
@@ -325,8 +486,58 @@ async function dispatchEffect(
       return scheduleJobEffect(payload);
     case 'flag_for_review':
       return flagForReviewEffect(payload);
+    case 'update_service_price':
+      return updateServicePriceEffect(payload);
     default:
       throw new Error(`No handler for action_type=${type}`);
+  }
+}
+
+/**
+ * Price Optimizer effect: write the approved price to service_pricing as a
+ * NEW row (we keep history via effective_from) and mark the originating
+ * recommendation as 'applied'.
+ */
+async function updateServicePriceEffect(
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const supabase = adminClient();
+
+  const recId = payload.recommendation_id as string | undefined;
+  const newPrice = Number(payload.new_price_aud);
+  const oldRowId = payload.service_pricing_id as string | undefined;
+  const rationale = (payload.rationale as string | undefined) ?? null;
+
+  if (!Number.isFinite(newPrice) || newPrice <= 0) {
+    throw new Error(`updateServicePriceEffect: invalid new_price_aud (${payload.new_price_aud})`);
+  }
+  if (!oldRowId) {
+    throw new Error('updateServicePriceEffect: missing service_pricing_id');
+  }
+
+  const { data: existing, error: readErr } = await supabase
+    .from('service_pricing')
+    .select('service, suburb, price_unit')
+    .eq('id', oldRowId)
+    .single();
+  if (readErr || !existing) {
+    throw new Error(`updateServicePriceEffect: cannot load source row: ${readErr?.message}`);
+  }
+
+  const { error: insertErr } = await supabase.from('service_pricing').insert({
+    service: existing.service,
+    suburb: existing.suburb,
+    price_unit: existing.price_unit,
+    price_aud: newPrice,
+    set_reason: rationale ? `price-optimizer: ${rationale}`.slice(0, 500) : 'price-optimizer',
+  });
+  if (insertErr) throw new Error(`updateServicePriceEffect: insert failed: ${insertErr.message}`);
+
+  if (recId) {
+    await supabase
+      .from('pricing_recommendations')
+      .update({ status: 'applied' })
+      .eq('id', recId);
   }
 }
 

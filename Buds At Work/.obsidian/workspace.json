@@ -31,25 +31,12 @@
         "type": "tabs",
         "children": [
           {
-            "id": "b43b47dc561be80f",
-            "type": "leaf",
-            "state": {
-              "type": "file-explorer",
-              "state": {
-                "sortOrder": "alphabetical",
-                "autoReveal": false
-              },
-              "icon": "lucide-folder-closed",
-              "title": "Files"
-            }
-          },
-          {
             "id": "e4eae76c34c6e3c2",
             "type": "leaf",
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "file:",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -176,8 +163,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "b43b47dc561be80f",
+  "active": "8b7e8e82859abd9a",
   "lastOpenFiles": [
+    "Dev/Price Optimizer Agent — May 2026.md",
+    "Untitled 1.canvas",
     "Dev/Crew Pipeline Fix & Approval Flow — May 2026.md",
     "Dev/NDIS Pricing Rewrite & Stripe Hardening — April 2026.md",
     "Untitled.canvas",
@@ -205,9 +194,7 @@
     "Admin/HR & Crew.md",
     "Admin/Sales Pipeline.md",
     "2026-04-15.md",
-    "Admin/Finance.md",
     "Admin",
-    "Untitled 1.canvas",
     "Dev",
     "Automation",
     "SOPs",

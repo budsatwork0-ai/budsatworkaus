@@ -45,6 +45,18 @@ export interface AgentContext {
   trigger: 'cron' | 'manual' | 'webhook' | 'event';
   input: Record<string, unknown>;
   config: Record<string, unknown>;
+  /**
+   * The stated intent for this run. Set by the caller (parent agent or
+   * trigger). Guardrails compare this against summaries and child
+   * intents to detect drift / completion. May be empty for legacy
+   * triggers — guardrails fall back to a warn-only mode in that case.
+   */
+  intent: string;
+  /**
+   * Depth of this run in a recursive lineage. 1 for a top-level run.
+   * Increases by 1 each time `ctx.callAgent` recurses.
+   */
+  depth: number;
   /** Service-role Supabase client. */
   supabase: import('@supabase/supabase-js').SupabaseClient;
   /** Adds a proposed action to the run; respects the agent's autonomy. */
@@ -54,6 +66,16 @@ export interface AgentContext {
     prompt: string,
     opts?: { model?: string; jsonSchema?: unknown; system?: string },
   ) => Promise<string>;
+  /**
+   * Recursively run another agent as a child of this run. Guardrails
+   * apply (depth caps, loop detection, drift checks). The child's cost
+   * is added to the lineage budget.
+   */
+  callAgent: (
+    childAgentId: string,
+    input: Record<string, unknown>,
+    childIntent: string,
+  ) => Promise<{ runId: string; status: AgentRunStatus; summary: string }>;
   log: (msg: string, data?: unknown) => void;
 }
 
