@@ -52,14 +52,23 @@ export const adminUxDesignerAgent: AgentDefinition = {
   async run(ctx: AgentContext) {
     const pages: PageAudit[] = (ctx.input?.pages as PageAudit[] | undefined) ?? defaultTargets();
 
-    let total = 0;
-    for (const page of pages) {
+    type Finding = { title: string; severity: string; category: string; body: string; proposed_change: unknown };
+    type PageResult = { page: PageAudit; findings: Finding[] };
+
+    const results = await Promise.all(pages.map(async (page): Promise<PageResult> => {
       const prompt = `Audience: ${page.audience}\nPath: ${page.path}\nNotes: ${page.notes ?? ''}\n${page.html_snippet ? `HTML:\n${page.html_snippet.slice(0, 6000)}` : ''}${page.screenshot_url ? `\nScreenshot: ${page.screenshot_url}` : ''}\nReturn findings JSON.`;
       const raw = await ctx.llm(prompt, { system: SYSTEM });
-      let parsed: { findings: Array<{ title: string; severity: string; category: string; body: string; proposed_change: unknown }> };
-      try { parsed = JSON.parse(raw); } catch { continue; }
+      try {
+        const parsed: { findings: Finding[] } = JSON.parse(raw);
+        return { page, findings: parsed.findings ?? [] };
+      } catch {
+        return { page, findings: [] };
+      }
+    }));
 
-      for (const f of parsed.findings ?? []) {
+    let total = 0;
+    for (const { page, findings } of results) {
+      for (const f of findings) {
         await ctx.supabase.from('admin_ux_proposals').insert({
           run_id: ctx.runId,
           page_path: page.path,
