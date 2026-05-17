@@ -19,10 +19,6 @@
     {
       "path": "/api/cron/auto-complete-jobs",
       "schedule": "0 23 * * *"
-    },
-    {
-      "path": "/api/cron/foreman",
-      "schedule": "0 * * * *"
     }
   ]
 }
