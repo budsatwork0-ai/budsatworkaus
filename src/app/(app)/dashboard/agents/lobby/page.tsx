@@ -1,12 +1,12 @@
 /**
- * /dashboard/agents/lobby — live "video-game" view of all agents working.
+ * /dashboard/agents/lobby — Operational Intelligence Console
  *
- * Server component: pulls the current agent roster + recent runs + pending
- * approvals + recent design insights, hands them to the client component
- * which streams updates via Supabase Realtime.
+ * Server component: loads the latest Foreman lobby state + agent roster +
+ * recent events. Passes everything to ForemanConsole which handles realtime
+ * subscriptions and adaptive rendering.
  */
 import { createClient } from '@supabase/supabase-js';
-import { LobbyClient } from './_components/LobbyClient';
+import { ForemanConsole } from './_components/ForemanConsole';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,37 +18,47 @@ async function loadInitial() {
     { auth: { persistSession: false } },
   );
 
-  const since5m = new Date(Date.now() - 5 * 60_000).toISOString();
-  const since1d = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const since1h = new Date(Date.now() - 3600_000).toISOString();
 
-  const [agentsRes, recentRunsRes, pendingRes, insightsRes, themeRes] = await Promise.all([
-    supabase.from('agents').select('id, name, description, category, autonomy, status, schedule').order('name'),
+  const [agentsRes, lobbyStateRes, recentRunsRes, pendingRes, insightsRes] = await Promise.all([
+    supabase
+      .from('agents')
+      .select('id, name, description, category, autonomy, status, schedule')
+      .order('name'),
+    supabase
+      .from('foreman_lobby_states')
+      .select('*')
+      .eq('is_current', true)
+      .maybeSingle(),
     supabase
       .from('agent_runs')
       .select('id, agent_id, status, summary, started_at, finished_at')
-      .gte('started_at', since5m)
+      .gte('started_at', since1h)
       .order('started_at', { ascending: false })
-      .limit(50),
-    supabase.from('agent_actions').select('id, agent_id, preview, created_at').eq('status', 'pending'),
+      .limit(80),
     supabase
-      .from('design_insights')
-      .select('id, agent_id, page_path, title, severity, created_at')
-      .gte('created_at', since1d)
-      .order('severity', { ascending: false })
-      .limit(10),
-    supabase.from('lobby_themes').select('id, name, tokens').eq('active', true).maybeSingle(),
+      .from('agent_actions')
+      .select('id, agent_id, preview, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('foreman_insights')
+      .select('id, agent_id, workflow_id, category, severity, title, created_at')
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ]);
 
   return {
-    agents: agentsRes.data ?? [],
-    runs: recentRunsRes.data ?? [],
-    pending: pendingRes.data ?? [],
-    insights: insightsRes.data ?? [],
-    theme: themeRes.data ?? null,
+    agents:     agentsRes.data ?? [],
+    lobbyState: lobbyStateRes.data ?? null,
+    runs:       recentRunsRes.data ?? [],
+    pending:    pendingRes.data ?? [],
+    insights:   insightsRes.data ?? [],
   };
 }
 
 export default async function AgentLobbyPage() {
   const data = await loadInitial();
-  return <LobbyClient initial={data} />;
+  return <ForemanConsole initial={data} />;
 }

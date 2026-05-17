@@ -51,6 +51,9 @@ import { competitorScoutAgent } from './agents/competitor-scout';
 // Batch 7 — pricing
 import { priceOptimizerAgent } from './agents/price-optimizer';
 
+// Meta-agent
+import { foremanAgent } from './agents/foreman';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -84,6 +87,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [agentArchitectAgent.id]:    agentArchitectAgent,
   [competitorScoutAgent.id]:   competitorScoutAgent,
   [priceOptimizerAgent.id]:    priceOptimizerAgent,
+  [foremanAgent.id]:           foremanAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);
