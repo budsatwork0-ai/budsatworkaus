@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/foreman",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
