@@ -62,7 +62,7 @@ type InsightRow = {
   created_at: string;
 };
 
-type AgentStats = { runs: number; successes: number; failures: number; costCents: number };
+type AgentStats = { runs: number; successes: number; failures: number; costCents: number; avgDurationMs: number };
 
 type Metrics = {
   totalRuns7d: number;
@@ -885,22 +885,35 @@ function NextActions({
 
 // ─── Agent Health ─────────────────────────────────────────────────────────────
 
-type HealthStatus = 'healthy' | 'degraded' | 'needs_repair' | 'inactive';
+type HealthStatus = 'healthy' | 'watch' | 'needs_repair' | 'broken' | 'inactive';
 
 function getHealth(stats: AgentStats | undefined): HealthStatus {
   if (!stats || stats.runs === 0) return 'inactive';
   const rate = stats.successes / stats.runs;
+  if (rate === 0) return 'broken';
   if (rate >= 0.8) return 'healthy';
-  if (rate >= 0.6) return 'degraded';
+  if (rate >= 0.6) return 'watch';
   return 'needs_repair';
 }
 
 const HEALTH: Record<HealthStatus, { dot: string; badge: string; label: string; order: number }> = {
-  needs_repair: { dot: 'bg-red-500', badge: 'text-red-700 bg-red-50 border-red-100', label: 'Needs repair', order: 0 },
-  degraded: { dot: 'bg-amber-400', badge: 'text-amber-700 bg-amber-50 border-amber-100', label: 'Degraded', order: 1 },
-  healthy: { dot: 'bg-emerald-500', badge: 'text-emerald-700 bg-emerald-50 border-emerald-100', label: 'Healthy', order: 2 },
-  inactive: { dot: 'bg-slate-300', badge: 'text-slate-500 bg-slate-50 border-slate-100', label: 'Inactive', order: 3 },
+  broken:       { dot: 'bg-red-600',     badge: 'text-red-800 bg-red-50 border-red-200',          label: 'Broken',       order: 0 },
+  needs_repair: { dot: 'bg-red-500',     badge: 'text-red-700 bg-red-50 border-red-100',           label: 'Needs repair', order: 1 },
+  watch:        { dot: 'bg-amber-400',   badge: 'text-amber-700 bg-amber-50 border-amber-100',     label: 'Watch',        order: 2 },
+  healthy:      { dot: 'bg-emerald-500', badge: 'text-emerald-700 bg-emerald-50 border-emerald-100', label: 'Healthy',    order: 3 },
+  inactive:     { dot: 'bg-slate-300',   badge: 'text-slate-500 bg-slate-50 border-slate-100',     label: 'Inactive',     order: 4 },
 };
+
+function recommendAction(stats: AgentStats): string | null {
+  const rate = stats.runs > 0 ? stats.successes / stats.runs : 0;
+  const pct = Math.round(rate * 100);
+  if (pct === 0 && stats.runs > 0) return 'All runs failing — check error logs and fix agent config';
+  if (pct < 60 && stats.runs >= 15) return 'Review output schema and reduce empty/no-op runs';
+  if (pct < 60 && stats.failures > stats.successes) return 'More failures than successes — review recent error logs';
+  if (pct < 60) return 'Diagnose the failure pattern — check recent run outputs';
+  if (pct < 80) return 'Monitor — review recent failures for emerging patterns';
+  return null;
+}
 
 function AgentHealth({
   agents,
@@ -911,38 +924,38 @@ function AgentHealth({
   agentStatsMap: Record<string, AgentStats>;
   runs: RunRow[];
 }) {
-  const lastSuccessMap = new Map<string, RunRow>();
+  const lastOutputMap = new Map<string, string>();
   for (const run of runs) {
-    if (run.status === 'succeeded' && isUsefulSummary(run.summary) && !lastSuccessMap.has(run.agent_id)) {
-      lastSuccessMap.set(run.agent_id, run);
+    if (run.status === 'succeeded' && isUsefulSummary(run.summary) && !lastOutputMap.has(run.agent_id)) {
+      lastOutputMap.set(run.agent_id, run.summary!);
     }
   }
 
-  const cards = agents
+  const rows = agents
     .map((a) => ({
       ...a,
       stats: agentStatsMap[a.id],
       health: getHealth(agentStatsMap[a.id]),
-      lastSuccess: lastSuccessMap.get(a.id),
+      lastOutput: lastOutputMap.get(a.id) ?? null,
     }))
     .filter((a) => a.stats && a.stats.runs > 0)
     .sort((a, b) => HEALTH[a.health].order - HEALTH[b.health].order)
-    .slice(0, 14);
+    .slice(0, 20);
 
-  const needsRepair = cards.filter((c) => c.health === 'needs_repair').length;
-  const degraded = cards.filter((c) => c.health === 'degraded').length;
+  const criticalCount = rows.filter((r) => r.health === 'broken' || r.health === 'needs_repair').length;
+  const watchCount = rows.filter((r) => r.health === 'watch').length;
 
   return (
     <Panel
       label="Agent Health"
       badge={
-        needsRepair > 0 ? (
+        criticalCount > 0 ? (
           <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
-            {needsRepair} need repair
+            {criticalCount} need attention
           </span>
-        ) : degraded > 0 ? (
+        ) : watchCount > 0 ? (
           <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
-            {degraded} degraded
+            {watchCount} to watch
           </span>
         ) : null
       }
@@ -953,55 +966,114 @@ function AgentHealth({
       }
       className="h-full"
     >
-      {cards.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 py-10">
           <p className="text-[12px] font-semibold text-slate-500">No run data yet</p>
-          <p className="text-[11px] text-slate-400">Health cards appear after first runs</p>
+          <p className="text-[11px] text-slate-400">Agent health appears after first runs</p>
         </div>
       ) : (
-        <div className="divide-y divide-black/[0.04]">
-          {cards.map((a) => {
-            const rate = a.stats && a.stats.runs > 0 ? Math.round((a.stats.successes / a.stats.runs) * 100) : null;
-            const h = HEALTH[a.health];
-            return (
-              <Link
-                key={a.id}
-                href={`/dashboard/agents/${a.id}`}
-                className="flex items-center gap-3 px-5 py-3.5 hover:bg-black/[0.015] transition-colors block"
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${h.dot}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[12px] font-medium text-slate-900 truncate">{a.name}</span>
-                    <span className={`text-[9px] font-semibold uppercase tracking-wide border rounded-full px-1.5 py-0.5 flex-shrink-0 ${h.badge}`}>
-                      {h.label}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 line-clamp-1 leading-relaxed">
-                    {a.lastSuccess?.summary ?? 'No successful output yet'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0 text-right">
-                  {rate !== null && (
-                    <div>
-                      <div className={`text-[13px] font-semibold font-mono tabular-nums ${rate < 60 ? 'text-red-600' : rate < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                        {rate}%
+        <div className="w-full overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-black/[0.06] bg-slate-50/60 sticky top-0">
+                {['Agent', 'Status', 'Success', 'Last useful output', 'Cost 7d', 'Avg dur', 'Action'].map((col) => (
+                  <th
+                    key={col}
+                    className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 text-left px-3 py-2.5 first:pl-5 last:pr-5 whitespace-nowrap"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const s = row.stats;
+                const pct = s && s.runs > 0 ? Math.round((s.successes / s.runs) * 100) : 0;
+                const h = HEALTH[row.health];
+                const action = recommendAction(s);
+                const rateColor =
+                  pct === 0 ? 'text-red-600'
+                  : pct < 60 ? 'text-red-500'
+                  : pct < 80 ? 'text-amber-600'
+                  : 'text-emerald-600';
+
+                return (
+                  <tr
+                    key={row.id}
+                    className="border-b border-black/[0.04] hover:bg-black/[0.015] transition-colors group"
+                  >
+                    {/* Agent */}
+                    <td className="pl-5 pr-3 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${h.dot}`} />
+                        <span className="text-[12px] font-medium text-slate-900">{row.name}</span>
                       </div>
-                      <div className="text-[9px] text-slate-400 uppercase tracking-wide">success</div>
-                    </div>
-                  )}
-                  <div>
-                    <div className="text-[13px] font-semibold font-mono tabular-nums text-slate-700">{a.stats?.runs ?? 0}</div>
-                    <div className="text-[9px] text-slate-400 uppercase tracking-wide">runs</div>
-                  </div>
-                  <div>
-                    <div className="text-[13px] font-semibold font-mono tabular-nums text-slate-700">{fmtCost(a.stats?.costCents ?? 0)}</div>
-                    <div className="text-[9px] text-slate-400 uppercase tracking-wide">cost</div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className={`text-[9px] font-semibold uppercase tracking-wide border rounded-full px-2 py-0.5 ${h.badge}`}>
+                        {h.label}
+                      </span>
+                    </td>
+
+                    {/* Success rate */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className={`text-[13px] font-semibold font-mono tabular-nums ${rateColor}`}>
+                        {pct}%
+                      </span>
+                      <span className="text-[9px] text-slate-400 ml-1.5 font-mono tabular-nums">
+                        {s?.successes ?? 0}/{s?.runs ?? 0}
+                      </span>
+                    </td>
+
+                    {/* Last useful output */}
+                    <td className="px-3 py-3.5" style={{ maxWidth: '260px' }}>
+                      {row.lastOutput ? (
+                        <p className="text-[11px] text-slate-600 truncate leading-relaxed">{row.lastOutput}</p>
+                      ) : (
+                        <span className="text-[11px] text-slate-300 italic">No useful output yet</span>
+                      )}
+                    </td>
+
+                    {/* Cost 7d */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className="text-[12px] font-mono text-slate-700 tabular-nums">
+                        {fmtCost(s?.costCents ?? 0)}
+                      </span>
+                    </td>
+
+                    {/* Avg duration */}
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className="text-[12px] font-mono text-slate-700 tabular-nums">
+                        {s?.avgDurationMs && s.avgDurationMs > 0 ? fmtDuration(s.avgDurationMs) : '—'}
+                      </span>
+                    </td>
+
+                    {/* Action */}
+                    <td className="pl-3 pr-5 py-3.5">
+                      <div className="flex items-start gap-3">
+                        {action ? (
+                          <p className="text-[10px] text-slate-500 leading-snug" style={{ maxWidth: '220px' }}>
+                            {action}
+                          </p>
+                        ) : (
+                          <span className="text-[10px] font-medium text-emerald-600">Running well</span>
+                        )}
+                        <Link
+                          href={`/dashboard/agents/${row.id}`}
+                          className="text-[10px] font-medium text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0 ml-auto opacity-0 group-hover:opacity-100 pt-0.5"
+                        >
+                          View →
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </Panel>

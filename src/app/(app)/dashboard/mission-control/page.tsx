@@ -40,7 +40,7 @@ async function loadData() {
       .limit(8),
     supabase
       .from('agent_runs')
-      .select('agent_id, status, cost_cents')
+      .select('agent_id, status, cost_cents, duration_ms')
       .gte('started_at', since7d),
   ]);
 
@@ -55,19 +55,41 @@ async function loadData() {
     memory = data ?? [];
   } catch {}
 
-  const statsMap = new Map<string, { runs: number; successes: number; failures: number; costCents: number }>();
+  const rawStats = new Map<string, {
+    runs: number; successes: number; failures: number;
+    costCents: number; totalDurationMs: number; durationCount: number;
+  }>();
   for (const r of statsRes.data ?? []) {
-    const cur = statsMap.get(r.agent_id as string) ?? { runs: 0, successes: 0, failures: 0, costCents: 0 };
+    const cur = rawStats.get(r.agent_id as string) ?? {
+      runs: 0, successes: 0, failures: 0, costCents: 0, totalDurationMs: 0, durationCount: 0,
+    };
     cur.runs += 1;
     if (r.status === 'succeeded') cur.successes += 1;
     if (r.status === 'failed') cur.failures += 1;
     cur.costCents += (r.cost_cents as number) ?? 0;
-    statsMap.set(r.agent_id as string, cur);
+    if (r.duration_ms != null) {
+      cur.totalDurationMs += r.duration_ms as number;
+      cur.durationCount += 1;
+    }
+    rawStats.set(r.agent_id as string, cur);
   }
 
-  const totalRuns7d = Array.from(statsMap.values()).reduce((s, x) => s + x.runs, 0);
-  const totalCostCents7d = Array.from(statsMap.values()).reduce((s, x) => s + x.costCents, 0);
-  const totalSuccesses7d = Array.from(statsMap.values()).reduce((s, x) => s + x.successes, 0);
+  const statsMap = new Map(
+    Array.from(rawStats.entries()).map(([id, s]) => [
+      id,
+      {
+        runs: s.runs,
+        successes: s.successes,
+        failures: s.failures,
+        costCents: s.costCents,
+        avgDurationMs: s.durationCount > 0 ? Math.round(s.totalDurationMs / s.durationCount) : 0,
+      },
+    ]),
+  );
+
+  const totalRuns7d = Array.from(rawStats.values()).reduce((s, x) => s + x.runs, 0);
+  const totalCostCents7d = Array.from(rawStats.values()).reduce((s, x) => s + x.costCents, 0);
+  const totalSuccesses7d = Array.from(rawStats.values()).reduce((s, x) => s + x.successes, 0);
   const agents = agentsRes.data ?? [];
   const actions = actionsRes.data ?? [];
 
