@@ -15,6 +15,8 @@ import type {
   AgentRunStatus,
   ProposedAction,
 } from './types';
+import { buildMemoryContext } from '@/lib/memory/context';
+import { logAgentRun, getWorkspaceForAgent } from '@/lib/memory/agents/workspace';
 import {
   GuardrailBlockedError,
   PolicyRunner,
@@ -254,6 +256,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     intent,
     depth: lineage.length,
     supabase,
+    memory: buildMemoryContext({ supabase, agentId: args.agentId, runId }),
 
     proposeAction: async (action: ProposedAction) => {
       // Guardrails get the first look. A `block` with
@@ -410,6 +413,28 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       })
       .eq('id', runId);
 
+    // Fire-and-forget: log run + any structured output to the agent workspace vault.
+    // Never awaited — workspace logging must never block or fail the run.
+    const workspace = getWorkspaceForAgent(args.agentId);
+    if (workspace && process.env.OBSIDIAN_VAULT_PATH) {
+      const output = result.output as Record<string, unknown> | undefined;
+      setImmediate(() => {
+        logAgentRun({
+          runId,
+          agentId:     args.agentId,
+          workspaceId: workspace.id,
+          status:      finalStatus,
+          summary:     result.summary,
+          durationMs,
+          costCents,
+          findings:   output?.findings   as import('@/lib/memory/agents/types').AgentFinding[]   | undefined,
+          tasks:      output?.tasks      as import('@/lib/memory/agents/types').AgentTask[]      | undefined,
+          decisions:  output?.decisions  as import('@/lib/memory/agents/types').AgentDecision[]  | undefined,
+          issues:     output?.issues     as import('@/lib/memory/agents/types').AgentIssue[]     | undefined,
+        });
+      });
+    }
+
     return { runId, status: finalStatus, summary: result.summary };
   } catch (err) {
     const durationMs = Date.now() - startedAt;
@@ -430,6 +455,21 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         finished_at: new Date().toISOString(),
       })
       .eq('id', runId);
+
+    const failWorkspace = getWorkspaceForAgent(args.agentId);
+    if (failWorkspace && process.env.OBSIDIAN_VAULT_PATH) {
+      setImmediate(() => {
+        logAgentRun({
+          runId,
+          agentId:     args.agentId,
+          workspaceId: failWorkspace.id,
+          status:      'failed',
+          summary:     msg,
+          durationMs,
+        });
+      });
+    }
+
     return { runId, status: 'failed', summary: msg };
   }
 }

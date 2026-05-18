@@ -8,6 +8,7 @@ import { Toaster, toast } from 'sonner';
 import { sendGAEvent } from '@next/third-parties/google';
 import { trackQuoteSubmitted } from '@/lib/analytics/conversions';
 import { getPublicAnalyticsSessionId, trackPublicAnalyticsEvent } from '@/lib/analytics/public';
+import { trackFunnelStart, trackFunnelStepComplete, trackFunnelAbandon, trackFunnelSubmit } from '@/lib/analytics/behavior';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
 import StableMapSlot from '@/components/StableMapSlot';
@@ -3474,6 +3475,7 @@ function ServicesPageContent() {
           scope: S.scope,
           missing_fields: missing.join(',') || 'none',
         });
+        trackFunnelAbandon(S.step, S.service ?? undefined, missing.join(',') || 'none');
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -3665,9 +3667,10 @@ function ServicesPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hardResetQuote]);
 
-  // Fire once on mount — provides the funnel entry baseline in GA4.
+  // Fire once on mount — provides the funnel entry baseline in GA4 + PostHog.
   useEffect(() => {
     trackQuoteEvent('quote_start', { context: S.context });
+    trackFunnelStart(S.context);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3984,10 +3987,12 @@ function ServicesPageContent() {
       applyScopePreset(S.service, S.scope);
       setActiveServiceId(null);
       trackQuoteEvent('quote_step_2', { service: S.service });
+      trackFunnelStepComplete(1, S.service ?? undefined);
     }
 
     if (n === 3) {
       trackQuoteEvent('quote_step_3', { service: S.service, scope: S.scope });
+      trackFunnelStepComplete(2, S.service ?? undefined);
     }
 
     set('step', n);
@@ -4846,6 +4851,7 @@ function winSessionMinutes(S: WizardState) {
           useBeacon: true,
         });
         trackQuoteSubmitted(effectiveTotal);
+        trackFunnelSubmit(quote.id, S.service ?? undefined, effectiveTotal);
 
         if (isGuest) {
           setGuestSubmitSuccess({ quoteId: quote.id, email: S.email.trim() });

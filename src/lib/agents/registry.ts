@@ -13,7 +13,14 @@ import { reviewsAgent } from './agents/reviews';
 import { crewBriefingAgent } from './agents/crew-briefing';
 import { reconciliationAgent } from './agents/reconciliation';
 
+// Admin optimization
+import { adminOptimizationAgent } from './agents/admin-optimization';
+
+// GitHub integration
+import { githubHistorianAgent } from './agents/github-historian';
+
 // Design / UX
+import { uxIntelligenceAgent } from './agents/ux-intelligence';
 import { heatmapAnalystAgent } from './agents/heatmap-analyst';
 import { copyOptimizerAgent } from './agents/copy-optimizer';
 import { conversionFunnelAgent } from './agents/conversion-funnel';
@@ -51,6 +58,12 @@ import { competitorScoutAgent } from './agents/competitor-scout';
 // Batch 7 — pricing
 import { priceOptimizerAgent } from './agents/price-optimizer';
 
+// Analytics intelligence
+import { analyticsIntelligenceAgent } from './agents/analytics-intelligence';
+
+// Design system
+import { designSystemAgent } from './agents/design-system';
+
 // Meta-agent
 import { foremanAgent } from './agents/foreman';
 
@@ -63,6 +76,9 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [reviewsAgent.id]:           reviewsAgent,
   [crewBriefingAgent.id]:      crewBriefingAgent,
   [reconciliationAgent.id]:    reconciliationAgent,
+  [adminOptimizationAgent.id]: adminOptimizationAgent,
+  [githubHistorianAgent.id]:   githubHistorianAgent,
+  [uxIntelligenceAgent.id]:    uxIntelligenceAgent,
   [heatmapAnalystAgent.id]:    heatmapAnalystAgent,
   [copyOptimizerAgent.id]:     copyOptimizerAgent,
   [conversionFunnelAgent.id]:  conversionFunnelAgent,
@@ -86,8 +102,10 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [lobbyThemeCuratorAgent.id]: lobbyThemeCuratorAgent,
   [agentArchitectAgent.id]:    agentArchitectAgent,
   [competitorScoutAgent.id]:   competitorScoutAgent,
-  [priceOptimizerAgent.id]:    priceOptimizerAgent,
-  [foremanAgent.id]:           foremanAgent,
+  [priceOptimizerAgent.id]:          priceOptimizerAgent,
+  [analyticsIntelligenceAgent.id]:   analyticsIntelligenceAgent,
+  [designSystemAgent.id]:            designSystemAgent,
+  [foremanAgent.id]:                 foremanAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

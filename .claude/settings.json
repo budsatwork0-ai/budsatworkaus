@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx scripts/vault-context.ts",
+            "timeout": 8000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx scripts/vault-log.ts",
+            "timeout": 15000
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -31,6 +31,7 @@
     "framer-motion": "^12.23.24",
     "konva": "^10.0.12",
     "next": "^15.5.7",
+    "posthog-js": "^1.373.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.1",

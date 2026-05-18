@@ -136,8 +136,8 @@ export const foremanAgent: AgentDefinition = {
   description:
     'Operations brain — monitors all agents, detects bottlenecks, and generates the adaptive lobby state for the admin console.',
   category: 'ops',
-  autonomy: 'auto',
-  schedule: '*/15 * * * *',
+  autonomy: 'manual',
+  schedule: null,
 
   async run(ctx: AgentContext) {
     const now = Date.now();

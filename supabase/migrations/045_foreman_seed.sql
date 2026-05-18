@@ -9,8 +9,8 @@ values (
   'The Foreman',
   'Operations brain — monitors all agents, detects bottlenecks, and generates the adaptive lobby state for the admin console.',
   'ops',
-  'auto',
-  '0 * * * *',
+  'manual',
+  null,
   'enabled',
   '{}'::jsonb
 )

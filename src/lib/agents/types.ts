@@ -45,6 +45,8 @@ export interface AgentContext {
   trigger: 'cron' | 'manual' | 'webhook' | 'event';
   input: Record<string, unknown>;
   config: Record<string, unknown>;
+  /** Obsidian-native memory: search, recall, write, findRelated. */
+  memory: import('@/lib/memory/types').MemoryContext;
   /**
    * The stated intent for this run. Set by the caller (parent agent or
    * trigger). Guardrails compare this against summaries and child
