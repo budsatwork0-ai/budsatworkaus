@@ -184,3 +184,4 @@ create or replace view design_duplication_queue as
   where v.violation_type = 'duplication'
     and v.status = 'open'
   order by v.priority, v.created_at desc;
+
