@@ -1,0 +1,122 @@
+##
+## obsidian-events.yml
+##
+## Sends GitHub events to the Buds At Work webhook handler, which writes
+## structured notes into the Obsidian vault via the memory system.
+##
+## Events forwarded:
+##   push → main                 → implementation journal entry
+##   pull_request (open/merge)   → PR summary note
+##   release (published)         → changelog entry
+##   deployment_status (terminal) → deployment log
+##
+## Required secrets (Settings → Secrets → Actions):
+##   BUDS_WEBHOOK_URL     = https://budsatwork.com/api/webhooks/github
+##   BUDS_WEBHOOK_SECRET  = same value as GITHUB_WEBHOOK_SECRET in Vercel env
+##   GITHUB_TOKEN         = auto-provided by Actions
+##
+
+name: Obsidian Memory Events
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, closed, reopened]
+  release:
+    types: [published]
+  deployment_status:
+
+# Cancel in-progress runs for the same ref to avoid duplicate notes
+concurrency:
+  group: obsidian-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false  # don't cancel — we want all deliveries
+
+jobs:
+  # ── Forward event to webhook handler ───────────────────────────────────────
+  forward-to-obsidian:
+    name: Forward to Obsidian memory
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # Skip draft PRs and dependabot
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+
+    steps:
+      - name: Build payload
+        id: payload
+        env:
+          EVENT_NAME:  ${{ github.event_name }}
+          EVENT_JSON:  ${{ toJson(github.event) }}
+        run: |
+          # Write the full event JSON to a temp file (handles large payloads)
+          echo "$EVENT_JSON" > /tmp/payload.json
+          echo "payload_file=/tmp/payload.json" >> "$GITHUB_OUTPUT"
+
+      - name: Compute HMAC-SHA256 signature
+        id: sign
+        env:
+          SECRET: ${{ secrets.BUDS_WEBHOOK_SECRET }}
+        run: |
+          SIG=$(openssl dgst -sha256 -hmac "$SECRET" /tmp/payload.json | awk '{print "sha256="$2}')
+          echo "signature=$SIG" >> "$GITHUB_OUTPUT"
+
+      - name: POST to webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.BUDS_WEBHOOK_URL }}
+          SIGNATURE:   ${{ steps.sign.outputs.signature }}
+          EVENT_NAME:  ${{ github.event_name }}
+          DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            --max-time 10 \
+            -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: $EVENT_NAME" \
+            -H "X-GitHub-Delivery: $DELIVERY_ID" \
+            -H "X-Hub-Signature-256: $SIGNATURE" \
+            --data-binary @/tmp/payload.json)
+
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/response.json
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::warning::Obsidian webhook returned $HTTP_STATUS — event may not be logged"
+            # Non-fatal: webhook failure should never block CI
+          fi
+
+  # ── Trigger weekly synthesis on Friday ─────────────────────────────────────
+  trigger-historian:
+    name: Trigger GitHub Historian (Fridays)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # Only run on pushes to main on Fridays (UTC) — complements the agent's
+    # cron schedule but triggers immediately after a Friday push if needed
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    needs: forward-to-obsidian
+
+    steps:
+      - name: Check if Friday
+        id: day
+        run: |
+          DAY=$(date -u +%u)   # 1=Mon … 5=Fri … 7=Sun
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger historian agent via API
+        if: steps.day.outputs.day == '5'
+        env:
+          BUDS_API_URL:   ${{ secrets.BUDS_WEBHOOK_URL }}
+          BUDS_API_TOKEN: ${{ secrets.BUDS_WEBHOOK_SECRET }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            --max-time 15 \
+            -X POST "$(echo "$BUDS_API_URL" | sed 's|/api/webhooks/github|/api/agents/run|')" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $BUDS_API_TOKEN" \
+            --data '{"agent_id":"github-historian","trigger":"webhook"}')
+
+          echo "Historian trigger: $HTTP_STATUS"
+          cat /tmp/resp.json || true
