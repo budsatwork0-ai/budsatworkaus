@@ -17,7 +17,25 @@ export type BudTask = {
   id: string;
   source_agent: string | null;
   target_agent: string | null;
-  status: 'pending' | 'in_progress' | 'awaiting_approval' | 'completed' | 'failed' | 'archived';
+  status:
+    | 'pending'
+    | 'detected'
+    | 'reproducing'
+    | 'analyzing'
+    | 'planning'
+    | 'awaiting_approval'
+    | 'patching'
+    | 'validating'
+    | 'deploying'
+    | 'verifying'
+    | 'monitoring'
+    | 'recovered'
+    | 'rolled_back'
+    | 'blocked'
+    | 'in_progress'
+    | 'completed'
+    | 'failed'
+    | 'archived';
   confidence: number | null;
   risk_level: 'low' | 'medium' | 'high' | 'critical' | null;
   description: string;

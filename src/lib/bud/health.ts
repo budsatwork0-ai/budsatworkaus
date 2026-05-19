@@ -17,7 +17,153 @@ type ActionRow = {
 
 type AgentRow = {
   id: string;
+  name?: string | null;
+  category?: string | null;
+  autonomy?: string | null;
   status?: string | null;
+};
+
+type GithubEventRow = {
+  id: string;
+  event_type: string;
+  action: string | null;
+  repo?: string | null;
+  metadata?: Record<string, unknown> | null;
+  status?: string | null;
+  created_at: string;
+};
+
+type BudTaskRow = {
+  id: string;
+  source_agent: string | null;
+  target_agent?: string | null;
+  status: string;
+  confidence: number | null;
+  risk_level: string | null;
+  description: string;
+  autonomy_level: number | null;
+  linked_issue: string | null;
+  linked_pr: string | null;
+  linked_deployment: string | null;
+  linked_memory_note: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
+type ChangeRequestRow = {
+  id: string;
+  task_id: string | null;
+  branch_name: string | null;
+  issue_url: string | null;
+  pr_url: string | null;
+  deployment_url: string | null;
+  status: string;
+  created_at: string;
+};
+
+type InsightRow = {
+  id: string;
+  agent_id: string | null;
+  category: string;
+  severity: string;
+  title: string;
+  created_at: string;
+};
+
+type MemoryRow = {
+  id: string;
+  category: string;
+  title: string;
+  vault_path?: string | null;
+  created_at: string;
+};
+
+export type AgentLifecycleState = 'active' | 'idle' | 'awaiting_review' | 'degraded' | 'blocked' | 'overloaded' | 'dormant' | 'retired';
+
+export type MissionControlAgentState = {
+  id: string;
+  name: string;
+  category: string;
+  autonomy: string;
+  configured_status: string;
+  lifecycle: AgentLifecycleState;
+  health: AgentHealthScore;
+  runs_7d: number;
+  successes_7d: number;
+  failures_7d: number;
+  pending_approvals: number;
+  last_run_at: string | null;
+  last_failure: string | null;
+  recommended_action: string;
+};
+
+export type MissionControlRepairSession = {
+  id: string;
+  agent_id: string | null;
+  agent_name: string;
+  status: string;
+  phase:
+    | 'detected'
+    | 'diagnosing'
+    | 'reproducing'
+    | 'analyzing'
+    | 'planning'
+    | 'awaiting_approval'
+    | 'repairing'
+    | 'patching'
+    | 'validating'
+    | 'deploying'
+    | 'verifying'
+    | 'monitoring'
+    | 'recovered'
+    | 'rolled_back'
+    | 'learned'
+    | 'blocked';
+  risk_level: string;
+  confidence: number | null;
+  description: string;
+  linked_issue: string | null;
+  linked_pr: string | null;
+  linked_deployment: string | null;
+  linked_memory_note: string | null;
+  created_at: string;
+};
+
+export type MissionControlDeploymentState = {
+  connected: boolean;
+  status: 'unknown' | 'healthy' | 'deploying' | 'failed' | 'stale';
+  last_event_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_url: string | null;
+  summary: string;
+};
+
+export type MissionControlCapability = {
+  key: 'monitor' | 'diagnose' | 'repair' | 'approve' | 'deploy' | 'verify' | 'learn';
+  label: string;
+  status: 'online' | 'partial' | 'blocked';
+  detail: string;
+};
+
+export type MissionControlHealth = GlobalHealthCheck & {
+  command_name: 'Bud OS';
+  operating_mode: 'monitoring' | 'diagnosing' | 'repairing' | 'waiting_for_approval' | 'verifying' | 'blocked';
+  agents: MissionControlAgentState[];
+  repair_sessions: MissionControlRepairSession[];
+  deployment: MissionControlDeploymentState;
+  capabilities: MissionControlCapability[];
+  memory: {
+    connected: boolean;
+    recent_count: number;
+    last_write_at: string | null;
+    learning_ready: boolean;
+  };
+  approvals: {
+    pending_agent_actions: number;
+    pending_bud_approvals: number;
+    total_pending: number;
+  };
 };
 
 export type AgentHealthLabel = 'healthy' | 'watch' | 'needs_repair' | 'broken' | 'inactive';
@@ -203,6 +349,261 @@ export function evaluateGlobalHealth({
       ? 'Operational review complete — system nominal.'
       : `Operational review complete — attention required. ${formatHealthCounts(counts)} detected.`,
     is_nominal: status === 'nominal',
+  };
+}
+
+function phaseForTask(task: BudTaskRow): MissionControlRepairSession['phase'] {
+  if (task.status === 'reproducing') return 'reproducing';
+  if (task.status === 'analyzing') return 'analyzing';
+  if (task.status === 'planning') return 'planning';
+  if (task.status === 'awaiting_approval') return 'awaiting_approval';
+  if (task.status === 'patching') return 'patching';
+  if (task.status === 'validating') return 'validating';
+  if (task.status === 'deploying') return 'deploying';
+  if (task.status === 'verifying') return 'verifying';
+  if (task.status === 'monitoring') return 'monitoring';
+  if (task.status === 'recovered') return 'recovered';
+  if (task.status === 'rolled_back') return 'rolled_back';
+  if (task.status === 'in_progress') return task.linked_pr || task.linked_deployment ? 'verifying' : 'repairing';
+  if (task.status === 'completed') return task.linked_memory_note ? 'learned' : 'verifying';
+  if (task.status === 'failed' || task.status === 'blocked') return 'blocked';
+  return task.linked_issue ? 'diagnosing' : 'detected';
+}
+
+function lifecycleForAgent(
+  agent: AgentRow,
+  runs: RunRow[],
+  health: AgentHealthScore,
+  pendingApprovals: number,
+): AgentLifecycleState {
+  const status = (agent.status ?? '').toLowerCase();
+  if (status === 'disabled') return 'retired';
+  if (pendingApprovals > 0) return 'awaiting_review';
+  const latest = runs[0];
+  if (latest?.status === 'running') return 'active';
+  if (latest?.status === 'needs_approval') return 'awaiting_review';
+  if (latest?.status === 'needs_repair') return 'degraded';
+  if (health.label === 'broken') return 'blocked';
+  if (health.label === 'needs_repair' || health.label === 'watch') return 'degraded';
+  if (!latest) return status === 'paused' ? 'dormant' : 'idle';
+  const ageMs = Date.now() - new Date(latest.started_at).getTime();
+  if (ageMs > 7 * 24 * 3600_000) return 'dormant';
+  if (ageMs < 3600_000 && latest.status === 'succeeded') return 'active';
+  return 'idle';
+}
+
+function recommendedActionForAgent(state: {
+  lifecycle: AgentLifecycleState;
+  health: AgentHealthScore;
+  failures: number;
+  pending: number;
+}): string {
+  if (state.lifecycle === 'awaiting_review') return `${state.pending} approval${state.pending === 1 ? '' : 's'} waiting for a human decision`;
+  if (state.health.label === 'broken') return 'Start a Bud investigation and draft a repair task';
+  if (state.health.label === 'needs_repair') return 'Review the latest failures and queue a targeted repair';
+  if (!state.health.output_useful && state.health.label !== 'inactive') return 'Tune output so successful runs produce actionable intelligence';
+  if (state.failures > 0) return 'Monitor the recent failure pattern before the next scheduled run';
+  if (state.lifecycle === 'dormant') return 'Run manually or pause if this agent is no longer needed';
+  return 'No action needed';
+}
+
+function computeDeploymentState(events: GithubEventRow[]): MissionControlDeploymentState {
+  const deploymentEvents = events
+    .filter((event) => event.event_type === 'deployment_status' || event.event_type === 'deployment_failure')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const latest = deploymentEvents[0] ?? null;
+  const lastSuccess = deploymentEvents.find((event) => event.event_type === 'deployment_status' && event.action === 'success') ?? null;
+  const lastFailure = deploymentEvents.find((event) => event.event_type === 'deployment_failure' || event.action === 'failure' || event.action === 'error') ?? null;
+  const lastUrl = (latest?.metadata?.target_url ?? latest?.metadata?.deployment_url ?? latest?.metadata?.url ?? null) as string | null;
+
+  if (!latest) {
+    return {
+      connected: false,
+      status: 'unknown',
+      last_event_at: null,
+      last_success_at: null,
+      last_failure_at: null,
+      last_url: null,
+      summary: 'No deployment telemetry is reaching Bud yet.',
+    };
+  }
+
+  const ageMs = Date.now() - new Date(latest.created_at).getTime();
+  const status: MissionControlDeploymentState['status'] =
+    latest.event_type === 'deployment_failure' || latest.action === 'failure' || latest.action === 'error'
+      ? 'failed'
+      : latest.action === 'pending' || latest.action === 'in_progress'
+        ? 'deploying'
+        : ageMs > 14 * 24 * 3600_000
+          ? 'stale'
+          : 'healthy';
+
+  return {
+    connected: true,
+    status,
+    last_event_at: latest.created_at,
+    last_success_at: lastSuccess?.created_at ?? null,
+    last_failure_at: lastFailure?.created_at ?? null,
+    last_url: lastUrl,
+    summary: status === 'healthy'
+      ? 'Latest deployment signal is healthy.'
+      : status === 'failed'
+        ? 'Latest deployment signal failed. Verification is required before declaring repairs complete.'
+        : status === 'deploying'
+          ? 'Deployment is currently in progress.'
+          : 'Deployment telemetry is connected but stale.',
+  };
+}
+
+function computeOperatingMode(args: {
+  global: GlobalHealthCheck;
+  repairSessions: MissionControlRepairSession[];
+  pendingApprovals: number;
+  deployment: MissionControlDeploymentState;
+}): MissionControlHealth['operating_mode'] {
+  if (args.deployment.status === 'failed') return 'blocked';
+  if (args.pendingApprovals > 0 || args.repairSessions.some((s) => s.phase === 'awaiting_approval')) return 'waiting_for_approval';
+  if (args.repairSessions.some((s) => s.phase === 'repairing')) return 'repairing';
+  if (args.repairSessions.some((s) => s.phase === 'verifying')) return 'verifying';
+  if (!args.global.is_nominal) return 'diagnosing';
+  return 'monitoring';
+}
+
+export function computeMissionControlHealth({
+  agents,
+  runs,
+  actions,
+  budApprovals = [],
+  tasks = [],
+  changeRequests = [],
+  github = [],
+  insights = [],
+  memory = [],
+}: {
+  agents: AgentRow[];
+  runs: RunRow[];
+  actions: ActionRow[];
+  budApprovals?: ActionRow[];
+  tasks?: BudTaskRow[];
+  changeRequests?: ChangeRequestRow[];
+  github?: GithubEventRow[];
+  insights?: InsightRow[];
+  memory?: MemoryRow[];
+}): MissionControlHealth {
+  const allApprovals = [...actions, ...budApprovals];
+  const global = evaluateGlobalHealth({
+    agents,
+    runs,
+    actions: allApprovals,
+    unresolvedAlerts: insights.length,
+  });
+
+  const runsByAgent = new Map<string, RunRow[]>();
+  for (const run of runs) {
+    if (!run.agent_id) continue;
+    const list = runsByAgent.get(run.agent_id) ?? [];
+    list.push(run);
+    runsByAgent.set(run.agent_id, list);
+  }
+
+  const approvalsByAgent = new Map<string, number>();
+  for (const action of allApprovals) {
+    if (!action.agent_id || action.status !== 'pending') continue;
+    approvalsByAgent.set(action.agent_id, (approvalsByAgent.get(action.agent_id) ?? 0) + 1);
+  }
+
+  const agentNameMap = new Map(agents.map((agent) => [agent.id, agent.name ?? agent.id]));
+  const agentStates = agents.map((agent): MissionControlAgentState => {
+    const agentRuns = runsByAgent.get(agent.id) ?? [];
+    const health = scoreAgentHealth(agentRuns, allApprovals.filter((action) => action.agent_id === agent.id));
+    const failures = agentRuns.filter((run) => run.status === 'failed' || run.status === 'needs_repair').length;
+    const successes = agentRuns.filter((run) => run.status === 'succeeded').length;
+    const pending = approvalsByAgent.get(agent.id) ?? 0;
+    const lifecycle = lifecycleForAgent(agent, agentRuns, health, pending);
+    const lastFailure = agentRuns.find((run) => run.status === 'failed' || run.status === 'needs_repair')?.summary ?? null;
+    return {
+      id: agent.id,
+      name: agent.name ?? agent.id,
+      category: agent.category ?? 'ops',
+      autonomy: agent.autonomy ?? 'manual',
+      configured_status: agent.status ?? 'unknown',
+      lifecycle,
+      health,
+      runs_7d: agentRuns.length,
+      successes_7d: successes,
+      failures_7d: failures,
+      pending_approvals: pending,
+      last_run_at: agentRuns[0]?.started_at ?? null,
+      last_failure: lastFailure,
+      recommended_action: recommendedActionForAgent({ lifecycle, health, failures, pending }),
+    };
+  }).sort((a, b) => a.health.score - b.health.score);
+
+  const crByTask = new Map(changeRequests.map((request) => [request.task_id, request]));
+  const repairSessions = tasks.map((task): MissionControlRepairSession => {
+    const cr = crByTask.get(task.id);
+    return {
+      id: task.id,
+      agent_id: task.source_agent,
+      agent_name: task.source_agent ? agentNameMap.get(task.source_agent) ?? task.source_agent : 'Bud',
+      status: task.status,
+      phase: phaseForTask(task),
+      risk_level: task.risk_level ?? 'low',
+      confidence: task.confidence,
+      description: task.description,
+      linked_issue: task.linked_issue ?? cr?.issue_url ?? null,
+      linked_pr: task.linked_pr ?? cr?.pr_url ?? null,
+      linked_deployment: task.linked_deployment ?? cr?.deployment_url ?? null,
+      linked_memory_note: task.linked_memory_note,
+      created_at: task.created_at,
+    };
+  });
+
+  const deployment = computeDeploymentState(github);
+  const lastMemory = memory[0] ?? null;
+  const pendingBudApprovals = budApprovals.filter((approval) => approval.status === 'pending').length;
+  const pendingAgentActions = actions.filter((action) => action.status === 'pending').length;
+  const memoryState = {
+    connected: memory.length > 0,
+    recent_count: memory.length,
+    last_write_at: lastMemory?.created_at ?? null,
+    learning_ready: memory.length > 0 && repairSessions.some((session) => session.phase === 'learned' || session.linked_memory_note),
+  };
+
+  const capabilities: MissionControlCapability[] = [
+    { key: 'monitor', label: 'Monitor', status: agents.length > 0 ? 'online' : 'blocked', detail: `${agents.length} agents registered` },
+    { key: 'diagnose', label: 'Diagnose', status: runs.length > 0 ? 'online' : 'partial', detail: `${runs.length} recent run signals` },
+    { key: 'repair', label: 'Repair', status: repairSessions.length > 0 ? 'online' : 'partial', detail: `${repairSessions.length} repair session${repairSessions.length === 1 ? '' : 's'}` },
+    { key: 'approve', label: 'Approve', status: pendingAgentActions + pendingBudApprovals > 0 ? 'online' : 'partial', detail: `${pendingAgentActions + pendingBudApprovals} pending approvals` },
+    { key: 'deploy', label: 'Deploy', status: deployment.connected ? (deployment.status === 'failed' ? 'blocked' : 'online') : 'blocked', detail: deployment.summary },
+    { key: 'verify', label: 'Verify', status: deployment.connected ? 'online' : 'blocked', detail: deployment.last_success_at ? 'Deployment status webhook active' : 'No verified successful deployment yet' },
+    { key: 'learn', label: 'Learn', status: memoryState.connected ? 'online' : 'blocked', detail: memoryState.connected ? `${memoryState.recent_count} recent memory records` : 'Memory vault not synced' },
+  ];
+
+  const operatingMode = computeOperatingMode({
+    global,
+    repairSessions,
+    pendingApprovals: pendingAgentActions + pendingBudApprovals,
+    deployment,
+  });
+
+  return {
+    ...global,
+    command_name: 'Bud OS',
+    operating_mode: operatingMode,
+    agents: agentStates,
+    repair_sessions: repairSessions,
+    deployment,
+    capabilities,
+    memory: memoryState,
+    approvals: {
+      pending_agent_actions: pendingAgentActions,
+      pending_bud_approvals: pendingBudApprovals,
+      total_pending: pendingAgentActions + pendingBudApprovals,
+    },
+    summary: global.is_nominal
+      ? 'Bud OS is monitoring the workforce from one operational state engine.'
+      : `Bud OS requires attention: ${formatHealthCounts(global.counts)}.`,
   };
 }
 

@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { BudState, BudActivityEvent, BudApprovalItem } from '@/lib/bud/types';
-import { scoreAgentHealth, type AgentHealthLabel, type GlobalHealthCheck } from '@/lib/bud/health';
+import { scoreAgentHealth, type AgentHealthLabel, type GlobalHealthCheck, type MissionControlHealth } from '@/lib/bud/health';
 import { BudStateDisplay } from './_components/BudStateDisplay';
 import { BudActivityFeed } from './_components/BudActivityFeed';
 import { AgentHierarchy } from './_components/AgentHierarchy';
@@ -47,7 +47,7 @@ type GithubEventRow = {
   event_type: string;
   action: string | null;
   repo: string | null;
-  metadata: Record<string, string> | null;
+  metadata: Record<string, string | number | boolean | null> | null;
   status: string;
   created_at: string;
 };
@@ -99,6 +99,7 @@ type Props = {
   budActivity?: BudActivityEvent[];
   budApprovals?: BudApprovalItem[];
   globalHealth: GlobalHealthCheck;
+  commandState: MissionControlHealth;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,6 +122,15 @@ function fmtDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
+}
+
+function fmtPct(value: number | null): string {
+  if (value === null || Number.isNaN(value)) return '—';
+  return `${Math.round(value * 100)}%`;
+}
+
+function relOrNever(iso: string | null): string {
+  return iso ? rel(iso) : 'never';
 }
 
 function isUsefulSummary(summary: string | null): boolean {
@@ -1886,9 +1896,268 @@ function MemoryIntelligence({
   );
 }
 
+// ─── Unified command state ───────────────────────────────────────────────────
+
+const MODE_COPY: Record<MissionControlHealth['operating_mode'], { label: string; color: string; dot: string }> = {
+  monitoring:           { label: 'Monitoring',          color: 'text-emerald-700 bg-emerald-50 border-emerald-100', dot: 'bg-emerald-500' },
+  diagnosing:           { label: 'Diagnosing',          color: 'text-amber-700 bg-amber-50 border-amber-100',       dot: 'bg-amber-500' },
+  repairing:            { label: 'Repairing',           color: 'text-orange-700 bg-orange-50 border-orange-100',    dot: 'bg-orange-500' },
+  waiting_for_approval: { label: 'Waiting approval',    color: 'text-violet-700 bg-violet-50 border-violet-100',    dot: 'bg-violet-500' },
+  verifying:            { label: 'Verifying',           color: 'text-cyan-700 bg-cyan-50 border-cyan-100',          dot: 'bg-cyan-500' },
+  blocked:              { label: 'Blocked',             color: 'text-red-700 bg-red-50 border-red-100',             dot: 'bg-red-500' },
+};
+
+const CAPABILITY_STYLE: Record<MissionControlHealth['capabilities'][number]['status'], string> = {
+  online:  'text-emerald-700 bg-emerald-50 border-emerald-100',
+  partial: 'text-amber-700 bg-amber-50 border-amber-100',
+  blocked: 'text-red-700 bg-red-50 border-red-100',
+};
+
+const PHASE_STYLE: Record<MissionControlHealth['repair_sessions'][number]['phase'], string> = {
+  detected:          'text-slate-700 bg-slate-50 border-slate-100',
+  diagnosing:        'text-blue-700 bg-blue-50 border-blue-100',
+  reproducing:       'text-blue-700 bg-blue-50 border-blue-100',
+  analyzing:         'text-indigo-700 bg-indigo-50 border-indigo-100',
+  planning:          'text-violet-700 bg-violet-50 border-violet-100',
+  awaiting_approval: 'text-violet-700 bg-violet-50 border-violet-100',
+  patching:          'text-orange-700 bg-orange-50 border-orange-100',
+  validating:        'text-cyan-700 bg-cyan-50 border-cyan-100',
+  deploying:         'text-emerald-700 bg-emerald-50 border-emerald-100',
+  repairing:         'text-orange-700 bg-orange-50 border-orange-100',
+  verifying:         'text-cyan-700 bg-cyan-50 border-cyan-100',
+  monitoring:        'text-slate-700 bg-slate-50 border-slate-100',
+  recovered:         'text-emerald-700 bg-emerald-50 border-emerald-100',
+  rolled_back:       'text-red-700 bg-red-50 border-red-100',
+  learned:           'text-emerald-700 bg-emerald-50 border-emerald-100',
+  blocked:           'text-red-700 bg-red-50 border-red-100',
+};
+
+function CommandCentreOverview({ commandState }: { commandState: MissionControlHealth }) {
+  const mode = MODE_COPY[commandState.operating_mode];
+  const broken = commandState.counts.broken_agents + commandState.counts.needs_repair_agents;
+  const healthiest = commandState.agents.filter((agent) => agent.health.label === 'healthy').length;
+
+  return (
+    <Panel
+      label="Bud OS"
+      badge={<span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${mode.color}`}>{mode.label}</span>}
+      className="h-full"
+      accent={commandState.bud_status === 'critical' ? 'red' : commandState.bud_status === 'elevated' ? 'amber' : 'green'}
+    >
+      <div className="px-5 py-4">
+        <div className="flex items-start gap-3">
+          <span className={`w-2.5 h-2.5 rounded-full mt-1.5 ${mode.dot} ${commandState.operating_mode === 'monitoring' ? '' : 'animate-pulse'}`} />
+          <div className="min-w-0">
+            <h1 className="text-[22px] font-semibold tracking-tight text-slate-950 leading-tight">Bud OS</h1>
+            <p className="text-[12px] text-slate-500 leading-relaxed mt-1 max-w-3xl">{commandState.summary}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+          {[
+            { label: 'Healthy agents', value: `${healthiest}/${commandState.agents.length}`, tone: 'text-emerald-700' },
+            { label: 'Need repair', value: String(broken), tone: broken > 0 ? 'text-red-700' : 'text-slate-800' },
+            { label: 'Approvals', value: String(commandState.approvals.total_pending), tone: commandState.approvals.total_pending > 0 ? 'text-violet-700' : 'text-slate-800' },
+            { label: 'Repair sessions', value: String(commandState.repair_sessions.length), tone: commandState.repair_sessions.length > 0 ? 'text-orange-700' : 'text-slate-800' },
+          ].map((metric) => (
+            <div key={metric.label} className="rounded-xl border border-black/[0.05] bg-slate-50/60 px-3 py-2.5">
+              <div className={`text-[18px] font-semibold tabular-nums ${metric.tone}`}>{metric.value}</div>
+              <div className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">{metric.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+          {commandState.capabilities.map((capability) => (
+            <div key={capability.key} className={`rounded-xl border px-3 py-2.5 ${CAPABILITY_STYLE[capability.status]}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold">{capability.label}</span>
+                <span className="ml-auto text-[9px] font-semibold uppercase">{capability.status}</span>
+              </div>
+              <p className="text-[10px] leading-snug mt-1 opacity-80 line-clamp-2">{capability.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function RepairSessionConsole({ commandState }: { commandState: MissionControlHealth }) {
+  const sessions = commandState.repair_sessions.slice(0, 5);
+  const attentionAgents = commandState.agents
+    .filter((agent) => ['broken', 'needs_repair', 'watch'].includes(agent.health.label))
+    .slice(0, 5);
+  const [executingId, setExecutingId] = useState<string | null>(null);
+
+  async function executeRepair(taskId: string) {
+    setExecutingId(taskId);
+    try {
+      const res = await fetch(`/api/bud/repairs/${taskId}/execute`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body?.error ?? 'Repair executor failed');
+      } else if (body.status === 'blocked') {
+        toast.warning(`Repair blocked: ${body.blockedReason ?? 'safety gate'}`);
+      } else {
+        toast.success(`Repair executor started: ${body.status}`);
+      }
+    } finally {
+      setExecutingId(null);
+    }
+  }
+
+  return (
+    <Panel
+      label="Repair Console"
+      badge={sessions.length > 0 ? <span className="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5">{sessions.length} active</span> : null}
+      className="h-full"
+    >
+      {sessions.length === 0 && attentionAgents.length === 0 ? (
+        <div className="px-5 py-6 text-center">
+          <p className="text-[12px] font-semibold text-slate-600">No repair work queued</p>
+          <p className="text-[11px] text-slate-400 mt-1">Bud will create repair sessions when failures are detected.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-black/[0.04]">
+          {sessions.map((session) => (
+            <div key={session.id} className="px-5 py-3.5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`text-[9px] font-semibold border rounded-full px-1.5 py-0.5 ${PHASE_STYLE[session.phase]}`}>{session.phase.replaceAll('_', ' ')}</span>
+                <span className="text-[10px] text-slate-400">{session.agent_name}</span>
+                <span className="ml-auto text-[10px] font-mono text-slate-400">{rel(session.created_at)}</span>
+              </div>
+              <p className="text-[11px] font-medium text-slate-800 line-clamp-2 leading-relaxed">{session.description}</p>
+              <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
+                <span>risk {session.risk_level}</span>
+                <span>conf {fmtPct(session.confidence)}</span>
+                {session.linked_issue && <a href={session.linked_issue} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">issue</a>}
+                {session.linked_pr && <a href={session.linked_pr} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">PR</a>}
+                {session.linked_deployment && <a href={session.linked_deployment} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">deploy</a>}
+                <button
+                  disabled={executingId === session.id}
+                  onClick={() => executeRepair(session.id)}
+                  className="ml-auto text-[10px] font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 disabled:opacity-50"
+                >
+                  {executingId === session.id ? 'Running...' : 'Run executor'}
+                </button>
+              </div>
+            </div>
+          ))}
+          {attentionAgents.map((agent) => (
+            <div key={agent.id} className="px-5 py-3.5">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <span className="text-[11px] font-semibold text-slate-900">{agent.name}</span>
+                <span className="ml-auto text-[9px] font-semibold uppercase text-red-700 bg-red-50 border border-red-100 rounded-full px-1.5 py-0.5">
+                  {agent.health.label.replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">{agent.recommended_action}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function DeploymentVerification({ commandState }: { commandState: MissionControlHealth }) {
+  const deployment = commandState.deployment;
+  const style =
+    deployment.status === 'healthy' ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+    : deployment.status === 'failed' ? 'text-red-700 bg-red-50 border-red-100'
+    : deployment.status === 'deploying' ? 'text-blue-700 bg-blue-50 border-blue-100'
+    : 'text-slate-600 bg-slate-50 border-slate-100';
+
+  return (
+    <Panel label="Deployment Verification" badge={<span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${style}`}>{deployment.status}</span>} className="h-full">
+      <div className="px-5 py-4 space-y-3">
+        <p className="text-[12px] text-slate-600 leading-relaxed">{deployment.summary}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <IntelCard label="Last signal" color="text-slate-500" title={relOrNever(deployment.last_event_at)} empty="No signal" />
+          <IntelCard label="Last success" color="text-emerald-600" title={relOrNever(deployment.last_success_at)} empty="Never" />
+          <IntelCard label="Last failure" color="text-red-600" title={relOrNever(deployment.last_failure_at)} empty="None" />
+          <IntelCard label="Memory" color="text-violet-600" title={commandState.memory.connected ? `${commandState.memory.recent_count} records` : 'Not synced'} empty="Not synced" />
+        </div>
+        {deployment.last_url && (
+          <a href={deployment.last_url} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
+            Open deployment
+          </a>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function BudTerminalPanel() {
+  const [command, setCommand] = useState('git status');
+  const [running, setRunning] = useState(false);
+  const [output, setOutput] = useState('Bud Terminal is allowlisted. It runs real commands and records terminal sessions.');
+  const commands = ['git status', 'git branch', 'git diff', 'build', 'unit tests'];
+
+  async function runCommand() {
+    setRunning(true);
+    setOutput(`$ ${command}\nRunning...`);
+    try {
+      const res = await fetch('/api/bud/terminal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOutput(`Error: ${body?.error ?? 'terminal command failed'}`);
+        toast.error('Bud Terminal command failed');
+      } else {
+        setOutput(body.output ?? '(no output)');
+        if (body.status === 'blocked') toast.warning('Command blocked by Bud OS safety gate');
+        else if (body.status === 'failed') toast.error('Command exited with failure');
+        else toast.success('Command completed');
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Panel label="Bud Terminal" badge={<span className="text-[10px] font-semibold text-slate-600 bg-slate-50 border border-slate-100 rounded-full px-2 py-0.5">real commands</span>} className="h-full">
+      <div className="px-5 py-4">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <select
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            className="text-[12px] text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
+          >
+            {commands.map((cmd) => <option key={cmd} value={cmd}>{cmd}</option>)}
+          </select>
+          <button
+            disabled={running}
+            onClick={runCommand}
+            className="text-[11px] font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-lg px-3 py-1.5"
+          >
+            {running ? 'Running...' : 'Run'}
+          </button>
+        </div>
+        <pre className="min-h-[150px] max-h-[260px] overflow-auto rounded-xl bg-slate-950 px-3 py-3 text-[10px] leading-relaxed text-slate-100 whitespace-pre-wrap">
+          {output}
+        </pre>
+        <p className="text-[10px] text-slate-400 mt-2">
+          Build and test commands require `BUD_OS_EXECUTION_ENABLED=true`. Arbitrary shell is intentionally blocked.
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
 // ─── GitHub Activity ──────────────────────────────────────────────────────────
 
 function GitHubActivity({ events }: { events: GithubEventRow[] }) {
+  function metaString(value: string | number | boolean | null | undefined, fallback = ''): string {
+    if (value === null || value === undefined) return fallback;
+    return String(value);
+  }
+
   function dot(evt: GithubEventRow): string {
     if (evt.event_type === 'deployment_failure') return 'bg-red-500';
     if (evt.event_type === 'adr_flag') return 'bg-amber-400';
@@ -1901,18 +2170,18 @@ function GitHubActivity({ events }: { events: GithubEventRow[] }) {
   function title(evt: GithubEventRow): string {
     const m = evt.metadata;
     if (!m) return evt.event_type;
-    if (evt.event_type === 'pull_request') return m.pr_title ?? `PR #${m.pr_number ?? '?'}`;
-    if (evt.event_type === 'deployment_status') return `${m.environment ?? 'production'} — ${evt.action ?? ''}`;
-    if (evt.event_type === 'deployment_failure') return `Deploy failed — ${m.branch ?? 'main'}`;
-    if (evt.event_type === 'adr_flag') return m.pr_title ?? 'ADR flag';
-    if (evt.event_type === 'push') return m.message ?? 'Push';
-    if (evt.event_type === 'release') return m.tag_name ?? 'Release';
+    if (evt.event_type === 'pull_request') return metaString(m.pr_title, `PR #${metaString(m.pr_number, '?')}`);
+    if (evt.event_type === 'deployment_status') return `${metaString(m.environment, 'production')} — ${evt.action ?? ''}`;
+    if (evt.event_type === 'deployment_failure') return `Deploy failed — ${metaString(m.branch, 'main')}`;
+    if (evt.event_type === 'adr_flag') return metaString(m.pr_title, 'ADR flag');
+    if (evt.event_type === 'push') return metaString(m.message, 'Push');
+    if (evt.event_type === 'release') return metaString(m.tag_name, 'Release');
     return evt.event_type;
   }
 
   function prUrl(evt: GithubEventRow): string | null {
     if (evt.event_type === 'pull_request' && evt.metadata?.pr_number && evt.repo) {
-      return `https://github.com/${evt.repo}/pull/${evt.metadata.pr_number}`;
+      return `https://github.com/${evt.repo}/pull/${metaString(evt.metadata.pr_number)}`;
     }
     return null;
   }
@@ -1988,6 +2257,7 @@ export function MissionControlClient({
   budActivity = [],
   budApprovals = [],
   globalHealth,
+  commandState,
 }: Props) {
   const [runs, setRuns] = useState<RunRow[]>(initialRuns);
   const [actions, setActions] = useState<ActionRow[]>(initialActions);
@@ -2099,9 +2369,35 @@ export function MissionControlClient({
 
       <StatusBar m={metrics} liveCount={liveCount} isConnected={isConnected} globalHealth={globalHealth} />
 
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" style={{ minHeight: '280px' }}>
+        <div className="xl:col-span-2">
+          <CommandCentreOverview commandState={commandState} />
+        </div>
+        <div>
+          <DeploymentVerification commandState={commandState} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ minHeight: '260px' }}>
+        <div className="lg:col-span-2">
+          <RepairSessionConsole commandState={commandState} />
+        </div>
+        <BudTerminalPanel />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ minHeight: '180px' }}>
+        <Panel label="Autonomy & Safety" className="h-full lg:col-span-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 px-5 py-4">
+            <IntelCard label="Operating mode" color="text-violet-600" title={commandState.operating_mode.replaceAll('_', ' ')} empty="monitoring" />
+            <IntelCard label="Approval gate" color="text-amber-600" title={`${commandState.approvals.pending_agent_actions} agent actions, ${commandState.approvals.pending_bud_approvals} Bud approvals`} empty="clear" />
+            <IntelCard label="Learning layer" color="text-emerald-600" title={commandState.memory.connected ? `Last write ${relOrNever(commandState.memory.last_write_at)}` : 'Memory not synced'} empty="not synced" />
+          </div>
+        </Panel>
+      </div>
+
       {/* Main row: Agent Feed (2/3) | Next Actions + GitHub stacked (1/3) */}
-      <div className="grid grid-cols-3 gap-4" style={{ minHeight: '520px' }}>
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" style={{ minHeight: '520px' }}>
+        <div className="xl:col-span-2">
           <AgentFeed
             runs={runs}
             agentMap={agentMap}
@@ -2132,7 +2428,7 @@ export function MissionControlClient({
       </div>
 
       {/* Bud row: Agent Hierarchy (1/3) | Bud Activity Feed (2/3) */}
-      <div className="grid grid-cols-3 gap-4" style={{ minHeight: '360px' }}>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" style={{ minHeight: '360px' }}>
         <div>
           <Panel label="Agent Hierarchy" className="h-full">
             <div className="px-3 py-3">
@@ -2144,7 +2440,7 @@ export function MissionControlClient({
             </div>
           </Panel>
         </div>
-        <div className="col-span-2">
+        <div className="xl:col-span-2">
           <Panel label="Bud Activity" className="h-full">
             <BudActivityFeed initial={budActivity} />
           </Panel>
@@ -2152,8 +2448,8 @@ export function MissionControlClient({
       </div>
 
       {/* Bottom row: Agent Health (2/3) | Memory & Intelligence (1/3) */}
-      <div className="grid grid-cols-3 gap-4" style={{ minHeight: '340px' }}>
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" style={{ minHeight: '340px' }}>
+        <div className="xl:col-span-2">
           <AgentHealth agents={agents} agentStatsMap={agentStatsMap} runs={runs} />
         </div>
         <MemoryIntelligence memory={memory} insights={insights} github={github} runs={initialRuns} supabaseConnected={supabaseConnected} vercelConnected={vercelConnected} />

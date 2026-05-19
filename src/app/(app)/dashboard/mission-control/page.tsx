@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { MissionControlClient } from './MissionControlClient';
-import { evaluateGlobalHealth } from '@/lib/bud/health';
+import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,7 +14,7 @@ async function loadData() {
 
   const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
 
-  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes] = await Promise.all([
+  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes] = await Promise.all([
     supabase
       .from('agents')
       .select('id, name, status, category, autonomy')
@@ -59,6 +59,35 @@ async function loadData() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(10),
+    supabase
+      .from('bud_tasks')
+      .select('id, source_agent, target_agent, status, confidence, risk_level, description, autonomy_level, linked_issue, linked_pr, linked_deployment, linked_memory_note, created_at, updated_at')
+      .in('status', [
+        'pending',
+        'detected',
+        'reproducing',
+        'analyzing',
+        'planning',
+        'awaiting_approval',
+        'patching',
+        'validating',
+        'deploying',
+        'verifying',
+        'monitoring',
+        'recovered',
+        'rolled_back',
+        'blocked',
+        'in_progress',
+        'completed',
+        'failed',
+      ])
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('bud_change_requests')
+      .select('id, task_id, branch_name, issue_url, pr_url, deployment_url, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
   ]);
 
   let memory: { id: string; category: string; title: string; vault_path: string; created_at: string }[] = [];
@@ -113,6 +142,8 @@ async function loadData() {
   const budApprovals = (budApprovalsRes.data ?? []) as import('@/lib/bud/types').BudApprovalItem[];
 
   const githubData = githubRes.data ?? [];
+  const budTasks = budTasksRes.data ?? [];
+  const changeRequests = changeRequestsRes.data ?? [];
   const vercelConnected = githubData.some((e) => e.event_type === 'deployment_status');
 
   const budState = budStateRes.data;
@@ -128,6 +159,21 @@ async function loadData() {
       })),
     ],
     unresolvedAlerts: insightsRes.data?.length ?? 0,
+  });
+  const commandState = computeMissionControlHealth({
+    agents,
+    runs,
+    actions,
+    budApprovals: budApprovals.map((approval) => ({
+      id: approval.id,
+      agent_id: null,
+      status: approval.status,
+    })),
+    tasks: budTasks,
+    changeRequests,
+    github: githubData,
+    insights: insightsRes.data ?? [],
+    memory,
   });
 
   return {
@@ -154,6 +200,7 @@ async function loadData() {
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     budApprovals,
     globalHealth,
+    commandState,
   };
 }
 

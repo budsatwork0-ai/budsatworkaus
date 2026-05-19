@@ -65,7 +65,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/insights': 'Insights',
   '/dashboard/settings': 'Settings',
   '/dashboard/ndis': 'NDIS Organisations',
-  '/dashboard/mission-control': 'Mission Control',
+  '/dashboard/mission-control': 'Bud OS',
 };
 
 
@@ -147,10 +147,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { kind: 'link', href: '/dashboard/invoices',  label: 'Money',     icon: moneyIcon,     badgeKey: 'invoices'  },
     { kind: 'link', href: '/dashboard/crew',      label: 'Crew',      icon: crewIcon,      badgeKey: 'applicants'},
     { kind: 'link', href: '/dashboard/insights',  label: 'Insights',  icon: insightsIcon,                        },
-    { kind: 'link', href: '/dashboard/mission-control', label: 'Mission Control', icon: missionIcon, adminOnly: true },
-    { kind: 'link', href: '/dashboard/agents',    label: 'Agents',    icon: agentsIcon,    adminOnly: true       },
-    { kind: 'link', href: '/dashboard/agents/lobby', label: 'Lobby',  icon: lobbyIcon,     adminOnly: true       },
-    { kind: 'link', href: '/dashboard/agents/intel', label: 'Intel',  icon: agentsIcon,    adminOnly: true       },
+    { kind: 'link', href: '/dashboard/mission-control', label: 'Bud OS', icon: missionIcon, adminOnly: true },
+    { kind: 'link', href: '/dashboard/agents',    label: 'Workforce', icon: agentsIcon,    adminOnly: true       },
+    { kind: 'link', href: '/dashboard/agents/lobby', label: 'Runtime', icon: lobbyIcon,     adminOnly: true       },
+    { kind: 'link', href: '/dashboard/agents/intel', label: 'Intelligence', icon: agentsIcon, adminOnly: true       },
     { kind: 'link', href: '/dashboard/ndis',      label: 'NDIS',      icon: ndisIcon,      adminOnly: true       },
     { kind: 'link', href: '/dashboard/settings',  label: 'Settings',  icon: settingsIcon,  adminOnly: true       },
   ], []);
