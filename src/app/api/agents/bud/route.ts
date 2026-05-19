@@ -10,6 +10,7 @@ import { getAuthUser } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(_req: NextRequest) {
   const user = await getAuthUser();

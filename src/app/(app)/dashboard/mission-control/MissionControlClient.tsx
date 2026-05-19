@@ -1530,17 +1530,18 @@ function MemoryEmptyState() {
 
   async function activateBud() {
     setRunning(true);
+    const toastId = toast.loading('Bud is thinking — analysing agent workforce…');
     try {
       const res = await fetch('/api/agents/bud', { method: 'POST' });
       if (res.ok) {
-        toast.success('Bud activated — refreshing…');
-        setTimeout(() => router.refresh(), 1200);
+        toast.success('Bud activated — loading intel…', { id: toastId, duration: 4000 });
+        setTimeout(() => router.refresh(), 1500);
       } else {
         const body = await res.json().catch(() => ({}));
-        toast.error(body?.error ?? 'Bud activation failed');
+        toast.error(body?.error ?? 'Bud activation failed', { id: toastId, duration: 5000 });
       }
     } catch {
-      toast.error('Network error — try again');
+      toast.error('Network error — try again', { id: toastId, duration: 5000 });
     } finally {
       setRunning(false);
     }
