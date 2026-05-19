@@ -24,6 +24,7 @@ import type { BudActivityEvent, BudApprovalItem } from '@/lib/bud/types';
 import type { MissionControlHealth } from '@/lib/bud/health';
 import {
   buildRepairWorkspace,
+  type BudOsApprovalDetail,
   type BudOsAutonomyCapability,
   type BudOsMemoryLayer,
   type BudOsQueueGroup,
@@ -524,76 +525,95 @@ function ActionQueue({
               {groupItems.length === 0 ? (
                 <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-xs text-white/35">Nothing here right now.</div>
               ) : (
-                groupItems.slice(0, 6).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelect(item)}
-                    className={`block w-full rounded-md border px-3 py-3 text-left transition ${
-                      selectedId === item.id
-                        ? 'border-sky-400/40 bg-sky-500/[0.08]'
-                        : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className={`mt-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${SEVERITY_TONE[item.severity]}`}>
-                        {item.severity}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold leading-tight text-white">{item.title}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-white/55">{clamp(item.detail, 130)}</p>
-                        <p className="mt-1 text-[10px] text-white/35">
-                          {item.agent_name ?? 'Bud'} · {rel(item.created_at)}
-                        </p>
+                groupItems.slice(0, 6).map((item) => {
+                  const ready = !item.approval || item.approval.readiness === 'ready';
+                  const readinessTone = item.approval
+                    ? READINESS_TONE[item.approval.readiness]
+                    : ('neutral' as const);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => onSelect(item)}
+                      className={`block w-full rounded-md border px-3 py-3 text-left transition ${
+                        selectedId === item.id
+                          ? 'border-sky-400/40 bg-sky-500/[0.08]'
+                          : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className={`mt-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${SEVERITY_TONE[item.severity]}`}>
+                          {item.severity}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold leading-tight text-white">{item.title}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-white/55">{clamp(item.detail, 130)}</p>
+                          <p className="mt-1 text-[10px] text-white/35">
+                            {item.agent_name ?? 'Bud'} · {rel(item.created_at)}
+                          </p>
+                          {item.approval && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <Pill tone={readinessTone}>{READINESS_LABEL[item.approval.readiness]}</Pill>
+                              {item.approval.risk_level && <Pill tone={item.approval.risk_level === 'critical' ? 'bad' : 'neutral'}>{item.approval.risk_level} risk</Pill>}
+                              {item.approval.confidence !== null && <Pill tone="cool">conf {Math.round((item.approval.confidence ?? 0) * 100)}%</Pill>}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {item.actions.includes('investigate') && (
-                        <span
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onInvestigate(item);
-                          }}
-                          className="rounded-md border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-medium text-sky-200 hover:bg-sky-500/[0.16]"
-                        >
-                          Investigate
-                        </span>
-                      )}
-                      {item.actions.includes('fix_with_bud') && (
-                        <span
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onInvestigate(item);
-                          }}
-                          className="rounded-md border border-orange-400/30 bg-orange-500/[0.08] px-2 py-1 text-[10px] font-medium text-orange-200 hover:bg-orange-500/[0.16]"
-                        >
-                          Fix with Bud
-                        </span>
-                      )}
-                      {item.actions.includes('approve') && (
-                        <span
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onApprove(item);
-                          }}
-                          className="rounded-md border border-emerald-400/30 bg-emerald-500/[0.08] px-2 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/[0.16]"
-                        >
-                          Approve
-                        </span>
-                      )}
-                      {item.actions.includes('dismiss') && (
-                        <span
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onDismiss(item);
-                          }}
-                          className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/55 hover:bg-white/[0.06]"
-                        >
-                          Dismiss
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {item.actions.includes('investigate') && (
+                          <span
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onInvestigate(item);
+                            }}
+                            className="rounded-md border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-medium text-sky-200 hover:bg-sky-500/[0.16]"
+                          >
+                            Investigate
+                          </span>
+                        )}
+                        {item.actions.includes('fix_with_bud') && (
+                          <span
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onInvestigate(item);
+                            }}
+                            className="rounded-md border border-orange-400/30 bg-orange-500/[0.08] px-2 py-1 text-[10px] font-medium text-orange-200 hover:bg-orange-500/[0.16]"
+                          >
+                            Fix with Bud
+                          </span>
+                        )}
+                        {item.actions.includes('approve') && (
+                          <span
+                            title={ready ? 'Approve' : item.approval?.readiness_summary}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!ready) return;
+                              onApprove(item);
+                            }}
+                            className={`rounded-md border px-2 py-1 text-[10px] font-medium ${
+                              ready
+                                ? 'border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-200 hover:bg-emerald-500/[0.16]'
+                                : 'border-white/[0.06] bg-white/[0.04] text-white/35 cursor-not-allowed'
+                            }`}
+                          >
+                            {ready ? 'Approve' : 'Review first'}
+                          </span>
+                        )}
+                        {item.actions.includes('dismiss') && (
+                          <span
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDismiss(item);
+                            }}
+                            className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/55 hover:bg-white/[0.06]"
+                          >
+                            Dismiss
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -705,6 +725,282 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
               {workspace.logs.length === 0 && <p className="px-3 py-3 text-xs text-white/40">Bud has nothing to say about this repair yet.</p>}
             </div>
           </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                             APPROVAL INSPECTOR                             */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const READINESS_LABEL: Record<BudOsApprovalDetail['readiness'], string> = {
+  ready: 'Ready to approve',
+  awaiting_plan: 'Waiting on plan',
+  awaiting_patch: 'Waiting on patch',
+  awaiting_diff: 'Waiting on diff',
+  awaiting_repair: 'Waiting on repair',
+  awaiting_diagnosis: 'Diagnosing',
+  blocked: 'Blocked',
+};
+
+const READINESS_TONE: Record<BudOsApprovalDetail['readiness'], 'good' | 'warn' | 'bad' | 'cool' | 'neutral'> = {
+  ready: 'good',
+  awaiting_plan: 'warn',
+  awaiting_patch: 'warn',
+  awaiting_diff: 'warn',
+  awaiting_repair: 'warn',
+  awaiting_diagnosis: 'cool',
+  blocked: 'bad',
+};
+
+function formatPayload(payload: Record<string, unknown> | null | undefined): string {
+  if (!payload || Object.keys(payload).length === 0) return '{ }';
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return String(payload);
+  }
+}
+
+function ApprovalInspector({
+  item,
+  onApprove,
+  onReject,
+  onInvestigate,
+}: {
+  item: BudOsQueueItem | null;
+  onApprove: (item: BudOsQueueItem, notes: string) => Promise<void>;
+  onReject: (item: BudOsQueueItem, reason: string) => Promise<void>;
+  onInvestigate: (item: BudOsQueueItem) => void;
+}) {
+  const [notes, setNotes] = useState('');
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [busy, setBusy] = useState<null | 'approve' | 'reject'>(null);
+
+  // Reset note state when selection changes.
+  useEffect(() => {
+    setNotes('');
+    setRejectMode(false);
+    setRejectReason('');
+  }, [item?.id]);
+
+  if (!item || !item.approval) {
+    return (
+      <Card title="Approval inspector" subtitle="Select an item from the Needs your approval list to see what Bud wants to do.">
+        <div className="px-5 py-10 text-center text-sm text-white/45">
+          Nothing selected. Click a card on the left.
+        </div>
+      </Card>
+    );
+  }
+
+  const approval = item.approval;
+  const isReady = approval.readiness === 'ready';
+  const dangerLabel = approval.action_type ? approval.action_type.toUpperCase() : 'ACTION';
+  const sevTone: 'good' | 'warn' | 'bad' | 'cool' =
+    approval.risk_level === 'critical' ? 'bad' : approval.risk_level === 'high' ? 'warn' : approval.risk_level === 'low' ? 'good' : 'cool';
+
+  const handleApprove = async () => {
+    setBusy('approve');
+    try {
+      await onApprove(item, notes.trim());
+    } finally {
+      setBusy(null);
+    }
+  };
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Please give a reason so Bud can learn.');
+      return;
+    }
+    setBusy('reject');
+    try {
+      await onReject(item, rejectReason.trim());
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card
+      title="Approval inspector"
+      subtitle={`${dangerLabel} · requested ${rel(approval.requested_at)} · ${approval.source_agent ?? 'Bud'}`}
+      action={
+        <Pill tone={READINESS_TONE[approval.readiness]}>{READINESS_LABEL[approval.readiness]}</Pill>
+      }
+    >
+      <div className="px-5 py-4 space-y-4">
+        {/* Top summary row */}
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone={sevTone}>{approval.risk_level ?? 'unknown'} risk</Pill>
+            {approval.confidence !== null && <Pill tone="cool">conf {Math.round((approval.confidence ?? 0) * 100)}%</Pill>}
+            <span className="text-[10px] uppercase tracking-wider text-white/40">action: <span className="font-mono text-white/70">{approval.action_type}</span></span>
+            {approval.target_table && (
+              <span className="text-[10px] uppercase tracking-wider text-white/40">
+                target: <span className="font-mono text-white/70">{approval.target_table}{approval.target_id ? `#${approval.target_id.slice(0, 8)}` : ''}</span>
+              </span>
+            )}
+          </div>
+          <p className="mt-3 text-base font-semibold leading-tight text-white">{item.title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-white/75">{approval.full_description}</p>
+          {approval.readiness !== 'ready' && (
+            <div className="mt-3 rounded-md border border-amber-400/30 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-200">
+              {approval.readiness_summary}
+            </div>
+          )}
+        </div>
+
+        {/* What Bud will do */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">What Bud will do</p>
+            {approval.proposed_plan.length === 0 ? (
+              <p className="mt-2 text-xs text-white/45">No plan provided. Bud may execute this as a single step.</p>
+            ) : (
+              <ol className="mt-2 space-y-1.5">
+                {approval.proposed_plan.map((step, index) => (
+                  <li key={`${step}-${index}`} className="flex gap-2 text-xs text-white/80">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-[10px] font-semibold text-white/70">{index + 1}</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+
+          <div className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Affected surfaces</p>
+            {approval.affected_files.length === 0 ? (
+              <p className="mt-2 text-xs text-white/45">Bud could not infer affected files. Check the payload.</p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {approval.affected_files.map((file) => (
+                  <span key={file} className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5 font-mono text-[10px] text-white/70">{file}</span>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Blast radius</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/75">{approval.blast_radius}</p>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Rollback</p>
+            <p className="mt-1 text-xs leading-relaxed text-white/75">{approval.rollback_story}</p>
+          </div>
+        </div>
+
+        {/* Diff / Payload */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+            {approval.diff_summary ? 'Proposed diff' : 'Payload'}
+          </p>
+          <pre className="mt-1 max-h-[260px] overflow-auto rounded-md border border-white/[0.06] bg-black/40 px-3 py-3 font-mono text-[11px] leading-relaxed text-white/75">
+{approval.diff_summary ?? formatPayload(approval.payload)}
+          </pre>
+        </div>
+
+        {/* Linked artifacts */}
+        {(approval.linked_pr || approval.linked_deployment || approval.linked_issue || approval.linked_memory_note) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {approval.linked_issue && (
+              <a href={approval.linked_issue} target="_blank" rel="noreferrer" className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-sky-300 hover:text-sky-200">
+                Issue ↗
+              </a>
+            )}
+            {approval.linked_pr && (
+              <a href={approval.linked_pr} target="_blank" rel="noreferrer" className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-sky-300 hover:text-sky-200">
+                Pull request ↗
+              </a>
+            )}
+            {approval.linked_deployment && (
+              <a href={approval.linked_deployment} target="_blank" rel="noreferrer" className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-sky-300 hover:text-sky-200">
+                Deployment ↗
+              </a>
+            )}
+            {approval.linked_memory_note && (
+              <span className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white/55">memory: {approval.linked_memory_note}</span>
+            )}
+          </div>
+        )}
+
+        {/* Decision area */}
+        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4">
+          {!rejectMode ? (
+            <>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-white/55">Approval note (optional)</label>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                rows={2}
+                placeholder="Approved because… (this is logged with the decision)"
+                className="mt-1 block w-full resize-none rounded-md border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-sky-400/40"
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  disabled={!isReady || busy !== null}
+                  onClick={() => void handleApprove()}
+                  className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
+                    isReady && busy === null
+                      ? 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
+                      : 'bg-white/[0.08] text-white/40 cursor-not-allowed'
+                  }`}
+                  title={isReady ? 'Approve and execute' : approval.readiness_summary}
+                >
+                  {busy === 'approve' ? 'Approving…' : isReady ? 'Approve' : 'Not ready yet'}
+                </button>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => setRejectMode(true)}
+                  className="rounded-md border border-red-400/30 bg-red-500/[0.08] px-3 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/[0.15]"
+                >
+                  Reject
+                </button>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => onInvestigate(item)}
+                  className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-white/75 hover:bg-white/[0.08]"
+                >
+                  Ask Bud to investigate first
+                </button>
+                {!isReady && (
+                  <span className="text-[11px] text-amber-300">
+                    Bud will let you approve once readiness = ready.
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-white/55">Reason for rejection (required)</label>
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                rows={2}
+                placeholder="Tell Bud what to do differently next time…"
+                className="mt-1 block w-full resize-none rounded-md border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-red-400/40"
+              />
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  disabled={busy !== null || !rejectReason.trim()}
+                  onClick={() => void handleReject()}
+                  className="rounded-md bg-red-400 px-4 py-2 text-sm font-semibold text-red-950 hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy === 'reject' ? 'Rejecting…' : 'Confirm reject'}
+                </button>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setRejectMode(false);
+                    setRejectReason('');
+                  }}
+                  className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-white/75 hover:bg-white/[0.08]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Card>
@@ -1279,17 +1575,41 @@ export function MissionControlClient({
     }
   }
 
-  async function approve(item: BudOsQueueItem) {
+  async function approve(item: BudOsQueueItem, notes = '') {
+    if (item.approval && item.approval.readiness !== 'ready') {
+      toast.error(`Not ready: ${item.approval.readiness_summary}`);
+      return;
+    }
     try {
       const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
-      const body = item.source === 'agent_action' ? { decision: 'approve' } : { id: item.source_id, decision: 'approved' };
+      const body = item.source === 'agent_action'
+        ? { decision: 'approve', notes: notes || undefined }
+        : { id: item.source_id, decision: 'approved', notes: notes || undefined };
       const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? 'Approval failed');
       setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
-      toast.success('Bud approval recorded');
+      toast.success(notes ? 'Approved with note' : 'Bud approval recorded');
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Approval failed');
+    }
+  }
+
+  async function reject(item: BudOsQueueItem, reason: string) {
+    try {
+      const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
+      const body = item.source === 'agent_action'
+        ? { decision: 'reject', notes: reason }
+        : { id: item.source_id, decision: 'rejected', notes: reason };
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? 'Rejection failed');
+      setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
+      toast.success('Rejection recorded - Bud will learn from this');
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rejection failed');
     }
   }
 
@@ -1407,7 +1727,16 @@ export function MissionControlClient({
                   onApprove={(item) => void approve(item)}
                   onInvestigate={(item) => void investigate(item)}
                 />
-                <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+                {selected?.approval ? (
+                  <ApprovalInspector
+                    item={selected}
+                    onApprove={(item, notes) => approve(item, notes)}
+                    onReject={(item, reason) => reject(item, reason)}
+                    onInvestigate={(item) => void investigate(item)}
+                  />
+                ) : (
+                  <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+                )}
               </div>
               <Card title="Bud noticed" subtitle="Insights Bud has not yet resolved.">
                 <div className="divide-y divide-white/[0.04] px-3">
@@ -1435,7 +1764,16 @@ export function MissionControlClient({
                 onApprove={(item) => void approve(item)}
                 onInvestigate={(item) => void investigate(item)}
               />
-              <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+              {selected?.approval ? (
+                <ApprovalInspector
+                  item={selected}
+                  onApprove={(item, notes) => approve(item, notes)}
+                  onReject={(item, reason) => reject(item, reason)}
+                  onInvestigate={(item) => void investigate(item)}
+                />
+              ) : (
+                <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+              )}
             </div>
           )}
 

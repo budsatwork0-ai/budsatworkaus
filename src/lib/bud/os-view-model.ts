@@ -25,6 +25,39 @@ export type BudOsQueueSource =
   | 'ux_evolution'
   | 'repair_session';
 
+export type ApprovalReadinessReason =
+  | 'ready'
+  | 'awaiting_plan'
+  | 'awaiting_patch'
+  | 'awaiting_diff'
+  | 'awaiting_repair'
+  | 'awaiting_diagnosis'
+  | 'blocked';
+
+export type BudOsApprovalDetail = {
+  action_type: string;
+  payload: Record<string, unknown> | null;
+  target_table: string | null;
+  target_id: string | null;
+  risk_level: 'low' | 'medium' | 'high' | 'critical' | null;
+  confidence: number | null;
+  proposed_plan: string[];
+  diff_summary: string | null;
+  affected_files: string[];
+  blast_radius: string;
+  rollback_story: string;
+  linked_issue: string | null;
+  linked_pr: string | null;
+  linked_deployment: string | null;
+  linked_memory_note: string | null;
+  preview: string | null;
+  full_description: string;
+  readiness: ApprovalReadinessReason;
+  readiness_summary: string;
+  source_agent: string | null;
+  requested_at: string;
+};
+
 export type BudOsQueueItem = {
   id: string;
   source: BudOsQueueSource;
@@ -39,6 +72,7 @@ export type BudOsQueueItem = {
   agent_name: string | null;
   created_at: string;
   actions: Array<'explain' | 'investigate' | 'fix_with_bud' | 'approve' | 'dismiss'>;
+  approval?: BudOsApprovalDetail;
 };
 
 export type BudOsRepairWorkspace = {
@@ -94,6 +128,9 @@ type ActionRow = {
   action_type: string;
   preview: string;
   created_at: string;
+  payload?: Record<string, unknown> | null;
+  target_table?: string | null;
+  target_id?: string | null;
 };
 
 type InsightRow = {
@@ -208,6 +245,223 @@ function actionSet(group: BudOsQueueGroup): BudOsQueueItem['actions'] {
   return ['explain', 'investigate', 'fix_with_bud', 'dismiss'];
 }
 
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                       APPROVAL DETAIL + READINESS                          */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const DANGEROUS_ACTIONS = new Set([
+  'delete_records',
+  'mass_email',
+  'financial_transfer',
+  'ddl_sql',
+  'modify_pricing',
+  'modify_ndis',
+  'modify_compliance',
+]);
+
+function inferAffectedFiles(payload: Record<string, unknown> | null | undefined, fallback: string): string[] {
+  const text = `${JSON.stringify(payload ?? {})}\n${fallback}`;
+  const matches = Array.from(text.matchAll(/[\w./-]+\.(?:ts|tsx|js|jsx|sql|md|json|css)/g));
+  return Array.from(new Set(matches.map((m) => m[0]))).slice(0, 10);
+}
+
+function describeBlastRadius(args: {
+  actionType: string;
+  payload: Record<string, unknown> | null;
+  riskLevel: string | null;
+  targetTable: string | null;
+}): string {
+  if (DANGEROUS_ACTIONS.has(args.actionType)) {
+    return `This is a guarded action (${args.actionType}). It can move money, change pricing, alter compliance data, or contact customers at scale. Side effects are NOT trivially reversible.`;
+  }
+  if (args.riskLevel === 'critical') return 'Critical risk - assume this affects production data or customer-facing surfaces.';
+  if (args.riskLevel === 'high') return 'High risk - changes production code, configuration, or live data.';
+  if (args.targetTable) return `Touches table "${args.targetTable}". Limited blast radius unless mass-update.`;
+  if (args.payload && typeof args.payload === 'object') {
+    const keys = Object.keys(args.payload);
+    if (keys.length === 0) return 'No payload - approving this records an intent only.';
+    return `Affects: ${keys.slice(0, 5).join(', ')}. Review the payload before approving.`;
+  }
+  return 'Low risk - small scoped change. Verify the diff still.';
+}
+
+function describeRollbackStory(args: {
+  actionType: string;
+  linkedDeployment: string | null;
+  linkedPr: string | null;
+}): string {
+  if (DANGEROUS_ACTIONS.has(args.actionType)) {
+    return 'Manual rollback only. Email/financial/data-mutating actions cannot be undone by Bud.';
+  }
+  if (args.linkedDeployment) return 'Linked to a deployment - Bud can revert by redeploying the previous SHA.';
+  if (args.linkedPr) return 'Linked PR - revert the PR to roll back. Bud can open the revert automatically.';
+  return 'Reversible at the data layer (status flip). No deploy involved.';
+}
+
+function planFromPayload(payload: Record<string, unknown> | null | undefined): string[] {
+  if (!payload) return [];
+  const plan = (payload as { plan?: unknown }).plan;
+  if (Array.isArray(plan)) return plan.map(String);
+  const steps = (payload as { steps?: unknown }).steps;
+  if (Array.isArray(steps)) return steps.map(String);
+  return [];
+}
+
+function diffFromPayload(payload: Record<string, unknown> | null | undefined): string | null {
+  if (!payload) return null;
+  const diff = (payload as { diff?: unknown; diff_summary?: unknown; patch?: unknown }).diff
+    ?? (payload as { diff_summary?: unknown }).diff_summary
+    ?? (payload as { patch?: unknown }).patch;
+  if (typeof diff === 'string') return diff;
+  if (diff && typeof diff === 'object') return JSON.stringify(diff, null, 2).slice(0, 2400);
+  return null;
+}
+
+function computeReadiness(args: {
+  source: BudOsQueueSource;
+  payload: Record<string, unknown> | null;
+  plan: string[];
+  diff: string | null;
+  linkedPr: string | null;
+  taskStatus?: string;
+  riskLevel?: string | null;
+}): { readiness: ApprovalReadinessReason; summary: string } {
+  if (args.taskStatus === 'blocked' || args.taskStatus === 'failed') {
+    return { readiness: 'blocked', summary: 'Bud is blocked. Investigate before approving.' };
+  }
+  if (args.source === 'agent_action') {
+    // Agent actions are typically ready once they exist (Bud has a preview + payload).
+    if (!args.payload || Object.keys(args.payload).length === 0) {
+      return { readiness: 'awaiting_patch', summary: 'No payload captured yet.' };
+    }
+    return { readiness: 'ready', summary: 'Action is fully drafted and ready for your decision.' };
+  }
+  if (args.taskStatus && ['detected', 'reproducing', 'analyzing'].includes(args.taskStatus)) {
+    return { readiness: 'awaiting_diagnosis', summary: 'Bud is still diagnosing. Wait before approving.' };
+  }
+  if (args.taskStatus === 'planning' && args.plan.length === 0) {
+    return { readiness: 'awaiting_plan', summary: 'Bud has not produced a plan yet.' };
+  }
+  if (['high', 'critical'].includes(args.riskLevel ?? '') && !args.diff && !args.linkedPr) {
+    return { readiness: 'awaiting_diff', summary: 'High-risk change without a diff or PR - hold for review.' };
+  }
+  if (args.taskStatus === 'patching' && !args.diff) {
+    return { readiness: 'awaiting_patch', summary: 'Bud is drafting the patch.' };
+  }
+  return { readiness: 'ready', summary: 'Drafted and gated. Safe to approve.' };
+}
+
+function buildApprovalDetailFromBudApproval(args: {
+  approval: BudApprovalItem & {
+    bud_tasks?: {
+      description?: string;
+      source_agent?: string | null;
+      risk_level?: string | null;
+      confidence?: number | null;
+    } | null;
+  };
+  repairSession?: MissionControlHealth['repair_sessions'][number];
+}): BudOsApprovalDetail {
+  const task = args.approval.bud_tasks;
+  const payload = (args.approval.payload ?? {}) as Record<string, unknown>;
+  const repair = args.repairSession;
+  const plan = planFromPayload(payload);
+  const diff = diffFromPayload(payload);
+  const riskLevel = (task?.risk_level ?? null) as BudOsApprovalDetail['risk_level'];
+  const linkedPr = repair?.linked_pr ?? (payload['pr_url'] as string | undefined) ?? null;
+  const linkedDeployment = repair?.linked_deployment ?? null;
+  const linkedIssue = repair?.linked_issue ?? null;
+  const linkedMemory = repair?.linked_memory_note ?? null;
+  const readiness = computeReadiness({
+    source: 'bud_approval',
+    payload,
+    plan,
+    diff,
+    linkedPr,
+    taskStatus: repair?.status,
+    riskLevel,
+  });
+  const fullDescription = task?.description ?? args.approval.action_type ?? 'Unspecified Bud task.';
+  return {
+    action_type: args.approval.action_type,
+    payload,
+    target_table: (payload['target_table'] as string | undefined) ?? null,
+    target_id: (payload['target_id'] as string | undefined) ?? null,
+    risk_level: riskLevel,
+    confidence: task?.confidence ?? null,
+    proposed_plan: plan,
+    diff_summary: diff,
+    affected_files: inferAffectedFiles(payload, fullDescription),
+    blast_radius: describeBlastRadius({
+      actionType: args.approval.action_type,
+      payload,
+      riskLevel,
+      targetTable: (payload['target_table'] as string | undefined) ?? null,
+    }),
+    rollback_story: describeRollbackStory({
+      actionType: args.approval.action_type,
+      linkedDeployment,
+      linkedPr,
+    }),
+    linked_issue: linkedIssue,
+    linked_pr: linkedPr,
+    linked_deployment: linkedDeployment,
+    linked_memory_note: linkedMemory,
+    preview: null,
+    full_description: fullDescription,
+    readiness: readiness.readiness,
+    readiness_summary: readiness.summary,
+    source_agent: task?.source_agent ?? null,
+    requested_at: args.approval.created_at,
+  };
+}
+
+function buildApprovalDetailFromAgentAction(args: { action: ActionRow }): BudOsApprovalDetail {
+  const payload = (args.action.payload ?? {}) as Record<string, unknown>;
+  const plan = planFromPayload(payload);
+  const diff = diffFromPayload(payload);
+  const readiness = computeReadiness({
+    source: 'agent_action',
+    payload,
+    plan,
+    diff,
+    linkedPr: null,
+  });
+  const fullDescription = args.action.preview || `${args.action.action_type} requested by ${args.action.agent_id ?? 'an agent'}.`;
+  return {
+    action_type: args.action.action_type,
+    payload,
+    target_table: args.action.target_table ?? null,
+    target_id: args.action.target_id ?? null,
+    risk_level: DANGEROUS_ACTIONS.has(args.action.action_type) ? 'critical' : 'medium',
+    confidence: null,
+    proposed_plan: plan,
+    diff_summary: diff,
+    affected_files: inferAffectedFiles(payload, fullDescription),
+    blast_radius: describeBlastRadius({
+      actionType: args.action.action_type,
+      payload,
+      riskLevel: DANGEROUS_ACTIONS.has(args.action.action_type) ? 'critical' : 'medium',
+      targetTable: args.action.target_table ?? null,
+    }),
+    rollback_story: describeRollbackStory({
+      actionType: args.action.action_type,
+      linkedDeployment: null,
+      linkedPr: null,
+    }),
+    linked_issue: null,
+    linked_pr: null,
+    linked_deployment: null,
+    linked_memory_note: null,
+    preview: args.action.preview,
+    full_description: fullDescription,
+    readiness: readiness.readiness,
+    readiness_summary: readiness.summary,
+    source_agent: args.action.agent_id,
+    requested_at: args.action.created_at,
+  };
+}
+
 export function buildBudOsActionQueue(args: {
   commandState: MissionControlHealth;
   runs: RunRow[];
@@ -219,10 +473,15 @@ export function buildBudOsActionQueue(args: {
   const items: BudOsQueueItem[] = [];
   const agentById = new Map(args.commandState.agents.map((agent) => [agent.id, agent]));
 
+  const sessionByTask = new Map(args.commandState.repair_sessions.map((s) => [s.id, s]));
+
   for (const approval of args.budApprovals) {
-    const task = (approval as BudApprovalItem & {
-      bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null } | null;
-    }).bud_tasks;
+    const annotated = approval as BudApprovalItem & {
+      bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
+    };
+    const task = annotated.bud_tasks;
+    const repairSession = approval.task_id ? sessionByTask.get(approval.task_id) : undefined;
+    const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession });
     items.push({
       id: `bud-approval:${approval.id}`,
       source: 'bud_approval',
@@ -237,10 +496,12 @@ export function buildBudOsActionQueue(args: {
       agent_name: task?.source_agent ? agentById.get(task.source_agent)?.name ?? task.source_agent : 'Bud',
       created_at: approval.created_at,
       actions: actionSet('needs_approval'),
+      approval: detail,
     });
   }
 
   for (const action of args.actions) {
+    const detail = buildApprovalDetailFromAgentAction({ action });
     items.push({
       id: `agent-action:${action.id}`,
       source: 'agent_action',
@@ -249,12 +510,13 @@ export function buildBudOsActionQueue(args: {
       group: 'needs_approval',
       title: action.preview || action.action_type,
       detail: `An agent proposed ${action.action_type}.`,
-      severity: 'medium',
+      severity: detail.risk_level === 'critical' ? 'critical' : 'medium',
       status: 'pending',
       agent_id: action.agent_id,
       agent_name: action.agent_id ? agentById.get(action.agent_id)?.name ?? action.agent_id : null,
       created_at: action.created_at,
       actions: actionSet('needs_approval'),
+      approval: detail,
     });
   }
 
