@@ -1,6 +1,8 @@
 // src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from '@/lib/supabase/middleware';
+import { resolveUserRole } from '@/types/roles';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,10 +29,6 @@ async function runMiddleware(req: NextRequest): Promise<NextResponse> {
     }
     return NextResponse.next();
   }
-
-  // Lazy-import so a missing/broken module never crashes the middleware at load time.
-  const { createMiddlewareClient } = await import('@/lib/supabase/middleware');
-  const { resolveUserRole } = await import('@/types/roles');
 
   const { supabase, response } = createMiddlewareClient(req);
 
