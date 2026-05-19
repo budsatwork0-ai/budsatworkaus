@@ -3,6 +3,11 @@ import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildBudOsAutonomy, buildBudOsMemoryLayer, buildBudOsWorkforce, deriveBudOsState } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
+import { computeBudAuthority, type BudAuthorityLevel } from '@/lib/bud/authority';
+import { getBudCapabilities } from '@/lib/bud/capabilities';
+import { buildStructuredFailures } from '@/lib/bud/structured-failure';
+import { buildBudInitiatives } from '@/lib/bud/initiatives';
+import { buildThoughtStream } from '@/lib/bud/thought-stream';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -229,6 +234,41 @@ async function loadData() {
       started_at: run.started_at as string,
     })),
   });
+  const agentNameById = new Map<string, string>(agents.map((a) => [a.id as string, (a.name ?? a.id) as string]));
+  const structuredFailures = buildStructuredFailures({
+    runs: runs.map((r) => ({
+      id: r.id as string,
+      agent_id: r.agent_id as string | null,
+      status: r.status as string,
+      summary: r.summary as string | null,
+      started_at: r.started_at as string,
+    })),
+    agentNameById,
+  });
+  const initiatives = buildBudInitiatives({ commandState, uxEvolution, structuredFailures });
+  const authority = computeBudAuthority({
+    commandState,
+    learnings: (repairLearningsRes.data ?? []).map((l) => ({
+      id: l.id as string,
+      outcome: (l.outcome as string) ?? '',
+      created_at: l.created_at as string,
+    })),
+    configuredCeiling: (process.env.BUD_AUTHORITY_CEILING as BudAuthorityLevel | undefined) ?? 'L3_AUTONOMOUS_OPERATOR',
+  });
+  const capabilities = getBudCapabilities({
+    commandState,
+    authority,
+    githubConnected: githubData.length > 0,
+    deploymentConnected: vercelConnected,
+    memoryConnected: commandState.memory.connected,
+  });
+  const thoughtStream = buildThoughtStream({
+    commandState,
+    activity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
+    failures: structuredFailures,
+    initiatives,
+  });
+
   const budOsState = deriveBudOsState(commandState, (budState?.bud_state ?? 'idle') as import('@/lib/bud/types').BudState);
   const actionQueue = buildBudOsActionQueue({
     commandState,
@@ -286,6 +326,12 @@ async function loadData() {
       repairExecutions: repairExecutionsRes.data ?? [],
       repairSteps: repairStepsRes.data ?? [],
       repairLogs: repairLogsRes.data ?? [],
+      authority,
+      capabilities,
+      initiatives,
+      structuredFailures,
+      thoughtStream,
+      githubConnected: githubData.length > 0,
     },
   };
 }

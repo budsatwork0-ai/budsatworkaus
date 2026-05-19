@@ -1,8 +1,23 @@
 'use client';
 
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+/**
+ * Buds OS - the unified operational intelligence layer.
+ *
+ * Sections:
+ *   Command   - persistent ask-bar, recommended initiatives
+ *   Overview  - presence, vitals, thought stream, work queue
+ *   Workforce - agent groups, multi-agent collaboration
+ *   Repairs   - repair studio + lifecycle states
+ *   Activity  - structured failures + live event stream
+ *   Memory    - operational memory
+ *   Evolution - UX evolution & redesign proposals
+ *   Deployments - deploy + verification engine
+ *   Settings  - authority & capability disclosure
+ */
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import type { BudActivityEvent, BudApprovalItem } from '@/lib/bud/types';
@@ -18,15 +33,14 @@ import {
   type BudOsWorkforceCluster,
 } from '@/lib/bud/os-view-model';
 import type { UxEvolutionRecommendation } from '@/lib/bud/ux-evolution-engine';
+import type { BudAuthority, BudAuthorityLevel } from '@/lib/bud/authority';
+import { AUTHORITY_LABELS, AUTHORITY_DESCRIPTIONS } from '@/lib/bud/authority';
+import type { BudCapability } from '@/lib/bud/capabilities';
+import type { BudInitiative } from '@/lib/bud/initiatives';
+import type { StructuredFailure } from '@/lib/bud/structured-failure';
+import type { BudThought } from '@/lib/bud/thought-stream';
 
-type AgentRow = {
-  id: string;
-  name: string;
-  status: string;
-  category: string;
-  autonomy: string;
-};
-
+type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
 type RunRow = {
   id: string;
   agent_id: string;
@@ -34,23 +48,8 @@ type RunRow = {
   summary: string | null;
   started_at: string;
 };
-
-type ActionRow = {
-  id: string;
-  agent_id: string;
-  action_type: string;
-  preview: string;
-  created_at: string;
-};
-
-type MemoryDoc = {
-  id: string;
-  category: string;
-  title: string;
-  vault_path: string;
-  created_at: string;
-};
-
+type ActionRow = { id: string; agent_id: string; action_type: string; preview: string; created_at: string };
+type MemoryDoc = { id: string; category: string; title: string; vault_path: string; created_at: string };
 type InsightRow = {
   id: string;
   agent_id: string | null;
@@ -72,7 +71,6 @@ type RepairExecutionRow = {
   verification_status: string;
   created_at: string;
 };
-
 type RepairStepRow = {
   id: string;
   execution_id: string;
@@ -81,14 +79,7 @@ type RepairStepRow = {
   summary: string;
   started_at: string;
 };
-
-type RepairLogRow = {
-  id: number;
-  execution_id: string;
-  level: string;
-  message: string;
-  created_at: string;
-};
+type RepairLogRow = { id: number; execution_id: string; level: string; message: string; created_at: string };
 
 type Props = {
   agents: AgentRow[];
@@ -100,11 +91,7 @@ type Props = {
   budApprovals?: BudApprovalItem[];
   commandState: MissionControlHealth;
   budOs: {
-    state: {
-      label: BudOsStateLabel;
-      summary: string;
-      hasIssues: boolean;
-    };
+    state: { label: BudOsStateLabel; summary: string; hasIssues: boolean };
     actionQueue: BudOsQueueItem[];
     workforce: BudOsWorkforceCluster[];
     memoryLayer: BudOsMemoryLayer;
@@ -113,6 +100,12 @@ type Props = {
     repairExecutions: RepairExecutionRow[];
     repairSteps: RepairStepRow[];
     repairLogs: RepairLogRow[];
+    authority: BudAuthority;
+    capabilities: BudCapability[];
+    initiatives: BudInitiative[];
+    structuredFailures: StructuredFailure[];
+    thoughtStream: BudThought[];
+    githubConnected: boolean;
   };
 };
 
@@ -122,63 +115,74 @@ type BudCommandResponse = {
   intent: string;
   approval_id: string | null;
   status: string;
-  bud_response: {
-    message: string;
-    plan: string[];
-    bud_state: string;
-  } | null;
+  bud_response: { message: string; plan: string[]; bud_state: string } | null;
 };
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                STYLE TOKENS                                */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const GLOBAL_STATUS_TONE: Record<MissionControlHealth['global_status'], { ring: string; text: string; dot: string; label: string }> = {
+  nominal: { ring: 'ring-emerald-400/30 bg-emerald-500/[0.06]', text: 'text-emerald-400', dot: 'bg-emerald-400', label: 'NOMINAL' },
+  degraded: { ring: 'ring-amber-400/30 bg-amber-500/[0.06]', text: 'text-amber-300', dot: 'bg-amber-400', label: 'DEGRADED' },
+  attention_required: { ring: 'ring-red-400/40 bg-red-500/[0.08]', text: 'text-red-300', dot: 'bg-red-400', label: 'ATTENTION REQUIRED' },
+  repairing: { ring: 'ring-orange-400/30 bg-orange-500/[0.06]', text: 'text-orange-300', dot: 'bg-orange-400', label: 'REPAIRING' },
+  blocked: { ring: 'ring-red-500/50 bg-red-500/[0.10]', text: 'text-red-400', dot: 'bg-red-500', label: 'BLOCKED' },
+};
+
+const STATE_PRESENCE: Record<BudOsStateLabel, { dot: string; halo: string }> = {
+  Observing: { dot: 'bg-emerald-400', halo: 'shadow-[0_0_24px_rgba(52,211,153,0.35)]' },
+  Thinking: { dot: 'bg-sky-400', halo: 'shadow-[0_0_24px_rgba(56,189,248,0.35)]' },
+  Investigating: { dot: 'bg-amber-400', halo: 'shadow-[0_0_24px_rgba(251,191,36,0.4)]' },
+  Planning: { dot: 'bg-violet-400', halo: 'shadow-[0_0_24px_rgba(167,139,250,0.4)]' },
+  'Waiting for approval': { dot: 'bg-yellow-300', halo: 'shadow-[0_0_24px_rgba(253,224,71,0.4)]' },
+  Repairing: { dot: 'bg-orange-400', halo: 'shadow-[0_0_24px_rgba(251,146,60,0.4)]' },
+  Deploying: { dot: 'bg-blue-400', halo: 'shadow-[0_0_24px_rgba(96,165,250,0.4)]' },
+  Verifying: { dot: 'bg-cyan-400', halo: 'shadow-[0_0_24px_rgba(34,211,238,0.4)]' },
+  Learning: { dot: 'bg-teal-400', halo: 'shadow-[0_0_24px_rgba(45,212,191,0.4)]' },
+  Blocked: { dot: 'bg-red-500', halo: 'shadow-[0_0_24px_rgba(239,68,68,0.45)]' },
+};
+
+const SEVERITY_TONE: Record<'low' | 'medium' | 'high' | 'critical', string> = {
+  low: 'border-white/10 text-slate-400',
+  medium: 'border-amber-400/30 text-amber-300',
+  high: 'border-orange-400/40 text-orange-300',
+  critical: 'border-red-400/50 text-red-300',
+};
+
+const CAPABILITY_TONE: Record<BudCapability['status'], string> = {
+  online: 'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300',
+  partial: 'border-amber-400/30 bg-amber-500/[0.06] text-amber-300',
+  blocked: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
+};
+
+const TABS = [
+  { key: 'command', label: 'Command' },
+  { key: 'overview', label: 'Overview' },
+  { key: 'workforce', label: 'Workforce' },
+  { key: 'repairs', label: 'Repairs' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'memory', label: 'Memory' },
+  { key: 'evolution', label: 'Evolution' },
+  { key: 'deployments', label: 'Deployments' },
+  { key: 'settings', label: 'Settings' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
 
 const EXAMPLES = [
   'Fix broken agents',
-  'Improve the admin dashboard',
-  'Check why quotes are dropping',
-  "Review today's jobs",
-  'Find issues in the site',
+  'Investigate quote drop-off',
+  'Redesign the admin workflow',
+  'Simplify Mission Control',
   'Deploy approved repairs',
+  'Improve mobile experience',
+  'Reduce dashboard clutter',
+  'Analyze operational bottlenecks',
 ];
 
-const GROUP_LABEL: Record<BudOsQueueGroup, string> = {
-  critical: 'Critical',
-  needs_approval: 'Needs your approval',
-  suggested_improvements: 'Bud recommends',
-  watch_items: 'Bud is watching',
-  completed_actions: 'Verified',
-};
-
-const GROUP_COPY: Record<BudOsQueueGroup, string> = {
-  critical: 'Problems Bud thinks can damage operations.',
-  needs_approval: 'Bud is ready, but needs your decision.',
-  suggested_improvements: 'Useful improvements Bud can turn into work.',
-  watch_items: 'Signals Bud is monitoring before they worsen.',
-  completed_actions: 'Work Bud has finished or learned from.',
-};
-
-const STATE_STYLE: Record<BudOsStateLabel, string> = {
-  Observing: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  Thinking: 'bg-sky-50 text-sky-700 border-sky-100',
-  Investigating: 'bg-amber-50 text-amber-700 border-amber-100',
-  Planning: 'bg-violet-50 text-violet-700 border-violet-100',
-  'Waiting for approval': 'bg-violet-50 text-violet-700 border-violet-100',
-  Repairing: 'bg-orange-50 text-orange-700 border-orange-100',
-  Deploying: 'bg-blue-50 text-blue-700 border-blue-100',
-  Verifying: 'bg-cyan-50 text-cyan-700 border-cyan-100',
-  Learning: 'bg-teal-50 text-teal-700 border-teal-100',
-  Blocked: 'bg-red-50 text-red-700 border-red-100',
-};
-
-const SEVERITY_STYLE: Record<BudOsQueueItem['severity'], string> = {
-  low: 'bg-slate-50 text-slate-600 border-slate-100',
-  medium: 'bg-amber-50 text-amber-700 border-amber-100',
-  high: 'bg-orange-50 text-orange-700 border-orange-100',
-  critical: 'bg-red-50 text-red-700 border-red-100',
-};
-
-const CAPABILITY_STYLE: Record<BudOsAutonomyCapability['status'], string> = {
-  online: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  partial: 'bg-amber-50 text-amber-700 border-amber-100',
-  blocked: 'bg-red-50 text-red-700 border-red-100',
-};
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                 PRIMITIVES                                 */
+/* ────────────────────────────────────────────────────────────────────────── */
 
 function rel(iso: string | null | undefined): string {
   if (!iso) return 'never';
@@ -189,45 +193,72 @@ function rel(iso: string | null | undefined): string {
   return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
-function short(text: string, length = 150): string {
-  return text.length > length ? `${text.slice(0, length - 3)}...` : text;
+function clamp(text: string, length = 160): string {
+  return text.length > length ? `${text.slice(0, length - 1)}…` : text;
 }
 
-function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Card({
+  title,
+  subtitle,
+  action,
+  children,
+  className = '',
+}: {
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="rounded-lg border border-black/[0.06] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center gap-3 border-b border-black/[0.05] px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-        <div className="ml-auto">{action}</div>
-      </div>
+    <section
+      className={`rounded-xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm shadow-[0_24px_70px_-30px_rgba(0,0,0,0.6)] ${className}`}
+    >
+      {(title || action) && (
+        <div className="flex items-start gap-3 border-b border-white/[0.05] px-5 py-3.5">
+          <div className="min-w-0">
+            {title && <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">{title}</h2>}
+            {subtitle && <p className="mt-1 text-xs text-white/45">{subtitle}</p>}
+          </div>
+          {action && <div className="ml-auto shrink-0">{action}</div>}
+        </div>
+      )}
       {children}
     </section>
   );
 }
 
-const BUD_STATE_DOT: Record<string, string> = {
-  thinking: 'bg-blue-400',
-  investigating: 'bg-amber-400',
-  planning: 'bg-violet-400',
-  repairing: 'bg-orange-400',
-  waiting_for_approval: 'bg-yellow-400',
-};
-
-function ThinkingDots() {
+function Pill({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'cool' }) {
+  const tones = {
+    neutral: 'border-white/10 bg-white/[0.04] text-white/70',
+    good: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+    warn: 'border-amber-400/30 bg-amber-500/10 text-amber-300',
+    bad: 'border-red-400/40 bg-red-500/10 text-red-300',
+    cool: 'border-sky-400/30 bg-sky-500/10 text-sky-300',
+  } as const;
   return (
-    <span className="inline-flex items-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-1.5 w-1.5 rounded-full bg-slate-300 animate-pulse"
-          style={{ animationDelay: `${i * 150}ms` }}
-        />
-      ))}
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${tones[tone]}`}>
+      {children}
     </span>
   );
 }
 
-function CommandBar({ onCreated }: { onCreated: () => void }) {
+function StatBlock({ label, value, hint, tone = 'neutral' }: { label: string; value: string | number; hint?: string; tone?: 'neutral' | 'warn' | 'bad' | 'good' }) {
+  const toneCls = tone === 'bad' ? 'text-red-300' : tone === 'warn' ? 'text-amber-300' : tone === 'good' ? 'text-emerald-300' : 'text-white';
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+      <div className={`text-[22px] font-semibold tabular-nums leading-none ${toneCls}`}>{value}</div>
+      <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">{label}</div>
+      {hint && <div className="mt-0.5 text-[11px] text-white/45">{hint}</div>}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                COMMAND BAR                                 */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function CommandBar({ onCreated, presenceState }: { onCreated: () => void; presenceState: BudOsStateLabel }) {
   const [command, setCommand] = useState('');
   const [busy, setBusy] = useState(false);
   const [budReply, setBudReply] = useState<BudCommandResponse | null>(null);
@@ -256,98 +287,98 @@ function CommandBar({ onCreated }: { onCreated: () => void }) {
     }
   }
 
-  const dotColor = budReply?.bud_response?.bud_state
-    ? (BUD_STATE_DOT[budReply.bud_response.bud_state] ?? 'bg-emerald-400')
-    : 'bg-emerald-400';
+  const presence = STATE_PRESENCE[presenceState];
 
   return (
-    <div className="rounded-lg border border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-      <div className="px-4 pt-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="bud-command" className="sr-only">Ask Bud</label>
-            <input
-              ref={inputRef}
-              id="bud-command"
-              value={command}
-              onChange={(event) => setCommand(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void submit();
-              }}
-              placeholder="Ask Bud to investigate, fix, improve, schedule, quote, review, or deploy..."
-              className="h-12 w-full rounded-md border border-white/10 bg-white/10 px-4 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-white/30 focus:bg-white/[0.14]"
-            />
-          </div>
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-white/[0.01] p-5">
+      <div className="pointer-events-none absolute -top-20 left-1/2 h-40 w-[120%] -translate-x-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+      <div className="relative flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${presence.dot} ${presence.halo}`}>
+            <span className={`absolute inset-0 animate-ping rounded-full ${presence.dot} opacity-60`} />
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">Bud {presenceState}</span>
+        </div>
+        <div className="ml-auto text-[11px] text-white/40">{busy ? 'thinking…' : 'ready'}</div>
+      </div>
+      <div className="relative mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="bud-command" className="sr-only">
+            Ask Bud
+          </label>
+          <input
+            ref={inputRef}
+            id="bud-command"
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void submit();
+            }}
+            placeholder="Ask Bud to investigate, fix, redesign, simplify, deploy…"
+            className="h-12 w-full rounded-md border border-white/[0.08] bg-black/30 px-4 text-[15px] text-white outline-none transition placeholder:text-white/30 focus:border-sky-400/40 focus:bg-black/40"
+          />
+        </div>
+        <button
+          disabled={busy || !command.trim()}
+          onClick={() => void submit()}
+          className="h-12 rounded-md bg-white px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? 'Bud is thinking…' : 'Ask Bud'}
+        </button>
+      </div>
+      <div className="relative mt-4 flex gap-2 overflow-x-auto pb-1">
+        {EXAMPLES.map((example) => (
           <button
-            disabled={busy || !command.trim()}
-            onClick={() => void submit()}
-            className="h-12 rounded-md bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            key={example}
+            disabled={busy}
+            onClick={() => void submit(example)}
+            className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-white/70 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
           >
-            {busy ? 'Bud is thinking...' : 'Ask Bud'}
+            {example}
           </button>
-        </div>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-4">
-          {EXAMPLES.map((example) => (
-            <button
-              key={example}
-              disabled={busy}
-              onClick={() => void submit(example)}
-              className="shrink-0 rounded-md border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
-            >
-              {example}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
 
-      {/* Bud response panel */}
       {(busy || budReply) && (
-        <div className="border-t border-white/[0.08] px-4 py-4">
+        <div className="relative mt-4 rounded-md border border-white/[0.06] bg-black/30 p-4">
           {busy && !budReply && (
-            <div className="flex items-center gap-3">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
-              <span className="text-sm text-slate-300">Bud is analyzing your request <ThinkingDots /></span>
+            <div className="flex items-center gap-3 text-sm text-white/70">
+              <span className={`h-2 w-2 animate-pulse rounded-full ${presence.dot}`} />
+              Bud is analyzing your request
             </div>
           )}
           {budReply?.bud_response && (
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotColor} animate-pulse`} />
+                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${presence.dot} animate-pulse`} />
                 <div>
                   <p className="text-sm font-semibold text-white">{budReply.bud_response.bud_state.replace(/_/g, ' ')}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-200">{budReply.bud_response.message}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-white/75">{budReply.bud_response.message}</p>
                 </div>
               </div>
               {budReply.bud_response.plan.length > 0 && (
-                <ol className="space-y-1.5 pl-5">
+                <ol className="space-y-1.5 pl-1">
                   {budReply.bud_response.plan.map((step, index) => (
-                    <li key={`${step}-${index}`} className="flex gap-2 text-xs text-slate-300">
+                    <li key={`${step}-${index}`} className="flex gap-2 text-xs text-white/75">
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold text-white">{index + 1}</span>
                       <span>{step}</span>
                     </li>
                   ))}
                 </ol>
               )}
-              <div className="flex items-center gap-2 pt-1">
-                {budReply.approval_id && (
-                  <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-yellow-300">
-                    Needs your approval
-                  </span>
-                )}
-                <span className="text-[11px] text-slate-500">Task {budReply.task_id.slice(0, 8)}</span>
-                <button
-                  onClick={() => setBudReply(null)}
-                  className="ml-auto text-[11px] text-slate-500 hover:text-slate-300"
-                >
+              <div className="flex items-center gap-2">
+                {budReply.approval_id && <Pill tone="warn">Needs approval</Pill>}
+                <span className="text-[11px] text-white/40">Task {budReply.task_id.slice(0, 8)}</span>
+                <button onClick={() => setBudReply(null)} className="ml-auto text-[11px] text-white/40 hover:text-white/70">
                   Dismiss
                 </button>
               </div>
             </div>
           )}
           {budReply && !budReply.bud_response && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 text-sm text-white/70">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span className="text-sm text-slate-300">Bud queued the task. Refresh to see it in the work queue.</span>
+              Bud queued the task.
             </div>
           )}
         </div>
@@ -356,39 +387,104 @@ function CommandBar({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function BudStatePanel({ state, commandState }: { state: Props['budOs']['state']; commandState: MissionControlHealth }) {
-  const counts = [
-    { label: 'Broken', value: commandState.counts.broken_agents + commandState.counts.needs_repair_agents },
-    { label: 'Can fix', value: commandState.repair_sessions.length },
-    { label: 'Needs approval', value: commandState.approvals.total_pending },
-    { label: 'Learned', value: commandState.memory.recent_count },
-  ];
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                              PRESENCE PANEL                                */
+/* ────────────────────────────────────────────────────────────────────────── */
 
+function PresencePanel({
+  presence,
+  commandState,
+  authority,
+  thoughts,
+}: {
+  presence: Props['budOs']['state'];
+  commandState: MissionControlHealth;
+  authority: BudAuthority;
+  thoughts: BudThought[];
+}) {
+  const tone = GLOBAL_STATUS_TONE[commandState.global_status];
+  const presenceTone = STATE_PRESENCE[presence.label];
   return (
-    <Section
-      title="Bud State"
-      action={<span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${STATE_STYLE[state.label]}`}>{state.label}</span>}
-    >
-      <div className="px-4 py-4">
-        <div className="flex items-start gap-3">
-          <span className={`mt-1.5 h-3 w-3 rounded-full ${state.hasIssues ? 'animate-pulse bg-amber-500' : 'bg-emerald-500'}`} />
-          <div>
-            <p className="text-lg font-semibold leading-tight text-slate-950">Bud is {state.label.toLowerCase()}</p>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">{state.summary}</p>
+    <Card title="Bud presence">
+      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.4fr_1fr]">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className={`relative inline-flex h-3 w-3 rounded-full ${presenceTone.dot} ${presenceTone.halo}`}>
+              <span className={`absolute inset-0 animate-ping rounded-full ${presenceTone.dot} opacity-40`} />
+            </span>
+            <p className="text-xl font-semibold text-white">Bud is {presence.label.toLowerCase()}</p>
+            <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${tone.ring} ${tone.text}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+              {tone.label}
+            </span>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">{presence.summary}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <StatBlock label="Broken" value={commandState.counts.broken_agents + commandState.counts.needs_repair_agents} tone={commandState.counts.broken_agents > 0 ? 'bad' : 'neutral'} />
+            <StatBlock label="Can fix" value={commandState.repair_sessions.length} tone={commandState.repair_sessions.length > 0 ? 'warn' : 'neutral'} />
+            <StatBlock label="Needs approval" value={commandState.approvals.total_pending} tone={commandState.approvals.total_pending > 0 ? 'warn' : 'neutral'} />
+            <StatBlock label="Learned" value={commandState.memory.recent_count} tone="good" />
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {counts.map((item) => (
-            <div key={item.label} className="rounded-md border border-black/[0.05] bg-slate-50 px-3 py-3">
-              <div className="text-xl font-semibold tabular-nums text-slate-950">{item.value}</div>
-              <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.label}</div>
-            </div>
-          ))}
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55">Thought stream</p>
+            <span className="text-[10px] text-white/40">live</span>
+          </div>
+          <ul className="mt-2 max-h-[170px] space-y-2 overflow-auto pr-1">
+            {thoughts.slice(0, 8).map((thought) => (
+              <li key={thought.id} className="flex items-start gap-2 text-xs leading-snug text-white/75">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-sky-400" />
+                <div className="min-w-0">
+                  <p className="line-clamp-2">{thought.narrative}</p>
+                  <p className="text-[10px] text-white/35">{thought.state} · {rel(thought.at)}</p>
+                </div>
+              </li>
+            ))}
+            {thoughts.length === 0 && <p className="text-xs text-white/40">Bud is observing. No new thoughts.</p>}
+          </ul>
         </div>
       </div>
-    </Section>
+      <div className="border-t border-white/[0.05] px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
+          <span className="font-semibold text-white/75">Authority</span>
+          <Pill tone="cool">{authority.label}</Pill>
+          <span>trust {Math.round(authority.trust_score * 100)}%</span>
+          <span>·</span>
+          <span>{authority.verified_repairs} verified repair{authority.verified_repairs === 1 ? '' : 's'}</span>
+          {authority.rolled_back_repairs > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-amber-300">{authority.rolled_back_repairs} rollback{authority.rolled_back_repairs === 1 ? '' : 's'}</span>
+            </>
+          )}
+          <Link href="/dashboard/mission-control?tab=settings" className="ml-auto text-white/55 hover:text-white">
+            Adjust authority &rarr;
+          </Link>
+        </div>
+      </div>
+    </Card>
   );
 }
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                ACTION QUEUE                                */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const GROUP_LABEL: Record<BudOsQueueGroup, string> = {
+  critical: 'Critical',
+  needs_approval: 'Needs your approval',
+  suggested_improvements: 'Bud recommends',
+  watch_items: 'Bud is watching',
+  completed_actions: 'Verified',
+};
+const GROUP_COPY: Record<BudOsQueueGroup, string> = {
+  critical: 'Problems Bud thinks can damage operations.',
+  needs_approval: 'Bud is ready, but needs your decision.',
+  suggested_improvements: 'Useful improvements Bud can turn into work.',
+  watch_items: 'Signals Bud is monitoring before they worsen.',
+  completed_actions: 'Work Bud has finished or learned from.',
+};
 
 function ActionQueue({
   items,
@@ -405,304 +501,762 @@ function ActionQueue({
   onApprove: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
 }) {
-  const groups = useMemo(() => {
-    return (Object.keys(GROUP_LABEL) as BudOsQueueGroup[]).map((group) => ({
-      group,
-      items: items.filter((item) => item.group === group),
-    }));
-  }, [items]);
+  const groups = useMemo(
+    () =>
+      (Object.keys(GROUP_LABEL) as BudOsQueueGroup[]).map((group) => ({
+        group,
+        items: items.filter((item) => item.group === group),
+      })),
+    [items],
+  );
 
   return (
-    <Section title="Work Queue">
-      <div className="divide-y divide-black/[0.05]">
+    <Card title="Action queue" subtitle="One intelligent feed. No scattered logs.">
+      <div className="divide-y divide-white/[0.05]">
         {groups.map(({ group, items: groupItems }) => (
-          <div key={group} className="px-3 py-3">
+          <div key={group} className="px-4 py-3">
             <div className="mb-2 flex items-center gap-2 px-1">
-              <p className="text-xs font-semibold text-slate-950">{GROUP_LABEL[group]}</p>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{groupItems.length}</span>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/80">{GROUP_LABEL[group]}</p>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/60">{groupItems.length}</span>
             </div>
-            <p className="mb-2 px-1 text-[11px] text-slate-500">{GROUP_COPY[group]}</p>
+            <p className="mb-2 px-1 text-[11px] text-white/40">{GROUP_COPY[group]}</p>
             <div className="space-y-2">
               {groupItems.length === 0 ? (
-                <div className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400">Nothing here right now.</div>
-              ) : groupItems.slice(0, 6).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => onSelect(item)}
-                  className={`w-full rounded-md border px-3 py-3 text-left transition ${
-                    selectedId === item.id ? 'border-slate-900 bg-slate-950 text-white' : 'border-black/[0.06] bg-white hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className={`mt-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${selectedId === item.id ? 'border-white/20 bg-white/10 text-white' : SEVERITY_STYLE[item.severity]}`}>
-                      {item.severity}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold leading-tight">{item.title}</p>
-                      <p className={`mt-1 text-xs leading-relaxed ${selectedId === item.id ? 'text-slate-300' : 'text-slate-500'}`}>{short(item.detail, 120)}</p>
-                      <p className={`mt-1 text-[11px] ${selectedId === item.id ? 'text-slate-400' : 'text-slate-400'}`}>{item.agent_name ?? 'Bud'} - {rel(item.created_at)}</p>
+                <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-xs text-white/35">Nothing here right now.</div>
+              ) : (
+                groupItems.slice(0, 6).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelect(item)}
+                    className={`block w-full rounded-md border px-3 py-3 text-left transition ${
+                      selectedId === item.id
+                        ? 'border-sky-400/40 bg-sky-500/[0.08]'
+                        : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${SEVERITY_TONE[item.severity]}`}>
+                        {item.severity}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-tight text-white">{item.title}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-white/55">{clamp(item.detail, 130)}</p>
+                        <p className="mt-1 text-[10px] text-white/35">
+                          {item.agent_name ?? 'Bud'} · {rel(item.created_at)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <span className={`rounded-md px-2 py-1 text-[11px] font-medium ${selectedId === item.id ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-600'}`}>Explain</span>
-                    {item.actions.includes('investigate') && <span onClick={(event) => { event.stopPropagation(); onInvestigate(item); }} className={`rounded-md px-2 py-1 text-[11px] font-medium ${selectedId === item.id ? 'bg-white/10 text-white' : 'bg-sky-50 text-sky-700'}`}>Investigate</span>}
-                    {item.actions.includes('fix_with_bud') && <span onClick={(event) => { event.stopPropagation(); onInvestigate(item); }} className={`rounded-md px-2 py-1 text-[11px] font-medium ${selectedId === item.id ? 'bg-white/10 text-white' : 'bg-orange-50 text-orange-700'}`}>Fix with Bud</span>}
-                    {item.actions.includes('approve') && <span onClick={(event) => { event.stopPropagation(); onApprove(item); }} className={`rounded-md px-2 py-1 text-[11px] font-medium ${selectedId === item.id ? 'bg-white/10 text-white' : 'bg-emerald-50 text-emerald-700'}`}>Approve</span>}
-                    {item.actions.includes('dismiss') && <span onClick={(event) => { event.stopPropagation(); onDismiss(item); }} className={`rounded-md px-2 py-1 text-[11px] font-medium ${selectedId === item.id ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-600'}`}>Dismiss</span>}
-                  </div>
-                </button>
-              ))}
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {item.actions.includes('investigate') && (
+                        <span
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onInvestigate(item);
+                          }}
+                          className="rounded-md border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-medium text-sky-200 hover:bg-sky-500/[0.16]"
+                        >
+                          Investigate
+                        </span>
+                      )}
+                      {item.actions.includes('fix_with_bud') && (
+                        <span
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onInvestigate(item);
+                          }}
+                          className="rounded-md border border-orange-400/30 bg-orange-500/[0.08] px-2 py-1 text-[10px] font-medium text-orange-200 hover:bg-orange-500/[0.16]"
+                        >
+                          Fix with Bud
+                        </span>
+                      )}
+                      {item.actions.includes('approve') && (
+                        <span
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onApprove(item);
+                          }}
+                          className="rounded-md border border-emerald-400/30 bg-emerald-500/[0.08] px-2 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/[0.16]"
+                        >
+                          Approve
+                        </span>
+                      )}
+                      {item.actions.includes('dismiss') && (
+                        <span
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDismiss(item);
+                          }}
+                          className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/55 hover:bg-white/[0.06]"
+                        >
+                          Dismiss
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         ))}
       </div>
-    </Section>
+    </Card>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                REPAIR STUDIO                               */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function StatusTile({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
+  const cls =
+    tone === 'good'
+      ? 'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300'
+      : tone === 'warn'
+        ? 'border-amber-400/30 bg-amber-500/[0.06] text-amber-300'
+        : tone === 'bad'
+          ? 'border-red-400/40 bg-red-500/[0.08] text-red-300'
+          : 'border-white/[0.06] bg-white/[0.02] text-white/80';
+  return (
+    <div className={`rounded-md border px-3 py-2 ${cls}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{label}</p>
+      <p className="mt-1 line-clamp-2 text-xs font-semibold">{value}</p>
+    </div>
   );
 }
 
 function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspace; onExecute: (taskId: string) => void }) {
   return (
-    <Section
-      title="Repair Studio"
-      action={workspace.task_id ? (
-        <button onClick={() => onExecute(workspace.task_id!)} className="rounded-md bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
-          Run gated repair
-        </button>
-      ) : null}
+    <Card
+      title="Repair studio"
+      subtitle="Issue → diagnose → plan → patch → approve → deploy → verify → learn"
+      action={
+        workspace.task_id ? (
+          <button
+            onClick={() => onExecute(workspace.task_id!)}
+            className="rounded-md bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:bg-slate-100"
+          >
+            Run gated repair
+          </button>
+        ) : null
+      }
     >
-      <div className="grid gap-4 px-4 py-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Problem summary</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-800">{workspace.problem_summary}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Problem summary</p>
+            <p className="mt-1 text-sm leading-relaxed text-white/85">{workspace.problem_summary}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Diagnosis</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-800">{workspace.diagnosis}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Diagnosis</p>
+            <p className="mt-1 text-sm leading-relaxed text-white/85">{workspace.diagnosis}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Proposed plan</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Proposed plan</p>
             <ol className="mt-2 space-y-1.5">
               {workspace.proposed_plan.map((step, index) => (
-                <li key={`${step}-${index}`} className="flex gap-2 text-sm text-slate-700">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">{index + 1}</span>
+                <li key={`${step}-${index}`} className="flex gap-2 text-sm text-white/80">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-[10px] font-semibold text-white/70">{index + 1}</span>
                   <span>{step}</span>
                 </li>
               ))}
             </ol>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <StatusTile label="Approval" value={workspace.approval_status} />
+            <StatusTile label="Approval" value={workspace.approval_status} tone={workspace.approval_status.includes('Needs') ? 'warn' : 'neutral'} />
             <StatusTile label="Deployment" value={workspace.deployment_status} />
-            <StatusTile label="Verification" value={workspace.verification_status.replaceAll('_', ' ')} />
+            <StatusTile label="Verification" value={workspace.verification_status.replaceAll('_', ' ')} tone={workspace.verification_status === 'verified' ? 'good' : 'neutral'} />
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Code/config diff</p>
-            <p className="mt-1 rounded-md border border-black/[0.06] bg-slate-50 px-3 py-3 font-mono text-xs leading-relaxed text-slate-600">{workspace.diff_summary}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Code/config diff</p>
+            <p className="mt-1 rounded-md border border-white/[0.06] bg-black/30 px-3 py-3 font-mono text-xs leading-relaxed text-white/65">{workspace.diff_summary}</p>
           </div>
         </div>
         <div className="space-y-3">
-          <div className="rounded-md border border-black/[0.06]">
-            <div className="border-b border-black/[0.05] px-3 py-2 text-xs font-semibold text-slate-800">Repair steps</div>
-            <div className="max-h-[220px] overflow-auto">
+          <div className="rounded-md border border-white/[0.06] bg-black/15">
+            <div className="border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/55">Repair steps</div>
+            <div className="max-h-[240px] overflow-auto">
               {workspace.steps.length === 0 ? (
-                <p className="px-3 py-3 text-xs text-slate-400">Bud has not recorded repair steps for this item yet.</p>
-              ) : workspace.steps.map((step) => (
-                <div key={step.id} className="border-b border-black/[0.04] px-3 py-2 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-800">{step.state.replaceAll('_', ' ')}</span>
-                    <span className="ml-auto text-[11px] text-slate-400">{step.status}</span>
+                <p className="px-3 py-3 text-xs text-white/40">Bud has not recorded repair steps for this item yet.</p>
+              ) : (
+                workspace.steps.map((step) => (
+                  <div key={step.id} className="border-b border-white/[0.04] px-3 py-2 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-white/85">{step.state.replaceAll('_', ' ')}</span>
+                      <span className="ml-auto text-[10px] uppercase tracking-wider text-white/40">{step.status}</span>
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-white/55">{step.summary}</p>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-500">{step.summary}</p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
-          <div className="rounded-md border border-black/[0.06]">
-            <div className="border-b border-black/[0.05] px-3 py-2 text-xs font-semibold text-slate-800">Bud explains what it is doing</div>
-            <div className="max-h-[280px] overflow-auto">
+          <div className="rounded-md border border-white/[0.06] bg-black/15">
+            <div className="border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/55">Bud explains what it is doing</div>
+            <div className="max-h-[260px] overflow-auto">
               {workspace.logs.map((log) => (
-                <div key={log.id} className="border-b border-black/[0.04] px-3 py-2 last:border-0">
+                <div key={log.id} className="border-b border-white/[0.04] px-3 py-2 last:border-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase text-slate-400">{log.level}</span>
-                    <span className="ml-auto text-[11px] text-slate-400">{rel(log.created_at)}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{log.level}</span>
+                    <span className="ml-auto text-[10px] text-white/35">{rel(log.created_at)}</span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{log.message}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/65">{log.message}</p>
                 </div>
               ))}
+              {workspace.logs.length === 0 && <p className="px-3 py-3 text-xs text-white/40">Bud has nothing to say about this repair yet.</p>}
             </div>
           </div>
         </div>
       </div>
-    </Section>
+    </Card>
   );
 }
 
-function StatusTile({ label, value }: { label: string; value: string }) {
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                              WORKFORCE SECTION                             */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function Workforce({ clusters, commandState }: { clusters: BudOsWorkforceCluster[]; commandState: MissionControlHealth }) {
+  const agentLookup = new Map(commandState.agents.map((a) => [a.id, a]));
   return (
-    <div className="rounded-md border border-black/[0.06] bg-slate-50 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 line-clamp-2 text-xs font-semibold text-slate-800">{value}</p>
+    <div className="space-y-4">
+      <Card title="Agent workforce" subtitle="Grouped by domain. Each agent shows role, task, health, and whether Bud can delegate.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {clusters.map((cluster) => {
+            const total = cluster.agents.length;
+            const healthy = cluster.agents.filter((a) => a.health === 'healthy').length;
+            return (
+              <div key={cluster.name} className="rounded-lg border border-white/[0.06] bg-white/[0.015]">
+                <div className="flex items-center justify-between border-b border-white/[0.05] px-3 py-2">
+                  <p className="text-sm font-semibold text-white">{cluster.name}</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                    {healthy}/{total} healthy
+                  </span>
+                </div>
+                <div className="divide-y divide-white/[0.04]">
+                  {cluster.agents.slice(0, 5).map((agent) => {
+                    const full = agentLookup.get(agent.id);
+                    const score = full?.health.score ?? 0;
+                    const scoreTone = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';
+                    return (
+                      <Link key={agent.id} href={`/dashboard/agents/${agent.id}`} className="block px-3 py-3 transition hover:bg-white/[0.03]">
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{agent.name}</p>
+                          <Pill tone={agent.can_delegate ? 'good' : 'bad'}>{agent.can_delegate ? 'delegable' : 'blocked'}</Pill>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-white/55">
+                          <Pill tone={scoreTone}>{agent.health}</Pill>
+                          <span>{agent.role}</span>
+                          <span>·</span>
+                          <span>{score} pts</span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/55">{agent.current_task}</p>
+                        <p className="mt-1 line-clamp-1 text-[11px] text-white/40">last: {agent.last_useful_output}</p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+      <Card title="Multi-agent collaboration" subtitle="What Bud has delegated and where consensus lives.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {commandState.repair_sessions.slice(0, 6).map((session) => (
+            <div key={session.id} className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+              <div className="flex items-center gap-2">
+                <Pill tone={session.phase === 'awaiting_approval' ? 'warn' : session.phase === 'blocked' ? 'bad' : 'cool'}>{session.phase.replaceAll('_', ' ')}</Pill>
+                <span className="text-xs font-semibold text-white">{session.agent_name}</span>
+                <span className="ml-auto text-[10px] text-white/35">{rel(session.created_at)}</span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-white/65">{session.description}</p>
+              {(session.linked_pr || session.linked_deployment || session.linked_memory_note) && (
+                <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider text-white/55">
+                  {session.linked_pr && <span>· PR linked</span>}
+                  {session.linked_deployment && <span>· deploy linked</span>}
+                  {session.linked_memory_note && <span>· learning saved</span>}
+                </div>
+              )}
+            </div>
+          ))}
+          {commandState.repair_sessions.length === 0 && (
+            <p className="text-sm text-white/40">No collaborations in flight. Bud is observing.</p>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }
 
-function Workforce({ clusters }: { clusters: BudOsWorkforceCluster[] }) {
-  return (
-    <Section title="Agent Workforce" action={<Link href="/dashboard/agents" className="text-xs font-semibold text-slate-500 hover:text-slate-900">Open workforce</Link>}>
-      <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-3">
-        {clusters.map((cluster) => (
-          <div key={cluster.name} className="rounded-md border border-black/[0.06] bg-slate-50/70">
-            <div className="flex items-center justify-between border-b border-black/[0.05] px-3 py-2">
-              <p className="text-sm font-semibold text-slate-950">{cluster.name}</p>
-              <span className="text-xs font-semibold text-slate-400">{cluster.agents.length}</span>
-            </div>
-            <div className="divide-y divide-black/[0.04]">
-              {cluster.agents.slice(0, 4).map((agent) => (
-                <Link key={agent.id} href={`/dashboard/agents/${agent.id}`} className="block px-3 py-3 transition hover:bg-white">
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{agent.name}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${agent.can_delegate ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                      {agent.can_delegate ? 'Can delegate' : 'Blocked'}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{agent.health} - {agent.role}</p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{agent.current_task}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                ACTIVITY TAB                                */
+/* ────────────────────────────────────────────────────────────────────────── */
 
-function MemoryLayer({ memoryLayer }: { memoryLayer: BudOsMemoryLayer }) {
+function ActivityTab({
+  thoughts,
+  failures,
+  liveActivity,
+}: {
+  thoughts: BudThought[];
+  failures: StructuredFailure[];
+  liveActivity: BudActivityEvent[];
+}) {
   return (
-    <Section title="Memory Layer">
-      <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-3">
-        {memoryLayer.map((group) => (
-          <div key={group.name} className="rounded-md border border-black/[0.06] bg-white px-3 py-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-900">{group.name}</p>
-              <span className="text-xs font-semibold text-slate-400">{group.items.length}</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {group.items.length === 0 ? (
-                <p className="text-xs text-slate-400">Bud has not saved this kind of memory yet.</p>
-              ) : group.items.map((item) => (
-                <div key={item.id} className="rounded-md bg-slate-50 px-3 py-2">
-                  <p className="line-clamp-1 text-xs font-semibold text-slate-800">{item.title}</p>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function AutonomyMeter({ capabilities }: { capabilities: BudOsAutonomyCapability[] }) {
-  return (
-    <Section title="Autonomy Meter">
-      <div className="grid gap-2 px-4 py-4 md:grid-cols-2 xl:grid-cols-7">
-        {capabilities.map((capability) => (
-          <div key={capability.key} className={`rounded-md border px-3 py-3 ${CAPABILITY_STYLE[capability.status]}`}>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{capability.label}</p>
-              <span className="text-[10px] font-semibold uppercase">{capability.status}</span>
-            </div>
-            <p className="mt-2 line-clamp-3 text-xs leading-relaxed opacity-80">{capability.detail}</p>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function UxEvolution({ recommendations }: { recommendations: UxEvolutionRecommendation[] }) {
-  return (
-    <Section title="Bud UX Evolution Engine">
-      <div className="grid gap-3 px-4 py-4 lg:grid-cols-3">
-        <div className="rounded-md border border-black/[0.06] bg-slate-950 px-4 py-4 text-white lg:col-span-1">
-          <p className="text-sm font-semibold">Bud can redesign the OS by recommendation and approval.</p>
-          <p className="mt-2 text-xs leading-relaxed text-slate-300">
-            It detects friction, clutter, repeated workflows, weak hierarchy, duplicated sections, dead features, conversion gaps, and bottlenecks. It does not silently rewrite or deploy itself.
-          </p>
-        </div>
-        <div className="space-y-2 lg:col-span-2">
-          {recommendations.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-400">No self-improvement recommendations are waiting.</div>
-          ) : recommendations.slice(0, 5).map((rec) => (
-            <div key={rec.id} className="rounded-md border border-black/[0.06] bg-white px-3 py-3">
+    <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <Card title="Persistent thought stream" subtitle="What Bud has been thinking about, by source.">
+        <div className="max-h-[520px] divide-y divide-white/[0.04] overflow-auto px-3">
+          {thoughts.map((thought) => (
+            <div key={thought.id} className="py-3">
               <div className="flex items-center gap-2">
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${SEVERITY_STYLE[rec.severity]}`}>{rec.severity}</span>
-                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{rec.title}</p>
-                <span className="text-[11px] text-slate-400">{rel(rec.created_at)}</span>
+                <Pill tone="cool">{thought.state}</Pill>
+                <span className="text-[10px] uppercase tracking-wider text-white/40">{thought.source}</span>
+                <span className="ml-auto text-[10px] text-white/35">{rel(thought.at)}</span>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">{rec.summary}</p>
-              <p className="mt-2 text-[11px] font-medium text-slate-400">{rec.affected_area} - {rec.can_queue_approval ? 'Ready for approval queue' : 'Reference memory only'}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-white/80">{thought.narrative}</p>
+            </div>
+          ))}
+          {thoughts.length === 0 && <p className="py-6 text-center text-sm text-white/40">No thoughts captured.</p>}
+        </div>
+      </Card>
+      <div className="space-y-4">
+        <Card title="Structured failures" subtitle="No more 'unexpected error - no structured failure reason captured'.">
+          <div className="max-h-[260px] divide-y divide-white/[0.04] overflow-auto px-3">
+            {failures.length === 0 && <p className="py-6 text-center text-sm text-white/40">No failures detected.</p>}
+            {failures.map((failure) => (
+              <div key={failure.runId} className="py-3">
+                <div className="flex items-center gap-2">
+                  <Pill tone={failure.severity === 'critical' ? 'bad' : failure.severity === 'high' ? 'warn' : 'neutral'}>{failure.errorType}</Pill>
+                  <span className="text-xs font-semibold text-white">{failure.agentName}</span>
+                  <span className="ml-auto text-[10px] text-white/40">conf {Math.round(failure.confidenceScore * 100)}%</span>
+                </div>
+                <p className="mt-1 text-xs text-white/65">step <span className="font-mono text-white/80">{failure.failedStep}</span> · {failure.suspectedCause}</p>
+                <p className="mt-1 text-[11px] text-white/45">fix: {failure.recommendedFix}</p>
+                {failure.affectedFiles.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {failure.affectedFiles.map((file) => (
+                      <span key={file} className="rounded border border-white/10 bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-white/60">{file}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Live activity" subtitle="Streaming from bud_activity_feed.">
+          <div className="max-h-[240px] divide-y divide-white/[0.04] overflow-auto px-3">
+            {liveActivity.length === 0 && <p className="py-6 text-center text-sm text-white/40">Quiet on the wire.</p>}
+            {liveActivity.map((event) => (
+              <div key={event.id} className="flex items-start gap-2 py-2.5">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+                <div>
+                  <p className="text-xs text-white/80">{event.narrative}</p>
+                  <p className="text-[10px] text-white/35">{event.event_type} · {rel(event.created_at)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                 MEMORY TAB                                 */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function MemoryTab({ memoryLayer, commandState }: { memoryLayer: BudOsMemoryLayer; commandState: MissionControlHealth }) {
+  return (
+    <div className="space-y-4">
+      <Card title="Operational memory" subtitle="Past repairs, decisions, business rules. Bud references this naturally.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {memoryLayer.map((group) => (
+            <div key={group.name} className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-white">{group.name}</p>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{group.items.length}</span>
+              </div>
+              <div className="mt-2 space-y-2">
+                {group.items.length === 0 ? (
+                  <p className="text-xs text-white/35">Bud has not saved this kind of memory yet.</p>
+                ) : (
+                  group.items.map((item) => (
+                    <div key={item.id} className="rounded-md border border-white/[0.04] bg-black/20 px-3 py-2">
+                      <p className="line-clamp-1 text-xs font-semibold text-white/85">{item.title}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-white/55">{item.detail}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           ))}
         </div>
-      </div>
-    </Section>
+      </Card>
+      <Card title="Memory vault status">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-4">
+          <StatBlock label="Connected" value={commandState.memory.connected ? 'YES' : 'NO'} tone={commandState.memory.connected ? 'good' : 'bad'} />
+          <StatBlock label="Records" value={commandState.memory.recent_count} />
+          <StatBlock label="Last write" value={commandState.memory.last_write_at ? rel(commandState.memory.last_write_at) : '—'} />
+          <StatBlock label="Learning ready" value={commandState.memory.learning_ready ? 'YES' : 'NO'} tone={commandState.memory.learning_ready ? 'good' : 'warn'} />
+        </div>
+      </Card>
+    </div>
   );
 }
 
-type ActivityEvent = {
-  id: string;
-  event_type: string;
-  narrative: string;
-  actor: string;
-  created_at: string;
-};
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                EVOLUTION TAB                               */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function EvolutionTab({ recommendations, initiatives }: { recommendations: UxEvolutionRecommendation[]; initiatives: BudInitiative[] }) {
+  return (
+    <div className="space-y-4">
+      <Card title="Initiative engine" subtitle="Proactive missions Bud has created from repeating signals.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {initiatives.length === 0 && <p className="text-sm text-white/40">No initiatives. Workforce is calm.</p>}
+          {initiatives.map((initiative) => (
+            <div key={initiative.id} className="rounded-md border border-white/[0.06] bg-white/[0.015] p-3">
+              <div className="flex items-center gap-2">
+                <Pill tone={initiative.severity === 'critical' ? 'bad' : initiative.severity === 'high' ? 'warn' : 'cool'}>{initiative.severity}</Pill>
+                <span className="text-[10px] uppercase tracking-wider text-white/40">{initiative.category}</span>
+                <span className="ml-auto text-[10px] uppercase tracking-wider text-white/40">conf {Math.round(initiative.confidence * 100)}%</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-tight text-white">{initiative.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-white/60">{initiative.why}</p>
+              <p className="mt-2 text-[11px] text-white/45">impact: <span className="text-white/70">{initiative.expected_impact}</span></p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {initiative.assigned_agents.map((a) => (
+                  <span key={a} className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[10px] text-white/65">{a}</span>
+                ))}
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-wider text-white/45">
+                <Pill tone={initiative.status === 'in_progress' ? 'cool' : initiative.status === 'blocked' ? 'bad' : 'neutral'}>{initiative.status.replaceAll('_', ' ')}</Pill>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card title="Self-redesign proposals" subtitle="Bud detects friction, clutter, weak hierarchy, and proposes redesigns.">
+        <div className="grid gap-3 px-5 py-4 lg:grid-cols-3">
+          <div className="rounded-lg border border-white/[0.06] bg-gradient-to-br from-sky-500/[0.08] to-violet-500/[0.06] p-4 lg:col-span-1">
+            <p className="text-sm font-semibold text-white">Bud can redesign Buds OS itself.</p>
+            <p className="mt-2 text-xs leading-relaxed text-white/70">
+              It surfaces proposals here. Approve to test or deploy. Bud never silently rewrites itself.
+            </p>
+          </div>
+          <div className="space-y-2 lg:col-span-2">
+            {recommendations.length === 0 ? (
+              <div className="rounded-md border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/40">No self-improvement recommendations.</div>
+            ) : (
+              recommendations.slice(0, 8).map((rec) => (
+                <div key={rec.id} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_TONE[rec.severity]}`}>{rec.severity}</span>
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{rec.title}</p>
+                    <span className="text-[10px] text-white/40">{rel(rec.created_at)}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-white/65">{rec.summary}</p>
+                  <p className="mt-2 text-[11px] text-white/45">{rec.affected_area} · {rec.can_queue_approval ? 'ready for approval queue' : 'reference only'}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                              DEPLOYMENTS TAB                               */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function DeploymentsTab({ commandState, autonomy }: { commandState: MissionControlHealth; autonomy: BudOsAutonomyCapability[] }) {
+  const dep = commandState.deployment;
+  const tone = dep.status === 'healthy' ? 'good' : dep.status === 'failed' ? 'bad' : dep.status === 'deploying' ? 'warn' : 'neutral';
+  return (
+    <div className="space-y-4">
+      <Card title="Deployment + verification" subtitle="Repairs are not successful until deployment + verification confirm.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-4">
+          <StatBlock label="Status" value={dep.status.toUpperCase()} tone={tone} />
+          <StatBlock label="Last event" value={dep.last_event_at ? rel(dep.last_event_at) : '—'} />
+          <StatBlock label="Last success" value={dep.last_success_at ? rel(dep.last_success_at) : '—'} />
+          <StatBlock label="Last failure" value={dep.last_failure_at ? rel(dep.last_failure_at) : '—'} tone={dep.last_failure_at ? 'warn' : 'neutral'} />
+        </div>
+        <div className="border-t border-white/[0.05] px-5 py-3 text-xs text-white/70">
+          {dep.summary}
+          {dep.last_url && (
+            <a href={dep.last_url} target="_blank" rel="noreferrer" className="ml-2 text-sky-300 hover:text-sky-200">
+              latest deployment &rarr;
+            </a>
+          )}
+        </div>
+      </Card>
+      <Card title="Repair lifecycle" subtitle="Detected → reading logs → diagnosing → planning → drafting patch → awaiting approval → applying → committing → deploying → verifying → fixed.">
+        <div className="space-y-2 px-5 py-4">
+          {commandState.repair_sessions.length === 0 && <p className="text-sm text-white/40">No active repairs.</p>}
+          {commandState.repair_sessions.map((session) => (
+            <div key={session.id} className="rounded-md border border-white/[0.06] bg-white/[0.015] px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Pill tone={session.phase === 'blocked' ? 'bad' : session.phase === 'awaiting_approval' ? 'warn' : 'cool'}>{session.phase.replaceAll('_', ' ')}</Pill>
+                <span className="text-xs font-semibold text-white">{session.agent_name}</span>
+                <span className="ml-auto text-[10px] text-white/35">{rel(session.created_at)}</span>
+              </div>
+              <p className="mt-1 text-xs text-white/65">{session.description}</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wider text-white/50">
+                <Pill tone="neutral">risk {session.risk_level}</Pill>
+                {session.confidence !== null && <Pill tone="cool">conf {Math.round((session.confidence ?? 0) * 100)}%</Pill>}
+                {session.linked_pr && (
+                  <a href={session.linked_pr} target="_blank" rel="noreferrer" className="text-sky-300 hover:text-sky-200">
+                    PR &rarr;
+                  </a>
+                )}
+                {session.linked_deployment && (
+                  <a href={session.linked_deployment} target="_blank" rel="noreferrer" className="text-sky-300 hover:text-sky-200">
+                    deploy &rarr;
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card title="Autonomy meter" subtitle="Operational readiness across the repair lifecycle.">
+        <div className="grid gap-2 px-5 py-4 md:grid-cols-2 xl:grid-cols-7">
+          {autonomy.map((capability) => (
+            <div key={capability.key} className={`rounded-md border px-3 py-3 ${CAPABILITY_TONE[capability.status]}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{capability.label}</p>
+                <span className="text-[10px] font-semibold uppercase">{capability.status}</span>
+              </div>
+              <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed opacity-80">{capability.detail}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                SETTINGS TAB                                */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function SettingsTab({
+  authority,
+  capabilities,
+  onAuthorityChange,
+}: {
+  authority: BudAuthority;
+  capabilities: BudCapability[];
+  onAuthorityChange: (level: BudAuthorityLevel) => void;
+}) {
+  const levels: BudAuthorityLevel[] = ['L0_OBSERVER', 'L1_ASSISTANT', 'L2_OPERATOR', 'L3_AUTONOMOUS_OPERATOR', 'L4_SELF_EVOLVING_SYSTEM'];
+  return (
+    <div className="space-y-4">
+      <Card title="Bud authority" subtitle="Authority scales with verified outcomes. Configure the ceiling.">
+        <div className="grid gap-3 px-5 py-4 lg:grid-cols-[1fr_1.2fr]">
+          <div>
+            <div className="flex items-center gap-2">
+              <Pill tone="cool">{authority.label}</Pill>
+              <span className="text-[10px] uppercase tracking-wider text-white/40">trust {Math.round(authority.trust_score * 100)}%</span>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-white/70">{authority.description}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded border border-white/[0.06] bg-black/15 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">Rollback reliability</div>
+                <div className="text-white">{Math.round(authority.rollback_reliability * 100)}%</div>
+              </div>
+              <div className="rounded border border-white/[0.06] bg-black/15 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">Deploy confidence</div>
+                <div className="text-white">{Math.round(authority.deployment_confidence * 100)}%</div>
+              </div>
+              <div className="rounded border border-white/[0.06] bg-black/15 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">Verified</div>
+                <div className="text-white">{authority.verified_repairs}</div>
+              </div>
+              <div className="rounded border border-white/[0.06] bg-black/15 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40">Rollbacks</div>
+                <div className="text-white">{authority.rolled_back_repairs}</div>
+              </div>
+            </div>
+            {authority.blocked_by.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Blocked by</p>
+                {authority.blocked_by.map((reason) => (
+                  <p key={reason} className="text-[11px] text-white/65">· {reason}</p>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Authority ceiling</p>
+            <div className="mt-2 space-y-2">
+              {levels.map((level) => {
+                const isCeiling = level === authority.configured_ceiling;
+                const isCurrent = level === authority.level;
+                return (
+                  <button
+                    key={level}
+                    onClick={() => onAuthorityChange(level)}
+                    className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition ${
+                      isCeiling ? 'border-sky-400/40 bg-sky-500/[0.07]' : 'border-white/[0.06] bg-white/[0.015] hover:border-white/15'
+                    }`}
+                  >
+                    <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-sky-400" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-white">{AUTHORITY_LABELS[level]}</p>
+                        {isCurrent && <Pill tone="good">current</Pill>}
+                        {isCeiling && !isCurrent && <Pill tone="cool">ceiling</Pill>}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-white/55">{AUTHORITY_DESCRIPTIONS[level]}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-white/40">
+              Bud will not exceed its earned level even if the ceiling is higher.
+            </p>
+          </div>
+        </div>
+      </Card>
+      <Card title="Honest capabilities" subtitle="What Bud can actually do right now. Authority + infrastructure both required.">
+        <div className="grid gap-2 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {capabilities.map((capability) => (
+            <div key={capability.key} className={`rounded-md border px-3 py-3 ${CAPABILITY_TONE[capability.status]}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{capability.label}</p>
+                <span className="text-[10px] font-semibold uppercase">{capability.status}</span>
+              </div>
+              <p className="mt-1.5 text-[11px] leading-relaxed opacity-80">{capability.reason}</p>
+              <div className="mt-2 flex gap-1.5 text-[10px] uppercase tracking-wider">
+                {capability.authority_allows ? <Pill tone="good">authority OK</Pill> : <Pill tone="bad">authority blocks</Pill>}
+                {capability.infrastructure_ready ? <Pill tone="good">infra OK</Pill> : <Pill tone="bad">infra missing</Pill>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                COMMAND TAB                                 */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function CommandTab({
+  presenceState,
+  onSubmitted,
+  initiatives,
+}: {
+  presenceState: BudOsStateLabel;
+  onSubmitted: () => void;
+  initiatives: BudInitiative[];
+}) {
+  return (
+    <div className="space-y-4">
+      <CommandBar onCreated={onSubmitted} presenceState={presenceState} />
+      <Card title="Recommended missions" subtitle="Tap to ask Bud to take one of these on.">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-2 xl:grid-cols-3">
+          {initiatives.length === 0 && <p className="text-sm text-white/40">No initiatives - workforce calm.</p>}
+          {initiatives.map((initiative) => (
+            <button
+              key={initiative.id}
+              onClick={() => {
+                void fetch('/api/bud/command', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ command: initiative.title }),
+                })
+                  .then((r) => r.json())
+                  .then(() => toast.success(`Bud is taking on: ${initiative.title}`))
+                  .catch(() => toast.error('Bud could not accept that mission'));
+              }}
+              className="rounded-md border border-white/[0.06] bg-white/[0.02] p-3 text-left transition hover:border-sky-400/30 hover:bg-sky-500/[0.05]"
+            >
+              <div className="flex items-center gap-2">
+                <Pill tone={initiative.severity === 'critical' ? 'bad' : initiative.severity === 'high' ? 'warn' : 'cool'}>{initiative.severity}</Pill>
+                <span className="text-[10px] uppercase tracking-wider text-white/40">{initiative.category}</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-white">{initiative.title}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-white/55">{initiative.why}</p>
+            </button>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                                   PAGE                                     */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+type ActivityEvent = { id: string; event_type: string; narrative: string; actor: string; created_at: string; metadata?: Record<string, unknown>; target?: string };
 
 export function MissionControlClient({
-  runs,
-  actions,
   insights,
   budActivity = [],
   commandState,
   budOs,
 }: Props) {
   const router = useRouter();
+  const search = useSearchParams();
+  const initialTab = (search?.get('tab') ?? 'overview') as TabKey;
+  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [authorityCeiling, setAuthorityCeiling] = useState<BudAuthorityLevel>(budOs.authority.configured_ceiling);
   const [queue, setQueue] = useState<BudOsQueueItem[]>(budOs.actionQueue);
   const [selectedId, setSelectedId] = useState<string | null>(budOs.actionQueue[0]?.id ?? null);
-  const [liveActivity, setLiveActivity] = useState<ActivityEvent[]>([]);
-  const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
-  const workspace = useMemo(() => buildRepairWorkspace({
-    selectedItem: selected,
-    commandState,
-    executions: budOs.repairExecutions,
-    steps: budOs.repairSteps,
-    logs: budOs.repairLogs,
-    activity: budActivity,
-  }), [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity]);
+  const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
 
-  // Auto-refresh server data every 30s
+  const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
+  const workspace = useMemo(
+    () =>
+      buildRepairWorkspace({
+        selectedItem: selected,
+        commandState,
+        executions: budOs.repairExecutions,
+        steps: budOs.repairSteps,
+        logs: budOs.repairLogs,
+        activity: budActivity,
+      }),
+    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity],
+  );
+
   useEffect(() => {
     const interval = setInterval(() => router.refresh(), 30_000);
     return () => clearInterval(interval);
   }, [router]);
 
-  // Supabase realtime: subscribe to live activity feed
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.replaceState({}, '', url.toString());
+  }, [tab]);
+
+  useEffect(() => {
+    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const channel = supabase
       .channel('bud-live-activity')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bud_activity_feed' }, (payload) => {
         const row = payload.new as ActivityEvent;
-        setLiveActivity((prev) => [row, ...prev].slice(0, 10));
+        setLiveActivity((prev) => [{
+          id: row.id,
+          event_type: row.event_type as BudActivityEvent['event_type'],
+          narrative: row.narrative,
+          actor: row.actor ?? null,
+          target: row.target ?? null,
+          metadata: row.metadata ?? {},
+          created_at: row.created_at,
+        }, ...prev].slice(0, 20));
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   function refreshHint() {
@@ -728,14 +1282,8 @@ export function MissionControlClient({
   async function approve(item: BudOsQueueItem) {
     try {
       const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
-      const body = item.source === 'agent_action'
-        ? { decision: 'approve' }
-        : { id: item.source_id, decision: 'approved' };
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const body = item.source === 'agent_action' ? { decision: 'approve' } : { id: item.source_id, decision: 'approved' };
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? 'Approval failed');
       setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
@@ -783,73 +1331,143 @@ export function MissionControlClient({
     }
   }
 
+  const globalTone = GLOBAL_STATUS_TONE[commandState.global_status];
+
   return (
-    <div className="space-y-4 pb-8">
-      <CommandBar onCreated={refreshHint} />
-
-      <BudStatePanel state={budOs.state} commandState={commandState} />
-
-      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <ActionQueue
-          items={queue}
-          selectedId={selected?.id ?? null}
-          onSelect={(item) => setSelectedId(item.id)}
-          onDismiss={(item) => void dismiss(item)}
-          onApprove={(item) => void approve(item)}
-          onInvestigate={(item) => void investigate(item)}
-        />
-        <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
-      </div>
-
-      <AutonomyMeter capabilities={budOs.autonomy} />
-      <UxEvolution recommendations={budOs.uxEvolution} />
-      <Workforce clusters={budOs.workforce} />
-      <MemoryLayer memoryLayer={budOs.memoryLayer} />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Section title="Command">
-          <div className="space-y-2 px-4 py-4 text-sm text-slate-600">
-            <Link href="/dashboard/agents/lobby" className="block rounded-md border border-black/[0.06] px-3 py-2 font-semibold text-slate-800 hover:bg-slate-50">Runtime</Link>
-            <Link href="/dashboard/agents" className="block rounded-md border border-black/[0.06] px-3 py-2 font-semibold text-slate-800 hover:bg-slate-50">Workforce</Link>
-            <Link href="/dashboard/settings" className="block rounded-md border border-black/[0.06] px-3 py-2 font-semibold text-slate-800 hover:bg-slate-50">Settings</Link>
+    <div className="relative min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-black text-white">
+      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_top,rgba(56,189,248,0.07),transparent_55%)]" />
+      <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6">
+        {/* Header */}
+        <header className="flex flex-wrap items-center gap-3 pb-4">
+          <div className="flex items-center gap-3">
+            <span className="relative inline-flex h-3 w-3">
+              <span className={`absolute inset-0 animate-ping rounded-full ${globalTone.dot} opacity-60`} />
+              <span className={`relative h-3 w-3 rounded-full ${globalTone.dot}`} />
+            </span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">Buds OS</p>
+              <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
+            </div>
           </div>
-        </Section>
-        <Section title="Bud noticed">
-          <div className="divide-y divide-black/[0.05]">
-            {insights.slice(0, 5).map((insight) => (
-              <div key={insight.id} className="px-4 py-3">
-                <p className="text-sm font-semibold text-slate-800">{insight.title}</p>
-                <p className="mt-1 text-xs text-slate-400">{insight.category} - {rel(insight.created_at)}</p>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ${globalTone.ring} ${globalTone.text}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${globalTone.dot}`} />
+              {globalTone.label}
+            </span>
+            <Pill tone="cool">{budOs.authority.label}</Pill>
+            <button onClick={() => router.refresh()} className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]">
+              Refresh
+            </button>
+          </div>
+        </header>
+
+        {/* Tabs */}
+        <nav className="sticky top-0 z-10 -mx-4 mb-5 border-b border-white/[0.07] bg-slate-950/85 px-4 backdrop-blur sm:-mx-6 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto">
+            {TABS.map((entry) => {
+              const active = tab === entry.key;
+              return (
+                <button
+                  key={entry.key}
+                  onClick={() => setTab(entry.key)}
+                  className={`relative shrink-0 border-b-2 px-3.5 py-2.5 text-[12px] font-semibold uppercase tracking-wider transition ${
+                    active ? 'border-sky-400 text-white' : 'border-transparent text-white/55 hover:text-white/85'
+                  }`}
+                >
+                  {entry.label}
+                  {active && <span className="pointer-events-none absolute inset-x-2 -bottom-px h-px bg-gradient-to-r from-transparent via-sky-400 to-transparent" />}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Persistent presence + command */}
+        {tab !== 'command' && (
+          <div className="mb-5 space-y-4">
+            <CommandBar onCreated={refreshHint} presenceState={budOs.state.label} />
+            <PresencePanel presence={budOs.state} commandState={commandState} authority={budOs.authority} thoughts={budOs.thoughtStream} />
+          </div>
+        )}
+
+        {/* Tab content */}
+        <div className="space-y-4">
+          {tab === 'command' && (
+            <CommandTab presenceState={budOs.state.label} onSubmitted={refreshHint} initiatives={budOs.initiatives} />
+          )}
+
+          {tab === 'overview' && (
+            <>
+              <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+                <ActionQueue
+                  items={queue}
+                  selectedId={selected?.id ?? null}
+                  onSelect={(item) => setSelectedId(item.id)}
+                  onDismiss={(item) => void dismiss(item)}
+                  onApprove={(item) => void approve(item)}
+                  onInvestigate={(item) => void investigate(item)}
+                />
+                <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
               </div>
-            ))}
-            {insights.length === 0 && <p className="px-4 py-4 text-sm text-slate-400">No unresolved Bud notices.</p>}
-          </div>
-        </Section>
-        <Section title="Bud is working on">
-          <div className="divide-y divide-black/[0.05]">
-            {liveActivity.slice(0, 3).map((event) => (
-              <div key={event.id} className="flex items-start gap-2 px-4 py-3">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-                <div>
-                  <p className="text-sm text-slate-800 leading-snug">{event.narrative}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-400">{rel(event.created_at)}</p>
+              <Card title="Bud noticed" subtitle="Insights Bud has not yet resolved.">
+                <div className="divide-y divide-white/[0.04] px-3">
+                  {insights.slice(0, 6).map((insight) => (
+                    <div key={insight.id} className="px-2 py-3">
+                      <p className="text-sm font-semibold text-white">{insight.title}</p>
+                      <p className="mt-1 text-[11px] text-white/40">{insight.category} · {rel(insight.created_at)}</p>
+                    </div>
+                  ))}
+                  {insights.length === 0 && <p className="px-2 py-4 text-sm text-white/40">No unresolved notices.</p>}
                 </div>
-              </div>
-            ))}
-            {liveActivity.length === 0 && [
-              ...runs.filter((run) => run.status === 'running'),
-              ...runs.filter((run) => run.status === 'needs_repair'),
-            ].slice(0, 5).map((run) => (
-              <div key={run.id} className="px-4 py-3">
-                <p className="text-sm font-semibold text-slate-800">{run.agent_id}</p>
-                <p className="mt-1 text-xs text-slate-500">{run.summary ?? run.status}</p>
-              </div>
-            ))}
-            {liveActivity.length === 0 && runs.filter((run) => run.status === 'running' || run.status === 'needs_repair').length === 0 && actions.length === 0 && (
-              <p className="px-4 py-4 text-sm text-slate-400">Bud is watching. No active work right now.</p>
-            )}
-          </div>
-        </Section>
+              </Card>
+            </>
+          )}
+
+          {tab === 'workforce' && <Workforce clusters={budOs.workforce} commandState={commandState} />}
+
+          {tab === 'repairs' && (
+            <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+              <ActionQueue
+                items={queue.filter((item) => ['critical', 'needs_approval', 'watch_items'].includes(item.group))}
+                selectedId={selected?.id ?? null}
+                onSelect={(item) => setSelectedId(item.id)}
+                onDismiss={(item) => void dismiss(item)}
+                onApprove={(item) => void approve(item)}
+                onInvestigate={(item) => void investigate(item)}
+              />
+              <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+            </div>
+          )}
+
+          {tab === 'activity' && (
+            <ActivityTab thoughts={budOs.thoughtStream} failures={budOs.structuredFailures} liveActivity={liveActivity} />
+          )}
+
+          {tab === 'memory' && <MemoryTab memoryLayer={budOs.memoryLayer} commandState={commandState} />}
+
+          {tab === 'evolution' && <EvolutionTab recommendations={budOs.uxEvolution} initiatives={budOs.initiatives} />}
+
+          {tab === 'deployments' && <DeploymentsTab commandState={commandState} autonomy={budOs.autonomy} />}
+
+          {tab === 'settings' && (
+            <SettingsTab
+              authority={budOs.authority}
+              capabilities={budOs.capabilities}
+              onAuthorityChange={(level) => {
+                setAuthorityCeiling(level);
+                toast.success(`Authority ceiling set to ${AUTHORITY_LABELS[level]} (session-only)`);
+              }}
+            />
+          )}
+        </div>
+
+        <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
+          <span>Buds OS · operational intelligence layer</span>
+          <span className="ml-auto">global_status: {commandState.global_status} · bud_status: {commandState.bud_status}</span>
+          {authorityCeiling !== budOs.authority.configured_ceiling && (
+            <span className="text-amber-300">(authority ceiling unsaved · server reload to persist)</span>
+          )}
+        </footer>
       </div>
     </div>
   );

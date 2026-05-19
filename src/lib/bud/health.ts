@@ -177,10 +177,13 @@ export type AgentHealthScore = {
   repeated_failures: boolean;
 };
 
-export type OperationalStatus = 'nominal' | 'degraded' | 'attention_required';
+export type OperationalStatus = 'nominal' | 'degraded' | 'attention_required' | 'repairing' | 'blocked';
+
+export type GlobalStatus = 'nominal' | 'degraded' | 'attention_required' | 'repairing' | 'blocked';
 
 export type GlobalHealthCheck = {
   status: OperationalStatus;
+  global_status: GlobalStatus;
   bud_status: 'nominal' | 'elevated' | 'critical';
   counts: {
     failed_runs: number;
@@ -191,6 +194,7 @@ export type GlobalHealthCheck = {
     parse_failures: number;
     unresolved_alerts: number;
     low_success_rate_agents: number;
+    blocked_repairs: number;
   };
   agents_needing_attention: string[];
   summary: string;
@@ -250,6 +254,7 @@ export function formatHealthCounts(counts: GlobalHealthCheck['counts']): string 
     countLabel(counts.parse_failures, 'parse failure'),
     countLabel(counts.unresolved_alerts, 'unresolved alert'),
     countLabel(counts.low_success_rate_agents, 'low success-rate agent'),
+    countLabel(counts.blocked_repairs, 'blocked repair'),
   ].filter((p): p is string => Boolean(p));
 
   if (parts.length === 0) return 'no issues detected';
@@ -262,11 +267,15 @@ export function evaluateGlobalHealth({
   runs,
   actions,
   unresolvedAlerts = 0,
+  blockedRepairs = 0,
+  repairsInFlight = 0,
 }: {
   agents: AgentRow[];
   runs: RunRow[];
   actions: ActionRow[];
   unresolvedAlerts?: number;
+  blockedRepairs?: number;
+  repairsInFlight?: number;
 }): GlobalHealthCheck {
   const runsByAgent = new Map<string, RunRow[]>();
   for (const run of runs) {
@@ -320,7 +329,12 @@ export function evaluateGlobalHealth({
     parse_failures: parseFailures,
     unresolved_alerts: unresolvedAlerts,
     low_success_rate_agents: lowSuccessRateAgents,
+    blocked_repairs: blockedRepairs,
   };
+
+  // Strict nominal rules: ANY non-zero in the lists below means NOT nominal.
+  const blockedIssue = counts.blocked_repairs > 0;
+  const repairing = repairsInFlight > 0;
 
   const hasAttentionIssue =
     counts.failed_runs > 0 ||
@@ -334,21 +348,42 @@ export function evaluateGlobalHealth({
     counts.pending_approvals > 0 ||
     counts.low_success_rate_agents > 0;
 
-  const status: OperationalStatus = hasAttentionIssue
-    ? 'attention_required'
-    : hasDegradedIssue
-      ? 'degraded'
-      : 'nominal';
+  let globalStatus: GlobalStatus;
+  if (blockedIssue) globalStatus = 'blocked';
+  else if (hasAttentionIssue) globalStatus = 'attention_required';
+  else if (repairing) globalStatus = 'repairing';
+  else if (hasDegradedIssue) globalStatus = 'degraded';
+  else globalStatus = 'nominal';
+
+  // Legacy `status` field preserves the older trichotomy.
+  const status: OperationalStatus =
+    globalStatus === 'blocked' || globalStatus === 'attention_required' || globalStatus === 'repairing'
+      ? 'attention_required'
+      : globalStatus === 'degraded'
+        ? 'degraded'
+        : 'nominal';
+
+  const isNominal = globalStatus === 'nominal';
 
   return {
     status,
-    bud_status: status === 'attention_required' ? 'critical' : status === 'degraded' ? 'elevated' : 'nominal',
+    global_status: globalStatus,
+    bud_status:
+      globalStatus === 'blocked' || globalStatus === 'attention_required'
+        ? 'critical'
+        : globalStatus === 'repairing' || globalStatus === 'degraded'
+          ? 'elevated'
+          : 'nominal',
     counts,
     agents_needing_attention: Array.from(agentsNeedingAttention),
-    summary: status === 'nominal'
+    summary: isNominal
       ? 'Operational review complete — system nominal.'
-      : `Operational review complete — attention required. ${formatHealthCounts(counts)} detected.`,
-    is_nominal: status === 'nominal',
+      : globalStatus === 'blocked'
+        ? `Blocked: ${formatHealthCounts(counts)}.`
+        : globalStatus === 'repairing'
+          ? `Repair in flight while ${formatHealthCounts(counts)}.`
+          : `Operational review complete — attention required. ${formatHealthCounts(counts)} detected.`,
+    is_nominal: isNominal,
   };
 }
 
@@ -491,11 +526,24 @@ export function computeMissionControlHealth({
   memory?: MemoryRow[];
 }): MissionControlHealth {
   const allApprovals = [...actions, ...budApprovals];
+
+  // Pre-compute repair counts so strict nominal rules see them.
+  const blockedRepairTasks = tasks.filter((t) => t.status === 'blocked' || t.status === 'failed').length;
+  const repairsInFlight = tasks.filter((t) => [
+    'patching',
+    'validating',
+    'deploying',
+    'verifying',
+    'in_progress',
+  ].includes(t.status)).length;
+
   const global = evaluateGlobalHealth({
     agents,
     runs,
     actions: allApprovals,
     unresolvedAlerts: insights.length,
+    blockedRepairs: blockedRepairTasks,
+    repairsInFlight,
   });
 
   const runsByAgent = new Map<string, RunRow[]>();
