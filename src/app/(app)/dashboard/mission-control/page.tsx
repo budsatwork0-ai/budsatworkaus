@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { MissionControlClient } from './MissionControlClient';
+import { evaluateGlobalHealth } from '@/lib/bud/health';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -108,15 +109,30 @@ async function loadData() {
   const totalSuccesses7d = Array.from(rawStats.values()).reduce((s, x) => s + x.successes, 0);
   const agents = agentsRes.data ?? [];
   const actions = actionsRes.data ?? [];
+  const runs = runsRes.data ?? [];
+  const budApprovals = (budApprovalsRes.data ?? []) as import('@/lib/bud/types').BudApprovalItem[];
 
   const githubData = githubRes.data ?? [];
   const vercelConnected = githubData.some((e) => e.event_type === 'deployment_status');
 
   const budState = budStateRes.data;
+  const globalHealth = evaluateGlobalHealth({
+    agents,
+    runs,
+    actions: [
+      ...actions,
+      ...budApprovals.map((approval) => ({
+        id: approval.id,
+        agent_id: null,
+        status: approval.status,
+      })),
+    ],
+    unresolvedAlerts: insightsRes.data?.length ?? 0,
+  });
 
   return {
     agents,
-    runs: runsRes.data ?? [],
+    runs,
     actions,
     github: githubData,
     memory,
@@ -130,13 +146,14 @@ async function loadData() {
       successRate7d: totalRuns7d > 0 ? Math.round((totalSuccesses7d / totalRuns7d) * 100) : 0,
       activeAgents: agents.filter((a) => a.status === 'enabled').length,
       totalAgents: agents.length,
-      pendingActions: actions.length,
+      pendingActions: actions.length + budApprovals.length,
     },
     budState: (budState?.bud_state ?? 'idle') as import('@/lib/bud/types').BudState,
-    budStatus: (budState?.operational_status ?? 'nominal') as 'nominal' | 'elevated' | 'critical',
-    budSummary: budState?.summary ?? null,
+    budStatus: globalHealth.bud_status,
+    budSummary: globalHealth.is_nominal ? budState?.summary ?? null : globalHealth.summary,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
-    budApprovals: (budApprovalsRes.data ?? []) as import('@/lib/bud/types').BudApprovalItem[],
+    budApprovals,
+    globalHealth,
   };
 }
 

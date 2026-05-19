@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { BudState, BudActivityEvent, BudApprovalItem } from '@/lib/bud/types';
-import type { AgentHealthLabel } from '@/lib/bud/health';
+import { scoreAgentHealth, type AgentHealthLabel, type GlobalHealthCheck } from '@/lib/bud/health';
 import { BudStateDisplay } from './_components/BudStateDisplay';
 import { BudActivityFeed } from './_components/BudActivityFeed';
 import { AgentHierarchy } from './_components/AgentHierarchy';
@@ -98,6 +98,7 @@ type Props = {
   budSummary?: string | null;
   budActivity?: BudActivityEvent[];
   budApprovals?: BudApprovalItem[];
+  globalHealth: GlobalHealthCheck;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -370,9 +371,27 @@ function LiveClock() {
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
-function StatusBar({ m, liveCount, isConnected }: { m: Metrics; liveCount: number; isConnected: boolean }) {
-  const healthLabel = m.successRate7d >= 90 ? 'Healthy' : m.successRate7d >= 70 ? 'Degraded' : 'Critical';
-  const healthColor = m.successRate7d >= 90 ? 'text-emerald-600' : m.successRate7d >= 70 ? 'text-amber-600' : 'text-red-600';
+function StatusBar({
+  m,
+  liveCount,
+  isConnected,
+  globalHealth,
+}: {
+  m: Metrics;
+  liveCount: number;
+  isConnected: boolean;
+  globalHealth: GlobalHealthCheck;
+}) {
+  const healthLabel = globalHealth.status === 'nominal'
+    ? 'All systems nominal'
+    : globalHealth.status === 'degraded'
+      ? 'Degraded'
+      : 'Attention required';
+  const healthColor = globalHealth.status === 'nominal'
+    ? 'text-emerald-600'
+    : globalHealth.status === 'degraded'
+      ? 'text-amber-600'
+      : 'text-red-600';
 
   return (
     <div className="flex items-center gap-5 px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white/92 backdrop-blur-xl shadow-[0_2px_16px_rgba(2,6,23,0.06)] flex-shrink-0">
@@ -893,7 +912,7 @@ function AgentFeed({
             </svg>
           </div>
           <p className="text-[13px] font-semibold text-slate-700">Nothing to report</p>
-          <p className="text-[11px] text-slate-400">Agents haven't run yet, or all runs are quiet</p>
+          <p className="text-[11px] text-slate-400">Agents have not run yet, or all runs are quiet</p>
         </div>
       ) : (
         <>
@@ -1302,12 +1321,18 @@ function AgentHealth({
   }
 
   const rows = agents
-    .map((a) => ({
-      ...a,
-      stats: agentStatsMap[a.id],
-      health: getHealth(agentStatsMap[a.id]),
-      lastOutput: lastOutputMap.get(a.id) ?? null,
-    }))
+    .map((a) => {
+      const agentRuns = runs.filter((run) => run.agent_id === a.id);
+      const scored = scoreAgentHealth(agentRuns, []);
+      const statsHealth = getHealth(agentStatsMap[a.id]);
+      const health = HEALTH[scored.label].order < HEALTH[statsHealth].order ? scored.label : statsHealth;
+      return {
+        ...a,
+        stats: agentStatsMap[a.id],
+        health,
+        lastOutput: lastOutputMap.get(a.id) ?? null,
+      };
+    })
     .filter((a) => a.stats && a.stats.runs > 0)
     .sort((a, b) => HEALTH[a.health].order - HEALTH[b.health].order)
     .slice(0, 20);
@@ -1962,6 +1987,7 @@ export function MissionControlClient({
   budSummary = null,
   budActivity = [],
   budApprovals = [],
+  globalHealth,
 }: Props) {
   const [runs, setRuns] = useState<RunRow[]>(initialRuns);
   const [actions, setActions] = useState<ActionRow[]>(initialActions);
@@ -1994,20 +2020,11 @@ export function MissionControlClient({
   const agentHealthMap = useMemo<Record<string, { label: AgentHealthLabel; score: number }>>(() => {
     const health: Record<string, { label: AgentHealthLabel; score: number }> = {};
     for (const agent of agents) {
-      const stats = agentStatsMap[agent.id];
-      if (!stats || stats.runs === 0) {
-        health[agent.id] = { label: 'inactive', score: 0 };
-      } else {
-        const rate = stats.successes / stats.runs;
-        const score = Math.round(rate * 100);
-        if (rate >= 0.8) health[agent.id] = { label: 'healthy', score };
-        else if (rate >= 0.6) health[agent.id] = { label: 'watch', score };
-        else if (rate > 0) health[agent.id] = { label: 'needs_repair', score };
-        else health[agent.id] = { label: 'broken', score: 0 };
-      }
+      const scored = scoreAgentHealth(runs.filter((run) => run.agent_id === agent.id), []);
+      health[agent.id] = { label: scored.label, score: scored.score };
     }
     return health;
-  }, [agents, agentStatsMap]);
+  }, [agents, runs]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -2080,7 +2097,7 @@ export function MissionControlClient({
         initialSummary={budSummary}
       />
 
-      <StatusBar m={metrics} liveCount={liveCount} isConnected={isConnected} />
+      <StatusBar m={metrics} liveCount={liveCount} isConnected={isConnected} globalHealth={globalHealth} />
 
       {/* Main row: Agent Feed (2/3) | Next Actions + GitHub stacked (1/3) */}
       <div className="grid grid-cols-3 gap-4" style={{ minHeight: '520px' }}>

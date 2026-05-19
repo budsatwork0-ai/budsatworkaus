@@ -1,7 +1,18 @@
 import { z } from 'zod';
 
 export const AgentOutputSchema = z.object({
-  status: z.enum(['success', 'partial', 'failed', 'needs_repair', 'needs_action', 'investigating', 'blocked']),
+  status: z.enum([
+    'success',
+    'partial',
+    'failed',
+    'needs_repair',
+    'needs_action',
+    'investigating',
+    'repairing',
+    'blocked',
+    'degraded',
+    'attention_required',
+  ]),
   summary: z.string(),
   findings: z.array(z.string()).default([]),
   recommended_actions: z.array(z.string()).default([]),

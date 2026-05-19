@@ -17,6 +17,7 @@ import type { AgentDefinition, AgentContext } from '../types';
 import { WORKFLOWS } from '../workflows';
 import { writeBudActivity, triggerInvestigation } from '@/lib/bud/orchestrator';
 import type { BudState } from '@/lib/bud/types';
+import { evaluateGlobalHealth, formatHealthCounts } from '@/lib/bud/health';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,12 @@ interface LobbyKPIs {
   active_workflows: number;
   parse_failures_24h: number;
   bud_tasks_open: number;
+  failed_runs_24h: number;
+  broken_agents: number;
+  needs_repair_agents: number;
+  watch_agents: number;
+  unresolved_alerts: number;
+  low_success_rate_agents: number;
 }
 
 // ── LLM system prompt ─────────────────────────────────────────────────────────
@@ -158,24 +165,32 @@ export const budAgent: AgentDefinition = {
     );
 
     // ── 1. Load source data ────────────────────────────────────────────────
-    const [agentsRes, runs24hRes, runs7dRes, pendingRes, budTasksRes] = await Promise.all([
+    const [agentsRes, runs24hRes, runs7dRes, pendingRes, budTasksRes, unresolvedInsightsRes, budApprovalsRes] = await Promise.all([
       ctx.supabase.from('agents').select('id, name, category, status, autonomy, schedule'),
       ctx.supabase
         .from('agent_runs')
-        .select('agent_id, status, cost_cents, started_at, summary')
+        .select('id, agent_id, status, cost_cents, started_at, summary, output')
         .gte('started_at', since24h),
       ctx.supabase
         .from('agent_runs')
-        .select('agent_id, status')
+        .select('id, agent_id, status, summary, output, started_at')
         .gte('started_at', since7d),
       ctx.supabase
-        .from('agent_actions')
-        .select('agent_id, status, created_at')
+        .from('v_pending_agent_actions')
+        .select('id, agent_id, status, created_at')
         .eq('status', 'pending'),
       ctx.supabase
         .from('bud_tasks')
         .select('id, status, source_agent')
         .in('status', ['pending', 'in_progress', 'awaiting_approval']),
+      ctx.supabase
+        .from('bud_insights')
+        .select('id')
+        .is('resolved_at', null),
+      ctx.supabase
+        .from('bud_approval_queue')
+        .select('id, status')
+        .eq('status', 'pending'),
     ]);
 
     const agents    = agentsRes.data ?? [];
@@ -183,6 +198,8 @@ export const budAgent: AgentDefinition = {
     const runs7d    = runs7dRes.data ?? [];
     const pending   = pendingRes.data ?? [];
     const budTasks  = budTasksRes.data ?? [];
+    const unresolvedAlertCount = unresolvedInsightsRes.data?.length ?? 0;
+    const budApprovalCount = budApprovalsRes.data?.length ?? 0;
 
     // ── 2. Build per-agent metrics ─────────────────────────────────────────
     const metrics = new Map<string, AgentMetrics>();
@@ -256,7 +273,7 @@ export const budAgent: AgentDefinition = {
     }
 
     // ── 4. Needs-attention set ────────────────────────────────────────────
-    const needsAttention = agents
+    const lifecycleNeedsAttention = agents
       .filter((a) => {
         const ls = agentStates[a.id];
         const m = metrics.get(a.id)!;
@@ -268,6 +285,25 @@ export const budAgent: AgentDefinition = {
         );
       })
       .map((a) => a.id);
+
+    const globalHealth = evaluateGlobalHealth({
+      agents,
+      runs: runs7d,
+      actions: [
+        ...pending,
+        ...(budApprovalsRes.data ?? []).map((approval) => ({
+          id: approval.id,
+          agent_id: null,
+          status: approval.status,
+        })),
+      ],
+      unresolvedAlerts: unresolvedAlertCount,
+    });
+
+    const needsAttention = Array.from(new Set([
+      ...lifecycleNeedsAttention,
+      ...globalHealth.agents_needing_attention,
+    ]));
     const needsAttentionSet = new Set(needsAttention);
 
     // ── 4b. Fetch structured failure details for needs-attention agents ───
@@ -343,12 +379,18 @@ export const budAgent: AgentDefinition = {
       agents_active:          Object.values(agentStates).filter((s) => s === 'active').length,
       agents_degraded:        Object.values(agentStates).filter((s) => s === 'degraded').length,
       agents_awaiting_review: Object.values(agentStates).filter((s) => s === 'awaiting_review').length,
-      pending_approvals:      pending.length,
+      pending_approvals:      pending.length + budApprovalCount,
       total_runs_24h:         runs24h.length,
       total_cost_cents_24h:   runs24h.reduce((s, r) => s + (r.cost_cents ?? 0), 0),
       active_workflows:       wfStatuses.filter((w) => w.active).length,
       parse_failures_24h:     totalParseFailures,
       bud_tasks_open:         budTasks.length,
+      failed_runs_24h:        runs24h.filter((r) => r.status === 'failed').length,
+      broken_agents:          globalHealth.counts.broken_agents,
+      needs_repair_agents:    globalHealth.counts.needs_repair_agents,
+      watch_agents:           globalHealth.counts.watch_agents,
+      unresolved_alerts:      unresolvedAlertCount,
+      low_success_rate_agents: globalHealth.counts.low_success_rate_agents,
     };
 
     // ── 7b. Trigger investigations for degraded/failing agents ────────────
@@ -426,6 +468,8 @@ Pending approvals: ${kpis.pending_approvals}
 Active workflows: ${wfStatuses.filter((w) => w.active).map((w) => w.label).join(', ') || 'none'}
 Bottlenecks: ${bottleneckedWfs.join(', ') || 'none detected'}
 Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') : 'none'}
+Global health: ${globalHealth.status}
+Health issues: ${formatHealthCounts(globalHealth.counts)}
 Investigations triggered this cycle:
 ${investigationSummary}`;
 
@@ -466,6 +510,23 @@ ${investigationSummary}`;
         insights: [],
       };
     }
+
+    const forcedOperationalStatus = globalHealth.bud_status;
+    const hasAwaitingApproval = investigationResults.some((r) => r.taskStatus === 'awaiting_approval');
+    const forcedBudState: BudState = investigationResults.length > 0
+      ? hasAwaitingApproval ? 'needs_human_approval' : 'investigating'
+      : kpis.bud_tasks_open > 0 ? 'repairing'
+      : globalHealth.status === 'attention_required' ? 'investigating'
+      : globalHealth.status === 'degraded' && kpis.pending_approvals > 0 ? 'needs_human_approval'
+      : globalHealth.status === 'degraded' ? 'reviewing'
+      : 'idle';
+
+    llmResult = {
+      ...llmResult,
+      operational_status: forcedOperationalStatus,
+      bud_state: forcedBudState,
+      summary: globalHealth.is_nominal ? llmResult.summary : globalHealth.summary,
+    };
 
     // ── 9. Assemble sections ───────────────────────────────────────────────
     const sp = llmResult.section_priorities;
@@ -527,7 +588,7 @@ ${investigationSummary}`;
       ? `Bud investigated ${investigationResults.length} agent(s): ${investigationResults.map((r) => `${r.agentName} (${r.errorType ?? 'unknown error'})`).join(', ')}.`
       : budState === 'repairing'   ? `Bud reviewed open repair tasks — ${kpis.bud_tasks_open} task(s) in progress.`
       : budState === 'learning'    ? `Bud analyzed patterns and updated operational memory.`
-      : needsAttention.length > 0  ? `Bud flagged ${needsAttention.length} agent(s) needing attention — no recent failure logs available for automated investigation.`
+      : !globalHealth.is_nominal   ? globalHealth.summary
       : `Bud completed operational review — ${kpis.total_runs_24h} runs analyzed, system ${llmResult.operational_status}.`;
 
     await writeBudActivity(ctx.supabase, summaryNarrative, {
@@ -545,17 +606,19 @@ ${investigationSummary}`;
     const uninvestigatedCount = needsAttention.length - agentsToInvestigate.length;
 
     // Determine true output status based on what Bud actually did
-    const outputStatus: 'success' | 'investigating' | 'needs_action' | 'blocked' =
-      needsAttention.length === 0                                                    ? 'success'
+    const outputStatus: 'success' | 'investigating' | 'repairing' | 'needs_action' | 'blocked' | 'degraded' | 'attention_required' =
+      globalHealth.status === 'nominal'                                              ? 'success'
+      : kpis.bud_tasks_open > 0                                                      ? 'repairing'
+      : globalHealth.status === 'attention_required'                                 ? 'attention_required'
       : investigatedCount > 0 && investigationResults.some((r) => r.taskStatus === 'awaiting_approval') ? 'needs_action'
       : investigatedCount > 0                                                        ? 'investigating'
-      : needsAttention.length > 0 && agentsToInvestigate.length === 0               ? 'needs_action'
-      : 'blocked';
+      : globalHealth.status === 'degraded'                                           ? 'degraded'
+      : 'needs_action';
 
     const runSummary = investigatedCount > 0
       ? `Bud investigated ${investigatedCount} agent(s) — ${degradedCount} degraded, ${kpis.parse_failures_24h} parse failures. State: ${budState}.`
-      : needsAttention.length > 0
-      ? `Bud found ${needsAttention.length} agent(s) needing attention but no failure logs were available for automated investigation. State: ${budState}.`
+      : !globalHealth.is_nominal
+      ? globalHealth.summary
       : `Bud completed review — ${activeCount} active, ${kpis.total_runs_24h} runs in 24h. System ${llmResult.operational_status}.`;
 
     const recommendedActions: string[] = [];
@@ -568,8 +631,10 @@ ${investigationSummary}`;
     if (kpis.bud_tasks_open > 0) {
       recommendedActions.push(`${kpis.bud_tasks_open} repair task(s) open — review in Mission Control`);
     }
-    if (recommendedActions.length === 0) {
+    if (recommendedActions.length === 0 && globalHealth.is_nominal) {
       recommendedActions.push('All nominal — no action required');
+    } else if (recommendedActions.length === 0) {
+      recommendedActions.push('Review Agent Health, failed runs, and pending approvals in Mission Control');
     }
 
     return {
@@ -583,6 +648,7 @@ ${investigationSummary}`;
           ...(needsAttention.length > 0
             ? [`${needsAttention.length} agent(s) need attention: ${needsAttention.join(', ')}`]
             : []),
+          ...(!globalHealth.is_nominal ? [formatHealthCounts(globalHealth.counts)] : []),
           ...(degradedCount > 0 ? [`${degradedCount} degraded`] : []),
           ...(kpis.parse_failures_24h > 0 ? [`${kpis.parse_failures_24h} parse failures in 24h`] : []),
           ...(kpis.bud_tasks_open > 0 ? [`${kpis.bud_tasks_open} open repair tasks`] : []),
