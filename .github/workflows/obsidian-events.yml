@@ -64,7 +64,7 @@ jobs:
 
       - name: POST to webhook
         env:
-          WEBHOOK_URL: ${{ secrets.BUDS_WEBHOOK_URL }}
+          WEBHOOK_URL: ${{ secrets.BUDS_WEBHOOK_URL }}WEBHOOK_URL: https://budsatwork.com/api/webhooks/github
           SIGNATURE:   ${{ steps.sign.outputs.signature }}
           EVENT_NAME:  ${{ github.event_name }}
           DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
