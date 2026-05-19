@@ -64,8 +64,8 @@ import { analyticsIntelligenceAgent } from './agents/analytics-intelligence';
 // Design system
 import { designSystemAgent } from './agents/design-system';
 
-// Meta-agent
-import { foremanAgent } from './agents/foreman';
+// Bud — autonomous AI orchestrator (replaces The Foreman)
+import { budAgent } from './agents/bud';
 
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
@@ -105,7 +105,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [priceOptimizerAgent.id]:          priceOptimizerAgent,
   [analyticsIntelligenceAgent.id]:   analyticsIntelligenceAgent,
   [designSystemAgent.id]:            designSystemAgent,
-  [foremanAgent.id]:                 foremanAgent,
+  [budAgent.id]:                     budAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

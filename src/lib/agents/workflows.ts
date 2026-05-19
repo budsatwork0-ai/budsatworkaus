@@ -3,8 +3,8 @@
  *
  * Workflows describe relationships between agents — who feeds whom, what
  * order operations run in, and which business function a chain serves.
- * The Foreman reads these to understand bottlenecks and workflow health.
- * The ForemanConsole reads these to render flow diagrams.
+ * Bud reads these to understand bottlenecks and workflow health.
+ * BudConsole reads these to render flow diagrams.
  *
  * When you add a new agent, add it to the appropriate workflow here and
  * update agent_workflow_memberships in the DB (migration 044_foreman.sql).

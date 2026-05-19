@@ -74,7 +74,7 @@ export const WORKSPACES: WorkspaceConfig[] = [
     folder: 'Meta-Agent',
     label: 'Meta Agent',
     description: 'Platform orchestration, quality assurance, agent architecture, system oversight.',
-    agentIds: ['foreman', 'agent-architect', 'internal-qa', 'github-historian'],
+    agentIds: ['bud', 'agent-architect', 'internal-qa', 'github-historian'],
   },
 ];
 
@@ -179,7 +179,7 @@ export interface AgentRunLog {
   runId: string;
   agentId: string;
   workspaceId: string;
-  status: 'succeeded' | 'failed' | 'needs_approval';
+  status: 'succeeded' | 'failed' | 'needs_approval' | 'needs_repair';
   summary: string;
   durationMs?: number;
   costCents?: number;
