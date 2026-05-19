@@ -119,6 +119,39 @@ function isUsefulSummary(summary: string | null): boolean {
   return !noise.some((p) => s.includes(p));
 }
 
+function buildSendToClaudePrompt(run: RunRow, agent: AgentRow | undefined): string {
+  return [
+    `Agent run from Buds At Work — please review and share your thoughts.`,
+    ``,
+    `Agent: ${agent?.name ?? run.agent_id}`,
+    `Category: ${agent?.category ?? 'general'}`,
+    `Status: ${run.status}`,
+    run.cost_cents ? `Cost: ${fmtCost(run.cost_cents)}` : null,
+    run.duration_ms ? `Duration: ${fmtDuration(run.duration_ms)}` : null,
+    ``,
+    `Output:`,
+    run.summary || '(no output recorded)',
+  ].filter(Boolean).join('\n');
+}
+
+function buildGithubIssueUrl(run: RunRow, agent: AgentRow | undefined, githubRepo: string | null): string {
+  const label = agent?.name ?? run.agent_id;
+  const title = encodeURIComponent(`Agent ${run.status}: ${label}`);
+  const body = encodeURIComponent(
+    `**Agent:** ${label}\n**Status:** ${run.status}\n**Run ID:** ${run.id}\n**Time:** ${run.started_at}\n\n**Output:**\n${run.summary ?? '(none)'}`,
+  );
+  const base = githubRepo ? `https://github.com/${githubRepo}/issues/new` : `https://github.com/issues/new`;
+  return `${base}?title=${title}&body=${body}`;
+}
+
+// Compact button class helpers
+const BTN = 'text-[11px] font-medium rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40';
+const BTN_SLATE  = `${BTN} text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200`;
+const BTN_BLUE   = `${BTN} text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100`;
+const BTN_VIOLET = `${BTN} text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100`;
+const BTN_RED    = `${BTN} text-red-600 bg-red-50 hover:bg-red-100 border border-red-100`;
+const BTN_GHOST  = `${BTN} text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent`;
+
 type RunCategory = 'failure' | 'approval' | 'useful' | 'noop';
 
 function categorize(run: RunRow): RunCategory {
@@ -384,14 +417,17 @@ function FailureCard({
   agent,
   githubRepo,
   onRerun,
+  onArchive,
 }: {
   run: RunRow;
   agent: AgentRow | undefined;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
+  onArchive: (runId: string) => Promise<void>;
 }) {
   const [rerunning, setRerunning] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
   const analysis = analyzeFailure(run, agent);
 
   async function handleRerun() {
@@ -399,20 +435,26 @@ function FailureCard({
     try { await onRerun(run.agent_id); } finally { setRerunning(false); }
   }
 
-  async function copyDebug() {
-    await navigator.clipboard.writeText(analysis.debugPrompt);
-    setCopied(true);
-    toast.success('Debug prompt copied to clipboard');
-    setTimeout(() => setCopied(false), 2500);
+  async function handleArchive() {
+    setArchiving(true);
+    try { await onArchive(run.id); } finally { setArchiving(false); }
   }
 
-  const issueTitle = encodeURIComponent(`Agent failure: ${agent?.name ?? run.agent_id}`);
-  const issueBody = encodeURIComponent(
-    `**Agent:** ${agent?.name ?? run.agent_id}\n**Failure:** ${analysis.what}\n**Run ID:** ${run.id}\n**Time:** ${run.started_at}`,
-  );
-  const issueUrl = githubRepo
-    ? `https://github.com/${githubRepo}/issues/new?title=${issueTitle}&body=${issueBody}`
-    : `https://github.com/issues/new?title=${issueTitle}&body=${issueBody}`;
+  async function copyDebug() {
+    await navigator.clipboard.writeText(analysis.debugPrompt);
+    setCopied('debug');
+    toast.success('Debug prompt copied to clipboard');
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  async function copyForClaude() {
+    await navigator.clipboard.writeText(buildSendToClaudePrompt(run, agent));
+    setCopied('claude');
+    toast.success('Copied — paste into Claude');
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
 
   return (
     <div className="px-5 py-4 border-b border-black/[0.04] last:border-0">
@@ -459,34 +501,25 @@ function FailureCard({
       </p>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Link
-          href={`/dashboard/agents/${run.agent_id}`}
-          className="text-[11px] font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors"
-        >
-          View run
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Link href={`/dashboard/agents/${run.agent_id}`} className={BTN_SLATE}>
+          View output
         </Link>
-        <button
-          disabled={rerunning}
-          onClick={handleRerun}
-          className="text-[11px] font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 disabled:opacity-40 rounded-lg px-3 py-1.5 transition-colors"
-        >
-          {rerunning ? 'Retrying…' : 'Retry'}
+        <button disabled={rerunning} onClick={handleRerun} className={BTN_BLUE}>
+          {rerunning ? 'Retrying…' : 'Rerun'}
         </button>
-        <button
-          onClick={copyDebug}
-          className="text-[11px] font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100 rounded-lg px-3 py-1.5 transition-colors"
-        >
-          {copied ? '✓ Copied' : 'Copy debug prompt'}
+        <button onClick={copyDebug} className={BTN_VIOLET}>
+          {copied === 'debug' ? '✓ Copied' : 'Debug'}
         </button>
-        <a
-          href={issueUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[11px] font-medium text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors"
-        >
+        <button onClick={copyForClaude} className={BTN_VIOLET}>
+          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        </button>
+        <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
           GitHub issue ↗
         </a>
+        <button disabled={archiving} onClick={handleArchive} className={`${BTN_GHOST} ml-auto`}>
+          {archiving ? '…' : 'Archive'}
+        </button>
       </div>
     </div>
   );
@@ -494,24 +527,78 @@ function FailureCard({
 
 // ─── Agent Feed: Approval row ─────────────────────────────────────────────────
 
-function ApprovalRow({ run, agent }: { run: RunRow; agent: AgentRow | undefined }) {
+function ApprovalRow({
+  run,
+  agent,
+  githubRepo,
+  onRerun,
+  onArchive,
+}: {
+  run: RunRow;
+  agent: AgentRow | undefined;
+  githubRepo: string | null;
+  onRerun: (agentId: string) => Promise<void>;
+  onArchive: (runId: string) => Promise<void>;
+}) {
+  const [rerunning, setRerunning] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
+
+  async function handleRerun() {
+    setRerunning(true);
+    try { await onRerun(run.agent_id); } finally { setRerunning(false); }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    try { await onArchive(run.id); } finally { setArchiving(false); }
+  }
+
+  async function handleCopy(type: 'debug' | 'claude') {
+    const text = type === 'debug'
+      ? `Debug: ${agent?.name ?? run.agent_id} — ${run.summary ?? 'needs_approval'}`
+      : buildSendToClaudePrompt(run, agent);
+    await navigator.clipboard.writeText(text);
+    setCopied(type);
+    toast.success(type === 'debug' ? 'Debug prompt copied' : 'Copied — paste into Claude');
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
+
   return (
-    <div className="flex items-center gap-3 px-5 py-3 border-b border-black/[0.04] last:border-0">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-[11px] font-semibold text-slate-900 truncate">{agent?.name ?? run.agent_id}</span>
-          {agent?.category && <CategoryChip category={agent.category} />}
-        </div>
-        <p className="text-[10px] text-slate-500 line-clamp-1 leading-relaxed">
-          {run.summary ?? 'Proposed an action and is awaiting your approval'}
-        </p>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5">
+    <div className="px-5 py-3.5 border-b border-black/[0.04] last:border-0">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+        <span className="text-[11px] font-semibold text-slate-900 truncate">{agent?.name ?? run.agent_id}</span>
+        {agent?.category && <CategoryChip category={agent.category} />}
+        <span className="ml-auto text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5 flex-shrink-0">
           Needs approval
         </span>
-        <span className="text-[10px] font-mono text-slate-400">{rel(run.started_at)}</span>
+        <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">{rel(run.started_at)}</span>
+      </div>
+      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mb-2.5">
+        {run.summary ?? 'Proposed an action and is awaiting your approval'}
+      </p>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Link href={`/dashboard/agents/${run.agent_id}`} className={BTN_SLATE}>
+          View output
+        </Link>
+        <button disabled={rerunning} onClick={handleRerun} className={BTN_BLUE}>
+          {rerunning ? 'Running…' : 'Rerun'}
+        </button>
+        <button onClick={() => handleCopy('debug')} className={BTN_VIOLET}>
+          {copied === 'debug' ? '✓ Copied' : 'Debug'}
+        </button>
+        <button onClick={() => handleCopy('claude')} className={BTN_VIOLET}>
+          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        </button>
+        <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
+          GitHub issue ↗
+        </a>
+        <button disabled={archiving} onClick={handleArchive} className={`${BTN_GHOST} ml-auto`}>
+          {archiving ? '…' : 'Archive'}
+        </button>
       </div>
     </div>
   );
@@ -519,31 +606,79 @@ function ApprovalRow({ run, agent }: { run: RunRow; agent: AgentRow | undefined 
 
 // ─── Agent Feed: Useful run row ───────────────────────────────────────────────
 
-function UsefulRow({ run, agent }: { run: RunRow; agent: AgentRow | undefined }) {
+function UsefulRow({
+  run,
+  agent,
+  githubRepo,
+  onRerun,
+  onArchive,
+}: {
+  run: RunRow;
+  agent: AgentRow | undefined;
+  githubRepo: string | null;
+  onRerun: (agentId: string) => Promise<void>;
+  onArchive: (runId: string) => Promise<void>;
+}) {
+  const [rerunning, setRerunning] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
+
+  async function handleRerun() {
+    setRerunning(true);
+    try { await onRerun(run.agent_id); } finally { setRerunning(false); }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    try { await onArchive(run.id); } finally { setArchiving(false); }
+  }
+
+  async function handleCopy(type: 'debug' | 'claude') {
+    const text = type === 'debug'
+      ? `Analyze this agent run and suggest improvements:\n\nAgent: ${agent?.name ?? run.agent_id}\nOutput: ${run.summary ?? '(none)'}`
+      : buildSendToClaudePrompt(run, agent);
+    await navigator.clipboard.writeText(text);
+    setCopied(type);
+    toast.success(type === 'debug' ? 'Debug prompt copied' : 'Copied — paste into Claude');
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
+
   return (
-    <div className="flex items-start gap-3 px-5 py-3.5 border-b border-black/[0.04] last:border-0 hover:bg-black/[0.01] transition-colors">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 mt-1" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-semibold text-slate-900 truncate">{agent?.name ?? run.agent_id}</span>
-          {agent?.category && <CategoryChip category={agent.category} />}
-          <span className="ml-auto text-[10px] font-mono text-slate-400 flex-shrink-0">{rel(run.started_at)}</span>
-        </div>
-        {/* Q1: What happened */}
-        <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2 mb-1.5">{run.summary}</p>
-        {/* Q2: Why it matters */}
-        <p className="text-[10px] text-slate-400">
-          {usefulImpactLabel(agent?.category ?? '')} update · {run.cost_cents ? fmtCost(run.cost_cents) : null}
-          {run.duration_ms ? ` · ${fmtDuration(run.duration_ms)}` : null}
-        </p>
+    <div className="px-5 py-3.5 border-b border-black/[0.04] last:border-0 hover:bg-black/[0.01] transition-colors">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+        <span className="text-[11px] font-semibold text-slate-900 truncate">{agent?.name ?? run.agent_id}</span>
+        {agent?.category && <CategoryChip category={agent.category} />}
+        <span className="ml-auto text-[10px] font-mono text-slate-400 flex-shrink-0">{rel(run.started_at)}</span>
       </div>
-      {/* Q3: What to do next */}
-      <Link
-        href={`/dashboard/agents/${run.agent_id}`}
-        className="text-[11px] font-medium text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0 mt-0.5"
-      >
-        View →
-      </Link>
+      <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2 mb-1 pl-3.5">{run.summary}</p>
+      <p className="text-[10px] text-slate-400 mb-2.5 pl-3.5">
+        {usefulImpactLabel(agent?.category ?? '')} update
+        {run.cost_cents ? ` · ${fmtCost(run.cost_cents)}` : ''}
+        {run.duration_ms ? ` · ${fmtDuration(run.duration_ms)}` : ''}
+      </p>
+      <div className="flex items-center gap-1.5 flex-wrap pl-3.5">
+        <Link href={`/dashboard/agents/${run.agent_id}`} className={BTN_SLATE}>
+          View output
+        </Link>
+        <button disabled={rerunning} onClick={handleRerun} className={BTN_BLUE}>
+          {rerunning ? 'Running…' : 'Rerun'}
+        </button>
+        <button onClick={() => handleCopy('debug')} className={BTN_VIOLET}>
+          {copied === 'debug' ? '✓ Copied' : 'Debug'}
+        </button>
+        <button onClick={() => handleCopy('claude')} className={BTN_VIOLET}>
+          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        </button>
+        <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
+          GitHub issue ↗
+        </a>
+        <button disabled={archiving} onClick={handleArchive} className={`${BTN_GHOST} ml-auto`}>
+          {archiving ? '…' : 'Archive'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -553,15 +688,23 @@ function UsefulRow({ run, agent }: { run: RunRow; agent: AgentRow | undefined })
 function QuietRuns({
   noopsByAgent,
   agentMap,
+  onArchive,
 }: {
   noopsByAgent: Map<string, { count: number; latest: RunRow }>;
   agentMap: Map<string, AgentRow>;
+  onArchive: (runId: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const groups = Array.from(noopsByAgent.entries());
   const totalRuns = groups.reduce((s, [, g]) => s + g.count, 0);
 
   if (groups.length === 0) return null;
+
+  async function handleArchive(runId: string) {
+    setArchivingId(runId);
+    try { await onArchive(runId); } finally { setArchivingId(null); }
+  }
 
   return (
     <div className="border-t border-black/[0.04]">
@@ -594,10 +737,11 @@ function QuietRuns({
           >
             {groups.map(([agentId, { count, latest }]) => {
               const agent = agentMap.get(agentId);
+              const isArchiving = archivingId === latest.id;
               return (
                 <div
                   key={agentId}
-                  className="flex items-center gap-3 px-5 py-2 border-t border-black/[0.03] hover:bg-black/[0.01] transition-colors"
+                  className="flex items-center gap-3 px-5 py-2 border-t border-black/[0.03] hover:bg-black/[0.01] transition-colors group"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-200 flex-shrink-0" />
                   <span className="text-[11px] text-slate-500 flex-1 truncate">
@@ -613,6 +757,14 @@ function QuietRuns({
                   >
                     View →
                   </Link>
+                  <button
+                    disabled={isArchiving}
+                    onClick={() => handleArchive(latest.id)}
+                    className="text-[10px] text-slate-300 hover:text-slate-500 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-40"
+                    title="Archive this run"
+                  >
+                    {isArchiving ? '…' : '×'}
+                  </button>
                 </div>
               );
             })}
@@ -630,11 +782,13 @@ function AgentFeed({
   agentMap,
   githubRepo,
   onRerun,
+  onArchive,
 }: {
   runs: RunRow[];
   agentMap: Map<string, AgentRow>;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
+  onArchive: (runId: string) => Promise<void>;
 }) {
   // Group by category, deduplicating failures per agent (latest only)
   const seenFailures = new Set<string>();
@@ -725,6 +879,7 @@ function AgentFeed({
                   agent={agentMap.get(run.agent_id)}
                   githubRepo={githubRepo}
                   onRerun={onRerun}
+                  onArchive={onArchive}
                 />
               ))}
             </div>
@@ -738,7 +893,14 @@ function AgentFeed({
                 <span className="text-[9px] text-slate-400">— approve or reject in the queue</span>
               </div>
               {approvals.slice(0, 4).map((run) => (
-                <ApprovalRow key={run.id} run={run} agent={agentMap.get(run.agent_id)} />
+                <ApprovalRow
+                  key={run.id}
+                  run={run}
+                  agent={agentMap.get(run.agent_id)}
+                  githubRepo={githubRepo}
+                  onRerun={onRerun}
+                  onArchive={onArchive}
+                />
               ))}
             </div>
           )}
@@ -751,13 +913,20 @@ function AgentFeed({
                 <span className="text-[9px] text-slate-400">— results worth reviewing</span>
               </div>
               {useful.slice(0, 6).map((run) => (
-                <UsefulRow key={run.id} run={run} agent={agentMap.get(run.agent_id)} />
+                <UsefulRow
+                  key={run.id}
+                  run={run}
+                  agent={agentMap.get(run.agent_id)}
+                  githubRepo={githubRepo}
+                  onRerun={onRerun}
+                  onArchive={onArchive}
+                />
               ))}
             </div>
           )}
 
           {/* Section: Quiet (no-op) runs — collapsed */}
-          <QuietRuns noopsByAgent={noopsByAgent} agentMap={agentMap} />
+          <QuietRuns noopsByAgent={noopsByAgent} agentMap={agentMap} onArchive={onArchive} />
         </>
       )}
     </Panel>
@@ -767,7 +936,7 @@ function AgentFeed({
 // ─── Next Actions ─────────────────────────────────────────────────────────────
 
 function NextActions({
-  actions,
+  actions: initialActions,
   insights,
   agentMap,
   onDecide,
@@ -777,13 +946,132 @@ function NextActions({
   agentMap: Map<string, AgentRow>;
   onDecide: (id: string, decision: 'approve' | 'reject') => Promise<void>;
 }) {
+  const [actions, setActions] = useState<ActionRow[]>(initialActions);
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [savingObsidian, setSavingObsidian] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Keep actions in sync if parent updates (new actions from realtime)
+  useEffect(() => { setActions(initialActions); }, [initialActions]);
 
   async function decide(id: string, decision: 'approve' | 'reject') {
     setBusy((s) => new Set(s).add(id));
     try { await onDecide(id, decision); }
     finally {
       setBusy((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  }
+
+  function startEdit(action: ActionRow) {
+    setEditingId(action.id);
+    setEditText(action.preview);
+  }
+
+  async function saveEdit(id: string) {
+    setBusy((s) => new Set(s).add(id));
+    try {
+      const res = await fetch(`/api/agents/actions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preview: editText }),
+      });
+      if (res.ok) {
+        setActions((prev) => prev.map((a) => a.id === id ? { ...a, preview: editText } : a));
+        setEditingId(null);
+        toast.success('Action updated');
+      } else {
+        toast.error('Failed to save — try again');
+      }
+    } finally {
+      setBusy((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  }
+
+  async function copyForClaudeCode(action: ActionRow) {
+    const agentName = agentMap.get(action.agent_id)?.name ?? action.agent_id;
+    const text = [
+      `Agent action for review — Buds At Work`,
+      ``,
+      `Type: ${action.action_type}`,
+      `Agent: ${agentName}`,
+      `Created: ${action.created_at}`,
+      ``,
+      `Proposed action:`,
+      action.preview,
+      ``,
+      `Please help me evaluate whether to approve or reject this, and suggest any edits needed.`,
+    ].join('\n');
+    await navigator.clipboard.writeText(text);
+    setCopiedId(action.id);
+    toast.success('Copied — paste into Claude Code');
+    setTimeout(() => setCopiedId(null), 2500);
+  }
+
+  async function saveToObsidian(action: ActionRow) {
+    setSavingObsidian((s) => new Set(s).add(action.id));
+    try {
+      const agentName = agentMap.get(action.agent_id)?.name ?? action.agent_id;
+      const res = await fetch('/api/memory/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'admin',
+          title: `Agent action: ${action.action_type} (${agentName})`,
+          content: action.preview,
+          tags: ['agent-action', action.action_type],
+          source: 'human',
+        }),
+      });
+      if (res.ok) {
+        toast.success('Saved to Obsidian memory');
+      } else if (res.status === 409) {
+        toast('Already saved — duplicate detected');
+      } else {
+        toast.error('Failed to save to memory');
+      }
+    } finally {
+      setSavingObsidian((s) => { const n = new Set(s); n.delete(action.id); return n; });
+    }
+  }
+
+  async function copyInsightForClaude(insight: InsightRow) {
+    const text = [
+      `Agent insight from Buds At Work:`,
+      ``,
+      `Category: ${insight.category}`,
+      `Severity: ${insight.severity}`,
+      `Title: ${insight.title}`,
+      `Created: ${insight.created_at}`,
+    ].join('\n');
+    await navigator.clipboard.writeText(text);
+    toast.success('Copied — paste into Claude Code');
+  }
+
+  async function saveInsightToObsidian(insight: InsightRow) {
+    setSavingObsidian((s) => new Set(s).add(insight.id));
+    try {
+      const res = await fetch('/api/memory/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'admin',
+          title: insight.title,
+          content: `Severity: ${insight.severity}\nCategory: ${insight.category}\nDetected: ${insight.created_at}`,
+          tags: ['agent-insight', insight.severity, insight.category],
+          source: 'human',
+        }),
+      });
+      if (res.ok) {
+        toast.success('Saved to Obsidian memory');
+      } else if (res.status === 409) {
+        toast('Already saved — duplicate detected');
+      } else {
+        toast.error('Failed to save to memory');
+      }
+    } finally {
+      setSavingObsidian((s) => { const n = new Set(s); n.delete(insight.id); return n; });
     }
   }
 
@@ -816,67 +1104,136 @@ function NextActions({
       ) : (
         <div className="divide-y divide-black/[0.04]">
           <AnimatePresence>
-            {actions.map((action) => (
-              <motion.div
-                key={action.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, x: -12, transition: { duration: 0.15 } }}
-                className="px-5 py-4"
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                  <span className="text-[11px] font-semibold text-slate-900">{action.action_type}</span>
-                  <span className="ml-auto text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5 flex-shrink-0">
-                    Approval
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 line-clamp-2 mb-2.5 leading-relaxed">{action.preview}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">
-                    {agentMap.get(action.agent_id)?.name ?? action.agent_id} · {rel(action.created_at)}
-                  </span>
-                  <div className="ml-auto flex items-center gap-1.5">
+            {actions.map((action) => {
+              const isEditing = editingId === action.id;
+              const isBusy = busy.has(action.id);
+              const isSavingObs = savingObsidian.has(action.id);
+              const isCopied = copiedId === action.id;
+              return (
+                <motion.div
+                  key={action.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, x: -12, transition: { duration: 0.15 } }}
+                  className="px-5 py-4"
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                    <span className="text-[11px] font-semibold text-slate-900">{action.action_type}</span>
+                    <span className="ml-auto text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-1.5 py-0.5 flex-shrink-0">
+                      Approval
+                    </span>
+                  </div>
+
+                  {/* Preview or inline editor */}
+                  {isEditing ? (
+                    <div className="mb-2.5">
+                      <textarea
+                        className="w-full text-[11px] text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
+                        rows={4}
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        autoFocus
+                      />
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <button
+                          disabled={isBusy || !editText.trim()}
+                          onClick={() => saveEdit(action.id)}
+                          className="text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 disabled:opacity-40 rounded-lg px-2.5 py-1.5 transition-colors"
+                        >
+                          {isBusy ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className={BTN_GHOST}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-2.5 leading-relaxed">{action.preview}</p>
+                  )}
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-400 mr-1">
+                      {agentMap.get(action.agent_id)?.name ?? action.agent_id} · {rel(action.created_at)}
+                    </span>
                     <button
-                      disabled={busy.has(action.id)}
+                      disabled={isBusy}
                       onClick={() => decide(action.id, 'approve')}
-                      className="text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 disabled:opacity-40 rounded-lg px-3 py-1.5 transition-colors"
+                      className="text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 disabled:opacity-40 rounded-lg px-2.5 py-1.5 transition-colors"
                     >
                       Approve
                     </button>
                     <button
-                      disabled={busy.has(action.id)}
+                      disabled={isBusy}
                       onClick={() => decide(action.id, 'reject')}
-                      className="text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 disabled:opacity-40 rounded-lg px-3 py-1.5 transition-colors"
+                      className={BTN_RED}
                     >
                       Reject
                     </button>
+                    {!isEditing && (
+                      <button onClick={() => startEdit(action)} className={BTN_SLATE}>
+                        Edit
+                      </button>
+                    )}
+                    <button
+                      disabled={isCopied}
+                      onClick={() => copyForClaudeCode(action)}
+                      className={BTN_VIOLET}
+                    >
+                      {isCopied ? '✓ Copied' : 'Send to Claude Code'}
+                    </button>
+                    <button
+                      disabled={isSavingObs}
+                      onClick={() => saveToObsidian(action)}
+                      className={BTN_SLATE}
+                    >
+                      {isSavingObs ? 'Saving…' : 'Save to Obsidian'}
+                    </button>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
 
-          {urgentInsights.slice(0, 4).map((insight) => (
-            <div key={insight.id} className="px-5 py-4">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${insight.severity === 'critical' ? 'bg-red-500' : 'bg-orange-400'}`} />
-                <span className="text-[11px] font-semibold text-slate-900 line-clamp-1">{insight.title}</span>
-                <span className={`ml-auto text-[9px] font-semibold uppercase tracking-wide border rounded-full px-1.5 py-0.5 flex-shrink-0 ${insight.severity === 'critical' ? 'text-red-700 bg-red-50 border-red-100' : 'text-orange-700 bg-orange-50 border-orange-100'}`}>
-                  {insight.severity}
-                </span>
+          {urgentInsights.slice(0, 4).map((insight) => {
+            const isSavingObs = savingObsidian.has(insight.id);
+            return (
+              <div key={insight.id} className="px-5 py-4">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${insight.severity === 'critical' ? 'bg-red-500' : 'bg-orange-400'}`} />
+                  <span className="text-[11px] font-semibold text-slate-900 line-clamp-1">{insight.title}</span>
+                  <span className={`ml-auto text-[9px] font-semibold uppercase tracking-wide border rounded-full px-1.5 py-0.5 flex-shrink-0 ${insight.severity === 'critical' ? 'text-red-700 bg-red-50 border-red-100' : 'text-orange-700 bg-orange-50 border-orange-100'}`}>
+                    {insight.severity}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] text-slate-400 mr-1">{insight.category} · {rel(insight.created_at)}</span>
+                  <Link
+                    href={insight.agent_id ? `/dashboard/agents/${insight.agent_id}` : '/dashboard/agents'}
+                    className={BTN_SLATE}
+                  >
+                    Investigate →
+                  </Link>
+                  <button
+                    onClick={() => copyInsightForClaude(insight)}
+                    className={BTN_VIOLET}
+                  >
+                    Send to Claude Code
+                  </button>
+                  <button
+                    disabled={isSavingObs}
+                    onClick={() => saveInsightToObsidian(insight)}
+                    className={BTN_SLATE}
+                  >
+                    {isSavingObs ? 'Saving…' : 'Save to Obsidian'}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[10px] text-slate-400">{insight.category} · {rel(insight.created_at)}</span>
-                <Link
-                  href={insight.agent_id ? `/dashboard/agents/${insight.agent_id}` : '/dashboard/agents'}
-                  className="ml-auto text-[11px] font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  Investigate →
-                </Link>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Panel>
@@ -1082,12 +1439,49 @@ function AgentHealth({
 
 // ─── Memory & Intelligence ────────────────────────────────────────────────────
 
-const SOURCES = [
-  { key: 'obsidian', name: 'Obsidian', icon: '◆', desc: 'Design decisions, ADRs, dev logs' },
-  { key: 'github', name: 'GitHub', icon: '⬡', desc: 'PRs, deployments, releases' },
-  { key: 'supabase', name: 'Supabase', icon: '◈', desc: 'Database events, schema changes' },
-  { key: 'vercel', name: 'Vercel', icon: '▲', desc: 'Build logs, deployment status' },
+const INTEL_SOURCES = [
+  { key: 'obsidian', name: 'Obsidian', icon: '◆', hint: 'Connect Obsidian vault' },
+  { key: 'github',   name: 'GitHub',   icon: '⬡', hint: 'Sync GitHub activity' },
+  { key: 'claude',   name: 'Claude',   icon: '◉', hint: null },
+  { key: 'vercel',   name: 'Vercel',   icon: '▲', hint: 'Connect Vercel' },
+  { key: 'supabase', name: 'Supabase', icon: '◈', hint: 'Connect Supabase' },
+  { key: 'crawler',  name: 'Crawler',  icon: '⊕', hint: 'Import site context' },
 ];
+
+const SETUP_ACTIONS = [
+  { key: 'obsidian', label: 'Connect Obsidian vault',      desc: 'Sync design docs, ADRs and dev logs automatically',    icon: '◆' },
+  { key: 'agents',   label: 'Save current agent outputs',  desc: 'Import last 24h of agent recommendations as insights', icon: '◉' },
+  { key: 'crawler',  label: 'Import site context',         desc: 'Crawl and index your public pages for AI reference',   icon: '⊕' },
+  { key: 'github',   label: 'Sync GitHub activity',        desc: 'Connect repo webhooks for PR and deploy events',       icon: '⬡' },
+];
+
+function IntelCard({
+  label,
+  color,
+  title,
+  meta,
+  empty,
+}: {
+  label: string;
+  color: string;
+  title?: string | null;
+  meta?: string | null;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-xl border border-black/[0.05] bg-slate-50/50 px-3 py-2.5">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className={`text-[8px] font-semibold uppercase tracking-widest ${color}`}>{label}</span>
+        {meta && <span className="ml-auto text-[9px] font-mono text-slate-400 flex-shrink-0">{meta}</span>}
+      </div>
+      {title ? (
+        <p className="text-[11px] text-slate-700 line-clamp-2 leading-relaxed">{title}</p>
+      ) : (
+        <p className="text-[11px] text-slate-400 italic">{empty}</p>
+      )}
+    </div>
+  );
+}
 
 function MemoryIntelligence({
   memory,
@@ -1098,97 +1492,142 @@ function MemoryIntelligence({
   insights: InsightRow[];
   github: GithubEventRow[];
 }) {
-  const connected = {
-    obsidian: memory.length > 0,
-    github: github.length > 0,
-    supabase: false,
+  const hasInsights = insights.length > 0;
+  const hasMemory = memory.length > 0;
+  const hasGithub = github.length > 0;
+  const hasAnyData = hasInsights || hasMemory || hasGithub;
+
+  const connected: Record<string, boolean> = {
+    obsidian: hasMemory,
+    github: hasGithub,
+    claude: hasInsights,
     vercel: false,
+    supabase: false,
+    crawler: false,
   };
 
-  const lowInsights = insights.filter((i) => i.severity === 'medium' || i.severity === 'low');
-  const hasAnyData = memory.length > 0 || lowInsights.length > 0;
+  const lastInsight = insights[0] ?? null;
+  const lastRec = insights.find((i) => i.agent_id != null) ?? null;
+  const designCats = new Set(['design', 'ux', 'architecture']);
+  const lastDesign = memory.find((d) => designCats.has(d.category)) ?? null;
 
+  const missingSources = INTEL_SOURCES.filter((s) => s.hint && !connected[s.key]);
+
+  // ── Empty state ──
+  if (!hasAnyData) {
+    return (
+      <Panel label="Memory & Intelligence" className="h-full">
+        <div className="flex flex-col h-full px-5 py-6">
+          <div className="flex items-center justify-center mb-5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-100 flex items-center justify-center">
+              <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+              </svg>
+            </div>
+          </div>
+
+          <p className="text-[13px] font-semibold text-slate-700 text-center mb-1">No intelligence saved yet</p>
+          <p className="text-[11px] text-slate-400 text-center leading-relaxed mb-5 max-w-[200px] mx-auto">
+            Mission Control has not saved any intelligence yet.
+          </p>
+
+          <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Get started</p>
+          <div className="space-y-1.5">
+            {SETUP_ACTIONS.map((action) => (
+              <button
+                key={action.key}
+                className="w-full flex items-center gap-3 text-left rounded-xl border border-black/[0.06] bg-slate-50/80 hover:bg-white hover:border-black/10 px-3 py-2.5 transition-all group"
+              >
+                <span className="text-[11px] text-slate-300 flex-shrink-0 group-hover:text-slate-500 transition-colors font-mono">
+                  {action.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-slate-700">{action.label}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{action.desc}</p>
+                </div>
+                <span className="text-[10px] text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0">→</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Panel>
+    );
+  }
+
+  // ── Data state ──
   return (
     <Panel label="Memory & Intelligence" className="h-full">
+      {/* Last known intelligence */}
       <div className="px-5 pt-4 pb-3.5 border-b border-black/[0.04]">
-        <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2.5">Connected sources</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {SOURCES.map((src) => {
-            const on = connected[src.key as keyof typeof connected];
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Last known</p>
+        <div className="space-y-1.5">
+          <IntelCard
+            label="Site insight"
+            color="text-blue-500"
+            title={lastInsight?.title}
+            meta={lastInsight ? rel(lastInsight.created_at) : undefined}
+            empty="No insights recorded yet"
+          />
+          <IntelCard
+            label="Agent recommendation"
+            color="text-violet-500"
+            title={lastRec?.title}
+            meta={lastRec ? `${rel(lastRec.created_at)} · ${lastRec.category}` : undefined}
+            empty="No agent recommendations yet"
+          />
+          <IntelCard
+            label="Design decision"
+            color="text-pink-500"
+            title={lastDesign?.title}
+            meta={lastDesign ? `${lastDesign.category} · ${rel(lastDesign.created_at)}` : undefined}
+            empty="No design decisions in vault"
+          />
+        </div>
+      </div>
+
+      {/* Connected sources */}
+      <div className="px-5 pt-3.5 pb-3.5 border-b border-black/[0.04]">
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Connected sources</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {INTEL_SOURCES.map((src) => {
+            const on = connected[src.key];
             return (
               <div
                 key={src.key}
-                className={`flex items-center gap-2 rounded-xl px-2.5 py-2 border transition-opacity ${on ? 'border-emerald-100 bg-emerald-50/60' : 'border-black/[0.04] bg-slate-50/60 opacity-50'}`}
+                className={`flex flex-col gap-1 rounded-xl px-2.5 py-2 border transition-colors ${on ? 'border-emerald-100 bg-emerald-50/50' : 'border-black/[0.04] bg-slate-50/40'}`}
               >
-                <span className={`text-[11px] ${on ? 'text-emerald-600' : 'text-slate-400'}`}>{src.icon}</span>
-                <div className="min-w-0">
-                  <p className={`text-[10px] font-semibold ${on ? 'text-slate-800' : 'text-slate-500'}`}>{src.name}</p>
-                  <p className={`text-[9px] ${on ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {on ? 'Connected' : 'Not connected'}
-                  </p>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${on ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+                  <span className={`text-[10px] font-semibold ${on ? 'text-slate-800' : 'text-slate-400'}`}>{src.name}</span>
                 </div>
+                <span className={`text-[9px] ${on ? 'text-emerald-600' : 'text-slate-300'}`}>
+                  {on ? 'Connected' : 'Not set up'}
+                </span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {lowInsights.length > 0 && (
-        <>
-          <p className="px-5 pt-3.5 pb-1 text-[10px] uppercase tracking-widest text-slate-400">Insights</p>
-          {lowInsights.slice(0, 3).map((i) => (
-            <div key={i.id} className="flex items-start gap-2.5 px-5 py-2.5 border-b border-black/[0.04] hover:bg-black/[0.015] transition-colors">
-              <span className={`text-[9px] font-semibold uppercase border rounded px-1.5 py-0.5 flex-shrink-0 mt-0.5 ${i.severity === 'medium' ? 'text-amber-700 bg-amber-50 border-amber-100' : 'text-slate-500 bg-slate-50 border-slate-100'}`}>
-                {i.severity}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[11px] text-slate-700 line-clamp-2 leading-relaxed">{i.title}</p>
-                <p className="text-[9px] font-mono text-slate-400 mt-0.5">{rel(i.created_at)} · {i.category}</p>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-
-      {memory.length > 0 && (
-        <>
-          <p className="px-5 pt-3.5 pb-1 text-[10px] uppercase tracking-widest text-slate-400">Vault</p>
-          {memory.slice(0, 4).map((doc) => (
-            <div key={doc.id} className="flex items-start gap-2.5 px-5 py-2.5 border-b border-black/[0.04] hover:bg-black/[0.015] transition-colors">
-              <span className={`text-[9px] font-mono flex-shrink-0 pt-0.5 min-w-[44px] ${MEM_COLOR[doc.category] ?? 'text-slate-400'}`}>
-                {doc.category}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[11px] text-slate-700 line-clamp-1">{doc.title}</p>
-                <p className="text-[9px] font-mono text-slate-400 mt-0.5">{rel(doc.created_at)}</p>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-
-      {!hasAnyData && !connected.github && (
-        <div className="px-5 py-4">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-3">How to connect</p>
-          <div className="space-y-3">
-            <div className="flex items-start gap-2.5">
-              <span className="text-[10px] font-mono text-slate-300 flex-shrink-0 mt-0.5">01</span>
-              <div>
-                <p className="text-[11px] font-semibold text-slate-700">Obsidian Vault</p>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
-                  Sync via GitHub Actions — design docs, ADRs and dev logs surface here automatically.
+      {/* Missing setup steps */}
+      {missingSources.length > 0 && (
+        <div className="px-5 pt-3.5 pb-4">
+          <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Setup needed</p>
+          <div className="space-y-1.5">
+            {missingSources.map((src) => (
+              <button
+                key={src.key}
+                className="w-full flex items-center gap-2.5 text-left rounded-xl border border-black/[0.05] bg-slate-50/60 hover:bg-white hover:border-black/[0.09] px-3 py-2 transition-all group"
+              >
+                <span className="text-[10px] text-slate-300 flex-shrink-0 font-mono group-hover:text-slate-500 transition-colors">
+                  {src.icon}
+                </span>
+                <p className="text-[10px] font-medium text-slate-500 group-hover:text-slate-700 transition-colors flex-1">
+                  {src.hint}
                 </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <span className="text-[10px] font-mono text-slate-300 flex-shrink-0 mt-0.5">02</span>
-              <div>
-                <p className="text-[11px] font-semibold text-slate-700">GitHub Webhooks</p>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
-                  Add the webhook to your repo to track PRs, deployments, and releases.
-                </p>
-              </div>
-            </div>
+                <span className="text-[9px] text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0">→</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -1339,12 +1778,22 @@ export function MissionControlClient({
     const res = await fetch('/api/agents/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, input: 'Manual rerun from Mission Control' }),
+      body: JSON.stringify({ agent_id: agentId, input: 'Manual rerun from Mission Control' }),
     });
     if (res.ok) {
       toast.success('Agent queued for rerun');
     } else {
       toast.error('Failed to queue rerun — check agent config');
+    }
+  }, []);
+
+  const handleArchive = useCallback(async (runId: string) => {
+    const res = await fetch(`/api/agents/runs/${runId}/archive`, { method: 'POST' });
+    if (res.ok) {
+      setRuns((prev) => prev.filter((r) => r.id !== runId));
+      toast.success('Run archived');
+    } else {
+      toast.error('Failed to archive run');
     }
   }, []);
 
@@ -1360,6 +1809,7 @@ export function MissionControlClient({
             agentMap={agentMap}
             githubRepo={githubRepo}
             onRerun={handleRerun}
+            onArchive={handleArchive}
           />
         </div>
         <div className="flex flex-col gap-4">
