@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1483,6 +1484,137 @@ function IntelCard({
   );
 }
 
+// ─── Memory empty state (setup wizard) ───────────────────────────────────────
+
+type SetupKey = 'agents' | 'obsidian' | 'github' | 'crawler';
+
+const GITHUB_SECRETS_INSTRUCTIONS = `To sync GitHub activity into Mission Control:
+
+1. Go to your GitHub repo → Settings → Secrets and variables → Actions
+2. Add secret: BUDS_WEBHOOK_URL = https://budsatwork.com/api/webhooks/github
+3. Add secret: BUDS_WEBHOOK_SECRET = (generate with: openssl rand -hex 32)
+4. Go to Vercel → Project → Environment Variables
+5. Add: GITHUB_WEBHOOK_SECRET = (same value as step 3)
+
+Every future push, PR, and deploy will then populate Memory & Intelligence automatically.`;
+
+const OBSIDIAN_INSTRUCTIONS = `To sync your Obsidian vault:
+
+The GitHub Actions workflow (obsidian-events.yml) is already in your repo.
+It needs two secrets set in GitHub → Settings → Secrets → Actions:
+
+  BUDS_WEBHOOK_URL     = https://budsatwork.com/api/webhooks/github
+  BUDS_WEBHOOK_SECRET  = (generate with: openssl rand -hex 32)
+
+Then set GITHUB_WEBHOOK_SECRET to the same value in Vercel env vars.
+Once done, every push to main will write vault notes automatically.`;
+
+function MemoryEmptyState() {
+  const router = useRouter();
+  const [running, setRunning] = useState(false);
+  const [expanded, setExpanded] = useState<SetupKey | null>(null);
+
+  async function runForeman() {
+    setRunning(true);
+    try {
+      const res = await fetch('/api/agents/foreman', { method: 'POST' });
+      if (res.ok) {
+        toast.success('Foreman ran — refreshing…');
+        setTimeout(() => router.refresh(), 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body?.error ?? 'Foreman run failed');
+      }
+    } catch {
+      toast.error('Network error — try again');
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function handleClick(key: SetupKey) {
+    if (key === 'agents') { runForeman(); return; }
+    if (key === 'crawler') { toast('Site crawler coming soon'); return; }
+    setExpanded((prev) => (prev === key ? null : key));
+  }
+
+  const instructions: Record<SetupKey, string> = {
+    agents:   '',
+    obsidian: OBSIDIAN_INSTRUCTIONS,
+    github:   GITHUB_SECRETS_INSTRUCTIONS,
+    crawler:  '',
+  };
+
+  return (
+    <Panel label="Memory & Intelligence" className="h-full">
+      <div className="flex flex-col h-full px-5 py-6">
+        <div className="flex items-center justify-center mb-5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-100 flex items-center justify-center">
+            <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+            </svg>
+          </div>
+        </div>
+
+        <p className="text-[13px] font-semibold text-slate-700 text-center mb-1">No intelligence saved yet</p>
+        <p className="text-[11px] text-slate-400 text-center leading-relaxed mb-5 max-w-[200px] mx-auto">
+          Run the foreman or connect a data source to get started.
+        </p>
+
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Get started</p>
+        <div className="space-y-1.5">
+          {SETUP_ACTIONS.map((action) => {
+            const key = action.key as SetupKey;
+            const isExpanded = expanded === key;
+            const isRunning = key === 'agents' && running;
+            return (
+              <div key={key}>
+                <button
+                  disabled={isRunning}
+                  onClick={() => handleClick(key)}
+                  className="w-full flex items-center gap-3 text-left rounded-xl border border-black/[0.06] bg-slate-50/80 hover:bg-white hover:border-black/10 disabled:opacity-60 px-3 py-2.5 transition-all group"
+                >
+                  <span className="text-[11px] text-slate-400 flex-shrink-0 font-mono">{action.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold text-slate-700">
+                      {key === 'agents' && running ? 'Running foreman…' : action.label}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{action.desc}</p>
+                  </div>
+                  {key === 'agents' ? (
+                    <span className="text-[10px] font-medium text-violet-600 flex-shrink-0">Run now</span>
+                  ) : key === 'crawler' ? (
+                    <span className="text-[10px] text-slate-300 flex-shrink-0">Soon</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 flex-shrink-0 transition-transform" style={{ display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>→</span>
+                  )}
+                </button>
+
+                {/* Inline instructions for obsidian / github */}
+                <AnimatePresence initial={false}>
+                  {isExpanded && instructions[key] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      <pre className="mt-1.5 text-[9.5px] leading-relaxed text-slate-600 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 whitespace-pre-wrap font-mono">
+                        {instructions[key]}
+                      </pre>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function MemoryIntelligence({
   memory,
   insights,
@@ -1515,43 +1647,7 @@ function MemoryIntelligence({
 
   // ── Empty state ──
   if (!hasAnyData) {
-    return (
-      <Panel label="Memory & Intelligence" className="h-full">
-        <div className="flex flex-col h-full px-5 py-6">
-          <div className="flex items-center justify-center mb-5">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
-              </svg>
-            </div>
-          </div>
-
-          <p className="text-[13px] font-semibold text-slate-700 text-center mb-1">No intelligence saved yet</p>
-          <p className="text-[11px] text-slate-400 text-center leading-relaxed mb-5 max-w-[200px] mx-auto">
-            Mission Control has not saved any intelligence yet.
-          </p>
-
-          <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Get started</p>
-          <div className="space-y-1.5">
-            {SETUP_ACTIONS.map((action) => (
-              <button
-                key={action.key}
-                className="w-full flex items-center gap-3 text-left rounded-xl border border-black/[0.06] bg-slate-50/80 hover:bg-white hover:border-black/10 px-3 py-2.5 transition-all group"
-              >
-                <span className="text-[11px] text-slate-300 flex-shrink-0 group-hover:text-slate-500 transition-colors font-mono">
-                  {action.icon}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-slate-700">{action.label}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{action.desc}</p>
-                </div>
-                <span className="text-[10px] text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0">→</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </Panel>
-    );
+    return <MemoryEmptyState />;
   }
 
   // ── Data state ──
