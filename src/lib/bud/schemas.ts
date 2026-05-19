@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const AgentOutputSchema = z.object({
-  status: z.enum(['success', 'partial', 'failed', 'needs_repair']),
+  status: z.enum(['success', 'partial', 'failed', 'needs_repair', 'needs_action', 'investigating', 'blocked']),
   summary: z.string(),
   findings: z.array(z.string()).default([]),
   recommended_actions: z.array(z.string()).default([]),
@@ -23,6 +23,10 @@ export const BudStateSchema = z.enum([
   'deploying',
   'learning',
   'idle',
+  'verifying',
+  'blocked',
+  'repaired',
+  'needs_human_approval',
 ]);
 
 export type BudState = z.infer<typeof BudStateSchema>;

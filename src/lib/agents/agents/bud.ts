@@ -15,7 +15,7 @@
  */
 import type { AgentDefinition, AgentContext } from '../types';
 import { WORKFLOWS } from '../workflows';
-import { writeBudActivity } from '@/lib/bud/orchestrator';
+import { writeBudActivity, triggerInvestigation } from '@/lib/bud/orchestrator';
 import type { BudState } from '@/lib/bud/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ You receive a structured summary of agent activity and return a concise operatio
 Output strict JSON matching this exact shape:
 {
   "operational_status": "nominal" | "elevated" | "critical",
-  "bud_state": "thinking" | "investigating" | "repairing" | "testing" | "reviewing" | "deploying" | "learning" | "idle",
+  "bud_state": "thinking" | "investigating" | "repairing" | "testing" | "reviewing" | "deploying" | "learning" | "idle" | "verifying" | "blocked" | "repaired" | "needs_human_approval",
   "summary": string,
   "section_priorities": {
     "needs-attention": number,
@@ -105,9 +105,10 @@ Output strict JSON matching this exact shape:
 }
 
 Rules:
-- "summary" is 1–2 plain English sentences, no markdown. State what is actually happening right now.
-- "operational_status": nominal = all clear; elevated = something needs admin attention; critical = immediate action required.
-- "bud_state": pick the most accurate state. Use "investigating" if there are degraded agents or parse failures. Use "repairing" if bud_tasks are open. Use "idle" if all nominal.
+- "summary" is 1–2 plain English sentences, no markdown. Report what Bud DID this cycle, not just what it observed.
+- CRITICAL: "operational_status" MUST be "elevated" or "critical" if ANY agents are degraded, overloaded, or have parse failures. NEVER return "nominal" when needs-attention agents exist. Only "nominal" when zero agents need attention.
+- CRITICAL: "operational_status" MUST be "critical" if more than 2 agents are degraded, or any agent has been failing continuously.
+- "bud_state": use "investigating" if Bud ran investigations this cycle. Use "repairing" if repair tasks are open. Use "needs_human_approval" if investigations are awaiting approval. Use "blocked" if investigations failed. Use "idle" only when ALL agents are healthy. NEVER use "idle" when agents need attention.
 - "section_priorities": 1 = show first, 7 = show last, 0 = hide entirely.
 - "insights": 0–5 items. Category is one of: bottleneck, anomaly, pattern, opportunity, risk.
 - Severity: low | medium | high | critical.
@@ -269,6 +270,39 @@ export const budAgent: AgentDefinition = {
       .map((a) => a.id);
     const needsAttentionSet = new Set(needsAttention);
 
+    // ── 4b. Fetch structured failure details for needs-attention agents ───
+    interface FailedRunDetail {
+      runId: string;
+      error: string;
+      summary: string;
+      logs: string[];
+      started_at: string;
+    }
+    const failureDetails = new Map<string, FailedRunDetail>();
+
+    if (needsAttention.length > 0) {
+      const { data: recentFailed } = await ctx.supabase
+        .from('agent_runs')
+        .select('id, agent_id, status, error, summary, output, started_at')
+        .in('agent_id', needsAttention)
+        .in('status', ['failed', 'needs_repair'])
+        .gte('started_at', since24h)
+        .order('started_at', { ascending: false });
+
+      for (const failRun of (recentFailed ?? [])) {
+        if (failureDetails.has(failRun.agent_id)) continue; // keep most recent only
+        const runOutput = (failRun.output ?? {}) as Record<string, unknown>;
+        const runLogs = Array.isArray(runOutput.logs) ? (runOutput.logs as string[]) : [];
+        failureDetails.set(failRun.agent_id, {
+          runId: failRun.id,
+          error: failRun.error ?? failRun.summary ?? 'No error message captured',
+          summary: failRun.summary ?? '',
+          logs: runLogs,
+          started_at: failRun.started_at,
+        });
+      }
+    }
+
     // ── 5. Build workflow statuses ─────────────────────────────────────────
     const wfStatuses: WorkflowStatus[] = WORKFLOWS.map((w) => {
       const chainMetrics = w.chain
@@ -317,6 +351,48 @@ export const budAgent: AgentDefinition = {
       bud_tasks_open:         budTasks.length,
     };
 
+    // ── 7b. Trigger investigations for degraded/failing agents ────────────
+    interface InvestigationOutcome {
+      agentId: string;
+      agentName: string;
+      taskId: string;
+      taskStatus: string;
+      errorType?: string;
+    }
+    const investigationResults: InvestigationOutcome[] = [];
+
+    // Only investigate agents that have concrete failure data in the last 24h
+    const agentsToInvestigate = needsAttention
+      .filter((id) => failureDetails.has(id))
+      .slice(0, 5); // cap at 5 per cycle to stay within timeout
+
+    if (agentsToInvestigate.length > 0) {
+      await writeBudActivity(
+        ctx.supabase,
+        `Bud is investigating ${agentsToInvestigate.length} agent(s) with recent failures...`,
+        { event_type: 'investigation', actor: 'bud' },
+      );
+
+      for (const aid of agentsToInvestigate) {
+        const detail = failureDetails.get(aid)!;
+        const agentName = agents.find((a) => a.id === aid)?.name ?? aid;
+        try {
+          const task = await triggerInvestigation(ctx.supabase, detail.runId, aid, agentName);
+          const rawOut = (task.raw_output ?? {}) as Record<string, unknown>;
+          const sf = rawOut.structured_failure as { errorType?: string } | undefined;
+          investigationResults.push({
+            agentId: aid,
+            agentName,
+            taskId: task.id,
+            taskStatus: task.status,
+            errorType: sf?.errorType,
+          });
+        } catch (err) {
+          ctx.log(`[bud] investigation failed for ${aid}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
     // ── 8. LLM briefing ────────────────────────────────────────────────────
     const highPendingAgents = agents
       .filter((a) => (metrics.get(a.id)?.pending_count ?? 0) > 0)
@@ -331,6 +407,12 @@ export const budAgent: AgentDefinition = {
       .filter((w) => w.bottleneck_agent_id)
       .map((w) => `${w.label} → ${w.bottleneck_agent_id}`);
 
+    const investigationSummary = investigationResults.length > 0
+      ? investigationResults.map((r) =>
+          `  • ${r.agentName} (${r.errorType ?? 'unknown'}) → task ${r.taskStatus}`,
+        ).join('\n')
+      : '  none this cycle';
+
     const llmPrompt = `Workforce status as of ${new Date().toISOString()}:
 Total agents: ${agents.length}
 Active right now: ${kpis.agents_active}
@@ -343,7 +425,9 @@ Parse failures 24h: ${kpis.parse_failures_24h}
 Pending approvals: ${kpis.pending_approvals}
 Active workflows: ${wfStatuses.filter((w) => w.active).map((w) => w.label).join(', ') || 'none'}
 Bottlenecks: ${bottleneckedWfs.join(', ') || 'none detected'}
-Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') : 'none'}`;
+Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') : 'none'}
+Investigations triggered this cycle:
+${investigationSummary}`;
 
     type LlmResult = {
       operational_status: OperationalStatus;
@@ -439,10 +523,11 @@ Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') 
     }
 
     // ── 12. Narrate to activity feed ───────────────────────────────────────
-    const summaryNarrative =
-      budState === 'investigating' ? `Bud investigated agent workforce — ${needsAttention.length} agent(s) flagged for attention.`
+    const summaryNarrative = investigationResults.length > 0
+      ? `Bud investigated ${investigationResults.length} agent(s): ${investigationResults.map((r) => `${r.agentName} (${r.errorType ?? 'unknown error'})`).join(', ')}.`
       : budState === 'repairing'   ? `Bud reviewed open repair tasks — ${kpis.bud_tasks_open} task(s) in progress.`
       : budState === 'learning'    ? `Bud analyzed patterns and updated operational memory.`
+      : needsAttention.length > 0  ? `Bud flagged ${needsAttention.length} agent(s) needing attention — no recent failure logs available for automated investigation.`
       : `Bud completed operational review — ${kpis.total_runs_24h} runs analyzed, system ${llmResult.operational_status}.`;
 
     await writeBudActivity(ctx.supabase, summaryNarrative, {
@@ -456,27 +541,64 @@ Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') 
 
     const activeCount   = kpis.agents_active;
     const degradedCount = kpis.agents_degraded;
+    const investigatedCount = investigationResults.length;
+    const uninvestigatedCount = needsAttention.length - agentsToInvestigate.length;
+
+    // Determine true output status based on what Bud actually did
+    const outputStatus: 'success' | 'investigating' | 'needs_action' | 'blocked' =
+      needsAttention.length === 0                                                    ? 'success'
+      : investigatedCount > 0 && investigationResults.some((r) => r.taskStatus === 'awaiting_approval') ? 'needs_action'
+      : investigatedCount > 0                                                        ? 'investigating'
+      : needsAttention.length > 0 && agentsToInvestigate.length === 0               ? 'needs_action'
+      : 'blocked';
+
+    const runSummary = investigatedCount > 0
+      ? `Bud investigated ${investigatedCount} agent(s) — ${degradedCount} degraded, ${kpis.parse_failures_24h} parse failures. State: ${budState}.`
+      : needsAttention.length > 0
+      ? `Bud found ${needsAttention.length} agent(s) needing attention but no failure logs were available for automated investigation. State: ${budState}.`
+      : `Bud completed review — ${activeCount} active, ${kpis.total_runs_24h} runs in 24h. System ${llmResult.operational_status}.`;
+
+    const recommendedActions: string[] = [];
+    if (investigationResults.some((r) => r.taskStatus === 'awaiting_approval')) {
+      recommendedActions.push(`Approve ${investigationResults.filter((r) => r.taskStatus === 'awaiting_approval').length} investigation task(s) in Mission Control`);
+    }
+    if (uninvestigatedCount > 0) {
+      recommendedActions.push(`${uninvestigatedCount} agent(s) flagged but no recent failure logs — manually run or check those agents`);
+    }
+    if (kpis.bud_tasks_open > 0) {
+      recommendedActions.push(`${kpis.bud_tasks_open} repair task(s) open — review in Mission Control`);
+    }
+    if (recommendedActions.length === 0) {
+      recommendedActions.push('All nominal — no action required');
+    }
 
     return {
-      summary: `Bud briefing complete — ${activeCount} active, ${degradedCount} degraded, ${kpis.parse_failures_24h} parse failures, ${pending.length} pending approvals. State: ${budState}. Status: ${llmResult.operational_status}.`,
+      summary: runSummary,
       output: {
-        status: llmResult.operational_status === 'nominal' ? 'success' : 'partial',
+        status: outputStatus,
+        bud_state: budState,
+        operational_status: llmResult.operational_status,
         summary: llmResult.summary,
         findings: [
-          `${activeCount} agents active`,
-          `${degradedCount} agents degraded`,
-          `${kpis.parse_failures_24h} parse failures in 24h`,
-          `${kpis.bud_tasks_open} open repair tasks`,
-        ].filter((f) => !f.startsWith('0 ')),
-        recommended_actions: needsAttention.length > 0
-          ? [`Investigate ${needsAttention.length} agent(s) in needs-attention section`]
-          : ['All nominal — no action required'],
-        confidence: llmResult.operational_status === 'nominal' ? 0.95 : 0.75,
+          ...(needsAttention.length > 0
+            ? [`${needsAttention.length} agent(s) need attention: ${needsAttention.join(', ')}`]
+            : []),
+          ...(degradedCount > 0 ? [`${degradedCount} degraded`] : []),
+          ...(kpis.parse_failures_24h > 0 ? [`${kpis.parse_failures_24h} parse failures in 24h`] : []),
+          ...(kpis.bud_tasks_open > 0 ? [`${kpis.bud_tasks_open} open repair tasks`] : []),
+          ...(investigatedCount > 0 ? [`${investigatedCount} investigation(s) triggered this cycle`] : []),
+        ],
+        investigation_results: investigationResults,
+        agents_needing_attention: needsAttention,
+        recommended_actions: recommendedActions,
+        confidence: needsAttention.length === 0 ? 0.95 : investigatedCount > 0 ? 0.80 : 0.60,
         risk_level: llmResult.operational_status === 'critical' ? 'high'
           : llmResult.operational_status === 'elevated' ? 'medium'
           : 'low',
-        next_step: needsAttention.length > 0
-          ? 'Review flagged agents in Mission Control'
+        next_step: investigatedCount > 0
+          ? `Review ${investigatedCount} investigation task(s) in Mission Control`
+          : needsAttention.length > 0
+          ? 'Agents flagged but no recent logs available — check agent run history'
           : undefined,
       },
     };

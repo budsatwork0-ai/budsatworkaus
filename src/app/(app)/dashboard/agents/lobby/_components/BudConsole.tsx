@@ -344,6 +344,9 @@ export function BudConsole({ initial }: Props) {
           {/* KPI pills */}
           <div className="hidden lg:flex items-center gap-3 shrink-0">
             <KPIPill value={kpis.agents_active}    label="active"   accent={kpis.agents_active > 0 ? 'emerald' : 'neutral'} />
+            {kpis.agents_degraded > 0 && (
+              <KPIPill value={kpis.agents_degraded} label="degraded" accent="rose" />
+            )}
             <KPIPill value={kpis.pending_approvals} label="pending"  accent={kpis.pending_approvals > 0 ? 'amber' : 'neutral'} />
             <KPIPill value={kpis.total_runs_24h}   label="runs 24h" accent="neutral" />
             <KPIPill value={`$${(kpis.total_cost_cents_24h / 100).toFixed(2)}`} label="cost 24h" accent="neutral" />
@@ -461,8 +464,8 @@ export function BudConsole({ initial }: Props) {
 
 // ── KPI Pill ─────────────────────────────────────────────────────────────────
 
-function KPIPill({ value, label, accent }: { value: number | string; label: string; accent: 'emerald' | 'amber' | 'neutral' }) {
-  const color = accent === 'emerald' ? 'text-emerald-400' : accent === 'amber' ? 'text-amber-400' : 'text-zinc-300';
+function KPIPill({ value, label, accent }: { value: number | string; label: string; accent: 'emerald' | 'amber' | 'rose' | 'neutral' }) {
+  const color = accent === 'emerald' ? 'text-emerald-400' : accent === 'amber' ? 'text-amber-400' : accent === 'rose' ? 'text-rose-400' : 'text-zinc-300';
   return (
     <div className="text-right">
       <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>

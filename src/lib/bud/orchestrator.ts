@@ -106,6 +106,119 @@ export async function queueApproval(
   return data.id as string;
 }
 
+// ── Structured failure analysis ───────────────────────────────────────────────
+
+export interface StructuredFailureReport {
+  agentId: string;
+  runId: string;
+  errorType: string;
+  message: string;
+  stack: string;
+  failedStep: string | null;
+  inputSummary: string;
+  outputSummary: string | null;
+  recommendedFix: string;
+}
+
+function classifyFailure(
+  errorMsg: string,
+  logs: string[],
+  status: string | null,
+): { errorType: string; recommendedFix: string } {
+  const lower = errorMsg.toLowerCase();
+  const logsText = logs.join('\n').toLowerCase();
+
+  if (lower.includes('json') || lower.includes('parse') || lower.includes('unexpected token') || lower.includes('syntaxerror')) {
+    return {
+      errorType: 'parse_error',
+      recommendedFix:
+        'Agent LLM output is not valid JSON. Update the system prompt to enforce strict JSON output and add a fallback parse path.',
+    };
+  }
+  if (lower.includes('timeout') || lower.includes('exceeded') || lower.includes('timed out')) {
+    return {
+      errorType: 'timeout',
+      recommendedFix:
+        'Agent exceeded runtime limit. Reduce the number of LLM calls, parallelise data fetches, or increase AGENT_RUN_TIMEOUT_MS.',
+    };
+  }
+  if (lower.includes('anthropic') || lower.includes('429') || lower.includes('529') || lower.includes('rate limit')) {
+    return {
+      errorType: 'llm_api_error',
+      recommendedFix:
+        'Anthropic API error. Check ANTHROPIC_API_KEY, rate-limit headroom, and that retry logic is wired up in the runtime.',
+    };
+  }
+  if (logsText.includes('[bud:schema]') || lower.includes('zod') || lower.includes('schema')) {
+    return {
+      errorType: 'schema_validation_error',
+      recommendedFix:
+        'Agent output does not satisfy AgentOutputSchema. Ensure the run() return includes: status, summary, findings[], recommended_actions[], confidence, risk_level.',
+    };
+  }
+  if (lower.includes('supabase') || lower.includes('postgres') || lower.includes('relation') || lower.includes('column')) {
+    return {
+      errorType: 'database_error',
+      recommendedFix:
+        'Database query failed. Verify table and column names match the current Supabase schema (check recent migrations).',
+    };
+  }
+  if (lower.includes('config') || lower.includes('env') || lower.includes('undefined') || lower.includes('null')) {
+    return {
+      errorType: 'config_error',
+      recommendedFix:
+        'Agent accessed a missing config value or environment variable. Check the agent definition and env vars in Vercel.',
+    };
+  }
+  if (status === 'needs_repair') {
+    return {
+      errorType: 'schema_validation_error',
+      recommendedFix:
+        'Agent output was flagged needs_repair by the runtime schema checker. Inspect the output field in agent_runs for the specific validation error.',
+    };
+  }
+  return {
+    errorType: 'runtime_error',
+    recommendedFix:
+      'Unknown runtime error. Inspect the full logs in agent_runs.output.logs and the error field for a stack trace.',
+  };
+}
+
+function buildFailureReport(
+  agentId: string,
+  runId: string,
+  run: {
+    id: string;
+    status: string | null;
+    summary: string | null;
+    output: Record<string, unknown> | null;
+    error: string | null;
+    started_at: string | null;
+  } | null,
+): StructuredFailureReport {
+  const rawOutput = (run?.output ?? {}) as Record<string, unknown>;
+  const logs = Array.isArray(rawOutput.logs) ? (rawOutput.logs as string[]) : [];
+  const errorMsg = run?.error ?? run?.summary ?? 'No error message captured';
+  const { errorType, recommendedFix } = classifyFailure(errorMsg, logs, run?.status ?? null);
+
+  const diagnosticLines = logs
+    .filter((l) => l.includes('Error') || l.includes('[bud:') || l.includes('failed') || l.includes('exception'))
+    .slice(0, 10)
+    .join('\n');
+
+  return {
+    agentId,
+    runId,
+    errorType,
+    message: errorMsg.slice(0, 1000),
+    stack: diagnosticLines,
+    failedStep: logs.length > 0 ? logs[logs.length - 1].slice(0, 300) : null,
+    inputSummary: `Run triggered at ${run?.started_at ?? 'unknown time'}`,
+    outputSummary: run?.summary?.slice(0, 500) ?? null,
+    recommendedFix,
+  };
+}
+
 // ── Investigation flow ────────────────────────────────────────────────────────
 
 export async function triggerInvestigation(
@@ -115,23 +228,25 @@ export async function triggerInvestigation(
   agentName: string,
 ): Promise<BudTask> {
   await writeBudActivity(supabase,
-    `Bud is investigating ${agentName} failure...`,
+    `Bud is investigating ${agentName} — fetching failure data...`,
     { event_type: 'investigation', actor: 'bud', target: agentId },
   );
 
   const { data: run } = await supabase
     .from('agent_runs')
-    .select('id, status, summary, output, error, started_at, cost_cents')
+    .select('id, status, summary, output, error, started_at, cost_cents, input_tokens, output_tokens')
     .eq('id', runId)
     .single();
 
+  const report = buildFailureReport(agentId, runId, run as Parameters<typeof buildFailureReport>[2]);
+
   const task = await createBudTask(supabase, {
-    description: `Investigate ${agentName} failure — run ${runId}`,
+    description: `Investigate ${agentName} — ${report.errorType}: ${report.message.slice(0, 150)}`,
     source_agent: agentId,
     confidence: 0.5,
     risk_level: 'low',
     raw_input: { run_id: runId, agent_id: agentId },
-    raw_output: run ? { run } : undefined,
+    raw_output: { run: run ?? null, structured_failure: report },
   });
 
   await updateBudTask(supabase, task.id, { status: 'in_progress' });
@@ -143,52 +258,61 @@ export async function triggerInvestigation(
     await queueApproval(supabase, {
       task_id: task.id,
       action_type: 'create_github_issue',
-      payload: {
-        agent_id: agentId,
-        agent_name: agentName,
-        run_id: runId,
-        summary: run?.summary ?? '(no summary)',
-      },
+      payload: { ...report },
       requested_by: 'bud',
     });
     await updateBudTask(supabase, task.id, { status: 'awaiting_approval' });
     await writeBudActivity(supabase,
-      `Bud is awaiting approval before creating GitHub issue for ${agentName}.`,
-      { event_type: 'approval', actor: 'bud', target: agentId, metadata: { task_id: task.id } },
+      `Bud awaiting approval to create GitHub issue for ${agentName} (${report.errorType}).`,
+      { event_type: 'approval', actor: 'bud', target: agentId, metadata: { task_id: task.id, error_type: report.errorType } },
     );
   } else {
-    // Level 2+: auto-create GitHub issue
+    // Level 2+: auto-create GitHub issue with structured failure data
     try {
       const issue = await createIssue(
-        `[Bud] Agent failure: ${agentName}`,
+        `[Bud] Agent failure: ${agentName} (${report.errorType})`,
         [
           `**Agent:** ${agentName} (\`${agentId}\`)`,
-          `**Run ID:** ${runId}`,
+          `**Run ID:** \`${runId}\``,
+          `**Error Type:** \`${report.errorType}\``,
           `**Status:** ${run?.status ?? 'failed'}`,
           `**Time:** ${run?.started_at ?? new Date().toISOString()}`,
           '',
-          '## Error Output',
+          '## Error Message',
           '```',
-          run?.summary ?? '(no summary captured)',
+          report.message,
           '```',
           '',
-          `> Automatically generated by Bud at autonomy level ${level}.`,
+          '## Failed Step',
+          report.failedStep
+            ? `\`\`\`\n${report.failedStep}\n\`\`\``
+            : '_No step trace available_',
+          '',
+          '## Diagnostic Logs',
+          report.stack
+            ? `\`\`\`\n${report.stack}\n\`\`\``
+            : '_No diagnostic logs captured_',
+          '',
+          '## Recommended Fix',
+          `> ${report.recommendedFix}`,
+          '',
+          `_Automatically diagnosed by Bud at autonomy level ${level}._`,
         ].join('\n'),
-        ['bud', 'agent-failure'],
+        ['bud', 'agent-failure', report.errorType],
       );
       await updateBudTask(supabase, task.id, {
         status: 'completed',
         linked_issue: issue.url,
       });
       await writeBudActivity(supabase,
-        `Bud created GitHub issue #${issue.number} for ${agentName} failure.`,
-        { event_type: 'completion', actor: 'bud', target: agentId, metadata: { issue_url: issue.url, task_id: task.id } },
+        `Bud created GitHub issue #${issue.number} for ${agentName} (${report.errorType}). Fix: ${report.recommendedFix}`,
+        { event_type: 'completion', actor: 'bud', target: agentId, metadata: { issue_url: issue.url, task_id: task.id, error_type: report.errorType } },
       );
     } catch (err) {
       await updateBudTask(supabase, task.id, { status: 'failed' });
       await writeBudActivity(supabase,
         `Bud could not create GitHub issue for ${agentName}: ${err instanceof Error ? err.message : 'unknown error'}`,
-        { event_type: 'error', actor: 'bud', target: agentId },
+        { event_type: 'error', actor: 'bud', target: agentId, metadata: { structured_failure: report } },
       );
     }
   }
