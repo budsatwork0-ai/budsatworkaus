@@ -64,7 +64,7 @@ jobs:
 
       - name: POST to webhook
         env:
-          WEBHOOK_URL: ${{ secrets.BUDS_WEBHOOK_URL }}WEBHOOK_URL: https://budsatwork.com/api/webhooks/github
+          WEBHOOK_URL: https://budsatwork.com/api/webhooks/github
           SIGNATURE:   ${{ steps.sign.outputs.signature }}
           EVENT_NAME:  ${{ github.event_name }}
           DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
@@ -108,7 +108,7 @@ jobs:
       - name: Trigger historian agent via API
         if: steps.day.outputs.day == '5'
         env:
-          BUDS_API_URL:   ${{ secrets.BUDS_WEBHOOK_URL }}
+          BUDS_API_URL:   https://budsatwork.com/api/webhooks/github
           BUDS_API_TOKEN: ${{ secrets.BUDS_WEBHOOK_SECRET }}
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
