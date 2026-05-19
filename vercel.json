@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/agents/cron",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/foreman",
+      "schedule": "30 */6 * * *"
+    },
+    {
       "path": "/api/cron/remind-quotes",
       "schedule": "0 9 * * *"
     },
