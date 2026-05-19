@@ -1,12 +1,12 @@
 /**
- * /dashboard/agents/lobby — Operational Intelligence Console
+ * /dashboard/agents/lobby — Bud Command Console
  *
- * Server component: loads the latest Foreman lobby state + agent roster +
- * recent events. Passes everything to ForemanConsole which handles realtime
+ * Server component: loads the latest Bud lobby state + agent roster +
+ * recent events. Passes everything to BudConsole which handles realtime
  * subscriptions and adaptive rendering.
  */
 import { createClient } from '@supabase/supabase-js';
-import { ForemanConsole } from './_components/ForemanConsole';
+import { BudConsole } from './_components/BudConsole';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -26,7 +26,7 @@ async function loadInitial() {
       .select('id, name, description, category, autonomy, status, schedule')
       .order('name'),
     supabase
-      .from('foreman_lobby_states')
+      .from('bud_lobby_states')
       .select('*')
       .eq('is_current', true)
       .maybeSingle(),
@@ -42,7 +42,7 @@ async function loadInitial() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false }),
     supabase
-      .from('foreman_insights')
+      .from('bud_insights')
       .select('id, agent_id, workflow_id, category, severity, title, created_at')
       .is('resolved_at', null)
       .order('created_at', { ascending: false })
@@ -60,5 +60,5 @@ async function loadInitial() {
 
 export default async function AgentLobbyPage() {
   const data = await loadInitial();
-  return <ForemanConsole initial={data} />;
+  return <BudConsole initial={data} />;
 }

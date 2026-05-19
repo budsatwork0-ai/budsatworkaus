@@ -9,6 +9,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { AGENT_REGISTRY } from './registry';
+import { AgentOutputSchema } from '@/lib/bud/schemas';
+import { handleParseFailure } from '@/lib/bud/orchestrator';
 import type {
   AgentContext,
   AgentDefinition,
@@ -396,7 +398,32 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       pctx(),
     );
 
-    const finalStatus = needsApproval ? 'needs_approval' : 'succeeded';
+    // Validate structured output against Bud's Zod schema.
+    // Agents that return malformed output are marked needs_repair and a bud_task is created.
+    let outputParseValid = true;
+    if (result.output && args.agentId !== 'bud') {
+      const parseResult = AgentOutputSchema.safeParse(result.output);
+      if (!parseResult.success) {
+        outputParseValid = false;
+        logs.push(`[bud:schema] output failed validation: ${parseResult.error.message}`);
+        // Fire-and-forget repair task — never blocks the run
+        setImmediate(() => {
+          const agentName = (AGENT_REGISTRY[args.agentId] as { name?: string })?.name ?? args.agentId;
+          handleParseFailure(
+            supabase,
+            args.agentId,
+            agentName,
+            runId,
+            parseResult.error.message,
+            result.output,
+          ).catch(() => {/* ignore */});
+        });
+      }
+    }
+
+    const finalStatus = outputParseValid
+      ? (needsApproval ? 'needs_approval' : 'succeeded')
+      : 'needs_repair';
 
     await supabase
       .from('agent_runs')

@@ -45,8 +45,8 @@
       "schedule": "0 6 * * 6"
     },
     {
-      "path": "/api/cron/foreman",
-      "schedule": "0 9 * * *"
+      "path": "/api/cron/bud",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -1,11 +1,17 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import type { BudState, BudActivityEvent, BudApprovalItem } from '@/lib/bud/types';
+import type { AgentHealthLabel } from '@/lib/bud/health';
+import { BudStateDisplay } from './_components/BudStateDisplay';
+import { BudActivityFeed } from './_components/BudActivityFeed';
+import { AgentHierarchy } from './_components/AgentHierarchy';
+import { BudApprovalQueue } from './_components/BudApprovalQueue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +26,7 @@ type AgentRow = {
 type RunRow = {
   id: string;
   agent_id: string;
-  status: 'running' | 'succeeded' | 'failed' | 'needs_approval' | 'cancelled';
+  status: 'running' | 'succeeded' | 'failed' | 'needs_approval' | 'needs_repair' | 'cancelled';
   summary: string | null;
   cost_cents: number | null;
   duration_ms: number | null;
@@ -74,6 +80,8 @@ type Metrics = {
   pendingActions: number;
 };
 
+type AgentLifecycleState = 'active' | 'idle' | 'awaiting_review' | 'degraded' | 'blocked' | 'overloaded' | 'dormant' | 'retired';
+
 type Props = {
   agents: AgentRow[];
   runs: RunRow[];
@@ -85,6 +93,11 @@ type Props = {
   agentStatsMap: Record<string, AgentStats>;
   supabaseConnected: boolean;
   vercelConnected: boolean;
+  budState?: BudState;
+  budStatus?: 'nominal' | 'elevated' | 'critical';
+  budSummary?: string | null;
+  budActivity?: BudActivityEvent[];
+  budApprovals?: BudApprovalItem[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,19 +135,17 @@ function isUsefulSummary(summary: string | null): boolean {
   return !noise.some((p) => s.includes(p));
 }
 
-function buildSendToClaudePrompt(run: RunRow, agent: AgentRow | undefined): string {
-  return [
-    `Agent run from Buds At Work — please review and share your thoughts.`,
-    ``,
-    `Agent: ${agent?.name ?? run.agent_id}`,
-    `Category: ${agent?.category ?? 'general'}`,
-    `Status: ${run.status}`,
-    run.cost_cents ? `Cost: ${fmtCost(run.cost_cents)}` : null,
-    run.duration_ms ? `Duration: ${fmtDuration(run.duration_ms)}` : null,
-    ``,
-    `Output:`,
-    run.summary || '(no output recorded)',
-  ].filter(Boolean).join('\n');
+async function delegateToBud(runId: string, agentId: string, agentName: string): Promise<void> {
+  const res = await fetch('/api/bud/investigate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ runId, agentId, agentName }),
+  });
+  if (res.ok) {
+    toast.success(`Delegated to Bud — investigating ${agentName}`);
+  } else {
+    toast.error('Failed to delegate to Bud');
+  }
 }
 
 function buildGithubIssueUrl(run: RunRow, agent: AgentRow | undefined, githubRepo: string | null): string {
@@ -421,16 +432,19 @@ function FailureCard({
   githubRepo,
   onRerun,
   onArchive,
+  onDelegate,
 }: {
   run: RunRow;
   agent: AgentRow | undefined;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
   onArchive: (runId: string) => Promise<void>;
+  onDelegate: (runId: string, agentId: string, agentName: string) => Promise<void>;
 }) {
   const [rerunning, setRerunning] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
+  const [delegating, setDelegating] = useState(false);
+  const [debugCopied, setDebugCopied] = useState(false);
   const analysis = analyzeFailure(run, agent);
 
   async function handleRerun() {
@@ -445,16 +459,15 @@ function FailureCard({
 
   async function copyDebug() {
     await navigator.clipboard.writeText(analysis.debugPrompt);
-    setCopied('debug');
+    setDebugCopied(true);
     toast.success('Debug prompt copied to clipboard');
-    setTimeout(() => setCopied(null), 2500);
+    setTimeout(() => setDebugCopied(false), 2500);
   }
 
-  async function copyForClaude() {
-    await navigator.clipboard.writeText(buildSendToClaudePrompt(run, agent));
-    setCopied('claude');
-    toast.success('Copied — paste into Claude');
-    setTimeout(() => setCopied(null), 2500);
+  async function handleDelegate() {
+    setDelegating(true);
+    try { await onDelegate(run.id, run.agent_id, agent?.name ?? run.agent_id); }
+    finally { setDelegating(false); }
   }
 
   const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
@@ -512,10 +525,10 @@ function FailureCard({
           {rerunning ? 'Retrying…' : 'Rerun'}
         </button>
         <button onClick={copyDebug} className={BTN_VIOLET}>
-          {copied === 'debug' ? '✓ Copied' : 'Debug'}
+          {debugCopied ? '✓ Copied' : 'Debug'}
         </button>
-        <button onClick={copyForClaude} className={BTN_VIOLET}>
-          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        <button disabled={delegating} onClick={handleDelegate} className={`${BTN} text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100`}>
+          {delegating ? 'Delegating…' : 'Delegate to Bud'}
         </button>
         <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
           GitHub issue ↗
@@ -536,16 +549,19 @@ function ApprovalRow({
   githubRepo,
   onRerun,
   onArchive,
+  onDelegate,
 }: {
   run: RunRow;
   agent: AgentRow | undefined;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
   onArchive: (runId: string) => Promise<void>;
+  onDelegate: (runId: string, agentId: string, agentName: string) => Promise<void>;
 }) {
   const [rerunning, setRerunning] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
+  const [debugCopied, setDebugCopied] = useState(false);
+  const [delegating, setDelegating] = useState(false);
 
   async function handleRerun() {
     setRerunning(true);
@@ -557,14 +573,18 @@ function ApprovalRow({
     try { await onArchive(run.id); } finally { setArchiving(false); }
   }
 
-  async function handleCopy(type: 'debug' | 'claude') {
-    const text = type === 'debug'
-      ? `Debug: ${agent?.name ?? run.agent_id} — ${run.summary ?? 'needs_approval'}`
-      : buildSendToClaudePrompt(run, agent);
+  async function copyDebug() {
+    const text = `Debug: ${agent?.name ?? run.agent_id} — ${run.summary ?? 'needs_approval'}`;
     await navigator.clipboard.writeText(text);
-    setCopied(type);
-    toast.success(type === 'debug' ? 'Debug prompt copied' : 'Copied — paste into Claude');
-    setTimeout(() => setCopied(null), 2500);
+    setDebugCopied(true);
+    toast.success('Debug prompt copied');
+    setTimeout(() => setDebugCopied(false), 2500);
+  }
+
+  async function handleDelegate() {
+    setDelegating(true);
+    try { await onDelegate(run.id, run.agent_id, agent?.name ?? run.agent_id); }
+    finally { setDelegating(false); }
   }
 
   const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
@@ -590,11 +610,11 @@ function ApprovalRow({
         <button disabled={rerunning} onClick={handleRerun} className={BTN_BLUE}>
           {rerunning ? 'Running…' : 'Rerun'}
         </button>
-        <button onClick={() => handleCopy('debug')} className={BTN_VIOLET}>
-          {copied === 'debug' ? '✓ Copied' : 'Debug'}
+        <button onClick={copyDebug} className={BTN_VIOLET}>
+          {debugCopied ? '✓ Copied' : 'Debug'}
         </button>
-        <button onClick={() => handleCopy('claude')} className={BTN_VIOLET}>
-          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        <button disabled={delegating} onClick={handleDelegate} className={`${BTN} text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100`}>
+          {delegating ? 'Delegating…' : 'Delegate to Bud'}
         </button>
         <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
           GitHub issue ↗
@@ -615,16 +635,19 @@ function UsefulRow({
   githubRepo,
   onRerun,
   onArchive,
+  onDelegate,
 }: {
   run: RunRow;
   agent: AgentRow | undefined;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
   onArchive: (runId: string) => Promise<void>;
+  onDelegate: (runId: string, agentId: string, agentName: string) => Promise<void>;
 }) {
   const [rerunning, setRerunning] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [copied, setCopied] = useState<'debug' | 'claude' | null>(null);
+  const [debugCopied, setDebugCopied] = useState(false);
+  const [delegating, setDelegating] = useState(false);
 
   async function handleRerun() {
     setRerunning(true);
@@ -636,14 +659,18 @@ function UsefulRow({
     try { await onArchive(run.id); } finally { setArchiving(false); }
   }
 
-  async function handleCopy(type: 'debug' | 'claude') {
-    const text = type === 'debug'
-      ? `Analyze this agent run and suggest improvements:\n\nAgent: ${agent?.name ?? run.agent_id}\nOutput: ${run.summary ?? '(none)'}`
-      : buildSendToClaudePrompt(run, agent);
+  async function copyDebug() {
+    const text = `Analyze this agent run and suggest improvements:\n\nAgent: ${agent?.name ?? run.agent_id}\nOutput: ${run.summary ?? '(none)'}`;
     await navigator.clipboard.writeText(text);
-    setCopied(type);
-    toast.success(type === 'debug' ? 'Debug prompt copied' : 'Copied — paste into Claude');
-    setTimeout(() => setCopied(null), 2500);
+    setDebugCopied(true);
+    toast.success('Debug prompt copied');
+    setTimeout(() => setDebugCopied(false), 2500);
+  }
+
+  async function handleDelegate() {
+    setDelegating(true);
+    try { await onDelegate(run.id, run.agent_id, agent?.name ?? run.agent_id); }
+    finally { setDelegating(false); }
   }
 
   const issueUrl = buildGithubIssueUrl(run, agent, githubRepo);
@@ -669,11 +696,11 @@ function UsefulRow({
         <button disabled={rerunning} onClick={handleRerun} className={BTN_BLUE}>
           {rerunning ? 'Running…' : 'Rerun'}
         </button>
-        <button onClick={() => handleCopy('debug')} className={BTN_VIOLET}>
-          {copied === 'debug' ? '✓ Copied' : 'Debug'}
+        <button onClick={copyDebug} className={BTN_VIOLET}>
+          {debugCopied ? '✓ Copied' : 'Debug'}
         </button>
-        <button onClick={() => handleCopy('claude')} className={BTN_VIOLET}>
-          {copied === 'claude' ? '✓ Sent' : 'Send to Claude'}
+        <button disabled={delegating} onClick={handleDelegate} className={`${BTN} text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100`}>
+          {delegating ? 'Delegating…' : 'Delegate to Bud'}
         </button>
         <a href={issueUrl} target="_blank" rel="noopener noreferrer" className={BTN_SLATE}>
           GitHub issue ↗
@@ -786,12 +813,14 @@ function AgentFeed({
   githubRepo,
   onRerun,
   onArchive,
+  onDelegate,
 }: {
   runs: RunRow[];
   agentMap: Map<string, AgentRow>;
   githubRepo: string | null;
   onRerun: (agentId: string) => Promise<void>;
   onArchive: (runId: string) => Promise<void>;
+  onDelegate: (runId: string, agentId: string, agentName: string) => Promise<void>;
 }) {
   // Group by category, deduplicating failures per agent (latest only)
   const seenFailures = new Set<string>();
@@ -883,6 +912,7 @@ function AgentFeed({
                   githubRepo={githubRepo}
                   onRerun={onRerun}
                   onArchive={onArchive}
+                  onDelegate={onDelegate}
                 />
               ))}
             </div>
@@ -903,6 +933,7 @@ function AgentFeed({
                   githubRepo={githubRepo}
                   onRerun={onRerun}
                   onArchive={onArchive}
+                  onDelegate={onDelegate}
                 />
               ))}
             </div>
@@ -923,6 +954,7 @@ function AgentFeed({
                   githubRepo={githubRepo}
                   onRerun={onRerun}
                   onArchive={onArchive}
+                  onDelegate={onDelegate}
                 />
               ))}
             </div>
@@ -954,7 +986,7 @@ function NextActions({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [savingObsidian, setSavingObsidian] = useState<Set<string>>(new Set());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [delegatingId, setDelegatingId] = useState<string | null>(null);
 
   // Keep actions in sync if parent updates (new actions from realtime)
   useEffect(() => { setActions(initialActions); }, [initialActions]);
@@ -992,24 +1024,14 @@ function NextActions({
     }
   }
 
-  async function copyForClaudeCode(action: ActionRow) {
+  async function delegateActionToBud(action: ActionRow) {
     const agentName = agentMap.get(action.agent_id)?.name ?? action.agent_id;
-    const text = [
-      `Agent action for review — Buds At Work`,
-      ``,
-      `Type: ${action.action_type}`,
-      `Agent: ${agentName}`,
-      `Created: ${action.created_at}`,
-      ``,
-      `Proposed action:`,
-      action.preview,
-      ``,
-      `Please help me evaluate whether to approve or reject this, and suggest any edits needed.`,
-    ].join('\n');
-    await navigator.clipboard.writeText(text);
-    setCopiedId(action.id);
-    toast.success('Copied — paste into Claude Code');
-    setTimeout(() => setCopiedId(null), 2500);
+    setDelegatingId(action.id);
+    try {
+      await delegateToBud(action.id, action.agent_id, agentName);
+    } finally {
+      setDelegatingId(null);
+    }
   }
 
   async function saveToObsidian(action: ActionRow) {
@@ -1037,19 +1059,6 @@ function NextActions({
     } finally {
       setSavingObsidian((s) => { const n = new Set(s); n.delete(action.id); return n; });
     }
-  }
-
-  async function copyInsightForClaude(insight: InsightRow) {
-    const text = [
-      `Agent insight from Buds At Work:`,
-      ``,
-      `Category: ${insight.category}`,
-      `Severity: ${insight.severity}`,
-      `Title: ${insight.title}`,
-      `Created: ${insight.created_at}`,
-    ].join('\n');
-    await navigator.clipboard.writeText(text);
-    toast.success('Copied — paste into Claude Code');
   }
 
   async function saveInsightToObsidian(insight: InsightRow) {
@@ -1111,7 +1120,6 @@ function NextActions({
               const isEditing = editingId === action.id;
               const isBusy = busy.has(action.id);
               const isSavingObs = savingObsidian.has(action.id);
-              const isCopied = copiedId === action.id;
               return (
                 <motion.div
                   key={action.id}
@@ -1182,11 +1190,11 @@ function NextActions({
                       </button>
                     )}
                     <button
-                      disabled={isCopied}
-                      onClick={() => copyForClaudeCode(action)}
+                      disabled={delegatingId === action.id}
+                      onClick={() => delegateActionToBud(action)}
                       className={BTN_VIOLET}
                     >
-                      {isCopied ? '✓ Copied' : 'Send to Claude Code'}
+                      {delegatingId === action.id ? 'Delegating…' : 'Delegate to Bud'}
                     </button>
                     <button
                       disabled={isSavingObs}
@@ -1220,12 +1228,14 @@ function NextActions({
                   >
                     Investigate →
                   </Link>
-                  <button
-                    onClick={() => copyInsightForClaude(insight)}
-                    className={BTN_VIOLET}
-                  >
-                    Send to Claude Code
-                  </button>
+                  {insight.agent_id && (
+                    <button
+                      onClick={() => delegateToBud(insight.id, insight.agent_id!, insight.title)}
+                      className={BTN_VIOLET}
+                    >
+                      Queue repair
+                    </button>
+                  )}
                   <button
                     disabled={isSavingObs}
                     onClick={() => saveInsightToObsidian(insight)}
@@ -1452,10 +1462,10 @@ const INTEL_SOURCES = [
 ];
 
 const SETUP_ACTIONS = [
-  { key: 'obsidian', label: 'Sync Obsidian vault',         desc: 'Pull design docs, ADRs and dev logs into memory',      icon: '◆' },
-  { key: 'agents',   label: 'Save current agent outputs',  desc: 'Import last 24h of agent recommendations as insights', icon: '◉' },
-  { key: 'crawler',  label: 'Crawl site pages',            desc: 'Index public pages as memory for AI reference',        icon: '⊕' },
-  { key: 'github',   label: 'Sync GitHub activity',        desc: 'Connect repo webhooks for PR and deploy events',       icon: '⬡' },
+  { key: 'obsidian', label: 'Sync Obsidian vault',     desc: 'Pull design docs, ADRs and dev logs into memory',      icon: '◆' },
+  { key: 'agents',   label: 'Activate Bud',            desc: 'Run Bud to analyse agent health and build intel',       icon: '◉' },
+  { key: 'crawler',  label: 'Crawl site pages',        desc: 'Index public pages as memory for AI reference',        icon: '⊕' },
+  { key: 'github',   label: 'Sync GitHub activity',    desc: 'Connect repo webhooks for PR and deploy events',       icon: '⬡' },
 ];
 
 function IntelCard({
@@ -1518,16 +1528,16 @@ function MemoryEmptyState() {
   const [crawling, setCrawling] = useState(false);
   const [expanded, setExpanded] = useState<SetupKey | null>(null);
 
-  async function runForeman() {
+  async function activateBud() {
     setRunning(true);
     try {
-      const res = await fetch('/api/agents/foreman', { method: 'POST' });
+      const res = await fetch('/api/agents/bud', { method: 'POST' });
       if (res.ok) {
-        toast.success('Foreman ran — refreshing…');
+        toast.success('Bud activated — refreshing…');
         setTimeout(() => router.refresh(), 1200);
       } else {
         const body = await res.json().catch(() => ({}));
-        toast.error(body?.error ?? 'Foreman run failed');
+        toast.error(body?.error ?? 'Bud activation failed');
       }
     } catch {
       toast.error('Network error — try again');
@@ -1575,7 +1585,7 @@ function MemoryEmptyState() {
   }
 
   function handleClick(key: SetupKey) {
-    if (key === 'agents') { runForeman(); return; }
+    if (key === 'agents') { activateBud(); return; }
     if (key === 'obsidian') { syncObsidian(); return; }
     if (key === 'crawler') { runCrawler(); return; }
     setExpanded((prev) => (prev === key ? null : key));
@@ -1601,7 +1611,7 @@ function MemoryEmptyState() {
 
         <p className="text-[13px] font-semibold text-slate-700 text-center mb-1">No intelligence saved yet</p>
         <p className="text-[11px] text-slate-400 text-center leading-relaxed mb-5 max-w-[200px] mx-auto">
-          Run the foreman or connect a data source to get started.
+          Activate Bud or connect a data source to get started.
         </p>
 
         <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2.5">Get started</p>
@@ -1614,7 +1624,7 @@ function MemoryEmptyState() {
               (key === 'obsidian' && syncing) ||
               (key === 'crawler' && crawling);
             const busyLabel =
-              key === 'agents' ? 'Running foreman…' :
+              key === 'agents' ? 'Activating Bud…' :
               key === 'obsidian' ? 'Syncing vault…' :
               key === 'crawler' ? 'Crawling pages…' :
               action.label;
@@ -1946,15 +1956,57 @@ export function MissionControlClient({
   agentStatsMap,
   supabaseConnected,
   vercelConnected,
+  budState = 'idle',
+  budStatus = 'nominal',
+  budSummary = null,
+  budActivity = [],
+  budApprovals = [],
 }: Props) {
   const [runs, setRuns] = useState<RunRow[]>(initialRuns);
   const [actions, setActions] = useState<ActionRow[]>(initialActions);
   const [metrics, setMetrics] = useState<Metrics>(initialMetrics);
   const [isConnected, setIsConnected] = useState(false);
 
-  const agentMap = React.useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
   const liveCount = runs.filter((r) => r.status === 'running').length;
   const githubRepo = github[0]?.repo ?? null;
+
+  // Compute lifecycle states from recent run data
+  const agentStates = useMemo<Record<string, AgentLifecycleState>>(() => {
+    const states: Record<string, AgentLifecycleState> = {};
+    const now = Date.now();
+    const recentMs = 3_600_000;
+    for (const run of runs) {
+      if (states[run.agent_id]) continue;
+      const isRecent = now - new Date(run.started_at).getTime() < recentMs;
+      if (run.status === 'running') states[run.agent_id] = 'active';
+      else if (run.status === 'failed' && isRecent) states[run.agent_id] = 'degraded';
+      else if (run.status === 'needs_approval') states[run.agent_id] = 'awaiting_review';
+      else if (run.status === 'needs_repair') states[run.agent_id] = 'degraded';
+      else if (run.status === 'succeeded' && isRecent) states[run.agent_id] = 'active';
+      else states[run.agent_id] = 'idle';
+    }
+    return states;
+  }, [runs]);
+
+  // Compute agent health from stats
+  const agentHealthMap = useMemo<Record<string, { label: AgentHealthLabel; score: number }>>(() => {
+    const health: Record<string, { label: AgentHealthLabel; score: number }> = {};
+    for (const agent of agents) {
+      const stats = agentStatsMap[agent.id];
+      if (!stats || stats.runs === 0) {
+        health[agent.id] = { label: 'inactive', score: 0 };
+      } else {
+        const rate = stats.successes / stats.runs;
+        const score = Math.round(rate * 100);
+        if (rate >= 0.8) health[agent.id] = { label: 'healthy', score };
+        else if (rate >= 0.6) health[agent.id] = { label: 'watch', score };
+        else if (rate > 0) health[agent.id] = { label: 'needs_repair', score };
+        else health[agent.id] = { label: 'broken', score: 0 };
+      }
+    }
+    return health;
+  }, [agents, agentStatsMap]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -2014,8 +2066,19 @@ export function MissionControlClient({
     }
   }, []);
 
+  const handleDelegate = useCallback(async (runId: string, agentId: string, agentName: string) => {
+    await delegateToBud(runId, agentId, agentName);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4 pb-6" style={{ minHeight: 'calc(100vh - 160px)' }}>
+      {/* Bud state banner */}
+      <BudStateDisplay
+        initialState={budState}
+        initialStatus={budStatus}
+        initialSummary={budSummary}
+      />
+
       <StatusBar m={metrics} liveCount={liveCount} isConnected={isConnected} />
 
       {/* Main row: Agent Feed (2/3) | Next Actions + GitHub stacked (1/3) */}
@@ -2027,10 +2090,16 @@ export function MissionControlClient({
             githubRepo={githubRepo}
             onRerun={handleRerun}
             onArchive={handleArchive}
+            onDelegate={handleDelegate}
           />
         </div>
         <div className="flex flex-col gap-4">
-          <div className="flex-1" style={{ minHeight: '240px' }}>
+          <div className="flex-1" style={{ minHeight: '200px' }}>
+            <Panel label="Bud Approval Queue" className="h-full">
+              <BudApprovalQueue initial={budApprovals} />
+            </Panel>
+          </div>
+          <div className="flex-1" style={{ minHeight: '200px' }}>
             <NextActions
               actions={actions}
               insights={insights}
@@ -2038,9 +2107,29 @@ export function MissionControlClient({
               onDecide={handleDecide}
             />
           </div>
-          <div className="flex-1" style={{ minHeight: '240px' }}>
+          <div className="flex-1" style={{ minHeight: '180px' }}>
             <GitHubActivity events={github} />
           </div>
+        </div>
+      </div>
+
+      {/* Bud row: Agent Hierarchy (1/3) | Bud Activity Feed (2/3) */}
+      <div className="grid grid-cols-3 gap-4" style={{ minHeight: '360px' }}>
+        <div>
+          <Panel label="Agent Hierarchy" className="h-full">
+            <div className="px-3 py-3">
+              <AgentHierarchy
+                agents={agents}
+                agentStates={agentStates}
+                agentHealth={agentHealthMap}
+              />
+            </div>
+          </Panel>
+        </div>
+        <div className="col-span-2">
+          <Panel label="Bud Activity" className="h-full">
+            <BudActivityFeed initial={budActivity} />
+          </Panel>
         </div>
       </div>
 

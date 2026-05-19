@@ -18,6 +18,7 @@ export type AgentRunStatus =
   | 'succeeded'
   | 'failed'
   | 'needs_approval'
+  | 'needs_repair'
   | 'cancelled';
 
 export type AgentActionStatus =

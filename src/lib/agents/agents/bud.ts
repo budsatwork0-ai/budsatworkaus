@@ -1,34 +1,34 @@
 /**
- * @deprecated Use bud.ts instead. The Foreman has been replaced by Bud.
- * This file is retained for backward compatibility with existing foreman_lobby_states
- * and foreman_insights Supabase tables. Do not add new features here.
+ * Bud — autonomous AI operating system for Buds At Work.
  *
- * The Foreman — operations brain for the Buds At Work AI workforce.
- *
- * Does NOT perform customer-facing work. Instead it:
- *   - aggregates 24h agent run data
+ * Bud is the single orchestrator intelligence layer. It:
+ *   - monitors all specialist agents
+ *   - detects failures and parse errors
  *   - derives lifecycle states for every agent
  *   - detects bottlenecks across workflow chains
- *   - calls the LLM for an operational briefing + section priorities
- *   - writes a foreman_lobby_state record consumed by the ForemanConsole
+ *   - generates operational briefings with cinematic state
+ *   - writes to bud_lobby_states and bud_insights
+ *   - narrates activity to bud_activity_feed
  *
  * Runs every 15 minutes via Vercel Cron. Can also be triggered manually
- * from the ForemanConsole via POST /api/agents/foreman.
+ * via POST /api/agents/bud.
  */
 import type { AgentDefinition, AgentContext } from '../types';
-import { WORKFLOWS, workflowsByAgent } from '../workflows';
+import { WORKFLOWS } from '../workflows';
+import { writeBudActivity } from '@/lib/bud/orchestrator';
+import type { BudState } from '@/lib/bud/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AgentLifecycleState =
-  | 'active'        // currently executing a run
-  | 'idle'          // enabled, ran recently, no issues
-  | 'awaiting_review' // has pending actions needing approval
-  | 'degraded'      // failure rate > 40% over 7d
-  | 'blocked'       // blocked by guardrail or external dependency
-  | 'overloaded'    // pending queue depth ≥ 5
-  | 'dormant'       // enabled but no run in > 7d
-  | 'retired';      // disabled
+  | 'active'           // currently executing a run
+  | 'idle'             // enabled, ran recently, no issues
+  | 'awaiting_review'  // has pending actions needing approval
+  | 'degraded'         // failure rate > 40% over 7d
+  | 'blocked'          // blocked by guardrail or external dependency
+  | 'overloaded'       // pending queue depth ≥ 5
+  | 'dormant'          // enabled but no run in > 7d
+  | 'retired';         // disabled
 
 export type OperationalStatus = 'nominal' | 'elevated' | 'critical';
 
@@ -42,6 +42,7 @@ interface AgentMetrics {
   pending_count: number;
   last_run_at: string | null;
   failure_rate_7d: number;
+  has_parse_failures: boolean;
 }
 
 interface LobbySection {
@@ -75,16 +76,19 @@ interface LobbyKPIs {
   total_runs_24h: number;
   total_cost_cents_24h: number;
   active_workflows: number;
+  parse_failures_24h: number;
+  bud_tasks_open: number;
 }
 
-// ── LLM system prompt ────────────────────────────────────────────────────────
+// ── LLM system prompt ─────────────────────────────────────────────────────────
 
-const SYSTEM = `You are The Foreman, the operations brain for Buds At Work's AI agent workforce.
+const SYSTEM = `You are Bud, the autonomous AI operating system for Buds At Work's agent workforce.
 You receive a structured summary of agent activity and return a concise operational briefing.
 
 Output strict JSON matching this exact shape:
 {
   "operational_status": "nominal" | "elevated" | "critical",
+  "bud_state": "thinking" | "investigating" | "repairing" | "testing" | "reviewing" | "deploying" | "learning" | "idle",
   "summary": string,
   "section_priorities": {
     "needs-attention": number,
@@ -101,16 +105,15 @@ Output strict JSON matching this exact shape:
 }
 
 Rules:
-- "summary" is 1–2 plain English sentences, no markdown. State what is actually happening, not what could happen.
+- "summary" is 1–2 plain English sentences, no markdown. State what is actually happening right now.
 - "operational_status": nominal = all clear; elevated = something needs admin attention; critical = immediate action required.
-- "section_priorities": 1 = show first, 7 = show last, 0 = hide entirely. Needs Attention must be ≥ 1 if it has any agents.
+- "bud_state": pick the most accurate state. Use "investigating" if there are degraded agents or parse failures. Use "repairing" if bud_tasks are open. Use "idle" if all nominal.
+- "section_priorities": 1 = show first, 7 = show last, 0 = hide entirely.
 - "insights": 0–5 items. Category is one of: bottleneck, anomaly, pattern, opportunity, risk.
 - Severity: low | medium | high | critical.
 - Be terse. Admin reads this at a glance.`;
 
 // ── Section membership maps ───────────────────────────────────────────────────
-// These are static sets — what section each agent "belongs to" in the lobby.
-// An agent not in any set ends up in "dormant" or "needs-attention" only.
 
 const LIVE_OPS_IDS = new Set([
   'scheduling', 'crew-briefing', 'photo-qa', 'yard-map-geo', 'crew-coach',
@@ -132,13 +135,13 @@ const GROWTH_IDS = new Set([
   'lobby-theme-curator', 'agent-architect',
 ]);
 
-// ── Agent definition ─────────────────────────────────────────────────────────
+// ── Agent definition ──────────────────────────────────────────────────────────
 
-export const foremanAgent: AgentDefinition = {
-  id: 'foreman',
-  name: 'The Foreman',
+export const budAgent: AgentDefinition = {
+  id: 'bud',
+  name: 'Bud',
   description:
-    'Operations brain — monitors all agents, detects bottlenecks, and generates the adaptive lobby state for the admin console.',
+    'Autonomous AI orchestrator — monitors all agents, investigates failures, detects bottlenecks, coordinates repairs, and generates the living operational state for Mission Control.',
   category: 'ops',
   autonomy: 'manual',
   schedule: null,
@@ -148,12 +151,17 @@ export const foremanAgent: AgentDefinition = {
     const since24h = new Date(now - 24 * 3600_000).toISOString();
     const since7d  = new Date(now - 7 * 24 * 3600_000).toISOString();
 
+    await writeBudActivity(ctx.supabase,
+      'Bud is thinking — analyzing agent workforce status...',
+      { event_type: 'delegation', actor: 'bud' },
+    );
+
     // ── 1. Load source data ────────────────────────────────────────────────
-    const [agentsRes, runs24hRes, runs7dRes, pendingRes] = await Promise.all([
+    const [agentsRes, runs24hRes, runs7dRes, pendingRes, budTasksRes] = await Promise.all([
       ctx.supabase.from('agents').select('id, name, category, status, autonomy, schedule'),
       ctx.supabase
         .from('agent_runs')
-        .select('agent_id, status, cost_cents, started_at')
+        .select('agent_id, status, cost_cents, started_at, summary')
         .gte('started_at', since24h),
       ctx.supabase
         .from('agent_runs')
@@ -163,12 +171,17 @@ export const foremanAgent: AgentDefinition = {
         .from('agent_actions')
         .select('agent_id, status, created_at')
         .eq('status', 'pending'),
+      ctx.supabase
+        .from('bud_tasks')
+        .select('id, status, source_agent')
+        .in('status', ['pending', 'in_progress', 'awaiting_approval']),
     ]);
 
-    const agents  = agentsRes.data ?? [];
-    const runs24h = runs24hRes.data ?? [];
-    const runs7d  = runs7dRes.data ?? [];
-    const pending = pendingRes.data ?? [];
+    const agents    = agentsRes.data ?? [];
+    const runs24h   = runs24hRes.data ?? [];
+    const runs7d    = runs7dRes.data ?? [];
+    const pending   = pendingRes.data ?? [];
+    const budTasks  = budTasksRes.data ?? [];
 
     // ── 2. Build per-agent metrics ─────────────────────────────────────────
     const metrics = new Map<string, AgentMetrics>();
@@ -177,18 +190,34 @@ export const foremanAgent: AgentDefinition = {
         agent_id: a.id,
         runs_24h: 0, successes_24h: 0, failures_24h: 0, cost_cents_24h: 0,
         is_running: false, pending_count: 0, last_run_at: null, failure_rate_7d: 0,
+        has_parse_failures: false,
       });
     }
 
+    let totalParseFailures = 0;
     for (const r of runs24h) {
       const m = metrics.get(r.agent_id);
       if (!m) continue;
       m.runs_24h++;
       m.cost_cents_24h += r.cost_cents ?? 0;
-      if (r.status === 'succeeded')       m.successes_24h++;
-      if (r.status === 'failed')          m.failures_24h++;
-      if (r.status === 'running')         m.is_running = true;
+      if (r.status === 'succeeded')   m.successes_24h++;
+      if (r.status === 'failed')      m.failures_24h++;
+      if (r.status === 'running')     m.is_running = true;
+      if (r.status === 'needs_repair') {
+        m.has_parse_failures = true;
+        totalParseFailures++;
+      }
       if (!m.last_run_at || r.started_at > m.last_run_at) m.last_run_at = r.started_at;
+
+      // Detect parse failures from summary text
+      const s = (r.summary ?? '').toLowerCase();
+      if (
+        r.status === 'failed' &&
+        (s.includes('could not parse') || s.includes('failed to parse') || s.includes('json parse'))
+      ) {
+        m.has_parse_failures = true;
+        totalParseFailures++;
+      }
     }
 
     // 7-day failure rates
@@ -221,11 +250,11 @@ export const foremanAgent: AgentDefinition = {
       if (m.pending_count >= 5)                        { agentStates[a.id] = 'overloaded';       continue; }
       if (m.pending_count > 0)                         { agentStates[a.id] = 'awaiting_review';  continue; }
       if (m.failure_rate_7d > 0.4 && m.runs_24h >= 2) { agentStates[a.id] = 'degraded';         continue; }
-      if (a.status === 'paused' || ageMs > 7 * 24 * 3600_000) { agentStates[a.id] = 'dormant';  continue; }
+      if (a.status === 'paused' || ageMs > 7 * 24 * 3600_000) { agentStates[a.id] = 'dormant'; continue; }
       agentStates[a.id] = 'idle';
     }
 
-    // ── 4. Determine "needs attention" set ────────────────────────────────
+    // ── 4. Needs-attention set ────────────────────────────────────────────
     const needsAttention = agents
       .filter((a) => {
         const ls = agentStates[a.id];
@@ -233,6 +262,7 @@ export const foremanAgent: AgentDefinition = {
         return (
           ls === 'degraded' ||
           ls === 'overloaded' ||
+          m.has_parse_failures ||
           (ls === 'awaiting_review' && m.pending_count >= 3)
         );
       })
@@ -249,10 +279,7 @@ export const foremanAgent: AgentDefinition = {
       );
       const activeAgents = w.chain.filter((aid) => agentStates[aid] === 'active');
       return {
-        id: w.id,
-        label: w.label,
-        domain: w.domain,
-        type: w.type,
+        id: w.id, label: w.label, domain: w.domain, type: w.type,
         active: activeAgents.length > 0,
         bottleneck_agent_id: bottleneck?.agent_id ?? null,
         chain: w.chain,
@@ -264,12 +291,11 @@ export const foremanAgent: AgentDefinition = {
     // ── 6. Build section agent lists ───────────────────────────────────────
     function sectionIds(memberSet: Set<string>): string[] {
       return agents
-        .filter(
-          (a) =>
-            memberSet.has(a.id) &&
-            !needsAttentionSet.has(a.id) &&
-            agentStates[a.id] !== 'dormant' &&
-            agentStates[a.id] !== 'retired',
+        .filter((a) =>
+          memberSet.has(a.id) &&
+          !needsAttentionSet.has(a.id) &&
+          agentStates[a.id] !== 'dormant' &&
+          agentStates[a.id] !== 'retired',
         )
         .map((a) => a.id);
     }
@@ -287,6 +313,8 @@ export const foremanAgent: AgentDefinition = {
       total_runs_24h:         runs24h.length,
       total_cost_cents_24h:   runs24h.reduce((s, r) => s + (r.cost_cents ?? 0), 0),
       active_workflows:       wfStatuses.filter((w) => w.active).length,
+      parse_failures_24h:     totalParseFailures,
+      bud_tasks_open:         budTasks.length,
     };
 
     // ── 8. LLM briefing ────────────────────────────────────────────────────
@@ -295,6 +323,9 @@ export const foremanAgent: AgentDefinition = {
       .map((a) => `${a.name} (${metrics.get(a.id)!.pending_count} pending)`);
     const degradedAgents = agents
       .filter((a) => agentStates[a.id] === 'degraded')
+      .map((a) => a.name);
+    const parseFailingAgents = agents
+      .filter((a) => metrics.get(a.id)?.has_parse_failures)
       .map((a) => a.name);
     const bottleneckedWfs = wfStatuses
       .filter((w) => w.bottleneck_agent_id)
@@ -305,26 +336,27 @@ Total agents: ${agents.length}
 Active right now: ${kpis.agents_active}
 Awaiting review: ${highPendingAgents.join(', ') || 'none'}
 Degraded agents: ${degradedAgents.join(', ') || 'none'}
+Parse failing agents: ${parseFailingAgents.join(', ') || 'none'}
+Open Bud repair tasks: ${kpis.bud_tasks_open}
 Runs last 24h: ${kpis.total_runs_24h}
+Parse failures 24h: ${kpis.parse_failures_24h}
 Pending approvals: ${kpis.pending_approvals}
 Active workflows: ${wfStatuses.filter((w) => w.active).map((w) => w.label).join(', ') || 'none'}
 Bottlenecks: ${bottleneckedWfs.join(', ') || 'none detected'}
-Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') : 'none'}
-
-Section agent counts:
-  Needs Attention: ${needsAttention.length}
-  Live Operations: ${sectionIds(LIVE_OPS_IDS).length}
-  Customer Pipeline: ${sectionIds(CUSTOMER_IDS).length}
-  Finance & Risk: ${sectionIds(FINANCE_IDS).length}
-  Compliance: ${sectionIds(COMPLIANCE_IDS).length}
-  Growth Systems: ${sectionIds(GROWTH_IDS).length}
-  Dormant/Retired: ${dormantIds.length}`;
+Needs-attention agents: ${needsAttention.length > 0 ? needsAttention.join(', ') : 'none'}`;
 
     type LlmResult = {
       operational_status: OperationalStatus;
+      bud_state: BudState;
       summary: string;
       section_priorities: Record<string, number>;
-      insights: Array<{ agent_id: string | null; workflow_id: string | null; category: string; severity: string; title: string }>;
+      insights: Array<{
+        agent_id: string | null;
+        workflow_id: string | null;
+        category: string;
+        severity: string;
+        title: string;
+      }>;
     };
 
     let llmResult: LlmResult;
@@ -333,11 +365,16 @@ Section agent counts:
       llmResult = JSON.parse(raw) as LlmResult;
     } catch {
       ctx.log('LLM parse failed, using fallback briefing');
+      const hasCritical = kpis.parse_failures_24h > 0 || needsAttention.length > 2;
       llmResult = {
-        operational_status: needsAttention.length > 0 ? 'elevated' : 'nominal',
+        operational_status: hasCritical ? 'elevated' : needsAttention.length > 0 ? 'elevated' : 'nominal',
+        bud_state: kpis.bud_tasks_open > 0 ? 'repairing'
+          : kpis.parse_failures_24h > 0 ? 'investigating'
+          : needsAttention.length > 0 ? 'investigating'
+          : 'idle',
         summary: needsAttention.length > 0
-          ? `${needsAttention.length} agent(s) need admin attention. ${kpis.total_runs_24h} runs completed in the last 24h.`
-          : `${kpis.total_runs_24h} runs in the last 24h. All systems nominal.`,
+          ? `${needsAttention.length} agent(s) need attention. ${kpis.total_runs_24h} runs in 24h${kpis.parse_failures_24h > 0 ? `, ${kpis.parse_failures_24h} parse failures detected` : ''}.`
+          : `${kpis.total_runs_24h} runs in 24h. All systems nominal.`,
         section_priorities: {
           'needs-attention': 1, 'live-operations': 2, 'customer-pipeline': 3,
           'finance-risk': 4, 'compliance': 5, 'growth-systems': 6, 'dormant': 7,
@@ -350,8 +387,7 @@ Section agent counts:
     const sp = llmResult.section_priorities;
     const sections: LobbySection[] = [
       {
-        id: 'needs-attention',
-        label: 'Needs Attention',
+        id: 'needs-attention', label: 'Needs Attention',
         priority: sp['needs-attention'] ?? 1,
         visible: needsAttention.length > 0,
         agent_ids: needsAttention,
@@ -359,76 +395,28 @@ Section agent counts:
           .filter((w) => w.chain.some((id) => needsAttentionSet.has(id)))
           .map((w) => w.id),
         status: (needsAttention.length > 0 ? 'elevated' : 'nominal') as LobbySection['status'],
-        reason: needsAttention.length > 0
-          ? `${needsAttention.length} agent(s) require admin action`
-          : undefined,
+        reason: needsAttention.length > 0 ? `${needsAttention.length} agent(s) require attention` : undefined,
       },
-      {
-        id: 'live-operations',
-        label: 'Live Operations',
-        priority: sp['live-operations'] ?? 2,
-        visible: true,
-        agent_ids: sectionIds(LIVE_OPS_IDS),
-        workflow_ids: ['job-delivery', 'talent-pipeline'],
-        status: 'nominal' as const,
-      },
-      {
-        id: 'customer-pipeline',
-        label: 'Customer Pipeline',
-        priority: sp['customer-pipeline'] ?? 3,
-        visible: true,
-        agent_ids: sectionIds(CUSTOMER_IDS),
-        workflow_ids: ['customer-acquisition', 'win-back'],
-        status: 'nominal' as const,
-      },
-      {
-        id: 'finance-risk',
-        label: 'Finance & Risk',
-        priority: sp['finance-risk'] ?? 4,
-        visible: true,
-        agent_ids: sectionIds(FINANCE_IDS),
-        workflow_ids: ['revenue-intelligence'],
-        status: 'nominal' as const,
-      },
-      {
-        id: 'compliance',
-        label: 'Compliance',
-        priority: sp['compliance'] ?? 5,
-        visible: true,
-        agent_ids: sectionIds(COMPLIANCE_IDS),
-        workflow_ids: ['compliance-safety'],
-        status: 'nominal' as const,
-      },
-      {
-        id: 'growth-systems',
-        label: 'Growth Systems',
-        priority: sp['growth-systems'] ?? 6,
-        visible: true,
-        agent_ids: sectionIds(GROWTH_IDS),
-        workflow_ids: ['growth-loop'],
-        status: 'nominal' as const,
-      },
-      {
-        id: 'dormant',
-        label: 'Dormant',
-        priority: sp['dormant'] ?? 7,
-        visible: dormantIds.length > 0,
-        agent_ids: dormantIds,
-        workflow_ids: [],
-        status: 'nominal' as const,
-        reason: 'Agents that have not run in over 7 days or are paused.',
-      },
+      { id: 'live-operations', label: 'Live Operations', priority: sp['live-operations'] ?? 2, visible: true, agent_ids: sectionIds(LIVE_OPS_IDS), workflow_ids: ['job-delivery', 'talent-pipeline'], status: 'nominal' as const },
+      { id: 'customer-pipeline', label: 'Customer Pipeline', priority: sp['customer-pipeline'] ?? 3, visible: true, agent_ids: sectionIds(CUSTOMER_IDS), workflow_ids: ['customer-acquisition', 'win-back'], status: 'nominal' as const },
+      { id: 'finance-risk', label: 'Finance & Risk', priority: sp['finance-risk'] ?? 4, visible: true, agent_ids: sectionIds(FINANCE_IDS), workflow_ids: ['revenue-intelligence'], status: 'nominal' as const },
+      { id: 'compliance', label: 'Compliance', priority: sp['compliance'] ?? 5, visible: true, agent_ids: sectionIds(COMPLIANCE_IDS), workflow_ids: ['compliance-safety'], status: 'nominal' as const },
+      { id: 'growth-systems', label: 'Growth Systems', priority: sp['growth-systems'] ?? 6, visible: true, agent_ids: sectionIds(GROWTH_IDS), workflow_ids: ['growth-loop'], status: 'nominal' as const },
+      { id: 'dormant', label: 'Dormant', priority: sp['dormant'] ?? 7, visible: dormantIds.length > 0, agent_ids: dormantIds, workflow_ids: [], status: 'nominal' as const, reason: 'Agents that have not run recently or are paused.' },
     ].sort((a, b) => a.priority - b.priority);
 
-    // ── 10. Write lobby state ──────────────────────────────────────────────
+    // ── 10. Write bud_lobby_states ─────────────────────────────────────────
+    const budState: BudState = llmResult.bud_state ?? 'idle';
+
     await ctx.supabase
-      .from('foreman_lobby_states')
+      .from('bud_lobby_states')
       .update({ is_current: false })
       .eq('is_current', true);
 
-    await ctx.supabase.from('foreman_lobby_states').insert({
+    await ctx.supabase.from('bud_lobby_states').insert({
       generated_at:       new Date().toISOString(),
       operational_status: llmResult.operational_status,
+      bud_state:          budState,
       summary:            llmResult.summary,
       sections,
       workflows:          wfStatuses,
@@ -437,9 +425,9 @@ Section agent counts:
       is_current:         true,
     });
 
-    // ── 11. Write foreman insights ─────────────────────────────────────────
+    // ── 11. Write bud_insights ─────────────────────────────────────────────
     if (llmResult.insights?.length > 0) {
-      await ctx.supabase.from('foreman_insights').insert(
+      await ctx.supabase.from('bud_insights').insert(
         llmResult.insights.map((i) => ({
           agent_id:    i.agent_id ?? null,
           workflow_id: i.workflow_id ?? null,
@@ -450,12 +438,47 @@ Section agent counts:
       );
     }
 
+    // ── 12. Narrate to activity feed ───────────────────────────────────────
+    const summaryNarrative =
+      budState === 'investigating' ? `Bud investigated agent workforce — ${needsAttention.length} agent(s) flagged for attention.`
+      : budState === 'repairing'   ? `Bud reviewed open repair tasks — ${kpis.bud_tasks_open} task(s) in progress.`
+      : budState === 'learning'    ? `Bud analyzed patterns and updated operational memory.`
+      : `Bud completed operational review — ${kpis.total_runs_24h} runs analyzed, system ${llmResult.operational_status}.`;
+
+    await writeBudActivity(ctx.supabase, summaryNarrative, {
+      event_type: budState === 'investigating' ? 'investigation'
+        : budState === 'repairing' ? 'repair'
+        : budState === 'learning' ? 'learning'
+        : 'completion',
+      actor: 'bud',
+      metadata: { operational_status: llmResult.operational_status, kpis },
+    });
+
     const activeCount   = kpis.agents_active;
     const degradedCount = kpis.agents_degraded;
 
     return {
-      summary: `Foreman briefing complete — ${activeCount} active, ${degradedCount} degraded, ${pending.length} pending approvals. Status: ${llmResult.operational_status}.`,
-      output: { operational_status: llmResult.operational_status, kpis },
+      summary: `Bud briefing complete — ${activeCount} active, ${degradedCount} degraded, ${kpis.parse_failures_24h} parse failures, ${pending.length} pending approvals. State: ${budState}. Status: ${llmResult.operational_status}.`,
+      output: {
+        status: llmResult.operational_status === 'nominal' ? 'success' : 'partial',
+        summary: llmResult.summary,
+        findings: [
+          `${activeCount} agents active`,
+          `${degradedCount} agents degraded`,
+          `${kpis.parse_failures_24h} parse failures in 24h`,
+          `${kpis.bud_tasks_open} open repair tasks`,
+        ].filter((f) => !f.startsWith('0 ')),
+        recommended_actions: needsAttention.length > 0
+          ? [`Investigate ${needsAttention.length} agent(s) in needs-attention section`]
+          : ['All nominal — no action required'],
+        confidence: llmResult.operational_status === 'nominal' ? 0.95 : 0.75,
+        risk_level: llmResult.operational_status === 'critical' ? 'high'
+          : llmResult.operational_status === 'elevated' ? 'medium'
+          : 'low',
+        next_step: needsAttention.length > 0
+          ? 'Review flagged agents in Mission Control'
+          : undefined,
+      },
     };
   },
 };
