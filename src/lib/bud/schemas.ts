@@ -26,11 +26,14 @@ export const AgentOutputSchema = z.object({
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
 
 export const BudStateSchema = z.enum([
+  'observing',
   'thinking',
   'investigating',
+  'planning',
   'repairing',
   'testing',
   'reviewing',
+  'waiting_for_approval',
   'deploying',
   'learning',
   'idle',
@@ -44,8 +47,20 @@ export type BudState = z.infer<typeof BudStateSchema>;
 
 export const BudTaskStatusSchema = z.enum([
   'pending',
+  'detected',
+  'reproducing',
+  'analyzing',
+  'planning',
   'in_progress',
   'awaiting_approval',
+  'patching',
+  'validating',
+  'deploying',
+  'verifying',
+  'monitoring',
+  'recovered',
+  'rolled_back',
+  'blocked',
   'completed',
   'failed',
   'archived',

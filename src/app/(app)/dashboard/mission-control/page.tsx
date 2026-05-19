@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
+import { buildBudOsActionQueue, buildBudOsAutonomy, buildBudOsMemoryLayer, buildBudOsWorkforce, deriveBudOsState } from '@/lib/bud/os-view-model';
+import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,7 +16,7 @@ async function loadData() {
 
   const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
 
-  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes] = await Promise.all([
+  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes] = await Promise.all([
     supabase
       .from('agents')
       .select('id, name, status, category, autonomy')
@@ -86,6 +88,44 @@ async function loadData() {
     supabase
       .from('bud_change_requests')
       .select('id, task_id, branch_name, issue_url, pr_url, deployment_url, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('bud_repair_executions')
+      .select('id, task_id, status, root_cause_type, root_cause_summary, repair_strategy, diff_summary, deployment_url, verification_status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('bud_repair_steps')
+      .select('id, execution_id, state, status, summary, started_at')
+      .order('started_at', { ascending: false })
+      .limit(80),
+    supabase
+      .from('bud_repair_logs')
+      .select('id, execution_id, level, message, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('bud_repair_learnings')
+      .select('id, root_cause_type, fix_pattern, outcome, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('admin_ux_proposals')
+      .select('id, page_path, audience, severity, title, body, proposed_change, status, created_at')
+      .in('status', ['new', 'reviewing', 'accepted'])
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('design_insights')
+      .select('id, page_path, insight_type, severity, title, body, proposed_change, status, created_at')
+      .in('status', ['new', 'reviewing', 'accepted'])
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('agent_evolutions')
+      .select('id, target_agent_id, evolution_type, rationale, proposed_diff, status, created_at')
+      .in('status', ['pending', 'approved'])
       .order('created_at', { ascending: false })
       .limit(20),
   ]);
@@ -175,6 +215,41 @@ async function loadData() {
     insights: insightsRes.data ?? [],
     memory,
   });
+  const uxEvolution = buildUxEvolutionRecommendations({
+    adminUxProposals: adminUxRes.data ?? [],
+    designInsights: designInsightsRes.data ?? [],
+    agentEvolutions: agentEvolutionsRes.data ?? [],
+    budInsights: insightsRes.data ?? [],
+    memory,
+    failedRuns: runs.filter((run) => ['failed', 'needs_repair'].includes(run.status as string)).map((run) => ({
+      id: run.id as string,
+      agent_id: run.agent_id as string,
+      status: run.status as string,
+      summary: run.summary as string | null,
+      started_at: run.started_at as string,
+    })),
+  });
+  const budOsState = deriveBudOsState(commandState, (budState?.bud_state ?? 'idle') as import('@/lib/bud/types').BudState);
+  const actionQueue = buildBudOsActionQueue({
+    commandState,
+    runs: runs.map((run) => ({
+      id: run.id as string,
+      agent_id: run.agent_id as string,
+      status: run.status as string,
+      summary: run.summary as string | null,
+      started_at: run.started_at as string,
+    })),
+    actions: actions.map((action) => ({
+      id: action.id as string,
+      agent_id: action.agent_id as string | null,
+      action_type: action.action_type as string,
+      preview: action.preview as string,
+      created_at: action.created_at as string,
+    })),
+    insights: insightsRes.data ?? [],
+    budApprovals,
+    uxEvolution,
+  });
 
   return {
     agents,
@@ -201,6 +276,17 @@ async function loadData() {
     budApprovals,
     globalHealth,
     commandState,
+    budOs: {
+      state: budOsState,
+      actionQueue,
+      workforce: buildBudOsWorkforce(commandState),
+      memoryLayer: buildBudOsMemoryLayer(memory, repairLearningsRes.data ?? []),
+      autonomy: buildBudOsAutonomy(commandState),
+      uxEvolution,
+      repairExecutions: repairExecutionsRes.data ?? [],
+      repairSteps: repairStepsRes.data ?? [],
+      repairLogs: repairLogsRes.data ?? [],
+    },
   };
 }
 

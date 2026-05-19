@@ -12,11 +12,14 @@ const BUD_STATE_CONFIG: Record<BudState, {
   pulseColor: string;
   animate: boolean;
 }> = {
+  observing:            { label: 'Observing',            description: 'Watching business and agent signals',       color: 'text-emerald-400', pulseColor: 'bg-emerald-400', animate: false },
   thinking:             { label: 'Thinking',             description: 'Analyzing agent workforce status',         color: 'text-blue-400',    pulseColor: 'bg-blue-400',    animate: true },
   investigating:        { label: 'Investigating',        description: 'Deep-diving into agent failures',           color: 'text-amber-400',   pulseColor: 'bg-amber-400',   animate: true },
+  planning:             { label: 'Planning',             description: 'Drafting a repair or improvement plan',     color: 'text-violet-400',  pulseColor: 'bg-violet-400',  animate: true },
   repairing:            { label: 'Repairing',            description: 'Executing repair plan',                     color: 'text-orange-400',  pulseColor: 'bg-orange-400',  animate: true },
   testing:              { label: 'Testing',              description: 'Validating changes',                        color: 'text-violet-400',  pulseColor: 'bg-violet-400',  animate: true },
   reviewing:            { label: 'Reviewing',            description: 'Reviewing outputs and decisions',           color: 'text-sky-400',     pulseColor: 'bg-sky-400',     animate: false },
+  waiting_for_approval: { label: 'Waiting Approval',     description: 'Repair plan awaiting human sign-off',       color: 'text-yellow-400',  pulseColor: 'bg-yellow-400',  animate: true },
   deploying:            { label: 'Deploying',            description: 'Tracking deployment progress',              color: 'text-emerald-400', pulseColor: 'bg-emerald-400', animate: true },
   learning:             { label: 'Learning',             description: 'Writing operational lessons to memory',     color: 'text-teal-400',    pulseColor: 'bg-teal-400',    animate: false },
   idle:                 { label: 'Idle',                 description: 'Monitoring — all systems nominal',          color: 'text-zinc-400',    pulseColor: 'bg-zinc-400',    animate: false },
