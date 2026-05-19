@@ -93,14 +93,19 @@ async function loadData() {
   const agents = agentsRes.data ?? [];
   const actions = actionsRes.data ?? [];
 
+  const githubData = githubRes.data ?? [];
+  const vercelConnected = githubData.some((e) => e.event_type === 'deployment_status');
+
   return {
     agents,
     runs: runsRes.data ?? [],
     actions,
-    github: githubRes.data ?? [],
+    github: githubData,
     memory,
     insights: insightsRes.data ?? [],
     agentStatsMap: Object.fromEntries(statsMap),
+    supabaseConnected: true,
+    vercelConnected,
     metrics: {
       totalRuns7d,
       totalCostCents7d,

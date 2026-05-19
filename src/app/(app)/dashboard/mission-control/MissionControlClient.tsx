@@ -83,6 +83,8 @@ type Props = {
   insights: InsightRow[];
   metrics: Metrics;
   agentStatsMap: Record<string, AgentStats>;
+  supabaseConnected: boolean;
+  vercelConnected: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1450,9 +1452,9 @@ const INTEL_SOURCES = [
 ];
 
 const SETUP_ACTIONS = [
-  { key: 'obsidian', label: 'Connect Obsidian vault',      desc: 'Sync design docs, ADRs and dev logs automatically',    icon: '◆' },
+  { key: 'obsidian', label: 'Sync Obsidian vault',         desc: 'Pull design docs, ADRs and dev logs into memory',      icon: '◆' },
   { key: 'agents',   label: 'Save current agent outputs',  desc: 'Import last 24h of agent recommendations as insights', icon: '◉' },
-  { key: 'crawler',  label: 'Import site context',         desc: 'Crawl and index your public pages for AI reference',   icon: '⊕' },
+  { key: 'crawler',  label: 'Crawl site pages',            desc: 'Index public pages as memory for AI reference',        icon: '⊕' },
   { key: 'github',   label: 'Sync GitHub activity',        desc: 'Connect repo webhooks for PR and deploy events',       icon: '⬡' },
 ];
 
@@ -1512,6 +1514,8 @@ Once done, every push to main will write vault notes automatically.`;
 function MemoryEmptyState() {
   const router = useRouter();
   const [running, setRunning] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [crawling, setCrawling] = useState(false);
   const [expanded, setExpanded] = useState<SetupKey | null>(null);
 
   async function runForeman() {
@@ -1532,15 +1536,54 @@ function MemoryEmptyState() {
     }
   }
 
+  async function syncObsidian() {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/memory/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Vault synced — ${data.sync?.inserted ?? 0} inserted, ${data.sync?.updated ?? 0} updated`);
+        setTimeout(() => router.refresh(), 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body?.error ?? 'Sync failed');
+      }
+    } catch {
+      toast.error('Network error — try again');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function runCrawler() {
+    setCrawling(true);
+    try {
+      const res = await fetch('/api/crawl', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Crawled ${(data.inserted ?? 0) + (data.updated ?? 0)} pages`);
+        setTimeout(() => router.refresh(), 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body?.error ?? 'Crawl failed');
+      }
+    } catch {
+      toast.error('Network error — try again');
+    } finally {
+      setCrawling(false);
+    }
+  }
+
   function handleClick(key: SetupKey) {
     if (key === 'agents') { runForeman(); return; }
-    if (key === 'crawler') { toast('Site crawler coming soon'); return; }
+    if (key === 'obsidian') { syncObsidian(); return; }
+    if (key === 'crawler') { runCrawler(); return; }
     setExpanded((prev) => (prev === key ? null : key));
   }
 
   const instructions: Record<SetupKey, string> = {
     agents:   '',
-    obsidian: OBSIDIAN_INSTRUCTIONS,
+    obsidian: '',
     github:   GITHUB_SECRETS_INSTRUCTIONS,
     crawler:  '',
   };
@@ -1566,31 +1609,39 @@ function MemoryEmptyState() {
           {SETUP_ACTIONS.map((action) => {
             const key = action.key as SetupKey;
             const isExpanded = expanded === key;
-            const isRunning = key === 'agents' && running;
+            const isBusy =
+              (key === 'agents' && running) ||
+              (key === 'obsidian' && syncing) ||
+              (key === 'crawler' && crawling);
+            const busyLabel =
+              key === 'agents' ? 'Running foreman…' :
+              key === 'obsidian' ? 'Syncing vault…' :
+              key === 'crawler' ? 'Crawling pages…' :
+              action.label;
             return (
               <div key={key}>
                 <button
-                  disabled={isRunning}
+                  disabled={isBusy}
                   onClick={() => handleClick(key)}
                   className="w-full flex items-center gap-3 text-left rounded-xl border border-black/[0.06] bg-slate-50/80 hover:bg-white hover:border-black/10 disabled:opacity-60 px-3 py-2.5 transition-all group"
                 >
                   <span className="text-[11px] text-slate-400 flex-shrink-0 font-mono">{action.icon}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-semibold text-slate-700">
-                      {key === 'agents' && running ? 'Running foreman…' : action.label}
+                      {isBusy ? busyLabel : action.label}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{action.desc}</p>
                   </div>
-                  {key === 'agents' ? (
-                    <span className="text-[10px] font-medium text-violet-600 flex-shrink-0">Run now</span>
-                  ) : key === 'crawler' ? (
-                    <span className="text-[10px] text-slate-300 flex-shrink-0">Soon</span>
-                  ) : (
+                  {key === 'github' ? (
                     <span className="text-[10px] text-slate-400 flex-shrink-0 transition-transform" style={{ display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>→</span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-violet-600 flex-shrink-0">
+                      {isBusy ? '…' : 'Run now'}
+                    </span>
                   )}
                 </button>
 
-                {/* Inline instructions for obsidian / github */}
+                {/* Inline instructions for github only */}
                 <AnimatePresence initial={false}>
                   {isExpanded && instructions[key] && (
                     <motion.div
@@ -1619,23 +1670,82 @@ function MemoryIntelligence({
   memory,
   insights,
   github,
+  runs,
+  supabaseConnected,
+  vercelConnected,
 }: {
   memory: MemoryDoc[];
   insights: InsightRow[];
   github: GithubEventRow[];
+  runs: RunRow[];
+  supabaseConnected: boolean;
+  vercelConnected: boolean;
 }) {
+  const router = useRouter();
+  const [syncing, setSyncing] = useState(false);
+  const [crawling, setCrawling] = useState(false);
+
+  async function syncObsidian() {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/memory/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Vault synced — ${data.sync?.inserted ?? 0} inserted`);
+        setTimeout(() => router.refresh(), 1200);
+      } else {
+        toast.error('Sync failed');
+      }
+    } catch { toast.error('Network error'); }
+    finally { setSyncing(false); }
+  }
+
+  async function runCrawler() {
+    setCrawling(true);
+    try {
+      const res = await fetch('/api/crawl', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Crawled ${(data.inserted ?? 0) + (data.updated ?? 0)} pages`);
+        setTimeout(() => router.refresh(), 1200);
+      } else {
+        toast.error('Crawl failed');
+      }
+    } catch { toast.error('Network error'); }
+    finally { setCrawling(false); }
+  }
+
+  const sourceActions: Record<string, (() => void) | null> = {
+    obsidian: syncObsidian,
+    crawler:  runCrawler,
+    github:   null,
+    vercel:   null,
+    supabase: null,
+    claude:   null,
+  };
+
+  const sourceLabels: Record<string, string> = {
+    obsidian: syncing  ? 'Syncing…' : 'Sync vault',
+    crawler:  crawling ? 'Crawling…' : 'Crawl pages',
+    github:   'Set up GitHub webhook',
+    vercel:   'Connect Vercel',
+    supabase: 'Connect Supabase',
+    claude:   'Connect Claude',
+  };
+
   const hasInsights = insights.length > 0;
   const hasMemory = memory.length > 0;
   const hasGithub = github.length > 0;
-  const hasAnyData = hasInsights || hasMemory || hasGithub;
+  const hasCrawler = memory.some((d) => d.vault_path?.startsWith('site/'));
+  const hasAnyData = hasInsights || hasMemory || hasGithub || supabaseConnected;
 
   const connected: Record<string, boolean> = {
     obsidian: hasMemory,
     github: hasGithub,
-    claude: hasInsights,
-    vercel: false,
-    supabase: false,
-    crawler: false,
+    claude: hasInsights || runs.length > 0,
+    vercel: vercelConnected,
+    supabase: supabaseConnected,
+    crawler: hasCrawler,
   };
 
   const lastInsight = insights[0] ?? null;
@@ -1710,20 +1820,29 @@ function MemoryIntelligence({
         <div className="px-5 pt-3.5 pb-4">
           <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Setup needed</p>
           <div className="space-y-1.5">
-            {missingSources.map((src) => (
-              <button
-                key={src.key}
-                className="w-full flex items-center gap-2.5 text-left rounded-xl border border-black/[0.05] bg-slate-50/60 hover:bg-white hover:border-black/[0.09] px-3 py-2 transition-all group"
-              >
-                <span className="text-[10px] text-slate-300 flex-shrink-0 font-mono group-hover:text-slate-500 transition-colors">
-                  {src.icon}
-                </span>
-                <p className="text-[10px] font-medium text-slate-500 group-hover:text-slate-700 transition-colors flex-1">
-                  {src.hint}
-                </p>
-                <span className="text-[9px] text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0">→</span>
-              </button>
-            ))}
+            {missingSources.map((src) => {
+              const action = sourceActions[src.key];
+              const isBusy = (src.key === 'obsidian' && syncing) || (src.key === 'crawler' && crawling);
+              const label = sourceLabels[src.key] ?? src.hint;
+              return (
+                <button
+                  key={src.key}
+                  disabled={isBusy}
+                  onClick={action ?? undefined}
+                  className="w-full flex items-center gap-2.5 text-left rounded-xl border border-black/[0.05] bg-slate-50/60 hover:bg-white hover:border-black/[0.09] disabled:opacity-60 px-3 py-2 transition-all group"
+                >
+                  <span className="text-[10px] text-slate-300 flex-shrink-0 font-mono group-hover:text-slate-500 transition-colors">
+                    {src.icon}
+                  </span>
+                  <p className="text-[10px] font-medium text-slate-500 group-hover:text-slate-700 transition-colors flex-1">
+                    {src.hint}
+                  </p>
+                  <span className="text-[9px] font-medium text-violet-600 group-hover:text-violet-700 transition-colors flex-shrink-0">
+                    {action ? (isBusy ? '…' : label) : '→'}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1825,6 +1944,8 @@ export function MissionControlClient({
   insights,
   metrics: initialMetrics,
   agentStatsMap,
+  supabaseConnected,
+  vercelConnected,
 }: Props) {
   const [runs, setRuns] = useState<RunRow[]>(initialRuns);
   const [actions, setActions] = useState<ActionRow[]>(initialActions);
@@ -1928,7 +2049,7 @@ export function MissionControlClient({
         <div className="col-span-2">
           <AgentHealth agents={agents} agentStatsMap={agentStatsMap} runs={runs} />
         </div>
-        <MemoryIntelligence memory={memory} insights={insights} github={github} />
+        <MemoryIntelligence memory={memory} insights={insights} github={github} runs={initialRuns} supabaseConnected={supabaseConnected} vercelConnected={vercelConnected} />
       </div>
     </div>
   );
