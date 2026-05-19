@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { createBrowserClient } from '@supabase/ssr';
 import { WORKFLOWS } from '@/lib/agents/workflows';
 import type { AgentLifecycleState } from '@/lib/agents/agents/bud';
@@ -182,6 +184,7 @@ export function BudConsole({ initial }: Props) {
   const [pending, setPending]       = useState<ActionRow[]>(initial.pending);
   const [events, setEvents]         = useState<LiveEvent[]>([]);
   const [viewMode, setViewMode]     = useState<ViewMode>('sections');
+  const router = useRouter();
   const [budRunning, setBudRunning] = useState(false);
   const [dormantOpen, setDormantOpen] = useState(false);
   const [clock, setClock]           = useState('');
@@ -305,8 +308,18 @@ export function BudConsole({ initial }: Props) {
 
   async function handleActivateBud() {
     setBudRunning(true);
+    const toastId = toast.loading('Bud is thinking — analysing agent workforce…');
     try {
-      await fetch('/api/agents/bud', { method: 'POST' });
+      const res = await fetch('/api/agents/bud', { method: 'POST' });
+      if (res.ok) {
+        toast.success('Bud briefing complete — updating view…', { id: toastId, duration: 4000 });
+        setTimeout(() => router.refresh(), 1500);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body?.error ?? 'Bud activation failed', { id: toastId, duration: 5000 });
+      }
+    } catch {
+      toast.error('Network error — try again', { id: toastId, duration: 5000 });
     } finally {
       setBudRunning(false);
     }
