@@ -19,6 +19,42 @@ begin
   end if;
 end $$;
 
+-- Expand Bud lobby states from status labels to the OS thinking/action model.
+do $$
+declare
+  constraint_name text;
+begin
+  select conname into constraint_name
+  from pg_constraint
+  where conrelid = 'public.bud_lobby_states'::regclass
+    and contype = 'c'
+    and pg_get_constraintdef(oid) like '%bud_state%';
+
+  if constraint_name is not null then
+    execute format('alter table public.bud_lobby_states drop constraint %I', constraint_name);
+  end if;
+end $$;
+
+alter table public.bud_lobby_states
+  add constraint bud_lobby_states_bud_state_check
+  check (bud_state in (
+    'observing',
+    'thinking',
+    'investigating',
+    'planning',
+    'repairing',
+    'testing',
+    'reviewing',
+    'waiting_for_approval',
+    'deploying',
+    'learning',
+    'idle',
+    'verifying',
+    'blocked',
+    'repaired',
+    'needs_human_approval'
+  ));
+
 alter table public.bud_tasks
   add constraint bud_tasks_status_check
   check (status in (
@@ -169,6 +205,13 @@ alter table public.bud_repair_logs              enable row level security;
 alter table public.bud_deployment_verifications enable row level security;
 alter table public.bud_repair_learnings         enable row level security;
 alter table public.bud_terminal_sessions        enable row level security;
+
+drop policy if exists "admin_all_bud_repair_executions"        on public.bud_repair_executions;
+drop policy if exists "admin_all_bud_repair_steps"             on public.bud_repair_steps;
+drop policy if exists "admin_all_bud_repair_logs"              on public.bud_repair_logs;
+drop policy if exists "admin_all_bud_deployment_verifications" on public.bud_deployment_verifications;
+drop policy if exists "admin_all_bud_repair_learnings"         on public.bud_repair_learnings;
+drop policy if exists "admin_all_bud_terminal_sessions"        on public.bud_terminal_sessions;
 
 create policy "admin_all_bud_repair_executions"
   on public.bud_repair_executions for all
