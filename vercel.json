@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/agents/cron",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/foreman",
-      "schedule": "30 */6 * * *"
-    },
-    {
       "path": "/api/cron/remind-quotes",
       "schedule": "0 9 * * *"
     },
@@ -27,6 +19,34 @@
     {
       "path": "/api/cron/auto-complete-jobs",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=price-optimizer",
+      "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=analytics-intelligence",
+      "schedule": "0 7 * * 3"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=admin-optimization",
+      "schedule": "30 7 * * 3"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=ux-intelligence",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=github-historian",
+      "schedule": "0 6 * * 5"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=design-system",
+      "schedule": "0 6 * * 6"
+    },
+    {
+      "path": "/api/cron/foreman",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
