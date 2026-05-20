@@ -1979,6 +1979,8 @@ export function MissionControlClient({
         if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
       }
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+      // Small delay so the DB write commits before the server re-fetch hits the read path.
+      await new Promise((resolve) => setTimeout(resolve, 600));
       router.refresh();
     } catch (error) {
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });

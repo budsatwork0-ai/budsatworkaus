@@ -480,6 +480,10 @@ export function buildBudOsActionQueue(args: {
       bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
     };
     const task = annotated.bud_tasks;
+    // Skip Bud self-repair approvals — Bud investigating itself creates an infinite
+    // loop where each run spawns another branch. These items should never appear in
+    // the queue since we block self-investigation in bud.ts.
+    if (task?.source_agent === 'bud') continue;
     const repairSession = approval.task_id ? sessionByTask.get(approval.task_id) : undefined;
     const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession });
     items.push({

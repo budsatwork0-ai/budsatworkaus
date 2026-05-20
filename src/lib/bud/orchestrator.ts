@@ -274,7 +274,10 @@ export async function triggerInvestigation(
   await updateBudTask(supabase, task.id, { status: 'in_progress' });
 
   const level = getDefaultAutonomyLevel();
-  const needsApproval = requiresApproval(level, 0.5, 'low', 'create_github_issue');
+  // Level 2 = "Plan & Issue" → auto-create issues, no approval needed.
+  // Level 3 = "Branch & PR"  → auto-create issues AND branches, no approval needed.
+  // Only gate at level 0–1 where Bud is read-only or suggest-only.
+  const needsApproval = level <= 1;
 
   if (needsApproval) {
     await queueApproval(supabase, {
