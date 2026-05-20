@@ -344,7 +344,7 @@ export async function executeRepairPlan(
     return;
   }
 
-  const level = (task.autonomy_level ?? 2) as AutonomyLevel;
+  const level = getDefaultAutonomyLevel();
   const confidence = task.confidence ?? 0.5;
   const risk_level = task.risk_level ?? 'low';
 
