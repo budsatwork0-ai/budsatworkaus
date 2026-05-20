@@ -178,6 +178,24 @@ const CAPABILITY_TONE: Record<BudCapability['status'], string> = {
   blocked: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
 };
 
+function CopyButton({ text, label = 'Copy', className = '' }: { text: string; label?: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  return (
+    <button
+      onClick={copy}
+      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition ${copied ? 'text-emerald-400' : 'text-white/35 hover:text-white/70'} ${className}`}
+    >
+      {copied ? '✓ copied' : label}
+    </button>
+  );
+}
+
 const TABS = [
   { key: 'command', label: 'Command' },
   { key: 'overview', label: 'Overview' },
@@ -451,16 +469,28 @@ function PresencePanel({
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55">Thought stream</p>
-            <span className="text-[10px] text-white/40">live</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-white/40">live</span>
+              {thoughts.length > 0 && (
+                <CopyButton
+                  label="Copy all"
+                  text={thoughts.slice(0, 8).map((t) => `[${t.state} · ${rel(t.at)}] ${t.narrative}`).join('\n')}
+                />
+              )}
+            </div>
           </div>
           <ul className="mt-2 max-h-[170px] space-y-2 overflow-auto pr-1">
             {thoughts.slice(0, 8).map((thought) => (
-              <li key={thought.id} className="flex items-start gap-2 text-xs leading-snug text-white/75">
+              <li key={thought.id} className="group flex items-start gap-2 text-xs leading-snug text-white/75">
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-sky-400" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="line-clamp-2">{thought.narrative}</p>
                   <p className="text-[10px] text-white/35">{thought.state} · {rel(thought.at)}</p>
                 </div>
+                <CopyButton
+                  text={`[${thought.state} · ${rel(thought.at)}] ${thought.narrative}`}
+                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                />
               </li>
             ))}
             {thoughts.length === 0 && <p className="text-xs text-white/40">Bud is observing. No new thoughts.</p>}
@@ -1223,16 +1253,29 @@ function ActivityTab({
             ))}
           </div>
         </Card>
-        <Card title="Live activity" subtitle="Streaming from bud_activity_feed.">
+        <Card
+          title="Live activity"
+          subtitle="Streaming from bud_activity_feed."
+          action={liveActivity.length > 0 ? (
+            <CopyButton
+              label="Copy all"
+              text={liveActivity.map((e) => `[${e.event_type} · ${rel(e.created_at)}] ${e.narrative}`).join('\n')}
+            />
+          ) : undefined}
+        >
           <div className="max-h-[240px] divide-y divide-white/[0.04] overflow-auto px-3">
             {liveActivity.length === 0 && <p className="py-6 text-center text-sm text-white/40">Quiet on the wire.</p>}
             {liveActivity.map((event) => (
-              <div key={event.id} className="flex items-start gap-2 py-2.5">
+              <div key={event.id} className="group flex items-start gap-2 py-2.5">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-white/80">{event.narrative}</p>
                   <p className="text-[10px] text-white/35">{event.event_type} · {rel(event.created_at)}</p>
                 </div>
+                <CopyButton
+                  text={`[${event.event_type} · ${rel(event.created_at)}] ${event.narrative}`}
+                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                />
               </div>
             ))}
           </div>
