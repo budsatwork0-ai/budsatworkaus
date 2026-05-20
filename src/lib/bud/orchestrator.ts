@@ -10,7 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BudTask, BudActivityEvent, BudActivityEventType, AutonomyLevel } from './types';
 import { getDefaultAutonomyLevel, requiresApproval } from './autonomy';
-import { createIssue, budBranchName } from './github-executor';
+import { createIssue, createBranch, budBranchName } from './github-executor';
 
 // ── Activity feed ─────────────────────────────────────────────────────────────
 
@@ -349,35 +349,65 @@ export async function executeRepairPlan(
   const risk_level = task.risk_level ?? 'low';
 
   if (level >= 3 && ['low', 'medium'].includes(risk_level)) {
-    // Create repair branch
     const branchName = budBranchName(task.source_agent ?? 'unknown');
     try {
-      // Record change request
+      await updateBudTask(supabase, taskId, { status: 'in_progress' });
+
+      // Actually create the branch on GitHub
+      await createBranch(branchName);
+
+      const repoOwner = process.env.GITHUB_REPO_OWNER ?? '';
+      const repoName  = process.env.GITHUB_REPO_NAME ?? '';
+      const branchUrl = `https://github.com/${repoOwner}/${repoName}/tree/${branchName}`;
+
+      // Pull the structured failure from the task so we can open a PR-ready issue
+      const rawOut = (task.raw_output ?? {}) as Record<string, unknown>;
+      const sf = rawOut.structured_failure as { recommendedFix?: string; errorType?: string } | undefined;
+      const recommendedFix = sf?.recommendedFix ?? 'See task raw_output for details.';
+      const errorType      = sf?.errorType ?? 'unknown';
+
+      // Open a GitHub issue scoped to this branch so the fix is actionable
+      const issue = await createIssue(
+        `[Bud] Repair branch ready: ${task.source_agent ?? 'agent'} (${errorType})`,
+        [
+          `Bud created branch \`${branchName}\` to address a failure in **${task.source_agent ?? 'agent'}**.`,
+          '',
+          '## Recommended Fix',
+          `> ${recommendedFix}`,
+          '',
+          `## Branch`,
+          `[${branchName}](${branchUrl})`,
+          '',
+          `_Autonomy level ${level}. Apply the fix to this branch and open a PR when ready._`,
+        ].join('\n'),
+        ['bud', 'repair-branch', errorType],
+      );
+
+      // Record the change request with real URLs
       const { data: cr } = await supabase
         .from('bud_change_requests')
         .insert({
-          task_id: taskId,
+          task_id:   taskId,
           branch_name: branchName,
-          status: 'open',
+          issue_url: issue.url,
+          status:    'open',
         })
         .select()
         .single();
 
-      await updateBudTask(supabase, taskId, { status: 'in_progress' });
-      await writeBudActivity(supabase,
-        `Bud prepared repair branch \`${branchName}\` for ${task.source_agent ?? 'agent'}.`,
-        { event_type: 'repair', actor: 'bud', target: task.source_agent ?? undefined, metadata: { branch: branchName, change_request_id: cr?.id } },
-      );
+      await updateBudTask(supabase, taskId, {
+        status:       'completed',
+        linked_issue: issue.url,
+      });
 
-      await updateBudTask(supabase, taskId, { status: 'completed' });
       await writeBudActivity(supabase,
-        `Bud completed repair plan for ${task.source_agent ?? 'agent'}.`,
-        { event_type: 'completion', actor: 'bud', target: task.source_agent ?? undefined },
+        `Bud created repair branch \`${branchName}\` and opened issue #${issue.number} for ${task.source_agent ?? 'agent'}. Apply the fix and open a PR.`,
+        { event_type: 'repair', actor: 'bud', target: task.source_agent ?? undefined, metadata: { branch: branchName, branch_url: branchUrl, issue_url: issue.url, change_request_id: cr?.id } },
       );
     } catch (err) {
       await updateBudTask(supabase, taskId, { status: 'failed' });
       await writeBudActivity(supabase,
-        `Bud could not create repair branch: ${err instanceof Error ? err.message : 'unknown'}`,
+        `Bud could not execute repair for ${task.source_agent ?? 'agent'}: ${err instanceof Error ? err.message : 'unknown'}`,
         { event_type: 'error', actor: 'bud' },
       );
     }
