@@ -348,7 +348,7 @@ export async function executeRepairPlan(
   const confidence = task.confidence ?? 0.5;
   const risk_level = task.risk_level ?? 'low';
 
-  if (level >= 3 && confidence >= 0.8 && ['low', 'medium'].includes(risk_level)) {
+  if (level >= 3 && ['low', 'medium'].includes(risk_level)) {
     // Create repair branch
     const branchName = budBranchName(task.source_agent ?? 'unknown');
     try {
