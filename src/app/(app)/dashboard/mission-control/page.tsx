@@ -10,6 +10,7 @@ import { buildStructuredFailures } from '@/lib/bud/structured-failure';
 import { buildBudInitiatives } from '@/lib/bud/initiatives';
 import { buildThoughtStream } from '@/lib/bud/thought-stream';
 import { BUD_AUTHORITY_COOKIE } from '@/lib/bud/authority';
+import { getCircuitSummary } from '@/lib/agents/resilience';
 
 const VALID_CEILINGS: BudAuthorityLevel[] = [
   'L0_OBSERVER',
@@ -269,15 +270,18 @@ async function loadData() {
     agentNameById,
   });
   const initiatives = buildBudInitiatives({ commandState, uxEvolution, structuredFailures });
-  const configuredCeiling = await resolveAuthorityCeiling();
+  const [configuredCeiling, circuit] = await Promise.all([
+    resolveAuthorityCeiling(),
+    getCircuitSummary().catch(() => ({ state: 'closed' as const, resetsAt: null, failureStreak: 0, label: 'API healthy' })),
+  ]);
   const authority = computeBudAuthority({
     commandState,
+    configuredCeiling,
     learnings: (repairLearningsRes.data ?? []).map((l) => ({
       id: l.id as string,
       outcome: (l.outcome as string) ?? '',
       created_at: l.created_at as string,
     })),
-    configuredCeiling,
   });
   const capabilities = getBudCapabilities({
     commandState,
@@ -359,6 +363,7 @@ async function loadData() {
       structuredFailures,
       thoughtStream,
       githubConnected: githubData.length > 0,
+      circuit,
     },
   };
 }

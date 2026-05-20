@@ -107,6 +107,7 @@ type Props = {
     structuredFailures: StructuredFailure[];
     thoughtStream: BudThought[];
     githubConnected: boolean;
+    circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
   };
 };
 
@@ -1267,11 +1268,41 @@ function EvolutionTab({ recommendations, initiatives }: { recommendations: UxEvo
 /*                              DEPLOYMENTS TAB                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function DeploymentsTab({ commandState, autonomy }: { commandState: MissionControlHealth; autonomy: BudOsAutonomyCapability[] }) {
+function DeploymentsTab({ commandState, autonomy, circuit }: {
+  commandState: MissionControlHealth;
+  autonomy: BudOsAutonomyCapability[];
+  circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
+}) {
   const dep = commandState.deployment;
   const tone = dep.status === 'healthy' ? 'good' : dep.status === 'failed' ? 'bad' : dep.status === 'deploying' ? 'warn' : 'neutral';
+  const circuitTone = circuit.state === 'closed' ? 'good' : circuit.state === 'open' ? 'bad' : 'warn';
+  const circuitDot = circuit.state === 'closed' ? 'bg-emerald-400' : circuit.state === 'open' ? 'bg-red-400 animate-pulse' : 'bg-yellow-400 animate-pulse';
   return (
     <div className="space-y-4">
+
+      {/* Circuit Breaker status — shown prominently so operators know API health at a glance */}
+      <Card
+        title="Anthropic API circuit breaker"
+        subtitle="Opens after 5 consecutive API failures fleet-wide. Protects all agents during outages. Resets automatically after 5 minutes."
+      >
+        <div className="flex items-center gap-4 px-5 py-4">
+          <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${circuitDot}`} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-white">{circuit.label}</p>
+            {circuit.state === 'open' && circuit.resetsAt && (
+              <p className="mt-0.5 text-xs text-white/50">Probing resumes at {new Date(circuit.resetsAt).toLocaleTimeString()}</p>
+            )}
+            {circuit.state === 'half_open' && (
+              <p className="mt-0.5 text-xs text-white/50">Allowing probe calls — 2 successes needed to close</p>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <StatBlock label="State" value={circuit.state.replace('_', ' ').toUpperCase()} tone={circuitTone} />
+            <StatBlock label="Failure streak" value={String(circuit.failureStreak)} tone={circuit.failureStreak >= 3 ? 'bad' : circuit.failureStreak > 0 ? 'warn' : 'good'} />
+          </div>
+        </div>
+      </Card>
+
       <Card title="Deployment + verification" subtitle="Repairs are not successful until deployment + verification confirm.">
         <div className="grid gap-3 px-5 py-4 md:grid-cols-4">
           <StatBlock label="Status" value={dep.status.toUpperCase()} tone={tone} />
@@ -1798,7 +1829,7 @@ export function MissionControlClient({
 
           {tab === 'evolution' && <EvolutionTab recommendations={budOs.uxEvolution} initiatives={budOs.initiatives} />}
 
-          {tab === 'deployments' && <DeploymentsTab commandState={commandState} autonomy={budOs.autonomy} />}
+          {tab === 'deployments' && <DeploymentsTab commandState={commandState} autonomy={budOs.autonomy} circuit={budOs.circuit} />}
 
           {tab === 'settings' && (
             <SettingsTab

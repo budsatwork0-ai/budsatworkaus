@@ -26,6 +26,12 @@ import {
   type LineageEntry,
   type PolicyContext,
 } from './guardrails';
+import {
+  CircuitOpenError,
+  getCircuitState,
+  recordLlmSuccess,
+  recordLlmFailure,
+} from './resilience';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -68,6 +74,13 @@ async function callModel(
 ): Promise<CallModelResult> {
   const model = opts.model ?? DEFAULT_MODEL;
 
+  // Gate on circuit breaker before the first attempt. If the Anthropic API
+  // has been consistently overloaded, OPEN state blocks all LLM calls fleet-
+  // wide until a 5-minute cooldown passes. This prevents thundering-herd
+  // retry storms from turning a transient outage into 50 failed runs.
+  const { state: circuitState, resetsAt } = await getCircuitState();
+  if (circuitState === 'open') throw new CircuitOpenError(resetsAt);
+
   let attempt = 0;
   let lastErr: Error | null = null;
 
@@ -98,6 +111,9 @@ async function callModel(
         .map((b) => b.text ?? '')
         .join('\n');
 
+      // Record success so half_open circuits can close after 2 good probes
+      recordLlmSuccess().catch(() => {});
+
       return {
         text,
         inputTokens: json.usage.input_tokens,
@@ -112,6 +128,10 @@ async function callModel(
     // 404, etc. are configuration bugs that won't fix themselves on retry.
     const transient = res.status === 429 || res.status === 529 || res.status === 503;
     if (!transient) throw lastErr;
+
+    // Record each transient failure so the circuit tracks the streak.
+    // Awaited so the DB write completes before the next attempt reads state.
+    await recordLlmFailure();
 
     attempt += 1;
     if (attempt >= MAX_LLM_ATTEMPTS) break;
