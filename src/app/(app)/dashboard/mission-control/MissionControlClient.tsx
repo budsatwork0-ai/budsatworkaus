@@ -1342,10 +1342,12 @@ function SettingsTab({
   authority,
   capabilities,
   onAuthorityChange,
+  savingLevel,
 }: {
   authority: BudAuthority;
   capabilities: BudCapability[];
-  onAuthorityChange: (level: BudAuthorityLevel) => void;
+  onAuthorityChange: (level: BudAuthorityLevel) => Promise<void>;
+  savingLevel: BudAuthorityLevel | null;
 }) {
   const levels: BudAuthorityLevel[] = ['L0_OBSERVER', 'L1_ASSISTANT', 'L2_OPERATOR', 'L3_AUTONOMOUS_OPERATOR', 'L4_SELF_EVOLVING_SYSTEM'];
   return (
@@ -1386,25 +1388,36 @@ function SettingsTab({
             )}
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Authority ceiling</p>
-            <div className="mt-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Authority ceiling</p>
+              {savingLevel && <span className="text-[10px] text-sky-300">saving…</span>}
+            </div>
+            <div className="mt-2 space-y-2" role="radiogroup" aria-label="Bud authority ceiling">
               {levels.map((level) => {
                 const isCeiling = level === authority.configured_ceiling;
                 const isCurrent = level === authority.level;
+                const isSaving = savingLevel === level;
+                const disabled = savingLevel !== null && !isSaving;
                 return (
                   <button
                     key={level}
-                    onClick={() => onAuthorityChange(level)}
+                    role="radio"
+                    aria-checked={isCeiling}
+                    disabled={disabled}
+                    onClick={() => void onAuthorityChange(level)}
                     className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition ${
-                      isCeiling ? 'border-sky-400/40 bg-sky-500/[0.07]' : 'border-white/[0.06] bg-white/[0.015] hover:border-white/15'
-                    }`}
+                      isCeiling
+                        ? 'border-sky-400/50 bg-sky-500/[0.10] shadow-[0_0_0_1px_rgba(56,189,248,0.25)]'
+                        : 'border-white/[0.06] bg-white/[0.015] hover:border-white/20 hover:bg-white/[0.04]'
+                    } ${disabled ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                   >
-                    <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-sky-400" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full transition ${isCeiling ? 'bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.7)]' : 'border border-white/30 bg-transparent'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-white">{AUTHORITY_LABELS[level]}</p>
                         {isCurrent && <Pill tone="good">current</Pill>}
                         {isCeiling && !isCurrent && <Pill tone="cool">ceiling</Pill>}
+                        {isSaving && <Pill tone="warn">saving</Pill>}
                       </div>
                       <p className="mt-1 text-[11px] leading-relaxed text-white/55">{AUTHORITY_DESCRIPTIONS[level]}</p>
                     </div>
@@ -1413,7 +1426,7 @@ function SettingsTab({
               })}
             </div>
             <p className="mt-2 text-[11px] text-white/40">
-              Bud will not exceed its earned level even if the ceiling is higher.
+              Bud will not exceed its earned level even if the ceiling is higher. Changes save instantly and apply on next action.
             </p>
           </div>
         </div>
@@ -1503,7 +1516,7 @@ export function MissionControlClient({
   const search = useSearchParams();
   const initialTab = (search?.get('tab') ?? 'overview') as TabKey;
   const [tab, setTab] = useState<TabKey>(initialTab);
-  const [authorityCeiling, setAuthorityCeiling] = useState<BudAuthorityLevel>(budOs.authority.configured_ceiling);
+  const [savingAuthority, setSavingAuthority] = useState<BudAuthorityLevel | null>(null);
   const [queue, setQueue] = useState<BudOsQueueItem[]>(budOs.actionQueue);
   const [selectedId, setSelectedId] = useState<string | null>(budOs.actionQueue[0]?.id ?? null);
   const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
@@ -1791,9 +1804,28 @@ export function MissionControlClient({
             <SettingsTab
               authority={budOs.authority}
               capabilities={budOs.capabilities}
-              onAuthorityChange={(level) => {
-                setAuthorityCeiling(level);
-                toast.success(`Authority ceiling set to ${AUTHORITY_LABELS[level]} (session-only)`);
+              savingLevel={savingAuthority}
+              onAuthorityChange={async (level) => {
+                if (level === budOs.authority.configured_ceiling) {
+                  toast.info(`Bud is already at ${AUTHORITY_LABELS[level]}`);
+                  return;
+                }
+                setSavingAuthority(level);
+                try {
+                  const res = await fetch('/api/bud/authority', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ ceiling: level }),
+                  });
+                  const body = await res.json().catch(() => ({} as { error?: string }));
+                  if (!res.ok) throw new Error(body?.error ?? 'Could not save authority');
+                  toast.success(`Authority ceiling: ${AUTHORITY_LABELS[level]}`);
+                  router.refresh();
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Could not save authority');
+                } finally {
+                  setSavingAuthority(null);
+                }
               }}
             />
           )}
@@ -1802,9 +1834,6 @@ export function MissionControlClient({
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
           <span>Buds OS · operational intelligence layer</span>
           <span className="ml-auto">global_status: {commandState.global_status} · bud_status: {commandState.bud_status}</span>
-          {authorityCeiling !== budOs.authority.configured_ceiling && (
-            <span className="text-amber-300">(authority ceiling unsaved · server reload to persist)</span>
-          )}
         </footer>
       </div>
     </div>

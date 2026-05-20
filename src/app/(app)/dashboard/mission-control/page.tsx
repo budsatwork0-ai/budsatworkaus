@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
@@ -8,6 +9,28 @@ import { getBudCapabilities } from '@/lib/bud/capabilities';
 import { buildStructuredFailures } from '@/lib/bud/structured-failure';
 import { buildBudInitiatives } from '@/lib/bud/initiatives';
 import { buildThoughtStream } from '@/lib/bud/thought-stream';
+import { BUD_AUTHORITY_COOKIE } from '@/app/api/bud/authority/route';
+
+const VALID_CEILINGS: BudAuthorityLevel[] = [
+  'L0_OBSERVER',
+  'L1_ASSISTANT',
+  'L2_OPERATOR',
+  'L3_AUTONOMOUS_OPERATOR',
+  'L4_SELF_EVOLVING_SYSTEM',
+];
+
+async function resolveAuthorityCeiling(): Promise<BudAuthorityLevel> {
+  const store = await cookies();
+  const cookieValue = store.get(BUD_AUTHORITY_COOKIE)?.value;
+  if (cookieValue && VALID_CEILINGS.includes(cookieValue as BudAuthorityLevel)) {
+    return cookieValue as BudAuthorityLevel;
+  }
+  const envValue = process.env.BUD_AUTHORITY_CEILING;
+  if (envValue && VALID_CEILINGS.includes(envValue as BudAuthorityLevel)) {
+    return envValue as BudAuthorityLevel;
+  }
+  return 'L3_AUTONOMOUS_OPERATOR';
+}
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -246,6 +269,7 @@ async function loadData() {
     agentNameById,
   });
   const initiatives = buildBudInitiatives({ commandState, uxEvolution, structuredFailures });
+  const configuredCeiling = await resolveAuthorityCeiling();
   const authority = computeBudAuthority({
     commandState,
     learnings: (repairLearningsRes.data ?? []).map((l) => ({
@@ -253,7 +277,7 @@ async function loadData() {
       outcome: (l.outcome as string) ?? '',
       created_at: l.created_at as string,
     })),
-    configuredCeiling: (process.env.BUD_AUTHORITY_CEILING as BudAuthorityLevel | undefined) ?? 'L3_AUTONOMOUS_OPERATOR',
+    configuredCeiling,
   });
   const capabilities = getBudCapabilities({
     commandState,
