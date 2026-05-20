@@ -57,7 +57,10 @@ export const lobbyThemeCuratorAgent: AgentDefinition = {
     );
 
     let theme: { id: string; name: string; description: string; tokens: Record<string, unknown> };
-    try { theme = JSON.parse(raw); } catch { return { summary: 'Could not parse theme JSON.' }; }
+    try {
+      const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      theme = JSON.parse(jsonStr);
+    } catch { return { summary: 'Could not parse theme JSON — LLM output was not valid JSON.' }; }
 
     const { error } = await ctx.supabase.from('lobby_themes').upsert({
       id: theme.id,

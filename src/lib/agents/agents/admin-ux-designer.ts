@@ -55,16 +55,24 @@ export const adminUxDesignerAgent: AgentDefinition = {
     type Finding = { title: string; severity: string; category: string; body: string; proposed_change: unknown };
     type PageResult = { page: PageAudit; findings: Finding[] };
 
-    const results = await Promise.all(pages.map(async (page): Promise<PageResult> => {
-      const prompt = `Audience: ${page.audience}\nPath: ${page.path}\nNotes: ${page.notes ?? ''}\n${page.html_snippet ? `HTML:\n${page.html_snippet.slice(0, 6000)}` : ''}${page.screenshot_url ? `\nScreenshot: ${page.screenshot_url}` : ''}\nReturn findings JSON.`;
-      const raw = await ctx.llm(prompt, { system: SYSTEM });
-      try {
-        const parsed: { findings: Finding[] } = JSON.parse(raw);
-        return { page, findings: parsed.findings ?? [] };
-      } catch {
-        return { page, findings: [] };
-      }
-    }));
+    // Run in sequential batches of 3 to stay well under the 300s run timeout
+    const BATCH = 3;
+    const results: PageResult[] = [];
+    for (let i = 0; i < pages.length; i += BATCH) {
+      const batch = pages.slice(i, i + BATCH);
+      const batchResults = await Promise.all(batch.map(async (page): Promise<PageResult> => {
+        const prompt = `Audience: ${page.audience}\nPath: ${page.path}\nNotes: ${page.notes ?? ''}\n${page.html_snippet ? `HTML:\n${page.html_snippet.slice(0, 6000)}` : ''}${page.screenshot_url ? `\nScreenshot: ${page.screenshot_url}` : ''}\nReturn findings JSON.`;
+        const raw = await ctx.llm(prompt, { system: SYSTEM });
+        try {
+          const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+          const parsed: { findings: Finding[] } = JSON.parse(jsonStr);
+          return { page, findings: parsed.findings ?? [] };
+        } catch {
+          return { page, findings: [] };
+        }
+      }));
+      results.push(...batchResults);
+    }
 
     let total = 0;
     for (const { page, findings } of results) {
