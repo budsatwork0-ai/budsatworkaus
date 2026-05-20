@@ -227,6 +227,28 @@ export async function triggerInvestigation(
   agentId: string,
   agentName: string,
 ): Promise<BudTask> {
+  // Dedup: if an open task for this agent already exists in the last 24h, return it
+  // rather than spawning another branch. This prevents the self-investigation loop
+  // where each Bud cycle detects the prior failure and creates yet another repair branch.
+  const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const { data: existing } = await supabase
+    .from('bud_tasks')
+    .select('*')
+    .eq('source_agent', agentId)
+    .not('status', 'in', '("failed","archived")')
+    .gte('created_at', since24h)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (existing) {
+    await writeBudActivity(supabase,
+      `Bud skipped duplicate investigation for ${agentName} — task already open (${existing.status}).`,
+      { event_type: 'investigation', actor: 'bud', target: agentId, metadata: { existing_task_id: existing.id } },
+    );
+    return existing as BudTask;
+  }
+
   await writeBudActivity(supabase,
     `Bud is investigating ${agentName} — fetching failure data...`,
     { event_type: 'investigation', actor: 'bud', target: agentId },

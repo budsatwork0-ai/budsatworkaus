@@ -403,9 +403,12 @@ export const budAgent: AgentDefinition = {
     }
     const investigationResults: InvestigationOutcome[] = [];
 
-    // Only investigate agents that have concrete failure data in the last 24h
+    // Only investigate agents that have concrete failure data in the last 24h.
+    // Exclude 'bud' itself — self-investigation creates an infinite repair loop
+    // where each Bud run detects its own prior failure and spawns another branch.
     const agentsToInvestigate = needsAttention
       .filter((id) => failureDetails.has(id))
+      .filter((id) => id !== 'bud')
       .slice(0, 5); // cap at 5 per cycle to stay within timeout
 
     if (agentsToInvestigate.length > 0) {
