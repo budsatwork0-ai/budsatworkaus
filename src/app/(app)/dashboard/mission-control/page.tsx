@@ -45,7 +45,7 @@ async function loadData() {
 
   const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
 
-  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes] = await Promise.all([
+  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes, resilienceEventsRes, efficiencyFindingsRes] = await Promise.all([
     supabase
       .from('agents')
       .select('id, name, status, category, autonomy')
@@ -155,6 +155,17 @@ async function loadData() {
       .from('agent_evolutions')
       .select('id, target_agent_id, evolution_type, rationale, proposed_diff, status, created_at')
       .in('status', ['pending', 'approved'])
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('resilience_events')
+      .select('id, guard, event_type, payload, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50),
+    supabase
+      .from('efficiency_findings')
+      .select('id, domain, title, severity, priority, body, affected_agents, proposed_fix, estimated_saving, automation_candidate, created_at')
+      .in('status', ['new', 'reviewing'])
       .order('created_at', { ascending: false })
       .limit(20),
   ]);
@@ -364,6 +375,26 @@ async function loadData() {
       thoughtStream,
       githubConnected: githubData.length > 0,
       circuit,
+      resilienceEvents: (resilienceEventsRes.data ?? []) as Array<{
+        id: number;
+        guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
+        event_type: string;
+        payload: Record<string, unknown>;
+        created_at: string;
+      }>,
+      efficiencyFindings: (efficiencyFindingsRes.data ?? []) as Array<{
+        id: string;
+        domain: string;
+        title: string;
+        severity: string;
+        priority: string;
+        body: string | null;
+        affected_agents: string[];
+        proposed_fix: string | null;
+        estimated_saving: string | null;
+        automation_candidate: boolean;
+        created_at: string;
+      }>,
     },
   };
 }

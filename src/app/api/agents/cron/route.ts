@@ -57,6 +57,12 @@ export async function GET(req: NextRequest) {
     reaped = result.reaped;
     if (reaped > 0) {
       console.log(`[cron:${agentId}] zombie-reaper: cleared ${reaped} stuck run(s): ${result.runIds.join(', ')}`);
+      // Log to resilience_events so Mission Control can surface this
+      await supabase.from('resilience_events').insert({
+        guard: 'zombie_reaper',
+        event_type: 'runs_reaped',
+        payload: { reaped_count: reaped, run_ids: result.runIds, triggered_by_agent: agentId },
+      }).then(() => {/* fire-and-forget */});
     }
   } catch (err) {
     // Reaper failure should never block the run — log and continue
@@ -70,6 +76,11 @@ export async function GET(req: NextRequest) {
   if (circuitState === 'open') {
     const when = resetsAt ? ` Probing resumes at ${new Date(resetsAt).toISOString()}.` : '';
     console.log(`[cron:${agentId}] circuit OPEN — skipping run.${when}`);
+    await supabase.from('resilience_events').insert({
+      guard: 'circuit_breaker',
+      event_type: 'run_blocked',
+      payload: { state: circuitState, resets_at: resetsAt, blocked_agent: agentId },
+    }).then(() => {/* fire-and-forget */});
     return NextResponse.json({
       skipped: true,
       reason: 'circuit_open',
@@ -86,6 +97,11 @@ export async function GET(req: NextRequest) {
     console.log(
       `[cron:${agentId}] already running (run ${activeRun.runId}, ${activeRun.ageMinutes}m ago) — skipping`,
     );
+    await supabase.from('resilience_events').insert({
+      guard: 'concurrency_guard',
+      event_type: 'run_skipped',
+      payload: { agent_id: agentId, active_run_id: activeRun.runId, age_minutes: activeRun.ageMinutes },
+    }).then(() => {/* fire-and-forget */});
     return NextResponse.json({
       skipped: true,
       reason: 'already_running',

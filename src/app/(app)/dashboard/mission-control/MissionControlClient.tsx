@@ -108,6 +108,26 @@ type Props = {
     thoughtStream: BudThought[];
     githubConnected: boolean;
     circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
+    resilienceEvents: Array<{
+      id: number;
+      guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
+      event_type: string;
+      payload: Record<string, unknown>;
+      created_at: string;
+    }>;
+    efficiencyFindings: Array<{
+      id: string;
+      domain: string;
+      title: string;
+      severity: string;
+      priority: string;
+      body: string | null;
+      affected_agents: string[];
+      proposed_fix: string | null;
+      estimated_saving: string | null;
+      automation_candidate: boolean;
+      created_at: string;
+    }>;
   };
 };
 
@@ -470,6 +490,63 @@ function PresencePanel({
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
+/*                             LIFECYCLE TRACKER                               */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+type LifecycleStage = 'detected' | 'investigating' | 'has_plan' | 'needs_approval' | 'done';
+
+function getItemStage(item: BudOsQueueItem, investigatingIds: Set<string>): LifecycleStage {
+  if (item.group === 'completed_actions') return 'done';
+  if (investigatingIds.has(item.id)) return 'investigating';
+  if (item.group === 'needs_approval') {
+    const r = item.approval?.readiness;
+    if (r === 'ready') return 'needs_approval';
+    if (r === 'awaiting_diagnosis') return 'investigating';
+    return 'has_plan';
+  }
+  return 'detected';
+}
+
+const LIFECYCLE_STAGES: Array<{ key: LifecycleStage; label: string }> = [
+  { key: 'detected', label: 'Detected' },
+  { key: 'investigating', label: 'Investigating' },
+  { key: 'has_plan', label: 'Plan ready' },
+  { key: 'needs_approval', label: 'Needs approval' },
+  { key: 'done', label: 'Done' },
+];
+
+const STAGE_ORDER: Record<LifecycleStage, number> = {
+  detected: 0,
+  investigating: 1,
+  has_plan: 2,
+  needs_approval: 3,
+  done: 4,
+};
+
+function LifecycleBar({ stage }: { stage: LifecycleStage }) {
+  const currentIdx = STAGE_ORDER[stage];
+  return (
+    <div className="mt-2.5 flex items-center gap-0.5">
+      {LIFECYCLE_STAGES.map((s, idx) => {
+        const active = idx === currentIdx;
+        const past = idx < currentIdx;
+        return (
+          <React.Fragment key={s.key}>
+            <div className={`flex items-center gap-1 ${active ? 'text-sky-300' : past ? 'text-emerald-400' : 'text-white/25'}`}>
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? 'bg-sky-400 animate-pulse' : past ? 'bg-emerald-400' : 'bg-white/15'}`} />
+              <span className="text-[9px] font-semibold uppercase tracking-wide">{s.label}</span>
+            </div>
+            {idx < LIFECYCLE_STAGES.length - 1 && (
+              <span className="mx-1 text-[9px] text-white/15">›</span>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
 /*                                ACTION QUEUE                                */
 /* ────────────────────────────────────────────────────────────────────────── */
 
@@ -495,6 +572,7 @@ function ActionQueue({
   onDismiss,
   onApprove,
   onInvestigate,
+  investigatingIds,
 }: {
   items: BudOsQueueItem[];
   selectedId: string | null;
@@ -502,6 +580,7 @@ function ActionQueue({
   onDismiss: (item: BudOsQueueItem) => void;
   onApprove: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
+  investigatingIds: Set<string>;
 }) {
   const groups = useMemo(
     () =>
@@ -527,10 +606,10 @@ function ActionQueue({
                 <div className="rounded-md border border-dashed border-white/10 px-3 py-3 text-xs text-white/35">Nothing here right now.</div>
               ) : (
                 groupItems.slice(0, 6).map((item) => {
+                  const stage = getItemStage(item, investigatingIds);
+                  const isInvestigating = investigatingIds.has(item.id);
                   const ready = !item.approval || item.approval.readiness === 'ready';
-                  const readinessTone = item.approval
-                    ? READINESS_TONE[item.approval.readiness]
-                    : ('neutral' as const);
+                  const showLifecycle = ['critical', 'needs_approval', 'watch_items'].includes(item.group);
                   return (
                     <button
                       key={item.id}
@@ -551,67 +630,72 @@ function ActionQueue({
                           <p className="mt-1 text-[10px] text-white/35">
                             {item.agent_name ?? 'Bud'} · {rel(item.created_at)}
                           </p>
-                          {item.approval && (
-                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                              <Pill tone={readinessTone}>{READINESS_LABEL[item.approval.readiness]}</Pill>
-                              {item.approval.risk_level && <Pill tone={item.approval.risk_level === 'critical' ? 'bad' : 'neutral'}>{item.approval.risk_level} risk</Pill>}
-                              {item.approval.confidence !== null && <Pill tone="cool">conf {Math.round((item.approval.confidence ?? 0) * 100)}%</Pill>}
-                            </div>
-                          )}
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {item.actions.includes('investigate') && (
-                          <span
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onInvestigate(item);
-                            }}
-                            className="rounded-md border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-medium text-sky-200 hover:bg-sky-500/[0.16]"
-                          >
-                            Investigate
-                          </span>
-                        )}
-                        {item.actions.includes('fix_with_bud') && (
-                          <span
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onInvestigate(item);
-                            }}
-                            className="rounded-md border border-orange-400/30 bg-orange-500/[0.08] px-2 py-1 text-[10px] font-medium text-orange-200 hover:bg-orange-500/[0.16]"
-                          >
-                            Fix with Bud
-                          </span>
-                        )}
-                        {item.actions.includes('approve') && (
-                          <span
-                            title={ready ? 'Approve' : item.approval?.readiness_summary}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (!ready) return;
-                              onApprove(item);
-                            }}
-                            className={`rounded-md border px-2 py-1 text-[10px] font-medium ${
-                              ready
-                                ? 'border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-200 hover:bg-emerald-500/[0.16]'
-                                : 'border-white/[0.06] bg-white/[0.04] text-white/35 cursor-not-allowed'
-                            }`}
-                          >
-                            {ready ? 'Approve' : 'Review first'}
-                          </span>
-                        )}
-                        {item.actions.includes('dismiss') && (
-                          <span
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onDismiss(item);
-                            }}
-                            className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/55 hover:bg-white/[0.06]"
-                          >
-                            Dismiss
-                          </span>
-                        )}
-                      </div>
+
+                      {showLifecycle && <LifecycleBar stage={stage} />}
+
+                      {isInvestigating ? (
+                        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-sky-300">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                          Bud is investigating — results will appear below when ready
+                        </div>
+                      ) : (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {item.actions.includes('investigate') && (
+                            <span
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onInvestigate(item);
+                              }}
+                              className="rounded-md border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-medium text-sky-200 hover:bg-sky-500/[0.16]"
+                            >
+                              Investigate
+                            </span>
+                          )}
+                          {item.actions.includes('fix_with_bud') && (
+                            <span
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onInvestigate(item);
+                              }}
+                              className="rounded-md border border-orange-400/30 bg-orange-500/[0.08] px-2 py-1 text-[10px] font-medium text-orange-200 hover:bg-orange-500/[0.16]"
+                            >
+                              Fix with Bud
+                            </span>
+                          )}
+                          {item.actions.includes('approve') && ready && (
+                            <span
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onApprove(item);
+                              }}
+                              className="rounded-md border border-emerald-400/30 bg-emerald-500/[0.08] px-2 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/[0.16]"
+                            >
+                              Approve
+                            </span>
+                          )}
+                          {item.actions.includes('approve') && !ready && (
+                            <span
+                              title={item.approval?.readiness_summary}
+                              className="rounded-md border border-white/[0.06] bg-white/[0.04] px-2 py-1 text-[10px] font-medium text-white/35 cursor-not-allowed"
+                            >
+                              Building plan…
+                            </span>
+                          )}
+                          {item.actions.includes('dismiss') && (
+                            <span
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onDismiss(item);
+                              }}
+                              className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-white/55 hover:bg-white/[0.06]"
+                            >
+                              Dismiss
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </button>
                   );
                 })
@@ -1205,7 +1289,22 @@ function MemoryTab({ memoryLayer, commandState }: { memoryLayer: BudOsMemoryLaye
 /*                                EVOLUTION TAB                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function EvolutionTab({ recommendations, initiatives }: { recommendations: UxEvolutionRecommendation[]; initiatives: BudInitiative[] }) {
+function EvolutionTab({
+  recommendations,
+  initiatives,
+  efficiencyFindings,
+}: {
+  recommendations: UxEvolutionRecommendation[];
+  initiatives: BudInitiative[];
+  efficiencyFindings: Props['budOs']['efficiencyFindings'];
+}) {
+  const DOMAIN_LABEL: Record<string, string> = {
+    agent_fleet: 'Agent fleet',
+    workflow_redundancy: 'Workflow redundancy',
+    automation_gap: 'Automation gap',
+    operational_throughput: 'Throughput',
+  };
+
   return (
     <div className="space-y-4">
       <Card title="Initiative engine" subtitle="Proactive missions Bud has created from repeating signals.">
@@ -1260,6 +1359,56 @@ function EvolutionTab({ recommendations, initiatives }: { recommendations: UxEvo
           </div>
         </div>
       </Card>
+
+      <Card
+        title="Efficiency Architect"
+        subtitle="Fleet-wide operational efficiency: cost-per-outcome, redundant agents, automation ROI, throughput bottlenecks."
+      >
+        {efficiencyFindings.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-white/40">
+            No efficiency findings yet. Efficiency Architect runs weekly (Sunday 6 am).
+          </div>
+        ) : (
+          <div className="divide-y divide-white/[0.05]">
+            {efficiencyFindings.slice(0, 8).map((f) => {
+              const sev = f.severity as 'low' | 'medium' | 'high' | 'critical';
+              return (
+                <div key={f.id} className="px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${SEVERITY_TONE[sev]}`}>{f.priority}</span>
+                    <span className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[10px] text-white/55">
+                      {DOMAIN_LABEL[f.domain] ?? f.domain}
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{f.title}</p>
+                    <span className="text-[10px] text-white/35">{rel(f.created_at)}</span>
+                  </div>
+                  {f.body && (
+                    <p className="mt-1.5 text-xs leading-relaxed text-white/60 line-clamp-2">{f.body}</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/45">
+                    {f.proposed_fix && (
+                      <span>fix: <span className="text-white/65">{f.proposed_fix}</span></span>
+                    )}
+                    {f.estimated_saving && (
+                      <span className="text-emerald-400/80">saves: {f.estimated_saving}</span>
+                    )}
+                    {f.automation_candidate && (
+                      <Pill tone="cool">automation candidate</Pill>
+                    )}
+                  </div>
+                  {f.affected_agents.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {f.affected_agents.slice(0, 4).map((a) => (
+                        <span key={a} className="rounded border border-white/[0.06] bg-black/20 px-1.5 py-0.5 font-mono text-[10px] text-white/50">{a}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -1268,39 +1417,139 @@ function EvolutionTab({ recommendations, initiatives }: { recommendations: UxEvo
 /*                              DEPLOYMENTS TAB                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function DeploymentsTab({ commandState, autonomy, circuit }: {
+function DeploymentsTab({ commandState, autonomy, circuit, resilienceEvents }: {
   commandState: MissionControlHealth;
   autonomy: BudOsAutonomyCapability[];
   circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
+  resilienceEvents: Props['budOs']['resilienceEvents'];
 }) {
   const dep = commandState.deployment;
   const tone = dep.status === 'healthy' ? 'good' : dep.status === 'failed' ? 'bad' : dep.status === 'deploying' ? 'warn' : 'neutral';
   const circuitTone = circuit.state === 'closed' ? 'good' : circuit.state === 'open' ? 'bad' : 'warn';
   const circuitDot = circuit.state === 'closed' ? 'bg-emerald-400' : circuit.state === 'open' ? 'bg-red-400 animate-pulse' : 'bg-yellow-400 animate-pulse';
+
+  // Resilience event stats
+  const zombieEvents = resilienceEvents.filter((e) => e.guard === 'zombie_reaper');
+  const concurrencyEvents = resilienceEvents.filter((e) => e.guard === 'concurrency_guard');
+  const circuitEvents = resilienceEvents.filter((e) => e.guard === 'circuit_breaker');
+  const totalZombieReaped = zombieEvents.reduce(
+    (sum, e) => sum + ((e.payload.reaped_count as number) ?? 0), 0,
+  );
+  const lastZombieAt = zombieEvents[0]?.created_at ?? null;
+  const lastConcurrencyAt = concurrencyEvents[0]?.created_at ?? null;
+  const lastCircuitTripAt = circuitEvents[0]?.created_at ?? null;
+
   return (
     <div className="space-y-4">
 
-      {/* Circuit Breaker status — shown prominently so operators know API health at a glance */}
+      {/* ── Resilience Engine — all three guards in one panel ───────────────── */}
       <Card
-        title="Anthropic API circuit breaker"
-        subtitle="Opens after 5 consecutive API failures fleet-wide. Protects all agents during outages. Resets automatically after 5 minutes."
+        title="Resilience Engine"
+        subtitle="Three adaptive guards protect every agent run fleet-wide. They fire automatically — no configuration needed."
       >
-        <div className="flex items-center gap-4 px-5 py-4">
-          <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${circuitDot}`} />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-white">{circuit.label}</p>
+        <div className="grid gap-px bg-white/[0.04] md:grid-cols-3">
+
+          {/* Circuit Breaker */}
+          <div className="bg-[#0a0f1a] px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 flex-shrink-0 rounded-full ${circuitDot}`} />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Circuit Breaker</p>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-white">{circuit.label}</p>
             {circuit.state === 'open' && circuit.resetsAt && (
-              <p className="mt-0.5 text-xs text-white/50">Probing resumes at {new Date(circuit.resetsAt).toLocaleTimeString()}</p>
+              <p className="mt-1 text-xs text-amber-300">Probing resumes {rel(circuit.resetsAt)}</p>
             )}
             {circuit.state === 'half_open' && (
-              <p className="mt-0.5 text-xs text-white/50">Allowing probe calls — 2 successes needed to close</p>
+              <p className="mt-1 text-xs text-yellow-300">Probing — 2 successes to close</p>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <StatBlock label="State" value={circuit.state.replace('_', ' ').toUpperCase()} tone={circuitTone} />
+              <StatBlock
+                label="Streak"
+                value={String(circuit.failureStreak)}
+                tone={circuit.failureStreak >= 3 ? 'bad' : circuit.failureStreak > 0 ? 'warn' : 'good'}
+              />
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-white/45">
+              Opens after 5 consecutive fleet-wide failures. All LLM calls pause for 5 min. Auto-recovers.
+            </p>
+            {lastCircuitTripAt && (
+              <p className="mt-2 text-[10px] text-white/35">Last trip: {rel(lastCircuitTripAt)}</p>
             )}
           </div>
-          <div className="flex gap-3">
-            <StatBlock label="State" value={circuit.state.replace('_', ' ').toUpperCase()} tone={circuitTone} />
-            <StatBlock label="Failure streak" value={String(circuit.failureStreak)} tone={circuit.failureStreak >= 3 ? 'bad' : circuit.failureStreak > 0 ? 'warn' : 'good'} />
+
+          {/* Zombie Reaper */}
+          <div className="bg-[#0a0f1a] px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 flex-shrink-0 rounded-full ${totalZombieReaped > 0 ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Zombie Reaper</p>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {totalZombieReaped > 0
+                ? `${totalZombieReaped} zombie run${totalZombieReaped === 1 ? '' : 's'} cleared`
+                : 'No stuck runs detected'}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <StatBlock label="Events" value={String(zombieEvents.length)} tone="neutral" />
+              <StatBlock label="Reaped" value={String(totalZombieReaped)} tone={totalZombieReaped > 0 ? 'warn' : 'good'} />
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-white/45">
+              Finds runs stuck in 'running' past 20 min and marks them failed. Keeps health scores accurate.
+            </p>
+            {lastZombieAt && (
+              <p className="mt-2 text-[10px] text-white/35">Last reap: {rel(lastZombieAt)}</p>
+            )}
+          </div>
+
+          {/* Concurrency Guard */}
+          <div className="bg-[#0a0f1a] px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 flex-shrink-0 rounded-full ${concurrencyEvents.length > 0 ? 'bg-sky-400' : 'bg-emerald-400'}`} />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Concurrency Guard</p>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {concurrencyEvents.length > 0
+                ? `${concurrencyEvents.length} duplicate run${concurrencyEvents.length === 1 ? '' : 's'} blocked`
+                : 'No duplicate runs detected'}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <StatBlock label="Blocks" value={String(concurrencyEvents.length)} tone={concurrencyEvents.length > 0 ? 'warn' : 'good'} />
+              <StatBlock label="Agents affected" value={String(new Set(concurrencyEvents.map((e) => e.payload.agent_id as string)).size)} tone="neutral" />
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-white/45">
+              Prevents the same agent running twice concurrently. Stops burst pile-ups when cron fires during a slow run.
+            </p>
+            {lastConcurrencyAt && (
+              <p className="mt-2 text-[10px] text-white/35">Last block: {rel(lastConcurrencyAt)}</p>
+            )}
           </div>
         </div>
+
+        {/* Recent resilience events log */}
+        {resilienceEvents.length > 0 && (
+          <div className="border-t border-white/[0.05] px-5 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45 mb-2">Recent events</p>
+            <div className="max-h-[140px] space-y-1 overflow-auto">
+              {resilienceEvents.slice(0, 12).map((event) => {
+                const guardLabel = event.guard === 'circuit_breaker' ? 'Circuit' : event.guard === 'zombie_reaper' ? 'Reaper' : 'Concurrency';
+                const guardTone = event.guard === 'circuit_breaker' ? 'text-red-300' : event.guard === 'zombie_reaper' ? 'text-amber-300' : 'text-sky-300';
+                return (
+                  <div key={event.id} className="flex items-center gap-2 text-[11px]">
+                    <span className={`shrink-0 font-semibold ${guardTone}`}>{guardLabel}</span>
+                    <span className="text-white/55">{event.event_type.replaceAll('_', ' ')}</span>
+                    {event.guard === 'zombie_reaper' && (event.payload.reaped_count as number) > 0 && (
+                      <span className="text-amber-300/80">{event.payload.reaped_count as number} reaped</span>
+                    )}
+                    {event.guard === 'concurrency_guard' && (
+                      <span className="truncate text-sky-300/70 font-mono text-[10px]">{event.payload.agent_id as string}</span>
+                    )}
+                    <span className="ml-auto text-white/30">{rel(event.created_at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card title="Deployment + verification" subtitle="Repairs are not successful until deployment + verification confirm.">
@@ -1551,6 +1800,7 @@ export function MissionControlClient({
   const [queue, setQueue] = useState<BudOsQueueItem[]>(budOs.actionQueue);
   const [selectedId, setSelectedId] = useState<string | null>(budOs.actionQueue[0]?.id ?? null);
   const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
+  const [investigatingIds, setInvestigatingIds] = useState<Set<string>>(new Set());
 
   const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
   const workspace = useMemo(
@@ -1658,6 +1908,7 @@ export function MissionControlClient({
   }
 
   async function investigate(item: BudOsQueueItem) {
+    setInvestigatingIds((prev) => new Set([...prev, item.id]));
     try {
       if (item.source === 'agent_run' && item.agent_id) {
         const res = await fetch('/api/bud/investigate', {
@@ -1667,7 +1918,6 @@ export function MissionControlClient({
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body?.error ?? 'Investigation failed');
-        toast.success('Bud started investigating');
         return;
       }
       const res = await fetch('/api/bud/command', {
@@ -1677,8 +1927,8 @@ export function MissionControlClient({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
-      toast.success('Bud queued an investigation');
     } catch (error) {
+      setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
       toast.error(error instanceof Error ? error.message : 'Investigation failed');
     }
   }
@@ -1770,6 +2020,7 @@ export function MissionControlClient({
                   onDismiss={(item) => void dismiss(item)}
                   onApprove={(item) => void approve(item)}
                   onInvestigate={(item) => void investigate(item)}
+                  investigatingIds={investigatingIds}
                 />
                 {selected?.approval ? (
                   <ApprovalInspector
@@ -1807,6 +2058,7 @@ export function MissionControlClient({
                 onDismiss={(item) => void dismiss(item)}
                 onApprove={(item) => void approve(item)}
                 onInvestigate={(item) => void investigate(item)}
+                investigatingIds={investigatingIds}
               />
               {selected?.approval ? (
                 <ApprovalInspector
@@ -1827,9 +2079,22 @@ export function MissionControlClient({
 
           {tab === 'memory' && <MemoryTab memoryLayer={budOs.memoryLayer} commandState={commandState} />}
 
-          {tab === 'evolution' && <EvolutionTab recommendations={budOs.uxEvolution} initiatives={budOs.initiatives} />}
+          {tab === 'evolution' && (
+            <EvolutionTab
+              recommendations={budOs.uxEvolution}
+              initiatives={budOs.initiatives}
+              efficiencyFindings={budOs.efficiencyFindings}
+            />
+          )}
 
-          {tab === 'deployments' && <DeploymentsTab commandState={commandState} autonomy={budOs.autonomy} circuit={budOs.circuit} />}
+          {tab === 'deployments' && (
+            <DeploymentsTab
+              commandState={commandState}
+              autonomy={budOs.autonomy}
+              circuit={budOs.circuit}
+              resilienceEvents={budOs.resilienceEvents}
+            />
+          )}
 
           {tab === 'settings' && (
             <SettingsTab

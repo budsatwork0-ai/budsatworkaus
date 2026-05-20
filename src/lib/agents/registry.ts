@@ -67,6 +67,9 @@ import { designSystemAgent } from './agents/design-system';
 // Bud — autonomous AI orchestrator (replaces The Foreman)
 import { budAgent } from './agents/bud';
 
+// Efficiency Architect — fleet-wide operational efficiency
+import { efficiencyArchitectAgent } from './agents/efficiency-architect';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -106,6 +109,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [analyticsIntelligenceAgent.id]:   analyticsIntelligenceAgent,
   [designSystemAgent.id]:            designSystemAgent,
   [budAgent.id]:                     budAgent,
+  [efficiencyArchitectAgent.id]:     efficiencyArchitectAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

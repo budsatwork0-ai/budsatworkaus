@@ -149,6 +149,23 @@ export function buildBudInitiatives(args: {
     });
   }
 
+  // High agent failure rate -> efficiency review
+  const totalRuns = commandState.agents.reduce((s, a) => s + (a.health.score < 60 ? 1 : 0), 0);
+  if (totalRuns >= 3) {
+    initiatives.push({
+      id: 'init-efficiency-review',
+      title: 'Run Efficiency Architect',
+      why: `${totalRuns} agents are scoring below 60 — likely cost or redundancy opportunities.`,
+      expected_impact: 'Recover wasted compute, reduce operational costs, identify automation ROI.',
+      confidence: 0.70,
+      severity: 'medium',
+      assigned_agents: ['efficiency-architect'],
+      signals: [`${totalRuns} low-scoring agents in the fleet`],
+      status: 'proposed',
+      category: 'efficiency',
+    });
+  }
+
   // Deployment failures -> repair automation
   if (commandState.deployment.status === 'failed') {
     initiatives.push({
