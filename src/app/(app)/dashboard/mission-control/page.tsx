@@ -9,7 +9,7 @@ import { getBudCapabilities } from '@/lib/bud/capabilities';
 import { buildStructuredFailures } from '@/lib/bud/structured-failure';
 import { buildBudInitiatives } from '@/lib/bud/initiatives';
 import { buildThoughtStream } from '@/lib/bud/thought-stream';
-import { BUD_AUTHORITY_COOKIE } from '@/app/api/bud/authority/route';
+import { BUD_AUTHORITY_COOKIE } from '@/lib/bud/authority';
 
 const VALID_CEILINGS: BudAuthorityLevel[] = [
   'L0_OBSERVER',

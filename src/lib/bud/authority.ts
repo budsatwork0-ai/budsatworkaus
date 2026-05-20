@@ -10,6 +10,8 @@
  */
 import type { MissionControlHealth } from './health';
 
+export const BUD_AUTHORITY_COOKIE = 'buds-os-authority';
+
 export type BudAuthorityLevel =
   | 'L0_OBSERVER'
   | 'L1_ASSISTANT'

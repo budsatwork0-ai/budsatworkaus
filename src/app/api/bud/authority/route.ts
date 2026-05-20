@@ -8,12 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getAuthUser } from '@/lib/auth';
-import { AUTHORITY_LABELS, type BudAuthorityLevel } from '@/lib/bud/authority';
+import { AUTHORITY_LABELS, BUD_AUTHORITY_COOKIE, type BudAuthorityLevel } from '@/lib/bud/authority';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-export const BUD_AUTHORITY_COOKIE = 'buds-os-authority';
 
 const ALLOWED_LEVELS: BudAuthorityLevel[] = [
   'L0_OBSERVER',
