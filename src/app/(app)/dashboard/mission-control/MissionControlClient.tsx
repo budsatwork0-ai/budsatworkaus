@@ -1843,11 +1843,19 @@ export function MissionControlClient({
           created_at: row.created_at,
         }, ...prev].slice(0, 20));
       })
+      // Refresh the queue whenever Bud creates a new approval item or updates a task —
+      // this is what makes the next step appear without a manual page reload.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bud_approval_queue' }, () => {
+        router.refresh();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bud_tasks' }, () => {
+        router.refresh();
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [router]);
 
   function refreshHint() {
     router.refresh();
@@ -1918,15 +1926,17 @@ export function MissionControlClient({
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body?.error ?? 'Investigation failed');
-        return;
+      } else {
+        const res = await fetch('/api/bud/command', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ command: `Investigate and propose a fix: ${item.title}. ${item.detail}` }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
       }
-      const res = await fetch('/api/bud/command', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ command: `Investigate and propose a fix: ${item.title}. ${item.detail}` }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
+      setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+      router.refresh();
     } catch (error) {
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
       toast.error(error instanceof Error ? error.message : 'Investigation failed');
