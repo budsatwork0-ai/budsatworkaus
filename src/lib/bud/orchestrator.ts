@@ -360,10 +360,12 @@ export async function executeRepairPlan(
       const repoName  = process.env.GITHUB_REPO_NAME ?? '';
       const branchUrl = `https://github.com/${repoOwner}/${repoName}/tree/${branchName}`;
 
-      // Pull the structured failure from the task so we can open a PR-ready issue
+      // Pull the structured failure — present in investigation tasks (structured_failure key)
+      // and absent in parse-failure tasks (which use { error, raw }). Fall back to the
+      // task description which always has a human-readable summary.
       const rawOut = (task.raw_output ?? {}) as Record<string, unknown>;
       const sf = rawOut.structured_failure as { recommendedFix?: string; errorType?: string } | undefined;
-      const recommendedFix = sf?.recommendedFix ?? 'See task raw_output for details.';
+      const recommendedFix = sf?.recommendedFix ?? task.description ?? 'Inspect the task raw_output for details.';
       const errorType      = sf?.errorType ?? 'unknown';
 
       // Open a GitHub issue scoped to this branch so the fix is actionable
