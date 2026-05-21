@@ -1902,9 +1902,9 @@ function EvolutionTab({
                       <Pill tone="cool">automation candidate</Pill>
                     )}
                   </div>
-                  {f.affected_agents.length > 0 && (
+                  {(f.affected_agents?.length ?? 0) > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      {f.affected_agents.slice(0, 4).map((a) => (
+                      {(f.affected_agents ?? []).slice(0, 4).map((a) => (
                         <span key={a} className="rounded border border-white/[0.06] bg-black/20 px-1.5 py-0.5 font-mono text-[10px] text-white/50">{a}</span>
                       ))}
                     </div>

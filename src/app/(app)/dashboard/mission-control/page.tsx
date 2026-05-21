@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
+import { Suspense } from 'react';
 import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildBudOsAutonomy, buildBudOsMemoryLayer, buildBudOsWorkforce, deriveBudOsState } from '@/lib/bud/os-view-model';
@@ -408,5 +409,9 @@ async function loadData() {
 
 export default async function MissionControlPage() {
   const data = await loadData();
-  return <MissionControlClient {...data} />;
+  return (
+    <Suspense>
+      <MissionControlClient {...data} />
+    </Suspense>
+  );
 }

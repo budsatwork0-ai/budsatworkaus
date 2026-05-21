@@ -74,23 +74,32 @@ export const adminUxDesignerAgent: AgentDefinition = {
       results.push(...batchResults);
     }
 
+    const VALID_SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
+    type Sev = typeof VALID_SEVERITY[number];
     const findingStrings: string[] = [];
     let total = 0;
     let highestSeverity = 0; // 0=low,1=medium,2=high,3=critical
     const SEV_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
     for (const { page, findings } of results) {
       for (const f of findings) {
-        await ctx.supabase.from('admin_ux_proposals').insert({
-          run_id: ctx.runId,
-          page_path: page.path,
-          audience: page.audience,
-          severity: f.severity,
-          title: f.title,
-          body: `**Category:** ${f.category}\n\n${f.body}`,
-          proposed_change: f.proposed_change,
-        });
-        findingStrings.push(`[${f.severity}] ${page.path}: ${f.title}`);
-        highestSeverity = Math.max(highestSeverity, SEV_RANK[f.severity] ?? 0);
+        const severity: Sev = VALID_SEVERITY.includes(f.severity as Sev) ? (f.severity as Sev) : 'medium';
+        try {
+          await ctx.supabase.from('admin_ux_proposals').insert({
+            run_id: ctx.runId,
+            page_path: page.path,
+            audience: page.audience,
+            severity,
+            title: f.title,
+            body: `**Category:** ${f.category}\n\n${f.body}`,
+            proposed_change: f.proposed_change,
+          });
+        } catch {
+          // Non-fatal — a single bad finding row should not fail the whole run
+          ctx.log(`admin_ux_proposals insert failed for ${page.path}: ${f.title}`);
+          continue;
+        }
+        findingStrings.push(`[${severity}] ${page.path}: ${f.title}`);
+        highestSeverity = Math.max(highestSeverity, SEV_RANK[severity] ?? 0);
         total += 1;
       }
     }

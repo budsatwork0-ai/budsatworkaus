@@ -682,6 +682,15 @@ Return ONLY valid JSON:
     }
   }
 
+  // Write diff_summary so the Repair Pipeline Strip can advance past the DIFF stage.
+  const diffSummary = appliedFiles.length > 0
+    ? patches
+        .filter((p) => appliedFiles.includes(p.file))
+        .map((p) => `${p.file}: ${p.reason}`)
+        .join('\n')
+    : `No files patched — ${patchNote || 'LLM returned no patches'}`;
+  await updateExecution(supabase, executionId, { diff_summary: diffSummary });
+
   await finishStep(supabase, patchStep,
     appliedFiles.length > 0 ? 'passed' : 'blocked',
     { branch: branchName, files_patched: appliedFiles, note: patchNote },
