@@ -376,7 +376,9 @@ export async function executeRepairPlan(
 
   if (!task) throw new Error(`Bud task ${taskId} not found`);
 
-  const targetAgent = task.source_agent ?? task.target_agent ?? 'unknown';
+  // Prefer explicit target_agent (set for improve/review commands) over source_agent
+  // so dedup scoping doesn't collapse all bud commands into one shared history.
+  const targetAgent = task.target_agent ?? task.source_agent ?? 'unknown';
 
   if (!approved) {
     await updateBudTask(supabase, taskId, { status: 'failed' });
