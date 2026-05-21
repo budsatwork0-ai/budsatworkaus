@@ -10,7 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BudTask, BudActivityEvent, BudActivityEventType, AutonomyLevel } from './types';
 import { getDefaultAutonomyLevel, requiresApproval } from './autonomy';
-import { createIssue, createBranch, budBranchName } from './github-executor';
+import { createIssue, createBranch, budBranchName, branchExists } from './github-executor';
 
 // ── Activity feed ─────────────────────────────────────────────────────────────
 
@@ -417,12 +417,21 @@ export async function executeRepairPlan(
     }
 
     if (openCr) {
-      await updateBudTask(supabase, taskId, { status: 'completed', linked_issue: openCr.issue_url });
+      const live = await branchExists(openCr.branch_name);
+      if (live) {
+        await updateBudTask(supabase, taskId, { status: 'completed', linked_issue: openCr.issue_url });
+        await writeBudActivity(supabase,
+          `Skipped duplicate repair branch for ${targetAgent} — \`${openCr.branch_name}\` is already open. Linking task to existing work.`,
+          { event_type: 'repair', actor: 'bud', target: targetAgent, metadata: { existing_change_request_id: openCr.id, branch: openCr.branch_name } },
+        );
+        return;
+      }
+      // Branch no longer exists on GitHub — mark the stale CR and proceed with a fresh repair.
+      await supabase.from('bud_change_requests').update({ status: 'stale' }).eq('id', openCr.id);
       await writeBudActivity(supabase,
-        `Skipped duplicate repair branch for ${targetAgent} — \`${openCr.branch_name}\` is already open. Linking task to existing work.`,
-        { event_type: 'repair', actor: 'bud', target: targetAgent, metadata: { existing_change_request_id: openCr.id, branch: openCr.branch_name } },
+        `Stale repair branch detected for ${targetAgent} — \`${openCr.branch_name}\` no longer exists. Starting fresh repair.`,
+        { event_type: 'repair', actor: 'bud', target: targetAgent, metadata: { stale_change_request_id: openCr.id } },
       );
-      return;
     }
 
     const branchName = budBranchName(targetAgent);

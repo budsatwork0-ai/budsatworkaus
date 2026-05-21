@@ -192,6 +192,18 @@ export async function getPRStatus(number: number): Promise<'open' | 'closed' | '
   return res.data.state as 'open' | 'closed';
 }
 
+export async function branchExists(name: string): Promise<boolean> {
+  if (!OWNER || !REPO) return false;
+  const octokit = client();
+  try {
+    await octokit.git.getRef({ owner: OWNER, repo: REPO, ref: `heads/${name}` });
+    return true;
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 404) return false;
+    throw err;
+  }
+}
+
 export function budBranchName(agentId: string): string {
   const ts = Date.now();
   const safe = agentId.replace(/[^a-z0-9-]/g, '-');
