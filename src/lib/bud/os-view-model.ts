@@ -521,14 +521,28 @@ export function buildBudOsActionQueue(args: {
 
   const sessionByTask = new Map(args.commandState.repair_sessions.map((s) => [s.id, s]));
 
-  // Build a map of the most recent repair session per agent so queue items that
-  // don't have a direct task_id (agent_run, agent_health, bud_insight) can still
-  // surface the "Run gated repair" button in the Repair Studio.
+  // Build a map of the most recent repair task per agent.
+  // Tasks created via the command bar all have source_agent='bud', so we match by
+  // agent name appearing in the task description (e.g. "Admin UX Designer is broken").
+  // Tasks created via triggerInvestigation have source_agent=agentId, so we match
+  // those directly. Most-recent wins — sort ascending so later entries overwrite.
   const latestSessionByAgent = new Map<string, string>();
-  for (const s of [...args.commandState.repair_sessions].sort(
+  const sorted = [...args.commandState.repair_sessions].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  )) {
-    if (s.agent_id) latestSessionByAgent.set(s.agent_id, s.id);
+  );
+  for (const s of sorted) {
+    if (s.agent_id && s.agent_id !== 'bud') {
+      latestSessionByAgent.set(s.agent_id, s.id);
+    }
+  }
+  // Second pass: match command-bar tasks (source_agent='bud') by agent name in description
+  for (const s of sorted) {
+    if (s.agent_id !== 'bud') continue;
+    for (const agent of args.commandState.agents) {
+      if (!latestSessionByAgent.has(agent.id) && agent.name && s.description.includes(agent.name)) {
+        latestSessionByAgent.set(agent.id, s.id);
+      }
+    }
   }
 
   for (const approval of args.budApprovals) {
@@ -772,15 +786,8 @@ export function buildRepairWorkspace(args: {
   rollbackEvents?: RollbackEventRow[];
 }): BudOsRepairWorkspace {
   const selected = args.selectedItem;
-  // task_id is null for agent_run / agent_health / insight queue items — fall back to the
-  // most recent repair session for the same agent so "Run gated repair" is always available.
   const explicitTaskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected.source_id : null);
-  const agentSession = !explicitTaskId && selected?.agent_id
-    ? args.commandState.repair_sessions
-        .filter((s) => s.agent_id === selected.agent_id)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null
-    : null;
-  const taskId = explicitTaskId ?? agentSession?.id ?? null;
+  const taskId = explicitTaskId ?? null;
   const session = taskId ? args.commandState.repair_sessions.find((item) => item.id === taskId) ?? null : null;
   const execution = taskId ? args.executions.find((item) => item.task_id === taskId) ?? null : null;
   const executionSteps = execution ? args.steps.filter((step) => step.execution_id === execution.id) : [];
