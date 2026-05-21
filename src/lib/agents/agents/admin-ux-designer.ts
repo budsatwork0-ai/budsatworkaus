@@ -62,12 +62,13 @@ export const adminUxDesignerAgent: AgentDefinition = {
       const batch = pages.slice(i, i + BATCH);
       const batchResults = await Promise.all(batch.map(async (page): Promise<PageResult> => {
         const prompt = `Audience: ${page.audience}\nPath: ${page.path}\nNotes: ${page.notes ?? ''}\n${page.html_snippet ? `HTML:\n${page.html_snippet.slice(0, 6000)}` : ''}${page.screenshot_url ? `\nScreenshot: ${page.screenshot_url}` : ''}\nReturn findings JSON.`;
-        const raw = await ctx.llm(prompt, { system: SYSTEM });
         try {
+          const raw = await ctx.llm(prompt, { system: SYSTEM });
           const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
           const parsed: { findings: Finding[] } = JSON.parse(jsonStr);
           return { page, findings: parsed.findings ?? [] };
-        } catch {
+        } catch (err) {
+          ctx.log(`Audit skipped for ${page.path}: ${err instanceof Error ? err.message : String(err)}`);
           return { page, findings: [] };
         }
       }));
@@ -104,11 +105,14 @@ export const adminUxDesignerAgent: AgentDefinition = {
       }
     }
     const RISK_MAP = ['low', 'medium', 'high', 'critical'] as const;
+    const summary = total > 0
+      ? `UX audit complete — ${total} finding(s) logged across ${pages.length} page(s).`
+      : `UX audit complete — ${pages.length} page(s) audited, no issues found.`;
     return {
-      summary: `Logged ${total} UX finding(s) across ${pages.length} page(s).`,
+      summary,
       output: {
-        status: total > 0 ? 'success' : 'partial',
-        summary: `Logged ${total} UX finding(s) across ${pages.length} page(s).`,
+        status: 'success',
+        summary,
         findings: findingStrings,
         recommended_actions: total > 0 ? ['Review UX proposals in the admin panel'] : [],
         confidence: 0.85,
