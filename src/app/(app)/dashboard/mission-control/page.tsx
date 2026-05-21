@@ -1,6 +1,10 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { Suspense } from 'react';
+import MissionControlAutonomy from './_components/MissionControlAutonomy';
+import type { PipelineSurface } from '@/lib/pipeline/types';
+
+const VALID_SURFACES: PipelineSurface[] = ['public', 'admin', 'crew', 'customer'];
 import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildBudOsAutonomy, buildBudOsMemoryLayer, buildBudOsWorkforce, deriveBudOsState } from '@/lib/bud/os-view-model';
@@ -415,11 +419,23 @@ async function loadData() {
   };
 }
 
-export default async function MissionControlPage() {
-  const data = await loadData();
+export default async function MissionControlPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>;
+}) {
+  const params = await searchParams;
+  const surface = VALID_SURFACES.includes(params.surface as PipelineSurface)
+    ? (params.surface as PipelineSurface)
+    : 'admin';
+
+  const [data] = await Promise.all([loadData()]);
   return (
     <Suspense>
-      <MissionControlClient {...data} />
+      <MissionControlClient
+        {...data}
+        pipelinePanel={<MissionControlAutonomy surface={surface} />}
+      />
     </Suspense>
   );
 }

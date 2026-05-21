@@ -143,6 +143,7 @@ type Props = {
       created_at: string;
     }>;
   };
+  pipelinePanel?: React.ReactNode;
 };
 
 type BudCommandResponse = {
@@ -2303,6 +2304,7 @@ export function MissionControlClient({
   budActivity = [],
   commandState,
   budOs,
+  pipelinePanel,
 }: Props) {
   const router = useRouter();
   const search = useSearchParams();
@@ -2599,6 +2601,7 @@ export function MissionControlClient({
                   {insights.length === 0 && <p className="px-2 py-4 text-sm text-white/40">No unresolved notices.</p>}
                 </div>
               </Card>
+              {pipelinePanel}
             </>
           )}
 
