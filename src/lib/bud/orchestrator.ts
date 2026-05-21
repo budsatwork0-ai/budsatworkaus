@@ -243,6 +243,17 @@ export async function triggerInvestigation(
   agentId: string,
   agentName: string,
 ): Promise<BudTask> {
+  // Bud cannot investigate itself — self-investigation produces unreliable
+  // reports and can loop. Any failure in the bud agent needs human review.
+  if (agentId === 'bud') {
+    await writeBudActivity(
+      supabase,
+      'Bud detected an issue with itself but cannot self-investigate. Review the bud agent manually in Mission Control.',
+      { event_type: 'error', actor: 'bud', target: 'bud' },
+    );
+    throw new Error('Self-investigation blocked — Bud cannot investigate itself.');
+  }
+
   // Dedup: if an open task for this agent already exists in the last 24h, return it
   // rather than spawning another branch. This prevents the self-investigation loop
   // where each Bud cycle detects the prior failure and creates yet another repair branch.
@@ -376,6 +387,18 @@ export async function executeRepairPlan(
 
   if (!task) throw new Error(`Bud task ${taskId} not found`);
 
+  // Bud cannot repair itself — a broken Bud cannot reliably write its own fix.
+  const targetAgent = task.source_agent ?? task.target_agent ?? 'unknown';
+  if (targetAgent === 'bud') {
+    await updateBudTask(supabase, taskId, { status: 'failed' });
+    await writeBudActivity(
+      supabase,
+      'Bud cannot repair itself — self-repair is disabled. Review the bud agent source manually.',
+      { event_type: 'error', actor: 'bud', target: 'bud' },
+    );
+    return;
+  }
+
   if (!approved) {
     await updateBudTask(supabase, taskId, { status: 'failed' });
     await writeBudActivity(supabase,
@@ -390,23 +413,34 @@ export async function executeRepairPlan(
   const risk_level = task.risk_level ?? 'low';
 
   if (level >= 3 && ['low', 'medium'].includes(risk_level)) {
-    // Dedup: if there's already an open change request for the same target agent
-    // created in the last 24h, link to it rather than spawning a second branch.
-    const targetAgent = task.source_agent ?? task.target_agent ?? 'unknown';
+    // Dedup: if there's already an open change request for the same target agent,
+    // link to it rather than spawning a second branch. Scope to this agent's tasks
+    // so a branch for a different agent doesn't block unrelated repairs.
     const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const { data: openCr } = await supabase
-      .from('bud_change_requests')
-      .select('id, branch_name, issue_url')
-      .eq('status', 'open')
-      .gte('created_at', since24h)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: agentTasks } = await supabase
+      .from('bud_tasks')
+      .select('id')
+      .eq('source_agent', targetAgent);
+    const agentTaskIds = (agentTasks ?? []).map((t: { id: string }) => t.id);
+
+    let openCr: { id: string; branch_name: string; issue_url: string | null } | null = null;
+    if (agentTaskIds.length > 0) {
+      const { data } = await supabase
+        .from('bud_change_requests')
+        .select('id, branch_name, issue_url')
+        .eq('status', 'open')
+        .in('task_id', agentTaskIds)
+        .gte('created_at', since24h)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      openCr = data ?? null;
+    }
 
     if (openCr) {
       await updateBudTask(supabase, taskId, { status: 'completed', linked_issue: openCr.issue_url });
       await writeBudActivity(supabase,
-        `Bud skipped duplicate branch for ${targetAgent} — existing branch \`${openCr.branch_name}\` is already open. Work on that branch instead.`,
+        `Skipped duplicate repair branch for ${targetAgent} — \`${openCr.branch_name}\` is already open. Linking task to existing work.`,
         { event_type: 'repair', actor: 'bud', target: targetAgent, metadata: { existing_change_request_id: openCr.id, branch: openCr.branch_name } },
       );
       return;
