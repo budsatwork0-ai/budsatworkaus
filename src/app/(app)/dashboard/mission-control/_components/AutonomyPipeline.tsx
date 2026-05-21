@@ -51,6 +51,8 @@ const EMPTY_STAGE_MAP = (): Record<PipelineStageId, PipelineStageStatus> =>
     {} as Record<PipelineStageId, PipelineStageStatus>,
   );
 
+type SimulateOutcome = 'success' | 'rejected' | 'rollback';
+
 export default function AutonomyPipeline({
   surface,
   initialRun,
@@ -59,6 +61,22 @@ export default function AutonomyPipeline({
 }: Props) {
   const [run, setRun] = useState<PipelineRunDetail | null>(initialRun);
   const [selectedId, setSelectedId] = useState<PipelineStageId>('detect');
+  const [simulating, setSimulating] = useState(false);
+  const [simOutcome, setSimOutcome] = useState<SimulateOutcome>('success');
+
+  async function startSimulation() {
+    if (simulating) return;
+    setSimulating(true);
+    try {
+      await fetch('/api/pipeline/simulate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ surface, outcome: simOutcome }),
+      });
+    } finally {
+      setSimulating(false);
+    }
+  }
   const supabase = useMemo(
     () =>
       createBrowserClient(
@@ -187,22 +205,78 @@ export default function AutonomyPipeline({
 
   // ─── render ────────────────────────────────────────────────────────────────
   return (
-    <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <PipelineColumn
-        surface={surface}
-        run={run}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        killSwitchPaused={killSwitchPaused}
-      />
-      <DetailPanel
-        stage={selectedStage}
-        status={stageStatus}
-        artifacts={run?.artifacts.filter((a) => a.stage === selectedId || a.stage === null) ?? []}
-        scores={run?.scores ?? []}
-      />
-      <div className="lg:col-span-2">
-        <TelemetryStrip kpis={initialKpis} />
+    <div className="flex flex-col gap-5">
+      {/* ── Simulate controls ── */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+        <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-white/45">
+          Trigger a run
+        </span>
+        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          {(['success', 'rejected', 'rollback'] as SimulateOutcome[]).map((o) => (
+            <button
+              key={o}
+              onClick={() => setSimOutcome(o)}
+              className={[
+                'rounded-md px-3 py-1 font-mono text-[10.5px] uppercase tracking-wider transition-colors',
+                simOutcome === o
+                  ? o === 'success'
+                    ? 'bg-emerald-400 text-emerald-950'
+                    : o === 'rejected'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-amber-400 text-amber-950'
+                  : 'text-white/40 hover:text-white',
+              ].join(' ')}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => void startSimulation()}
+          disabled={simulating}
+          className={[
+            'ml-auto flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition-all',
+            simulating
+              ? 'cursor-not-allowed border border-white/10 text-white/30'
+              : 'border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20 hover:shadow-[0_0_20px_rgba(74,222,128,0.15)]',
+          ].join(' ')}
+        >
+          {simulating ? (
+            <>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border border-white/20 border-t-white/60" />
+              running…
+            </>
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+              Simulate
+            </>
+          )}
+        </button>
+        <p className="w-full font-mono text-[10px] text-white/30">
+          Walks all ten stages live via Realtime · ~5 s · no real code is changed
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <PipelineColumn
+          surface={surface}
+          run={run}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          killSwitchPaused={killSwitchPaused}
+        />
+        <DetailPanel
+          stage={selectedStage}
+          status={stageStatus}
+          artifacts={run?.artifacts.filter((a) => a.stage === selectedId || a.stage === null) ?? []}
+          scores={run?.scores ?? []}
+        />
+        <div className="lg:col-span-2">
+          <TelemetryStrip kpis={initialKpis} />
+        </div>
       </div>
     </div>
   );
