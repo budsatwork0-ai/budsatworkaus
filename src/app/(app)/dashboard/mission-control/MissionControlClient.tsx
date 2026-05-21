@@ -839,9 +839,9 @@ function RepairPipelineStrip({ workspace }: { workspace: BudOsRepairWorkspace })
   }, -1);
 
   return (
-    <div className="border-b border-white/[0.05] px-5 py-3">
+    <div className="border-b border-white/[0.05] px-5 py-3 overflow-hidden">
       <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/30">Repair pipeline</p>
-      <div className="flex items-center overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex items-center overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         {REPAIR_PIPELINE.map((phase, idx) => {
           const s = statuses[phase.key];
           const done = s === 'done';
@@ -921,7 +921,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
   return (
     <Card
       title="Repair studio"
-      subtitle="Detect → diagnose → search context → craft diff → validate → quality gates → risk score → PR → approve → deploy → learn"
+      subtitle="14-phase autonomous repair pipeline"
       action={
         <div className="flex items-center gap-2">
           {workspace.issue_url && (
@@ -2593,16 +2593,19 @@ export function MissionControlClient({
           {tab === 'workforce' && <Workforce clusters={budOs.workforce} commandState={commandState} />}
 
           {tab === 'repairs' && (
-            <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-              <ActionQueue
-                items={queue.filter((item) => ['critical', 'needs_approval', 'watch_items'].includes(item.group))}
-                selectedId={selected?.id ?? null}
-                onSelect={(item) => setSelectedId(item.id)}
-                onDismiss={(item) => void dismiss(item)}
-                onApprove={(item) => void approve(item)}
-                onInvestigate={(item) => void investigate(item)}
-                investigatingIds={investigatingIds}
-              />
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+              <div className="min-w-0">
+                <ActionQueue
+                  items={queue.filter((item) => ['critical', 'needs_approval', 'watch_items'].includes(item.group))}
+                  selectedId={selected?.id ?? null}
+                  onSelect={(item) => setSelectedId(item.id)}
+                  onDismiss={(item) => void dismiss(item)}
+                  onApprove={(item) => void approve(item)}
+                  onInvestigate={(item) => void investigate(item)}
+                  investigatingIds={investigatingIds}
+                />
+              </div>
+              <div className="min-w-0">
               {selected?.approval ? (
                 <ApprovalInspector
                   item={selected}
@@ -2613,6 +2616,7 @@ export function MissionControlClient({
               ) : (
                 <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
               )}
+              </div>
             </div>
           )}
 
