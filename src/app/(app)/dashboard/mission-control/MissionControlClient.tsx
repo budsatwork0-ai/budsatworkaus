@@ -920,6 +920,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
 
   return (
     <Card
+      className="overflow-hidden"
       title="Repair studio"
       subtitle="14-phase autonomous repair pipeline"
       action={
@@ -1069,7 +1070,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
                       <span className="text-xs font-semibold text-white/85">{step.state.replaceAll('_', ' ')}</span>
                       <span className="ml-auto text-[10px] uppercase tracking-wider text-white/40">{step.status}</span>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-white/55">{step.summary}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-white/55 break-words">{step.summary}</p>
                   </div>
                 ))
               )}
@@ -1084,7 +1085,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{log.level}</span>
                     <span className="ml-auto text-[10px] text-white/35">{rel(log.created_at)}</span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-white/65">{log.message}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/65 break-words">{log.message}</p>
                 </div>
               ))}
               {workspace.logs.length === 0 && <p className="px-3 py-3 text-xs text-white/40">Bud has nothing to say about this repair yet.</p>}
@@ -2556,25 +2557,29 @@ export function MissionControlClient({
           {tab === 'overview' && (
             <>
               <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-                <ActionQueue
-                  items={queue}
-                  selectedId={selected?.id ?? null}
-                  onSelect={(item) => setSelectedId(item.id)}
-                  onDismiss={(item) => void dismiss(item)}
-                  onApprove={(item) => void approve(item)}
-                  onInvestigate={(item) => void investigate(item)}
-                  investigatingIds={investigatingIds}
-                />
-                {selected?.approval ? (
-                  <ApprovalInspector
-                    item={selected}
-                    onApprove={(item, notes) => approve(item, notes)}
-                    onReject={(item, reason) => reject(item, reason)}
+                <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                  <ActionQueue
+                    items={queue}
+                    selectedId={selected?.id ?? null}
+                    onSelect={(item) => setSelectedId(item.id)}
+                    onDismiss={(item) => void dismiss(item)}
+                    onApprove={(item) => void approve(item)}
                     onInvestigate={(item) => void investigate(item)}
+                    investigatingIds={investigatingIds}
                   />
-                ) : (
-                  <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
-                )}
+                </div>
+                <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                  {selected?.approval ? (
+                    <ApprovalInspector
+                      item={selected}
+                      onApprove={(item, notes) => approve(item, notes)}
+                      onReject={(item, reason) => reject(item, reason)}
+                      onInvestigate={(item) => void investigate(item)}
+                    />
+                  ) : (
+                    <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+                  )}
+                </div>
               </div>
               <Card title="Bud noticed" subtitle="Insights Bud has not yet resolved.">
                 <div className="divide-y divide-white/[0.04] px-3">
