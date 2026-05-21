@@ -521,6 +521,16 @@ export function buildBudOsActionQueue(args: {
 
   const sessionByTask = new Map(args.commandState.repair_sessions.map((s) => [s.id, s]));
 
+  // Build a map of the most recent repair session per agent so queue items that
+  // don't have a direct task_id (agent_run, agent_health, bud_insight) can still
+  // surface the "Run gated repair" button in the Repair Studio.
+  const latestSessionByAgent = new Map<string, string>();
+  for (const s of [...args.commandState.repair_sessions].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )) {
+    if (s.agent_id) latestSessionByAgent.set(s.agent_id, s.id);
+  }
+
   for (const approval of args.budApprovals) {
     const annotated = approval as BudApprovalItem & {
       bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
@@ -580,7 +590,7 @@ export function buildBudOsActionQueue(args: {
       id: `run:${run.id}`,
       source: 'agent_run',
       source_id: run.id,
-      task_id: null,
+      task_id: run.agent_id ? (latestSessionByAgent.get(run.agent_id) ?? null) : null,
       group,
       title: `${agentById.get(run.agent_id)?.name ?? run.agent_id} needs Bud`,
       detail: run.summary ?? 'Bud noticed a failed run without a useful explanation.',
@@ -621,7 +631,7 @@ export function buildBudOsActionQueue(args: {
       id: `agent-health:${agent.id}`,
       source: 'agent_health',
       source_id: agent.id,
-      task_id: null,
+      task_id: latestSessionByAgent.get(agent.id) ?? null,
       group,
       title: `${agent.name} is ${agent.health.label.replace('_', ' ')}`,
       detail: agent.recommended_action,
