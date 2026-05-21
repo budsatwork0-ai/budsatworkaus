@@ -839,9 +839,9 @@ function RepairPipelineStrip({ workspace }: { workspace: BudOsRepairWorkspace })
   }, -1);
 
   return (
-    <div className="border-b border-white/[0.05] px-5 py-3 overflow-hidden">
+    <div className="border-b border-white/[0.05] px-5 py-3">
       <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/30">Repair pipeline</p>
-      <div className="flex items-center overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="flex items-center overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
         {REPAIR_PIPELINE.map((phase, idx) => {
           const s = statuses[phase.key];
           const done = s === 'done';
@@ -950,8 +950,8 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
       {/* ── Full pipeline strip ─────────────────────────────────────────────── */}
       <RepairPipelineStrip workspace={workspace} />
 
-      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-3">
+      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.1fr_0.9fr]" style={{ minWidth: 0 }}>
+        <div className="space-y-3 min-w-0">
           {/* Analysis */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Problem summary</p>
@@ -1056,7 +1056,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
             </div>
           )}
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           <div className="rounded-md border border-white/[0.06] bg-black/15">
             <div className="border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/55">Repair steps</div>
             <div className="max-h-[240px] overflow-auto">
@@ -2593,8 +2593,8 @@ export function MissionControlClient({
           {tab === 'workforce' && <Workforce clusters={budOs.workforce} commandState={commandState} />}
 
           {tab === 'repairs' && (
-            <div className="grid min-w-0 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-              <div className="min-w-0">
+            <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]" style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
                 <ActionQueue
                   items={queue.filter((item) => ['critical', 'needs_approval', 'watch_items'].includes(item.group))}
                   selectedId={selected?.id ?? null}
@@ -2605,17 +2605,17 @@ export function MissionControlClient({
                   investigatingIds={investigatingIds}
                 />
               </div>
-              <div className="min-w-0">
-              {selected?.approval ? (
-                <ApprovalInspector
-                  item={selected}
-                  onApprove={(item, notes) => approve(item, notes)}
-                  onReject={(item, reason) => reject(item, reason)}
-                  onInvestigate={(item) => void investigate(item)}
-                />
-              ) : (
-                <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
-              )}
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                {selected?.approval ? (
+                  <ApprovalInspector
+                    item={selected}
+                    onApprove={(item, notes) => approve(item, notes)}
+                    onReject={(item, reason) => reject(item, reason)}
+                    onInvestigate={(item) => void investigate(item)}
+                  />
+                ) : (
+                  <RepairStudio workspace={workspace} onExecute={(taskId) => void executeRepair(taskId)} />
+                )}
               </div>
             </div>
           )}
