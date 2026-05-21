@@ -417,14 +417,15 @@ export async function executeRepairPipeline(
   }
 
   const reproduceStep = await startStep(supabase, executionId, 'reproducing', 'Collected task evidence and repository state.');
+  // git status is best-effort: Vercel serverless has no .git directory at runtime.
+  // A non-zero exit means we are not in a git repo — skip the dirty-worktree gate and continue.
   const gitStatus = await runCommand('git', ['status', '--short'], 30_000);
-  await log(supabase, executionId, reproduceStep, 'info', 'Captured git status.', gitStatus);
-  await finishStep(supabase, reproduceStep, gitStatus.exitCode === 0 ? 'passed' : 'failed', { git_status: gitStatus });
-  if (gitStatus.exitCode !== 0) {
-    await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
-    await updateTaskState(supabase, typedTask.id, 'failed');
-    return { executionId, status: 'failed' };
-  }
+  const gitAvailable = gitStatus.exitCode === 0;
+  await log(supabase, executionId, reproduceStep, gitAvailable ? 'info' : 'warn',
+    gitAvailable ? 'Captured git status.' : 'git not available in this environment — skipping worktree check.',
+    gitStatus,
+  );
+  await finishStep(supabase, reproduceStep, 'passed', { git_status: gitStatus });
 
   const analyzeStep = await startStep(supabase, executionId, 'analyzing', 'Classified root cause and searched historical incident context.');
   const rootCause = classifyRootCause(typedTask);
@@ -449,7 +450,8 @@ export async function executeRepairPipeline(
   await updateExecution(supabase, executionId, { repair_strategy: strategy });
   await finishStep(supabase, planningStep, 'passed', strategy, boostedConfidence);
 
-  const dirtyWorktree = gitStatus.stdout.trim().length > 0;
+  // Only enforce the dirty-worktree gate when git is actually available (i.e. local dev).
+  const dirtyWorktree = gitAvailable && gitStatus.stdout.trim().length > 0;
   if (dirtyWorktree && process.env.BUD_OS_ALLOW_DIRTY_WORKTREE !== 'true') {
     const stepId = await startStep(supabase, executionId, 'blocked', 'Worktree contains uncommitted changes; automatic patching is blocked.');
     await log(supabase, executionId, stepId, 'warn', 'Dirty worktree blocked repair executor.', { git_status: gitStatus.stdout });
