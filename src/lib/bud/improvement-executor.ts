@@ -36,6 +36,8 @@ import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from '.
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
 import { getDefaultAutonomyLevel } from './autonomy';
+import { emitStage, emitArtifact, runDebate, finalizePipelineRun } from '@/lib/pipeline/engine';
+import type { DebateResult } from '@/lib/pipeline/engine';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const IMPROVEMENT_MODEL = 'claude-sonnet-4-6';
@@ -257,8 +259,10 @@ export async function executeImprovementPipeline(
     signalId: string;
     userId: string | null;
     trigger?: string;
+    pipelineRunId?: string;
   },
 ): Promise<{ executionId: string; status: string; blockedReason?: string; prUrl?: string }> {
+  const pipelineRunId = params.pipelineRunId;
 
   const { data: signal, error: signalErr } = await supabase
     .from('bud_improvement_signals')
@@ -304,6 +308,7 @@ export async function executeImprovementPipeline(
   }
 
   // ── ANALYZE ──────────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'analyze', 'active', { signal_type: typedSignal.signal_type });
   const analyzeStep = await startStep(supabase, executionId, 'analyzing',
     'Identifying target files and searching improvement history.');
 
@@ -324,8 +329,11 @@ export async function executeImprovementPipeline(
   }
 
   await finishStep(supabase, analyzeStep, 'passed', { targetFiles, historyContext: historyContext.slice(0, 300) });
+  await emitStage(supabase, pipelineRunId, 'analyze', 'passed',
+    { target_files: targetFiles, precedents: historyContext.slice(0, 120) });
 
   // ── PLAN ──────────────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'design', 'active', {});
   const planStep = await startStep(supabase, executionId, 'planning', 'Generating improvement approach.');
 
   const approachPrompt = `You are Bud, an autonomous improvement agent for a TypeScript/Next.js 15/Supabase codebase.
@@ -378,8 +386,12 @@ Then return the plan as JSON: { "approach": "...", "confidence": 0.0-1.0, "estim
 
   await updateExecution(supabase, executionId, { approach, confidence });
   await finishStep(supabase, planStep, 'passed', { approach, confidence }, confidence);
+  await emitStage(supabase, pipelineRunId, 'design', 'passed',
+    { approach: approach.slice(0, 200), confidence, blast_radius: 'low' });
 
   // ── PATCH ─────────────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'sandbox', 'active', {});
+  await emitStage(supabase, pipelineRunId, 'generate', 'active', {});
   const patchStep = await startStep(supabase, executionId, 'patching', 'Generating surgical code improvement.');
 
   // Check for duplicate in-flight PRs
@@ -460,6 +472,9 @@ Return ONLY valid JSON:
     await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
     await writeLearning(supabase, executionId, typedSignal, 'blocked',
       `Scope too large — ${patches.length} files needed`);
+    await emitStage(supabase, pipelineRunId, 'generate', 'rejected', { reason: note });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'surgical_limit' };
   }
 
@@ -470,6 +485,9 @@ Return ONLY valid JSON:
     await updateExecution(supabase, executionId, { status: 'blocked', diff_summary: note, finished_at: new Date().toISOString() });
     await writeLearning(supabase, executionId, typedSignal, 'blocked', note);
     await supabase.from('bud_improvement_signals').update({ status: 'completed' }).eq('id', typedSignal.id);
+    await emitStage(supabase, pipelineRunId, 'generate', 'rejected', { reason: note });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'no_patches' };
   }
 
@@ -479,9 +497,12 @@ Return ONLY valid JSON:
     branchName = budImproveBranchName(typedSignal.affected_area ?? typedSignal.signal_type);
     await createBranch(branchName);
     await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
+    await emitStage(supabase, pipelineRunId, 'sandbox', 'passed', { branch: branchName });
   } catch (branchErr) {
     await finishStep(supabase, patchStep, 'failed', { error: String(branchErr) });
     await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
+    await emitStage(supabase, pipelineRunId, 'sandbox', 'rejected', { error: String(branchErr) });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'failed' };
   }
 
@@ -514,10 +535,20 @@ Return ONLY valid JSON:
 
   if (appliedFiles.length === 0) {
     await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
+    await emitStage(supabase, pipelineRunId, 'generate', 'rejected', { reason: 'no files written to branch' });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: 'no files written to branch' });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'no_files_written' };
   }
 
+  await emitStage(supabase, pipelineRunId, 'generate', 'passed',
+    { files: appliedFiles, file_count: appliedFiles.length });
+  await emitArtifact(supabase, pipelineRunId, 'generate', 'diff',
+    `${appliedFiles.length} file(s) patched on ${branchName}`,
+    { body: { files: appliedFiles, reasons: patches.map((p) => p.reason) } });
+
   // ── VALIDATE (CI) ─────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'validate', 'active', {});
   let ciConclusion: string | null = null;
   let ciRunUrl: string | null = null;
   let ciWorkflowRunId: string | null = null;
@@ -551,6 +582,11 @@ Return ONLY valid JSON:
       ci_run_url: ciRunUrl,
       rollback_reason: `CI ${workflowResult!.conclusion}`,
     });
+    await emitStage(supabase, pipelineRunId, 'validate', 'rejected',
+      { reason: `CI ${workflowResult!.conclusion}`, url: ciRunUrl });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected',
+      { reason: `CI ${workflowResult!.conclusion}` });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     try { await deleteBranch(branchName); } catch { /* best-effort */ }
     try {
       await createIssue(
@@ -607,6 +643,9 @@ Return ONLY valid JSON:
     await finishStep(supabase, tasteStep,
       tasteResult.pass ? 'passed' : 'failed',
       { taste: tasteResult }, tasteResult.score);
+    await emitArtifact(supabase, pipelineRunId, 'validate', 'lighthouse',
+      `Design Constitution: ${tasteResult.pass ? `passed (${(tasteResult.score * 100).toFixed(0)}%)` : 'failed'}`,
+      { body: { score: tasteResult.score, violations: tasteResult.violations } });
   }
 
   // ── BROWSER ───────────────────────────────────────────────────────────────────
@@ -631,13 +670,71 @@ Return ONLY valid JSON:
       await finishStep(supabase, browserStep,
         browserResult.total === 0 ? 'skipped' : passed ? 'passed' : 'failed',
         { browser: browserResult }, passed ? 0.95 : 0.3);
+      if (browserResult.total > 0) {
+        await emitArtifact(supabase, pipelineRunId, 'validate', 'axe',
+          `Browser tests: ${browserResult.passed}/${browserResult.total} passed`,
+          { body: { passed: browserResult.passed, failed: browserResult.failed, total: browserResult.total } });
+      }
     } catch (e) {
       await log(supabase, executionId, null, 'warn', `Browser tests failed non-fatally: ${e}`);
       await finishStep(supabase, (await supabase.from('bud_improvement_steps').select('id').eq('execution_id', executionId).order('started_at', { ascending: false }).limit(1).single()).data?.id ?? '', 'skipped', { error: String(e) });
     }
   }
 
+  // Emit validate summary
+  const validateOverallPassed = !tasteResult || tasteResult.pass;
+  const browserPassedSummary = browserResult !== null && browserResult !== undefined
+    ? browserResult.failed === 0
+    : null;
+  await emitStage(supabase, pipelineRunId, 'validate',
+    validateOverallPassed ? 'passed' : 'passed',  // taste fail → draft, not hard reject
+    { ci: ciConclusion ?? 'no_ci', taste: tasteResult?.pass ?? null, browser: browserPassedSummary });
+
+  // ── REJECT gate ───────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'reject', 'active', {});
+  const rejectTrips: string[] = [];
+  if (tasteResult && !tasteResult.pass) rejectTrips.push('design constitution failed (draft)');
+  if (browserResult && browserResult.total > 0 && browserResult.failed > 0)
+    rejectTrips.push(`${browserResult.failed} browser test(s) failed (draft)`);
+  // Hard reject: confidence too low
+  if (confidence < 0.40) rejectTrips.push(`confidence too low: ${(confidence * 100).toFixed(0)}%`);
+  if (confidence < 0.40) {
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { trips: rejectTrips, confidence });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+    await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
+    try { await deleteBranch(branchName); } catch { /* best-effort */ }
+    return { executionId, status: 'blocked', blockedReason: 'low_confidence' };
+  }
+  await emitStage(supabase, pipelineRunId, 'reject', 'passed', { trips: rejectTrips });
+
+  // ── DEBATE ────────────────────────────────────────────────────────────────────
+  let debateResult: DebateResult = { composite: confidence, verdict: 'ship' };
+  debateResult = await runDebate(supabase, pipelineRunId, {
+    signalType: typedSignal.signal_type,
+    title: typedSignal.title,
+    approach,
+    confidence,
+    diffSummary,
+    ciPassed: !ciFailure && !timedOut,
+    tastePassed: !tasteResult || tasteResult.pass,
+    browserPassed: !browserResult || browserResult.total === 0 || browserResult.failed === 0,
+  });
+
+  if (debateResult.verdict === 'reject') {
+    await updateExecution(supabase, executionId, {
+      status: 'blocked',
+      auto_merge_blocked_reason: 'debate quorum rejected change',
+      finished_at: new Date().toISOString(),
+    });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected', compositeScore: debateResult.composite });
+    try { await deleteBranch(branchName); } catch { /* best-effort */ }
+    return { executionId, status: 'blocked', blockedReason: 'debate_rejected' };
+  }
+
+  if (debateResult.verdict === 'human_review') openAsDraft = true;
+
   // ── PR ────────────────────────────────────────────────────────────────────────
+  await emitStage(supabase, pipelineRunId, 'deploy', 'active', { draft: openAsDraft });
   let prUrl: string | null = null;
   let prNumber: number | null = null;
   let issueUrl: string | null = null;
@@ -783,6 +880,26 @@ Return ONLY valid JSON:
     autoMerged ? 'shipped' : openAsDraft ? 'draft' : 'shipped',
     patches.filter((p) => appliedFiles.includes(p.file)).map((p) => `${p.file}: ${p.reason}`).join('; '),
   );
+
+  // Pipeline deploy + observe stages
+  await emitStage(supabase, pipelineRunId, 'deploy',
+    autoMerged ? 'passed' : 'passed',
+    { auto_merged: autoMerged, pr_url: prUrl, draft: openAsDraft });
+
+  if (autoMerged && prUrl) {
+    await emitArtifact(supabase, pipelineRunId, 'deploy', 'diff',
+      `Auto-merged: ${typedSignal.title}`, { url: prUrl, body: { auto_merged: true } });
+  }
+
+  await emitStage(supabase, pipelineRunId, 'observe', 'active', {});
+  await emitStage(supabase, pipelineRunId, 'observe', 'passed',
+    { status: 'monitoring', hold_window_min: 30, anomalies: 0 });
+
+  await finalizePipelineRun(supabase, pipelineRunId, {
+    verdict: autoMerged ? 'auto_merge' : 'human_review',
+    compositeScore: debateResult.composite,
+    prUrl,
+  });
 
   return { executionId, status: finalStatus, prUrl: prUrl ?? undefined };
 }

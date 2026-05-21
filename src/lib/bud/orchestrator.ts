@@ -11,6 +11,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BudTask, BudActivityEvent, BudActivityEventType, AutonomyLevel } from './types';
 import { getDefaultAutonomyLevel, requiresApproval } from './autonomy';
 import { createIssue, createBranch, budBranchName, branchExists } from './github-executor';
+import { emitStage, finalizePipelineRun, signalToSurface } from '@/lib/pipeline/engine';
+import type { PipelineSurface } from '@/lib/pipeline/types';
 
 // ── Activity feed ─────────────────────────────────────────────────────────────
 
@@ -549,8 +551,9 @@ export async function triggerImprovement(
     referenceFiles?: string[];
     metadata?: Record<string, unknown>;
     requestedBy?: string;
+    surface?: PipelineSurface;
   },
-): Promise<{ signalId: string; executionId?: string; status: string }> {
+): Promise<{ signalId: string; executionId?: string; status: string; pipelineRunId?: string }> {
   // Dedup: skip if a matching open signal exists in the last 6h
   const since6h = new Date(Date.now() - 6 * 3600_000).toISOString();
   const { data: existing } = await supabase
@@ -596,12 +599,71 @@ export async function triggerImprovement(
       metadata: { signal_id: signalId, signal_type: params.signalType } },
   );
 
-  if (level <= 2) {
+  // ── Pipeline run creation ─────────────────────────────────────────────────────
+  // Check kill-switch before creating a run. A paused system silently queues signals.
+  let ksData: { paused: boolean } | null = null;
+  try {
+    const { data } = await supabase
+      .from('pipeline_kill_switch').select('paused').eq('id', 1).single();
+    ksData = data as { paused: boolean } | null;
+  } catch { /* non-fatal */ }
+
+  if (ksData?.paused) {
+    await supabase.from('bud_improvement_signals').update({ status: 'queued' }).eq('id', signalId);
+    return { signalId, status: 'blocked_by_kill_switch' };
+  }
+
+  const surface: PipelineSurface = params.surface ?? signalToSurface(params.affectedArea);
+
+  // Check surface policy — respect autonomy_enabled flag
+  let policyData: { autonomy_enabled: boolean } | null = null;
+  try {
+    const { data } = await supabase
+      .from('pipeline_policy').select('autonomy_enabled').eq('surface', surface).single();
+    policyData = data as { autonomy_enabled: boolean } | null;
+  } catch { /* non-fatal */ }
+
+  let pipelineRunId: string | undefined;
+  try {
+    const { data: runRow } = await supabase
+      .from('pipeline_runs')
+      .insert({
+        surface,
+        trigger_signal: params.title,
+        trigger_payload: {
+          signal_id: signalId,
+          source: params.source,
+          signal_type: params.signalType,
+          severity: params.severity,
+        },
+        status: 'in_progress',
+      })
+      .select('id')
+      .single();
+    if (runRow) {
+      pipelineRunId = runRow.id as string;
+      await emitStage(supabase, pipelineRunId, 'detect', 'active',
+        { signal_type: params.signalType, severity: params.severity });
+      await emitStage(supabase, pipelineRunId, 'detect', 'passed', {
+        signal_type: params.signalType,
+        title: params.title,
+        severity: params.severity,
+        area: params.affectedArea ?? '',
+        confidence: typeof params.metadata?.confidence === 'number' ? params.metadata.confidence : 0.75,
+      });
+    }
+  } catch { /* non-fatal — pipeline_run creation must not block the improvement */ }
+
+  if (level <= 2 || policyData?.autonomy_enabled === false) {
     // Queue for human approval
     await supabase
       .from('bud_improvement_signals')
       .update({ status: 'queued' })
       .eq('id', signalId);
+
+    if (pipelineRunId) {
+      await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'human_review' });
+    }
 
     // Reuse bud_approval_queue so Mission Control can surface it
     const dummyTask = await createBudTask(supabase, {
@@ -626,16 +688,17 @@ export async function triggerImprovement(
         metadata: { signal_id: signalId, task_id: dummyTask.id } },
     );
 
-    return { signalId, status: 'queued_for_approval' };
+    return { signalId, status: 'queued_for_approval', pipelineRunId };
   }
 
-  // Level 3+: fire the improvement pipeline immediately
+  // Level 3+ with autonomy enabled: fire the improvement pipeline immediately
   try {
     const { executeImprovementPipeline } = await import('./improvement-executor');
     const result = await executeImprovementPipeline(supabase, {
       signalId,
       userId: params.requestedBy ?? null,
       trigger: 'observer',
+      pipelineRunId,
     });
 
     await writeBudActivity(
@@ -644,17 +707,20 @@ export async function triggerImprovement(
         ? `Bud improvement pipeline completed for: ${params.title}. PR: ${result.prUrl ?? 'no PR (blocked)'}`
         : `Bud improvement pipeline blocked for: ${params.title}. Reason: ${result.blockedReason ?? 'unknown'}.`,
       { event_type: 'completion', actor: 'bud', target: params.affectedArea,
-        metadata: { signal_id: signalId, execution_id: result.executionId, pr_url: result.prUrl } },
+        metadata: { signal_id: signalId, execution_id: result.executionId, pr_url: result.prUrl, pipeline_run_id: pipelineRunId } },
     );
 
-    return { signalId, executionId: result.executionId, status: result.status };
+    return { signalId, executionId: result.executionId, status: result.status, pipelineRunId };
   } catch (err) {
     await writeBudActivity(
       supabase,
       `Bud improvement pipeline failed to start for: ${params.title} — ${err instanceof Error ? err.message : err}`,
       { event_type: 'error', actor: 'bud', target: params.affectedArea, metadata: { signal_id: signalId } },
     );
-    return { signalId, status: 'failed' };
+    if (pipelineRunId) {
+      await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+    }
+    return { signalId, status: 'failed', pipelineRunId };
   }
 }
 

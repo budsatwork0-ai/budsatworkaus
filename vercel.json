@@ -47,6 +47,14 @@
     {
       "path": "/api/cron/bud",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=bud-observer",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/pipeline",
+      "schedule": "0 1,7,13,19 * * *"
     }
   ]
 }

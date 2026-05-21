@@ -63,6 +63,7 @@ export default function AutonomyPipeline({
   const [selectedId, setSelectedId] = useState<PipelineStageId>('detect');
   const [simulating, setSimulating] = useState(false);
   const [simOutcome, setSimOutcome] = useState<SimulateOutcome>('success');
+  const [triggering, setTriggering] = useState(false);
 
   async function startSimulation() {
     if (simulating) return;
@@ -75,6 +76,27 @@ export default function AutonomyPipeline({
       });
     } finally {
       setSimulating(false);
+    }
+  }
+
+  async function triggerRealRun() {
+    if (triggering) return;
+    setTriggering(true);
+    try {
+      await fetch('/api/pipeline/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          surface,
+          signal_type: 'manual',
+          severity: 'medium',
+          title: `Manual improvement run — ${surface} surface`,
+          affected_area: surface === 'public' ? '/' : `/${surface}`,
+          proposed_approach: 'Analyse the surface for low-hanging improvements and apply the safest one.',
+        }),
+      });
+    } finally {
+      setTriggering(false);
     }
   }
   const supabase = useMemo(
@@ -255,8 +277,32 @@ export default function AutonomyPipeline({
             </>
           )}
         </button>
+        <button
+          onClick={() => void triggerRealRun()}
+          disabled={triggering}
+          className={[
+            'flex items-center gap-2 rounded-xl px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition-all',
+            triggering
+              ? 'cursor-not-allowed border border-white/10 text-white/30'
+              : 'border border-sky-400/40 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)]',
+          ].join(' ')}
+        >
+          {triggering ? (
+            <>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border border-white/20 border-t-white/60" />
+              starting…
+            </>
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" /><polyline points="12,6 12,12 16,14" />
+              </svg>
+              Run Real
+            </>
+          )}
+        </button>
         <p className="w-full font-mono text-[10px] text-white/30">
-          Walks all ten stages live via Realtime · ~5 s · no real code is changed
+          Simulate: walks all ten stages live · ~5 s · no real code changed&nbsp;&nbsp;·&nbsp;&nbsp;Run Real: fires the actual improvement pipeline via Bud
         </p>
       </div>
 
