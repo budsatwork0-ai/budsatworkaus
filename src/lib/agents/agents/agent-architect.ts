@@ -124,6 +124,8 @@ export const agentArchitectAgent: AgentDefinition = {
     try { parsed = JSON.parse(raw); } catch { return { summary: 'Could not parse architect output.' }; }
 
     let count = 0;
+    const findingStrings: string[] = [];
+    const actionStrings: string[] = [];
     for (const e of parsed.evolutions ?? []) {
       const { data: row } = await ctx.supabase.from('agent_evolutions').insert({
         target_agent_id: e.target_agent_id,
@@ -141,12 +143,22 @@ export const agentArchitectAgent: AgentDefinition = {
         preview: `${e.evolution_type} → ${e.target_agent_id}: ${e.rationale.slice(0, 80)}…`,
         payload: { evolution_id: row?.id, target: e.target_agent_id, type: e.evolution_type },
       });
+      findingStrings.push(`${e.evolution_type} → ${e.target_agent_id}: ${e.rationale.slice(0, 100)}`);
+      actionStrings.push(`Review ${e.evolution_type} for ${e.target_agent_id}`);
       count += 1;
     }
 
     return {
       summary: `Reviewed ${reviewable.length} agent(s); proposed ${count} evolution(s).`,
-      output: { reviewed: reviewable.length, proposed: count },
+      output: {
+        status: count > 0 ? 'needs_action' : 'success',
+        summary: `Reviewed ${reviewable.length} agent(s); proposed ${count} evolution(s).`,
+        findings: findingStrings,
+        recommended_actions: actionStrings,
+        confidence: 0.8,
+        risk_level: 'low',
+        raw_output: { reviewed: reviewable.length, proposed: count },
+      },
     };
   },
 };

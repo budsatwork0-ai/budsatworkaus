@@ -356,8 +356,28 @@ export async function executeRepairPipeline(
   const recommendedFix = (sf?.recommendedFix as string) ?? rootCause.summary;
   const errorMsg = (sf?.message as string) ?? description;
 
-  const patchPrompt = `You are Bud, an autonomous repair agent for a TypeScript/Next.js codebase.
+  const isSchemaError = rootCause.type === 'SCHEMA_VIOLATION' || rootCause.type === 'schema_violation';
+  const schemaContext = isSchemaError ? `
+AGENT OUTPUT SCHEMA (required by the runtime — every agent's \`result.output\` must conform):
+{
+  status: 'success'|'partial'|'failed'|'needs_repair'|'needs_action'|'investigating'|'repairing'|'blocked'|'degraded'|'attention_required',
+  summary: string,
+  findings: string[],          // human-readable list of what was found
+  recommended_actions: string[], // list of next steps
+  confidence: number,          // 0.0–1.0
+  risk_level: 'low'|'medium'|'high'|'critical',
+  raw_output?: unknown,        // optional — put the agent's original data here
+  next_step?: string,
+  structured_failure_reason?: string,
+}
+The runtime normalises non-conforming output automatically now, so the agent does NOT need to be updated — unless the failure is a runtime exception, not a schema issue.
+` : '';
 
+  const patchPrompt = `You are Bud, an autonomous repair agent for a TypeScript/Next.js/Supabase codebase.
+The project is a local-services platform (cleaning, yard care, etc.) with an agent system at src/lib/agents/.
+Each agent exports a named constant that matches AgentDefinition: { id, name, description, category, autonomy, run(ctx) }.
+The runtime at src/lib/agents/runtime.ts executes agents and handles retries, cost accounting, and guardrails.
+${schemaContext}
 TASK: Fix the following agent failure by generating minimal, targeted code patches.
 
 FAILURE SUMMARY: ${description}

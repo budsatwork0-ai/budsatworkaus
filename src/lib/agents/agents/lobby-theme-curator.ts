@@ -82,7 +82,17 @@ export const lobbyThemeCuratorAgent: AgentDefinition = {
 
     return {
       summary: `Theme "${theme.name}" drafted. ${activateOnApprove ? 'Will activate on approval.' : 'Approve to keep; activate separately.'}`,
-      output: { theme_id: theme.id },
+      output: {
+        status: 'needs_action',
+        summary: `Theme "${theme.name}" generated from brief: "${brief.slice(0, 80)}"`,
+        findings: [`Theme "${theme.name}": ${theme.description ?? ''}`.trim()],
+        recommended_actions: activateOnApprove
+          ? ['Approve to save and activate theme']
+          : ['Approve to save theme; activate separately via lobby settings'],
+        confidence: 0.9,
+        risk_level: 'low',
+        raw_output: { theme_id: theme.id },
+      },
     };
   },
 };

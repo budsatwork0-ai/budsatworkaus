@@ -74,7 +74,10 @@ export const adminUxDesignerAgent: AgentDefinition = {
       results.push(...batchResults);
     }
 
+    const findingStrings: string[] = [];
     let total = 0;
+    let highestSeverity = 0; // 0=low,1=medium,2=high,3=critical
+    const SEV_RANK: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
     for (const { page, findings } of results) {
       for (const f of findings) {
         await ctx.supabase.from('admin_ux_proposals').insert({
@@ -86,10 +89,24 @@ export const adminUxDesignerAgent: AgentDefinition = {
           body: `**Category:** ${f.category}\n\n${f.body}`,
           proposed_change: f.proposed_change,
         });
+        findingStrings.push(`[${f.severity}] ${page.path}: ${f.title}`);
+        highestSeverity = Math.max(highestSeverity, SEV_RANK[f.severity] ?? 0);
         total += 1;
       }
     }
-    return { summary: `Logged ${total} UX finding(s) across ${pages.length} page(s).`, output: { findings: total } };
+    const RISK_MAP = ['low', 'medium', 'high', 'critical'] as const;
+    return {
+      summary: `Logged ${total} UX finding(s) across ${pages.length} page(s).`,
+      output: {
+        status: total > 0 ? 'success' : 'partial',
+        summary: `Logged ${total} UX finding(s) across ${pages.length} page(s).`,
+        findings: findingStrings,
+        recommended_actions: total > 0 ? ['Review UX proposals in the admin panel'] : [],
+        confidence: 0.85,
+        risk_level: RISK_MAP[highestSeverity],
+        raw_output: { findings_count: total, pages_audited: pages.length },
+      },
+    };
   },
 };
 

@@ -96,6 +96,16 @@ export interface ProposedAction {
   preview: string;
   /** Override default autonomy rule for this specific action. */
   requiresApproval?: boolean;
+  /**
+   * Agent's confidence in this action (0–1). Used by Bud autonomy levels 3–5
+   * to decide whether to auto-approve without human review.
+   */
+  confidence?: number;
+  /**
+   * Risk level for this action. Combined with confidence to gate auto-approval
+   * at higher Bud autonomy levels.
+   */
+  risk_level?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export interface AgentRunResult {

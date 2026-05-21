@@ -18,6 +18,7 @@ import type {
   ProposedAction,
 } from './types';
 import { buildMemoryContext } from '@/lib/memory/context';
+import { getDefaultAutonomyLevel, requiresApproval as budRequiresApproval } from '@/lib/bud/autonomy';
 import { logAgentRun, getWorkspaceForAgent } from '@/lib/memory/agents/workspace';
 import {
   GuardrailBlockedError,
@@ -320,8 +321,16 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         }
       }
 
-      const autoOk =
-        agentRow.autonomy === 'auto' && action.requiresApproval !== true;
+      // An action is auto-approved when BOTH conditions hold:
+      // 1. The agent's own autonomy is 'auto' (not 'review' or 'manual')
+      // 2. The Bud OS autonomy level permits it — levels 0–1 always require
+      //    approval; levels 2–5 gate on action confidence and risk_level.
+      const budLevel = getDefaultAutonomyLevel();
+      const actionConf = action.confidence ?? 0.7;
+      const actionRisk = action.risk_level ?? 'medium';
+      const agentAutoOk = agentRow.autonomy === 'auto';
+      const budAutoOk = !budRequiresApproval(budLevel, actionConf, actionRisk, action.action_type);
+      const autoOk = agentAutoOk && budAutoOk && action.requiresApproval !== true;
       const requires = !autoOk;
       if (requires) needsApproval = true;
 
@@ -443,32 +452,35 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       pctx(),
     );
 
-    // Validate structured output against Bud's Zod schema.
-    // Agents that return malformed output are marked needs_repair and a bud_task is created.
-    let outputParseValid = true;
+    // Normalise output to Bud's structured schema. Agents that predate the
+    // schema (or don't set all fields) get their raw payload preserved in
+    // raw_output so nothing is lost, while required fields get sensible
+    // defaults. This prevents agents from being mis-tagged needs_repair for
+    // a schema concern that is Bud's responsibility, not the agent's.
     if (result.output && args.agentId !== 'bud') {
-      const parseResult = AgentOutputSchema.safeParse(result.output);
-      if (!parseResult.success) {
-        outputParseValid = false;
-        logs.push(`[bud:schema] output failed validation: ${parseResult.error.message}`);
-        // Fire-and-forget repair task — never blocks the run
-        setImmediate(() => {
-          const agentName = (AGENT_REGISTRY[args.agentId] as { name?: string })?.name ?? args.agentId;
-          handleParseFailure(
-            supabase,
-            args.agentId,
-            agentName,
-            runId,
-            parseResult.error.message,
-            result.output,
-          ).catch(() => {/* ignore */});
-        });
+      const check = AgentOutputSchema.safeParse(result.output);
+      if (!check.success) {
+        const raw = result.output;
+        result.output = {
+          status: 'success',
+          summary: typeof raw.summary === 'string' ? raw.summary : result.summary,
+          findings: Array.isArray(raw.findings) && (raw.findings as unknown[]).every((f) => typeof f === 'string')
+            ? (raw.findings as string[])
+            : [],
+          recommended_actions: Array.isArray(raw.recommended_actions) && (raw.recommended_actions as unknown[]).every((a) => typeof a === 'string')
+            ? (raw.recommended_actions as string[])
+            : [],
+          confidence: typeof raw.confidence === 'number' ? raw.confidence : 0.7,
+          risk_level: (['low', 'medium', 'high', 'critical'] as const).includes(raw.risk_level as 'low')
+            ? (raw.risk_level as 'low' | 'medium' | 'high' | 'critical')
+            : 'low',
+          raw_output: raw,
+        };
+        logs.push(`[bud:schema] output normalised (was missing required fields)`);
       }
     }
 
-    const finalStatus = outputParseValid
-      ? (needsApproval ? 'needs_approval' : 'succeeded')
-      : 'needs_repair';
+    const finalStatus = needsApproval ? 'needs_approval' : 'succeeded';
 
     await supabase
       .from('agent_runs')

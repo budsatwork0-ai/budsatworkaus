@@ -179,12 +179,12 @@ export const budAgent: AgentDefinition = {
     const [runs24hRes, runs7dRes, pendingRes, budTasksRes, stuckTasksRes, unresolvedInsightsRes, budApprovalsRes, prevLobbyRes] = await Promise.all([
       ctx.supabase
         .from('agent_runs')
-        .select('id, agent_id, status, cost_cents, started_at, summary, output')
+        .select('id, agent_id, status, cost_cents, started_at, summary, output, quality_score')
         .gte('started_at', since24h)
         .in('agent_id', enabledAgentIds),
       ctx.supabase
         .from('agent_runs')
-        .select('id, agent_id, status, summary, output, started_at')
+        .select('id, agent_id, status, summary, output, started_at, quality_score')
         .gte('started_at', since7d)
         .in('agent_id', enabledAgentIds),
       ctx.supabase
@@ -253,10 +253,6 @@ export const budAgent: AgentDefinition = {
       if (r.status === 'succeeded')   m.successes_24h++;
       if (r.status === 'failed')      m.failures_24h++;
       if (r.status === 'running')     m.is_running = true;
-      if (r.status === 'needs_repair') {
-        m.has_parse_failures = true;
-        totalParseFailures++;
-      }
       if (!m.last_run_at || r.started_at > m.last_run_at) m.last_run_at = r.started_at;
 
       // Detect parse failures from summary text
@@ -368,6 +364,40 @@ export const budAgent: AgentDefinition = {
           logs: runLogs,
           started_at: failRun.started_at,
         });
+      }
+    }
+
+    // ── 4c. Auto-resolve stale bud_tasks for recovered agents ─────────────
+    // If an agent has an open task (pending/in_progress/awaiting_approval) but
+    // its last run in the past 24h was a success, the issue is likely resolved.
+    // Mark the task as 'recovered' and write an activity event so the Action
+    // Queue clears automatically without admin intervention.
+    const agentsWithOpenTasks = new Set(
+      budTasks.map((t) => t.source_agent).filter(Boolean) as string[],
+    );
+    if (agentsWithOpenTasks.size > 0) {
+      // Find agents that have an open task AND a recent successful run
+      const recoveredAgents = Array.from(agentsWithOpenTasks).filter((aid) => {
+        const m = metrics.get(aid);
+        if (!m) return false;
+        // Recovered = had at least one success in 24h and no failures
+        return m.successes_24h > 0 && m.failures_24h === 0 && !m.has_parse_failures;
+      });
+
+      for (const aid of recoveredAgents) {
+        const openTasks = budTasks.filter((t) => t.source_agent === aid);
+        for (const task of openTasks) {
+          await ctx.supabase
+            .from('bud_tasks')
+            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .eq('id', task.id);
+        }
+        const agentName = agents.find((a) => a.id === aid)?.name ?? aid;
+        await writeBudActivity(
+          ctx.supabase,
+          `${agentName} recovered — last run succeeded. Closed ${openTasks.length} stale task(s).`,
+          { event_type: 'completion', actor: 'bud', target: aid },
+        );
       }
     }
 
@@ -581,7 +611,9 @@ ${investigationSummary}`;
       curAttentionIds === prevAttentionIds &&
       prevKpis?.failed_runs_24h === kpis.failed_runs_24h &&
       prevKpis?.parse_failures_24h === kpis.parse_failures_24h &&
-      prevKpis?.bud_tasks_open === kpis.bud_tasks_open;
+      prevKpis?.bud_tasks_open === kpis.bud_tasks_open &&
+      prevKpis?.pending_approvals === kpis.pending_approvals &&
+      prevKpis?.watch_agents === kpis.watch_agents;
 
     if (stateUnchanged) {
       ctx.log('[bud] state unchanged from previous cycle — skipping LLM call');

@@ -7,6 +7,8 @@ type RunRow = {
   summary: string | null;
   output?: Record<string, unknown> | null;
   started_at: string;
+  /** 0.0–1.0 quality score updated by DB trigger when actions are approved/rejected. */
+  quality_score?: number | null;
 };
 
 type ActionRow = {
@@ -663,7 +665,7 @@ function validateOutput(run: RunRow): boolean {
 
 export function scoreAgentHealth(
   runs: RunRow[],
-  _actions: ActionRow[],
+  actions: ActionRow[],
 ): AgentHealthScore {
   const reasons: string[] = [];
 
@@ -722,6 +724,35 @@ export function scoreAgentHealth(
   if (unstructuredFailures.length > 0) {
     score -= 10;
     reasons.push('Some failures lack structured failure reasons');
+  }
+
+  // Quality score: tracks user approval/rejection of proposed actions.
+  // Populated lazily by DB trigger — only use runs that have a score.
+  const scoredRuns = succeededRuns.filter((r) => r.quality_score != null);
+  if (scoredRuns.length >= 2) {
+    const avgQuality = scoredRuns.reduce((s, r) => s + r.quality_score!, 0) / scoredRuns.length;
+    if (avgQuality < 0.35) {
+      score -= 30;
+      reasons.push(`Low output quality score (avg ${avgQuality.toFixed(2)}) — most proposed actions are being rejected`);
+    } else if (avgQuality < 0.45) {
+      score -= 15;
+      reasons.push(`Below-average output quality score (avg ${avgQuality.toFixed(2)})`);
+    }
+  }
+
+  // Action rejection rate: decided actions passed from the caller.
+  // Only count explicitly decided (approved/rejected/executed) — skip pending.
+  const decidedActions = actions.filter((a) => ['approved', 'rejected', 'executed'].includes(a.status));
+  if (decidedActions.length >= 3) {
+    const rejectedCount = decidedActions.filter((a) => a.status === 'rejected').length;
+    const rejectRate = rejectedCount / decidedActions.length;
+    if (rejectRate > 0.6) {
+      score -= 20;
+      reasons.push(`High action rejection rate (${Math.round(rejectRate * 100)}% of decided actions rejected)`);
+    } else if (rejectRate > 0.4) {
+      score -= 10;
+      reasons.push(`Elevated action rejection rate (${Math.round(rejectRate * 100)}%)`);
+    }
   }
 
   score = Math.max(0, Math.min(100, score));

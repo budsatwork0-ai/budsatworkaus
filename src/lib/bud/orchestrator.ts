@@ -118,6 +118,8 @@ export interface StructuredFailureReport {
   inputSummary: string;
   outputSummary: string | null;
   recommendedFix: string;
+  /** Source files the patcher should read. Always includes the agent's .ts file. */
+  affectedFiles: string[];
 }
 
 function classifyFailure(
@@ -206,6 +208,19 @@ function buildFailureReport(
     .slice(0, 10)
     .join('\n');
 
+  // Always include the agent's source file as the primary target. Supplement
+  // with any .ts/.tsx filenames mentioned in the error text or logs.
+  const agentSourceFile = `src/lib/agents/agents/${agentId}.ts`;
+  const textForFileExtraction = `${errorMsg}\n${diagnosticLines}`;
+  const mentionedFiles = Array.from(
+    new Set(
+      Array.from(textForFileExtraction.matchAll(/[\w./-]+\.(?:ts|tsx)/g))
+        .map((m) => m[0])
+        .filter((f) => f !== agentSourceFile && !f.startsWith('node_modules')),
+    ),
+  ).slice(0, 3);
+  const affectedFiles = [agentSourceFile, ...mentionedFiles];
+
   return {
     agentId,
     runId,
@@ -216,6 +231,7 @@ function buildFailureReport(
     inputSummary: `Run triggered at ${run?.started_at ?? 'unknown time'}`,
     outputSummary: run?.summary?.slice(0, 500) ?? null,
     recommendedFix,
+    affectedFiles,
   };
 }
 
