@@ -762,7 +762,15 @@ export function buildRepairWorkspace(args: {
   rollbackEvents?: RollbackEventRow[];
 }): BudOsRepairWorkspace {
   const selected = args.selectedItem;
-  const taskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected.source_id : null);
+  // task_id is null for agent_run / agent_health / insight queue items — fall back to the
+  // most recent repair session for the same agent so "Run gated repair" is always available.
+  const explicitTaskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected.source_id : null);
+  const agentSession = !explicitTaskId && selected?.agent_id
+    ? args.commandState.repair_sessions
+        .filter((s) => s.agent_id === selected.agent_id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null
+    : null;
+  const taskId = explicitTaskId ?? agentSession?.id ?? null;
   const session = taskId ? args.commandState.repair_sessions.find((item) => item.id === taskId) ?? null : null;
   const execution = taskId ? args.executions.find((item) => item.task_id === taskId) ?? null : null;
   const executionSteps = execution ? args.steps.filter((step) => step.execution_id === execution.id) : [];
