@@ -536,51 +536,57 @@ function PresencePanel({
 /*                             LIFECYCLE TRACKER                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-type LifecycleStage = 'detected' | 'investigating' | 'has_plan' | 'needs_approval' | 'done';
+type LifecycleStage = 'detected' | 'diagnosing' | 'crafting' | 'validating' | 'reviewed' | 'deploying' | 'learned';
 
 function getItemStage(item: BudOsQueueItem, investigatingIds: Set<string>): LifecycleStage {
-  if (item.group === 'completed_actions') return 'done';
-  if (investigatingIds.has(item.id)) return 'investigating';
+  if (item.group === 'completed_actions') return 'learned';
+  if (investigatingIds.has(item.id)) return 'diagnosing';
   if (item.group === 'needs_approval') {
     const r = item.approval?.readiness;
-    if (r === 'ready') return 'needs_approval';
-    if (r === 'awaiting_diagnosis') return 'investigating';
-    return 'has_plan';
+    if (r === 'ready') return 'reviewed';
+    if (r === 'awaiting_diagnosis') return 'diagnosing';
+    if (r === 'awaiting_patch' || r === 'awaiting_diff') return 'crafting';
+    if (r === 'awaiting_repair') return 'validating';
+    return 'crafting';
   }
   return 'detected';
 }
 
 const LIFECYCLE_STAGES: Array<{ key: LifecycleStage; label: string }> = [
-  { key: 'detected', label: 'Detected' },
-  { key: 'investigating', label: 'Investigating' },
-  { key: 'has_plan', label: 'Plan ready' },
-  { key: 'needs_approval', label: 'Needs approval' },
-  { key: 'done', label: 'Done' },
+  { key: 'detected',  label: 'Detect'   },
+  { key: 'diagnosing', label: 'Diagnose' },
+  { key: 'crafting',  label: 'Craft'    },
+  { key: 'validating', label: 'Validate' },
+  { key: 'reviewed',  label: 'Review'   },
+  { key: 'deploying', label: 'Deploy'   },
+  { key: 'learned',   label: 'Learn'    },
 ];
 
 const STAGE_ORDER: Record<LifecycleStage, number> = {
-  detected: 0,
-  investigating: 1,
-  has_plan: 2,
-  needs_approval: 3,
-  done: 4,
+  detected:  0,
+  diagnosing: 1,
+  crafting:  2,
+  validating: 3,
+  reviewed:  4,
+  deploying: 5,
+  learned:   6,
 };
 
 function LifecycleBar({ stage }: { stage: LifecycleStage }) {
   const currentIdx = STAGE_ORDER[stage];
   return (
-    <div className="mt-2.5 flex items-center gap-0.5">
+    <div className="mt-2.5 flex items-center gap-0">
       {LIFECYCLE_STAGES.map((s, idx) => {
         const active = idx === currentIdx;
         const past = idx < currentIdx;
         return (
           <React.Fragment key={s.key}>
-            <div className={`flex items-center gap-1 ${active ? 'text-sky-300' : past ? 'text-emerald-400' : 'text-white/25'}`}>
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? 'bg-sky-400 animate-pulse' : past ? 'bg-emerald-400' : 'bg-white/15'}`} />
-              <span className="text-[9px] font-semibold uppercase tracking-wide">{s.label}</span>
+            <div className={`flex items-center gap-1 ${active ? 'text-sky-300' : past ? 'text-emerald-400' : 'text-white/20'}`}>
+              <span className={`h-1 w-1 shrink-0 rounded-full ${active ? 'bg-sky-400 animate-pulse' : past ? 'bg-emerald-400' : 'bg-white/12'}`} />
+              <span className="text-[8px] font-semibold uppercase tracking-wide">{s.label}</span>
             </div>
             {idx < LIFECYCLE_STAGES.length - 1 && (
-              <span className="mx-1 text-[9px] text-white/15">›</span>
+              <span className="mx-1 text-[8px] text-white/12">›</span>
             )}
           </React.Fragment>
         );
@@ -752,6 +758,120 @@ function ActionQueue({
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
+/*                            REPAIR PIPELINE HELPERS                          */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+type PipelinePhaseStatus = 'done' | 'active' | 'failed' | 'pending';
+
+const REPAIR_PIPELINE = [
+  { key: 'detect',   label: 'Detect',    tooltip: 'Failure detected — severity and blast radius classified' },
+  { key: 'rca',      label: 'RCA',       tooltip: 'Root-cause analysis with confidence scoring' },
+  { key: 'context',  label: 'Context',   tooltip: 'GitHub issues, logs, and Obsidian memory searched for similar incidents' },
+  { key: 'diff',     label: 'Diff',      tooltip: 'Claude generates a minimal surgical code diff — no broad rewrites' },
+  { key: 'env',      label: 'Env',       tooltip: 'Isolated preview environment and sandbox branch automatically created' },
+  { key: 'validate', label: 'Validate',  tooltip: 'TypeScript, lint, build, test, and dependency validation executed' },
+  { key: 'taste',    label: 'Taste',     tooltip: 'Bud Taste audits all affected interfaces against Base44, Linear, Stripe, Apple, and the Design Constitution' },
+  { key: 'visual',   label: 'Visual QA', tooltip: 'Visual regression: before/after screenshots, spacing, typography, responsiveness, accessibility, animation, CLS, cognitive load' },
+  { key: 'browser',  label: 'Browser',   tooltip: 'Autonomous browser agent simulates real user flows across desktop and mobile' },
+  { key: 'risk',     label: 'Risk',      tooltip: 'Trust score, deployment risk score, and rollback probability calculated' },
+  { key: 'pr',       label: 'PR',        tooltip: 'Draft PR with repair reasoning, screenshots, UX impact summary, rollback strategy, and affected systems map' },
+  { key: 'approve',  label: 'Approve',   tooltip: 'Human approval required for all production-impacting changes' },
+  { key: 'deploy',   label: 'Deploy',    tooltip: 'Staged production rollout with live error-rate and UX monitoring' },
+  { key: 'learn',    label: 'Learn',     tooltip: 'Accepted fix stored into Bud memory and design intelligence layer for future autonomous improvement' },
+] as const;
+
+function derivePhaseStatuses(workspace: BudOsRepairWorkspace): Record<string, PipelinePhaseStatus> {
+  const out: Record<string, PipelinePhaseStatus> = {};
+  const hasDiagnosis = workspace.diagnosis && !workspace.diagnosis.includes('has not opened');
+  const hasDiff = workspace.diff_summary && !workspace.diff_summary.includes('No code/config diff');
+  const needsApproval = workspace.approval_status.includes('Needs');
+  const vs = workspace.verification_status;
+  const isVerified = vs === 'verified' || vs === 'recovered';
+  const isDeploying = vs === 'deploying' || vs === 'monitoring';
+  const isRolledBack = vs === 'rolled_back';
+
+  if (workspace.selected_item_id) out.detect = 'done';
+  if (hasDiagnosis) { out.rca = 'done'; out.context = 'done'; }
+  if (hasDiff) out.diff = 'done';
+  if (workspace.steps.length > 0) out.env = 'done';
+  if (workspace.ci_conclusion !== null) out.validate = workspace.ci_conclusion === 'success' ? 'done' : 'failed';
+  if (workspace.taste_score !== null) out.taste = workspace.taste_pass ? 'done' : 'failed';
+  if (workspace.browser_test_status) {
+    out.browser = workspace.browser_test_status === 'passed' ? 'done' : workspace.browser_test_status === 'failed' ? 'failed' : 'active';
+  }
+  if (workspace.taste_score !== null || workspace.browser_test_status) out.risk = 'done';
+  if (workspace.pr_url) out.pr = 'done';
+  if (needsApproval) out.approve = 'active';
+  else if (workspace.pr_url && (isDeploying || isVerified || isRolledBack)) out.approve = 'done';
+  if (isDeploying) out.deploy = 'active';
+  if (isVerified) { out.deploy = 'done'; out.learn = 'done'; }
+  if (isRolledBack) out.deploy = 'failed';
+  return out;
+}
+
+function computeRiskScores(workspace: BudOsRepairWorkspace): {
+  trustScore: number | null;
+  rollbackProb: number | null;
+  deployRisk: 'low' | 'medium' | 'high' | 'unknown';
+} {
+  const hasGate = workspace.ci_conclusion !== null || workspace.taste_score !== null || workspace.browser_test_status !== null;
+  if (!hasGate) return { trustScore: null, rollbackProb: null, deployRisk: 'unknown' };
+  const ciScore  = workspace.ci_conclusion === 'success' ? 1 : workspace.ci_conclusion === null ? 0.5 : 0;
+  const taste    = workspace.taste_score ?? 0.5;
+  const browser  = workspace.browser_tests_total
+    ? (workspace.browser_tests_passed ?? 0) / workspace.browser_tests_total
+    : 0.5;
+  const history  = workspace.repair_success_rate ?? 0.5;
+  const trustScore = ciScore * 0.3 + taste * 0.3 + browser * 0.2 + history * 0.2;
+  const rollbackProb = workspace.repair_success_rate !== null ? 1 - workspace.repair_success_rate : null;
+  const deployRisk: 'low' | 'medium' | 'high' =
+    workspace.rollback_count > 2 || (workspace.repair_success_rate !== null && workspace.repair_success_rate < 0.5) ? 'high'
+    : workspace.rollback_count > 0 ? 'medium'
+    : 'low';
+  return { trustScore, rollbackProb, deployRisk };
+}
+
+function RepairPipelineStrip({ workspace }: { workspace: BudOsRepairWorkspace }) {
+  const statuses = derivePhaseStatuses(workspace);
+  const lastDoneIdx = REPAIR_PIPELINE.reduce((acc, p, i) => {
+    const s = statuses[p.key];
+    return (s === 'done' || s === 'active' || s === 'failed') ? i : acc;
+  }, -1);
+
+  return (
+    <div className="border-b border-white/[0.05] px-5 py-3">
+      <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/30">Repair pipeline</p>
+      <div className="flex items-center overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {REPAIR_PIPELINE.map((phase, idx) => {
+          const s = statuses[phase.key];
+          const done = s === 'done';
+          const failed = s === 'failed';
+          const active = s === 'active';
+          const nextUp = !s && idx === lastDoneIdx + 1 && workspace.selected_item_id !== null;
+
+          const dotCls = done ? 'bg-emerald-400' : failed ? 'bg-red-400' : active || nextUp ? 'bg-sky-400' : 'bg-white/[0.08]';
+          const textCls = done ? 'text-emerald-400/75' : failed ? 'text-red-400' : active || nextUp ? 'text-sky-300' : 'text-white/18';
+          const pulse = (active || nextUp) ? 'animate-pulse' : '';
+
+          return (
+            <React.Fragment key={phase.key}>
+              <div className={`flex shrink-0 items-center gap-1 ${textCls}`} title={phase.tooltip}>
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotCls} ${pulse}`} />
+                <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-wide">{phase.label}</span>
+                {failed && <span className="text-[8px] leading-none">✗</span>}
+              </div>
+              {idx < REPAIR_PIPELINE.length - 1 && (
+                <span className="mx-1.5 shrink-0 text-[8px] text-white/[0.08]">›</span>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
 /*                                REPAIR STUDIO                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
@@ -783,7 +903,8 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
   const [showViolations, setShowViolations] = useState(false);
   const [showBrowserFails, setShowBrowserFails] = useState(false);
 
-  const hasGateResults = workspace.ci_conclusion !== null
+  const hasGateResults = workspace.task_id !== null
+    || workspace.ci_conclusion !== null
     || workspace.taste_score !== null
     || workspace.browser_test_status !== null;
 
@@ -800,7 +921,7 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
   return (
     <Card
       title="Repair studio"
-      subtitle="Issue → diagnose → plan → patch → approve → deploy → verify → learn"
+      subtitle="Detect → diagnose → search context → craft diff → validate → quality gates → risk score → PR → approve → deploy → learn"
       action={
         <div className="flex items-center gap-2">
           {workspace.issue_url && (
@@ -826,18 +947,62 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
         </div>
       }
     >
+      {/* ── Full pipeline strip ─────────────────────────────────────────────── */}
+      <RepairPipelineStrip workspace={workspace} />
+
       <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-3">
+          {/* Analysis */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Problem summary</p>
             <p className="mt-1 text-sm leading-relaxed text-white/85">{workspace.problem_summary}</p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Diagnosis</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Root-cause analysis</p>
+              {workspace.root_cause_type && (
+                <span className="shrink-0 rounded border border-amber-400/25 bg-amber-500/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300">
+                  {workspace.root_cause_type.replaceAll('_', ' ')}
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-sm leading-relaxed text-white/85">{workspace.diagnosis}</p>
+            {workspace.confidence !== null && (
+              <div className="mt-2 flex items-center gap-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-white/35">Confidence</p>
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div
+                    className={`h-full rounded-full ${workspace.confidence >= 0.75 ? 'bg-emerald-400' : workspace.confidence >= 0.5 ? 'bg-amber-400' : 'bg-red-400'}`}
+                    style={{ width: `${Math.round(workspace.confidence * 100)}%` }}
+                  />
+                </div>
+                <span className={`text-[9px] font-semibold tabular-nums ${workspace.confidence >= 0.75 ? 'text-emerald-300' : workspace.confidence >= 0.5 ? 'text-amber-300' : 'text-red-300'}`}>
+                  {Math.round(workspace.confidence * 100)}%
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Context sources searched */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Proposed plan</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Context searched</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {([
+                { label: 'Obsidian memory', active: workspace.steps.length > 0 },
+                { label: 'GitHub issues',   active: workspace.issue_url !== null },
+                { label: 'Learning library', active: workspace.steps.some(s => s.state === 'reproducing' || s.state === 'analyzing') },
+                { label: 'Agent logs',      active: workspace.logs.length > 0 },
+              ] as Array<{ label: string; active: boolean }>).map(({ label, active }) => (
+                <span key={label} className={`rounded border px-2 py-0.5 text-[9px] font-semibold ${active ? 'border-emerald-400/25 bg-emerald-500/[0.06] text-emerald-300' : 'border-white/[0.06] bg-white/[0.02] text-white/25'}`}>
+                  {active ? '✓' : '○'} {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Proposed plan */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Surgical repair plan</p>
             <ol className="mt-2 space-y-1.5">
               {workspace.proposed_plan.map((step, index) => (
                 <li key={`${step}-${index}`} className="flex gap-2 text-sm text-white/80">
@@ -847,15 +1012,49 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
               ))}
             </ol>
           </div>
+
+          {/* Status tiles */}
           <div className="grid gap-2 sm:grid-cols-3">
             <StatusTile label="Approval" value={workspace.approval_status} tone={workspace.approval_status.includes('Needs') ? 'warn' : 'neutral'} />
             <StatusTile label="Deployment" value={workspace.deployment_status} />
             <StatusTile label="Verification" value={workspace.verification_status.replaceAll('_', ' ')} tone={workspace.verification_status === 'verified' ? 'good' : 'neutral'} />
           </div>
+
+          {/* Environment info */}
+          {(workspace.sandbox_branch || workspace.deployment_url) && (
+            <div className="flex flex-wrap gap-2">
+              {workspace.sandbox_branch && (
+                <span className="inline-flex items-center gap-1.5 rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[10px] text-white/55">
+                  <span className="text-white/30">branch</span>
+                  <span className="font-mono text-white/70">{workspace.sandbox_branch}</span>
+                </span>
+              )}
+              {workspace.deployment_url && (
+                <a href={workspace.deployment_url} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded border border-sky-400/25 bg-sky-500/[0.06] px-2 py-1 text-[10px] text-sky-300 hover:text-sky-200 transition">
+                  Preview →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Surgical diff */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Code/config diff</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Surgical code diff</p>
             <p className="mt-1 rounded-md border border-white/[0.06] bg-black/30 px-3 py-3 font-mono text-xs leading-relaxed text-white/65">{workspace.diff_summary}</p>
           </div>
+
+          {/* Affected files */}
+          {workspace.affected_files.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">Affected systems</p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {workspace.affected_files.map((f) => (
+                  <span key={f} className="rounded border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 font-mono text-[9px] text-white/55">{f.split('/').pop()}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-3">
           <div className="rounded-md border border-white/[0.06] bg-black/15">
@@ -895,136 +1094,216 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
       </div>
 
       {/* ── Gate results panel ──────────────────────────────────────────────── */}
-      {hasGateResults && (
-        <div className="border-t border-white/[0.06] px-5 py-4">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Gate results</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+      {hasGateResults && (() => {
+        const { trustScore, rollbackProb, deployRisk } = computeRiskScores(workspace);
+        return (
+        <div className="border-t border-white/[0.06] px-5 py-4 space-y-4">
+          <div>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Validation gates</p>
+            <div className="grid gap-3 sm:grid-cols-3">
 
-            {/* CI gate */}
-            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">CI</p>
-                <GatePill pass={workspace.ci_conclusion === 'success' ? true : workspace.ci_conclusion === null ? null : false} label="CI" />
-              </div>
-              <p className={`mt-1.5 text-xs font-semibold ${ciTone}`}>
-                {workspace.ci_conclusion ?? 'not run'}
-              </p>
-              {workspace.ci_run_url && (
-                <a href={workspace.ci_run_url} target="_blank" rel="noreferrer"
-                  className="mt-1.5 block text-[10px] text-sky-300 hover:text-sky-200 transition">
-                  View run →
-                </a>
-              )}
-            </div>
-
-            {/* Taste gate */}
-            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Design taste</p>
-                <GatePill pass={workspace.taste_pass} label="Taste" />
-              </div>
-              {workspace.taste_score !== null ? (
-                <>
-                  {/* Score bar */}
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
-                    <div
-                      className={`h-full rounded-full transition-all ${workspace.taste_pass ? 'bg-emerald-400' : 'bg-red-400'}`}
-                      style={{ width: `${Math.round(workspace.taste_score * 100)}%` }}
-                    />
-                  </div>
-                  <p className={`mt-1 text-xs font-semibold ${workspace.taste_pass ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {Math.round(workspace.taste_score * 100)}%
-                  </p>
-                  {workspace.taste_violations.length > 0 && (
-                    <button
-                      onClick={() => setShowViolations((v) => !v)}
-                      className="mt-1 text-[10px] text-amber-300 hover:text-amber-200 transition"
-                    >
-                      {showViolations ? 'Hide' : `${workspace.taste_violations.length} violation${workspace.taste_violations.length === 1 ? '' : 's'}`}
-                    </button>
-                  )}
-                  {showViolations && workspace.taste_violations.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {workspace.taste_violations.map((v, i) => (
-                        <li key={i} className="text-[10px] leading-relaxed text-red-300/80">· {v}</li>
-                      ))}
-                      {workspace.taste_suggestions.length > 0 && (
-                        <>
-                          <li className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Suggestions</li>
-                          {workspace.taste_suggestions.map((s, i) => (
-                            <li key={`s-${i}`} className="text-[10px] leading-relaxed text-white/55">· {s}</li>
-                          ))}
-                        </>
-                      )}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <p className="mt-1.5 text-xs text-white/35">no UI files patched</p>
-              )}
-            </div>
-
-            {/* Browser gate */}
-            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Browser</p>
-                <GatePill
-                  pass={
-                    workspace.browser_test_status === 'passed' ? true
-                    : workspace.browser_test_status === 'failed' ? false
-                    : null
-                  }
-                  label="Playwright"
-                />
-              </div>
-              {workspace.browser_tests_total !== null && workspace.browser_tests_total > 0 ? (
-                <>
-                  <p className={`mt-1.5 text-xs font-semibold ${browserTone}`}>
-                    {workspace.browser_tests_passed ?? 0}/{workspace.browser_tests_total} passed
-                  </p>
-                  {(workspace.browser_tests_failed ?? 0) > 0 && (
-                    <button
-                      onClick={() => setShowBrowserFails((v) => !v)}
-                      className="mt-1 text-[10px] text-red-300 hover:text-red-200 transition"
-                    >
-                      {showBrowserFails ? 'Hide' : `${workspace.browser_tests_failed} failure${workspace.browser_tests_failed === 1 ? '' : 's'}`}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <p className="mt-1.5 text-xs text-white/35">
-                  {workspace.browser_test_status === 'skipped' ? 'skipped' : workspace.browser_test_status === 'blocked' ? 'blocked — env required' : 'not run'}
+              {/* CI gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Build & test</p>
+                  <GatePill pass={workspace.ci_conclusion === 'success' ? true : workspace.ci_conclusion === null ? null : false} label="CI" />
+                </div>
+                <p className={`mt-1.5 text-xs font-semibold ${ciTone}`}>
+                  {workspace.ci_conclusion ? workspace.ci_conclusion.replaceAll('_', ' ') : 'awaiting run'}
                 </p>
-              )}
-            </div>
-
-          </div>
-
-          {/* ── Rollback monitoring ──────────────────────────────────────────── */}
-          {(workspace.rollback_count > 0 || workspace.repair_success_rate !== null) && (
-            <div className="mt-4 rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
-              <div className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Rollback monitoring</p>
-                {workspace.repair_success_rate !== null && (
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${workspace.repair_success_rate >= 0.8 ? 'bg-emerald-500/10 text-emerald-300' : workspace.repair_success_rate >= 0.5 ? 'bg-amber-500/10 text-amber-300' : 'bg-red-500/10 text-red-300'}`}>
-                    {Math.round(workspace.repair_success_rate * 100)}% success rate
-                  </span>
+                <p className="mt-0.5 text-[9px] text-white/30">TypeScript · lint · build · test · deps</p>
+                {workspace.ci_run_url && (
+                  <a href={workspace.ci_run_url} target="_blank" rel="noreferrer"
+                    className="mt-1.5 block text-[10px] text-sky-300 hover:text-sky-200 transition">
+                    View run →
+                  </a>
                 )}
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                <span className="text-xs text-white/55">
-                  <span className="font-semibold text-white/80">{workspace.rollback_count}</span> rollback{workspace.rollback_count === 1 ? '' : 's'}
-                </span>
-                {Object.entries(workspace.rollback_triggers).map(([trigger, count]) => (
-                  <span key={trigger} className="text-[10px] text-white/40">
-                    {trigger.replace('_', ' ')}: <span className="text-white/65">{count}</span>
+
+              {/* Taste gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Design taste</p>
+                  <GatePill pass={workspace.taste_pass} label="Taste" />
+                </div>
+                {workspace.taste_score !== null ? (
+                  <>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className={`h-full rounded-full transition-all ${workspace.taste_pass ? 'bg-emerald-400' : 'bg-red-400'}`}
+                        style={{ width: `${Math.round(workspace.taste_score * 100)}%` }}
+                      />
+                    </div>
+                    <p className={`mt-1 text-xs font-semibold ${workspace.taste_pass ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {Math.round(workspace.taste_score * 100)}%
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-white/30">Base44 · Linear · Stripe · Apple · Constitution</p>
+                    {workspace.taste_violations.length > 0 && (
+                      <button onClick={() => setShowViolations((v) => !v)} className="mt-1 text-[10px] text-amber-300 hover:text-amber-200 transition">
+                        {showViolations ? 'Hide' : `${workspace.taste_violations.length} violation${workspace.taste_violations.length === 1 ? '' : 's'}`}
+                      </button>
+                    )}
+                    {showViolations && workspace.taste_violations.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {workspace.taste_violations.map((v, i) => (
+                          <li key={i} className="text-[10px] leading-relaxed text-red-300/80">· {v}</li>
+                        ))}
+                        {workspace.taste_suggestions.length > 0 && (
+                          <>
+                            <li className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Suggestions</li>
+                            {workspace.taste_suggestions.map((s, i) => (
+                              <li key={`s-${i}`} className="text-[10px] leading-relaxed text-white/55">· {s}</li>
+                            ))}
+                          </>
+                        )}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1.5 text-xs text-white/35">awaiting patch</p>
+                )}
+              </div>
+
+              {/* Browser gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Browser agent</p>
+                  <GatePill
+                    pass={
+                      workspace.browser_test_status === 'passed' ? true
+                      : workspace.browser_test_status === 'failed' ? false
+                      : null
+                    }
+                    label="Playwright"
+                  />
+                </div>
+                {workspace.browser_tests_total !== null && workspace.browser_tests_total > 0 ? (
+                  <>
+                    <p className={`mt-1.5 text-xs font-semibold ${browserTone}`}>
+                      {workspace.browser_tests_passed ?? 0}/{workspace.browser_tests_total} passed
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-white/30">Desktop · mobile user flows</p>
+                    {(workspace.browser_tests_failed ?? 0) > 0 && (
+                      <button onClick={() => setShowBrowserFails((v) => !v)} className="mt-1 text-[10px] text-red-300 hover:text-red-200 transition">
+                        {showBrowserFails ? 'Hide' : `${workspace.browser_tests_failed} failure${workspace.browser_tests_failed === 1 ? '' : 's'}`}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1.5 text-xs text-white/35">
+                    {workspace.browser_test_status === 'skipped' ? 'skipped'
+                    : workspace.browser_test_status === 'blocked' ? 'blocked — env required'
+                    : 'awaiting validation'}
+                  </p>
+                )}
+              </div>
+
+              {/* Visual regression gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Visual regression</p>
+                  <GatePill pass={null} label="Visual" />
+                </div>
+                <p className="mt-1.5 text-xs text-white/35">awaiting gate</p>
+                <p className="mt-0.5 text-[9px] text-white/25">Screenshots · spacing · typography · CLS · accessibility · animation · cognitive load</p>
+              </div>
+
+              {/* Accessibility gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Accessibility</p>
+                  <GatePill pass={null} label="a11y" />
+                </div>
+                <p className="mt-1.5 text-xs text-white/35">awaiting gate</p>
+                <p className="mt-0.5 text-[9px] text-white/25">WCAG AA · contrast · keyboard nav · ARIA · focus management</p>
+              </div>
+
+              {/* Performance gate */}
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Performance</p>
+                  <GatePill pass={null} label="Perf" />
+                </div>
+                <p className="mt-1.5 text-xs text-white/35">awaiting gate</p>
+                <p className="mt-0.5 text-[9px] text-white/25">CLS · LCP · FID · bundle size delta · render budget</p>
+              </div>
+
+            </div>
+          </div>
+
+          {/* ── Risk scores ──────────────────────────────────────────────────── */}
+          {trustScore !== null && (
+            <div>
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Risk scores</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Trust score</p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full ${trustScore >= 0.75 ? 'bg-emerald-400' : trustScore >= 0.5 ? 'bg-amber-400' : 'bg-red-400'}`}
+                      style={{ width: `${Math.round(trustScore * 100)}%` }}
+                    />
+                  </div>
+                  <p className={`mt-1 text-sm font-semibold tabular-nums ${trustScore >= 0.75 ? 'text-emerald-300' : trustScore >= 0.5 ? 'text-amber-300' : 'text-red-300'}`}>
+                    {Math.round(trustScore * 100)}%
+                  </p>
+                  <p className="mt-0.5 text-[9px] text-white/25">CI · taste · browser · history</p>
+                </div>
+                <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Deployment risk</p>
+                  <p className={`mt-2 text-sm font-semibold capitalize ${deployRisk === 'low' ? 'text-emerald-300' : deployRisk === 'medium' ? 'text-amber-300' : deployRisk === 'high' ? 'text-red-300' : 'text-white/40'}`}>
+                    {deployRisk}
+                  </p>
+                  <p className="mt-0.5 text-[9px] text-white/25">rollback history · success rate</p>
+                </div>
+                <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Rollback probability</p>
+                  <p className={`mt-2 text-sm font-semibold tabular-nums ${rollbackProb === null ? 'text-white/35' : rollbackProb < 0.2 ? 'text-emerald-300' : rollbackProb < 0.4 ? 'text-amber-300' : 'text-red-300'}`}>
+                    {rollbackProb !== null ? `${Math.round(rollbackProb * 100)}%` : 'unknown'}
+                  </p>
+                  <p className="mt-0.5 text-[9px] text-white/25">based on {workspace.rollback_count} prior rollback{workspace.rollback_count === 1 ? '' : 's'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* rejection note */}
+          {(workspace.taste_pass === false || workspace.ci_conclusion !== null && workspace.ci_conclusion !== 'success') && (
+            <p className="rounded-md border border-red-400/20 bg-red-500/[0.06] px-3 py-2 text-[10px] leading-relaxed text-red-300/80">
+              Repair automatically rejected — broken layouts, accessibility regressions, CLS shifts, or performance degradation detected. Bud will refine and resubmit.
+            </p>
+          )}
+
+          {/* ── Live rollback monitoring ─────────────────────────────────────── */}
+          {(workspace.rollback_count > 0 || workspace.repair_success_rate !== null) && (
+            <div>
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Live monitoring</p>
+              <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+                <div className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Rollback triggers</p>
+                  {workspace.repair_success_rate !== null && (
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${workspace.repair_success_rate >= 0.8 ? 'bg-emerald-500/10 text-emerald-300' : workspace.repair_success_rate >= 0.5 ? 'bg-amber-500/10 text-amber-300' : 'bg-red-500/10 text-red-300'}`}>
+                      {Math.round(workspace.repair_success_rate * 100)}% success rate — auto-rollback armed
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  <span className="text-xs text-white/55">
+                    <span className="font-semibold text-white/80">{workspace.rollback_count}</span> rollback{workspace.rollback_count === 1 ? '' : 's'}
                   </span>
-                ))}
+                  {Object.entries(workspace.rollback_triggers).map(([trigger, count]) => (
+                    <span key={trigger} className="text-[10px] text-white/40">
+                      {trigger.replace('_', ' ')}: <span className="text-white/65">{count}</span>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-[9px] text-white/25">Anomalies, UX degradation, or error spikes trigger automatic rollback. Accepted fixes are stored into Bud memory and design intelligence for future improvement.</p>
               </div>
             </div>
           )}
         </div>
-      )}
+      );
+    })()}
     </Card>
   );
 }

@@ -79,11 +79,16 @@ export type BudOsRepairWorkspace = {
   selected_item_id: string | null;
   problem_summary: string;
   diagnosis: string;
+  root_cause_type: string | null;
+  confidence: number | null;
   proposed_plan: string[];
   diff_summary: string;
   approval_status: string;
   deployment_status: string;
   verification_status: string;
+  sandbox_branch: string | null;
+  deployment_url: string | null;
+  affected_files: string[];
   logs: Array<{ id: string; level: string; message: string; created_at: string }>;
   steps: Array<{ id: string; state: string; status: string; summary: string; started_at: string }>;
   task_id: string | null;
@@ -766,6 +771,8 @@ export function buildRepairWorkspace(args: {
     : args.activity.slice(0, 6).map((event) => ({ id: event.id, level: event.event_type, message: event.narrative, created_at: event.created_at }));
   const strategy = execution?.repair_strategy;
   const strategySteps = Array.isArray(strategy?.steps) ? strategy.steps.map(String) : [];
+  const strategyBranch = typeof strategy?.branchName === 'string' ? strategy.branchName : null;
+  const strategyFiles = Array.isArray(strategy?.affectedFiles) ? (strategy.affectedFiles as string[]) : [];
 
   // Rollback monitoring — scoped to the selected agent if there is one
   const allRollbacks = args.rollbackEvents ?? [];
@@ -790,6 +797,8 @@ export function buildRepairWorkspace(args: {
     selected_item_id: selected?.id ?? null,
     problem_summary: session?.description ?? selected?.detail ?? 'Select an item for Bud to explain the repair path.',
     diagnosis: execution?.root_cause_summary ?? (selected ? `${selected.title}: ${selected.detail}` : 'Bud has not opened a diagnosis yet.'),
+    root_cause_type: execution?.root_cause_type ?? null,
+    confidence: session?.confidence ?? null,
     proposed_plan: strategySteps.length > 0 ? strategySteps : [
       'Explain the problem in business terms.',
       'Inspect the affected agent, workflow, or page.',
@@ -804,6 +813,9 @@ export function buildRepairWorkspace(args: {
     logs: executionLogs,
     steps: executionSteps.map((step) => ({ id: step.id, state: step.state, status: step.status, summary: step.summary, started_at: step.started_at })),
     task_id: taskId,
+    sandbox_branch: strategyBranch,
+    deployment_url: execution?.deployment_url ?? null,
+    affected_files: strategyFiles,
     // Gate results — only populated after a repair pipeline has run
     ci_conclusion: execution?.ci_conclusion ?? null,
     ci_run_url: execution?.ci_run_url ?? null,
