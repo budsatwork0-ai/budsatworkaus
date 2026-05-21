@@ -158,6 +158,8 @@ export const budAgent: AgentDefinition = {
     const now = Date.now();
     const since24h = new Date(now - 24 * 3600_000).toISOString();
     const since7d  = new Date(now - 7 * 24 * 3600_000).toISOString();
+    const since48h = new Date(now - 48 * 3600_000).toISOString();
+    const since30d = new Date(now - 30 * 24 * 3600_000).toISOString();
 
     await writeBudActivity(ctx.supabase,
       'Bud is thinking — analyzing agent workforce status...',
@@ -165,16 +167,26 @@ export const budAgent: AgentDefinition = {
     );
 
     // ── 1. Load source data ────────────────────────────────────────────────
-    const [agentsRes, runs24hRes, runs7dRes, pendingRes, budTasksRes, unresolvedInsightsRes, budApprovalsRes] = await Promise.all([
-      ctx.supabase.from('agents').select('id, name, category, status, autonomy, schedule'),
+    // Fetch agents first so we can filter run queries to enabled agents only,
+    // avoiding unnecessary DB reads for retired/paused agents.
+    const agentsRes = await ctx.supabase
+      .from('agents')
+      .select('id, name, category, status, autonomy, schedule');
+
+    const agents = agentsRes.data ?? [];
+    const enabledAgentIds = agents.filter((a) => a.status !== 'disabled').map((a) => a.id);
+
+    const [runs24hRes, runs7dRes, pendingRes, budTasksRes, stuckTasksRes, unresolvedInsightsRes, budApprovalsRes, prevLobbyRes] = await Promise.all([
       ctx.supabase
         .from('agent_runs')
         .select('id, agent_id, status, cost_cents, started_at, summary, output')
-        .gte('started_at', since24h),
+        .gte('started_at', since24h)
+        .in('agent_id', enabledAgentIds),
       ctx.supabase
         .from('agent_runs')
         .select('id, agent_id, status, summary, output, started_at')
-        .gte('started_at', since7d),
+        .gte('started_at', since7d)
+        .in('agent_id', enabledAgentIds),
       ctx.supabase
         .from('v_pending_agent_actions')
         .select('id, agent_id, status, created_at')
@@ -183,6 +195,13 @@ export const budAgent: AgentDefinition = {
         .from('bud_tasks')
         .select('id, status, source_agent')
         .in('status', ['pending', 'in_progress', 'awaiting_approval']),
+      // Completed tasks older than 48h — used to detect persistently broken agents
+      // that have already been investigated but never actually fixed.
+      ctx.supabase
+        .from('bud_tasks')
+        .select('id, source_agent, created_at')
+        .eq('status', 'completed')
+        .lt('created_at', since48h),
       ctx.supabase
         .from('bud_insights')
         .select('id')
@@ -191,15 +210,28 @@ export const budAgent: AgentDefinition = {
         .from('bud_approval_queue')
         .select('id, status')
         .eq('status', 'pending'),
+      // Previous lobby state — used to skip the LLM call when nothing has changed.
+      ctx.supabase
+        .from('bud_lobby_states')
+        .select('kpis, agent_states, operational_status, bud_state, summary')
+        .eq('is_current', true)
+        .maybeSingle(),
     ]);
 
-    const agents    = agentsRes.data ?? [];
     const runs24h   = runs24hRes.data ?? [];
     const runs7d    = runs7dRes.data ?? [];
     const pending   = pendingRes.data ?? [];
     const budTasks  = budTasksRes.data ?? [];
+    const stuckTasks = stuckTasksRes.data ?? [];
     const unresolvedAlertCount = unresolvedInsightsRes.data?.length ?? 0;
     const budApprovalCount = budApprovalsRes.data?.length ?? 0;
+    const prevLobby = prevLobbyRes.data ?? null;
+
+    // Agents already investigated (and task completed) more than 48h ago — these
+    // are "persistently broken" and should not be re-investigated every cycle.
+    const alreadyInvestigatedStuck = new Set(
+      stuckTasks.map((t) => t.source_agent).filter(Boolean) as string[],
+    );
 
     // ── 2. Build per-agent metrics ─────────────────────────────────────────
     const metrics = new Map<string, AgentMetrics>();
@@ -404,11 +436,19 @@ export const budAgent: AgentDefinition = {
     const investigationResults: InvestigationOutcome[] = [];
 
     // Only investigate agents that have concrete failure data in the last 24h.
-    // Exclude 'bud' itself — self-investigation creates an infinite repair loop
-    // where each Bud run detects its own prior failure and spawns another branch.
+    // Exclude 'bud' itself to avoid self-investigation loops.
+    // Exclude agents already investigated >48h ago whose task completed but the
+    // agent is STILL broken — re-investigating them wastes budget and produces
+    // identical reports. Emit a persistent-failure escalation insight for those
+    // instead, nudging the admin to disable or manually fix the agent.
+    const persistentlyBroken = needsAttention
+      .filter((id) => id !== 'bud')
+      .filter((id) => alreadyInvestigatedStuck.has(id));
+
     const agentsToInvestigate = needsAttention
       .filter((id) => failureDetails.has(id))
       .filter((id) => id !== 'bud')
+      .filter((id) => !alreadyInvestigatedStuck.has(id))
       .slice(0, 5); // cap at 5 per cycle to stay within timeout
 
     if (agentsToInvestigate.length > 0) {
@@ -434,6 +474,37 @@ export const budAgent: AgentDefinition = {
           });
         } catch (err) {
           ctx.log(`[bud] investigation failed for ${aid}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    // Emit one escalation insight per persistently-broken agent (capped at 3 per cycle
+    // to avoid flooding the insights table). The insight deduplicates on title via
+    // upsert-style: we only insert if no unresolved insight for this agent exists.
+    if (persistentlyBroken.length > 0) {
+      for (const aid of persistentlyBroken.slice(0, 3)) {
+        const agentName = agents.find((a) => a.id === aid)?.name ?? aid;
+        const { data: existing } = await ctx.supabase
+          .from('bud_insights')
+          .select('id')
+          .eq('agent_id', aid)
+          .eq('category', 'anomaly')
+          .is('resolved_at', null)
+          .ilike('title', '%persistently broken%')
+          .maybeSingle();
+        if (!existing) {
+          await ctx.supabase.from('bud_insights').insert({
+            agent_id: aid,
+            category: 'anomaly',
+            severity: 'high',
+            title: `${agentName} is persistently broken — disable or fix manually`,
+            body: `${agentName} has been in a broken state for more than 48 hours. Bud has already investigated it. The root cause was not fixed. Consider disabling this agent in the registry until the underlying issue is resolved.`,
+            metadata: { investigated_at_48h_plus: true },
+          });
+          await writeBudActivity(ctx.supabase,
+            `Bud escalated ${agentName} — broken for 48h+, no longer re-investigating. Disable or fix manually.`,
+            { event_type: 'detection', actor: 'bud', target: aid },
+          );
         }
       }
     }
@@ -490,7 +561,41 @@ ${investigationSummary}`;
       }>;
     };
 
+    // Skip the LLM call entirely if the operational picture hasn't changed since
+    // the last cycle. We compare the sorted needsAttention IDs and three key KPIs.
+    // A quiet, unchanged system doesn't need a fresh Claude call every 15 minutes.
     let llmResult: LlmResult;
+    const prevKpis = prevLobby?.kpis as Partial<LobbyKPIs> | null | undefined;
+    const prevAttentionIds = prevLobby?.agent_states
+      ? Object.entries(prevLobby.agent_states as Record<string, string>)
+          .filter(([, s]) => ['degraded', 'overloaded'].includes(s))
+          .map(([id]) => id)
+          .sort()
+          .join(',')
+      : '';
+    const curAttentionIds = [...needsAttention].sort().join(',');
+    const stateUnchanged =
+      prevLobby !== null &&
+      investigationResults.length === 0 &&
+      persistentlyBroken.length === 0 &&
+      curAttentionIds === prevAttentionIds &&
+      prevKpis?.failed_runs_24h === kpis.failed_runs_24h &&
+      prevKpis?.parse_failures_24h === kpis.parse_failures_24h &&
+      prevKpis?.bud_tasks_open === kpis.bud_tasks_open;
+
+    if (stateUnchanged) {
+      ctx.log('[bud] state unchanged from previous cycle — skipping LLM call');
+      llmResult = {
+        operational_status: (prevLobby!.operational_status as OperationalStatus) ?? 'nominal',
+        bud_state: (prevLobby!.bud_state as BudState) ?? 'idle',
+        summary: prevLobby!.summary as string ?? 'No change since last cycle.',
+        section_priorities: {
+          'needs-attention': 1, 'live-operations': 2, 'customer-pipeline': 3,
+          'finance-risk': 4, 'compliance': 5, 'growth-systems': 6, 'dormant': 7,
+        },
+        insights: [],
+      };
+    } else {
     try {
       const raw = await ctx.llm(llmPrompt, { system: SYSTEM });
       llmResult = JSON.parse(raw) as LlmResult;
@@ -513,6 +618,7 @@ ${investigationSummary}`;
         insights: [],
       };
     }
+    } // end else (LLM was called)
 
     const forcedOperationalStatus = globalHealth.bud_status;
     const hasAwaitingApproval = investigationResults.some((r) => r.taskStatus === 'awaiting_approval');
@@ -585,6 +691,14 @@ ${investigationSummary}`;
         })),
       );
     }
+
+    // ── 11b. Prune old rows (fire-and-forget) ─────────────────────────────
+    // Keep bud_insights and bud_activity_feed lean — delete rows older than 30 days.
+    // Run in parallel and ignore errors so a prune failure never breaks the cycle.
+    void Promise.all([
+      ctx.supabase.from('bud_insights').delete().lt('created_at', since30d),
+      ctx.supabase.from('bud_activity_feed').delete().lt('created_at', since30d),
+    ]);
 
     // ── 12. Narrate to activity feed ───────────────────────────────────────
     const summaryNarrative = investigationResults.length > 0
