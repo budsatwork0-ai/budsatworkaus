@@ -9,7 +9,13 @@ import {
   budBranchName,
   getFileContent,
   writeFileToBranch,
+  searchIssues,
+  deleteBranch,
+  pollWorkflowUntilComplete,
 } from './github-executor';
+import { readNote } from './obsidian-memory';
+import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
+import { isUiFile } from './design-constitution';
 
 const execFileAsync = promisify(execFile);
 
@@ -231,6 +237,111 @@ function buildStrategy(task: RepairTaskRow, rootCause: ReturnType<typeof classif
   };
 }
 
+// ── Historical context ────────────────────────────────────────────────────────
+
+type HistoricalContext = {
+  pastRepairs: Array<{ rootCauseType: string; fixPattern: string; outcome: string; createdAt: string }>;
+  recentAgentFailures: Array<{ runId: string; summary: string | null; failedAt: string }>;
+  obsidianPatterns: string | null;
+  githubIssues: Array<{ title: string; url: string; state: string; createdAt: string }>;
+  confidenceBoost: number;
+};
+
+async function searchHistoricalContext(
+  supabase: SupabaseClient,
+  agentId: string,
+  rootCauseType: string,
+): Promise<HistoricalContext> {
+  // Past repairs with the same root cause type (across all agents)
+  const { data: pastRepairs } = await supabase
+    .from('bud_repair_learnings')
+    .select('root_cause_type, fix_pattern, outcome, created_at')
+    .eq('root_cause_type', rootCauseType)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  // Recent failures of this specific agent in the last 7 days
+  const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data: recentFailures } = await supabase
+    .from('agent_runs')
+    .select('id, summary, started_at')
+    .eq('agent_id', agentId)
+    .in('status', ['failed', 'needs_repair'])
+    .gte('started_at', since7d)
+    .order('started_at', { ascending: false })
+    .limit(5);
+
+  // Obsidian repair pattern note for this agent (non-fatal if vault not configured)
+  let obsidianPatterns: string | null = null;
+  try {
+    const safe = agentId.replace(/[^a-z0-9-]/g, '-');
+    obsidianPatterns = readNote(`02-agents/${safe}-patterns.md`);
+  } catch {
+    // vault not configured or pattern file does not exist yet
+  }
+
+  // GitHub issues mentioning this agent (non-fatal if GitHub not configured)
+  let githubIssues: Array<{ title: string; url: string; state: string; createdAt: string }> = [];
+  try {
+    const raw = await searchIssues(`[Bud] ${agentId} in:title label:bud`, 5);
+    githubIssues = raw.map(({ title, url, state, createdAt }) => ({ title, url, state, createdAt }));
+  } catch {
+    // GitHub not configured — skip silently
+  }
+
+  // Boost confidence by 0.05 per past recovered fix, capped at +0.20
+  const recoveredCount = (pastRepairs ?? []).filter((r) => r.outcome === 'recovered').length;
+  const confidenceBoost = Math.min(0.2, recoveredCount * 0.05);
+
+  return {
+    pastRepairs: (pastRepairs ?? []).map((r) => ({
+      rootCauseType: r.root_cause_type,
+      fixPattern: r.fix_pattern,
+      outcome: r.outcome,
+      createdAt: r.created_at,
+    })),
+    recentAgentFailures: (recentFailures ?? []).map((r) => ({
+      runId: r.id,
+      summary: r.summary,
+      failedAt: r.started_at,
+    })),
+    obsidianPatterns,
+    githubIssues,
+    confidenceBoost,
+  };
+}
+
+function formatHistoryForPrompt(history: HistoricalContext, agentId: string): string {
+  const parts: string[] = [];
+
+  if (history.recentAgentFailures.length > 0) {
+    parts.push(`RECENT FAILURES OF ${agentId} (last 7 days):`);
+    history.recentAgentFailures.forEach((f) => {
+      parts.push(`- [${f.failedAt.slice(0, 10)}] ${f.summary?.slice(0, 120) ?? 'no summary'}`);
+    });
+  }
+
+  if (history.pastRepairs.length > 0) {
+    parts.push(`\nPAST REPAIRS FOR THIS ROOT CAUSE TYPE:`);
+    history.pastRepairs.forEach((r) => {
+      parts.push(`- [${r.outcome.toUpperCase()}] ${r.fixPattern.slice(0, 120)}`);
+    });
+  }
+
+  if (history.obsidianPatterns) {
+    parts.push(`\nAGENT REPAIR PATTERNS (from Bud memory):\n${history.obsidianPatterns.slice(0, 800)}`);
+  }
+
+  if (history.githubIssues.length > 0) {
+    parts.push(`\nRELATED GITHUB ISSUES:`);
+    history.githubIssues.forEach((i) => {
+      parts.push(`- [${i.state.toUpperCase()}] ${i.title} — ${i.url}`);
+    });
+  }
+
+  return parts.length > 0 ? parts.join('\n') : 'No historical context found for this agent or root cause type.';
+}
+
 export async function executeRepairPipeline(
   supabase: SupabaseClient,
   params: {
@@ -273,19 +384,28 @@ export async function executeRepairPipeline(
     return { executionId, status: 'failed' };
   }
 
-  const analyzeStep = await startStep(supabase, executionId, 'analyzing', 'Classified root cause from stored failure evidence.');
+  const analyzeStep = await startStep(supabase, executionId, 'analyzing', 'Classified root cause and searched historical incident context.');
   const rootCause = classifyRootCause(typedTask);
+
+  // Search historical context: past repairs, recent agent failures, Obsidian patterns, GitHub issues
+  const history = await searchHistoricalContext(supabase, typedTask.source_agent ?? '', rootCause.type);
+  const boostedConfidence = Math.min(0.99, rootCause.confidence + history.confidenceBoost);
+
   await updateExecution(supabase, executionId, {
     root_cause_type: rootCause.type,
     root_cause_summary: rootCause.summary,
-    confidence: rootCause.confidence,
+    confidence: boostedConfidence,
   });
-  await finishStep(supabase, analyzeStep, 'passed', { root_cause: rootCause }, rootCause.confidence);
+  await log(supabase, executionId, analyzeStep, 'info',
+    `Historical context: ${history.pastRepairs.length} past repair(s), ${history.recentAgentFailures.length} recent failure(s), confidence boosted by +${history.confidenceBoost.toFixed(2)}.`,
+    { history },
+  );
+  await finishStep(supabase, analyzeStep, 'passed', { root_cause: rootCause, history }, boostedConfidence);
 
-  const planningStep = await startStep(supabase, executionId, 'planning', 'Generated deterministic repair strategy.');
+  const planningStep = await startStep(supabase, executionId, 'planning', 'Generated repair strategy from root cause and historical patterns.');
   const strategy = buildStrategy(typedTask, rootCause);
   await updateExecution(supabase, executionId, { repair_strategy: strategy });
-  await finishStep(supabase, planningStep, 'passed', strategy, rootCause.confidence);
+  await finishStep(supabase, planningStep, 'passed', strategy, boostedConfidence);
 
   const dirtyWorktree = gitStatus.stdout.trim().length > 0;
   if (dirtyWorktree && process.env.BUD_OS_ALLOW_DIRTY_WORKTREE !== 'true') {
@@ -373,34 +493,45 @@ AGENT OUTPUT SCHEMA (required by the runtime — every agent's \`result.output\`
 The runtime normalises non-conforming output automatically now, so the agent does NOT need to be updated — unless the failure is a runtime exception, not a schema issue.
 ` : '';
 
+  const historyBlock = formatHistoryForPrompt(history, typedTask.source_agent ?? 'unknown');
+
   const patchPrompt = `You are Bud, an autonomous repair agent for a TypeScript/Next.js/Supabase codebase.
 The project is a local-services platform (cleaning, yard care, etc.) with an agent system at src/lib/agents/.
 Each agent exports a named constant that matches AgentDefinition: { id, name, description, category, autonomy, run(ctx) }.
 The runtime at src/lib/agents/runtime.ts executes agents and handles retries, cost accounting, and guardrails.
 ${schemaContext}
-TASK: Fix the following agent failure by generating minimal, targeted code patches.
+TASK: Fix the following agent failure by generating a MINIMAL, SURGICAL code patch.
 
 FAILURE SUMMARY: ${description}
 ERROR TYPE: ${rootCause.type}
 ERROR MESSAGE: ${errorMsg.slice(0, 600)}
 RECOMMENDED FIX: ${recommendedFix}
+ROOT CAUSE CONFIDENCE: ${(boostedConfidence * 100).toFixed(0)}%
+
+HISTORICAL CONTEXT:
+${historyBlock}
 
 ${fileContextParts.length > 0 ? `AFFECTED FILES:\n${fileContextParts.join('\n\n')}` : 'No affected files could be read from the repository.'}
 
+SURGICAL CONSTRAINT — CRITICAL:
+- Touch at most 3 files. If a correct fix requires more, return empty patches with a note explaining why.
+- Do not refactor, rename, or reorganise code beyond what is needed to fix the specific failure.
+- If a past fix pattern above already resolved this exact issue, apply the same fix.
+- Prefer the smallest possible change: a one-line fix beats a function rewrite.
+
 INSTRUCTIONS:
-1. Identify the minimal change needed to fix this error.
+1. Use historical context to inform your fix — if past repairs succeeded on the same root cause, apply the same pattern.
 2. Return a JSON array of file patches. Each patch must have:
    - "file": relative path from repo root (e.g. "src/lib/agents/agents/foo.ts")
    - "content": the COMPLETE updated file content (not a diff)
    - "reason": one sentence explaining what changed and why
 3. Only include files you are genuinely modifying. Do not include files that are already correct.
-4. Keep changes minimal — don't refactor surrounding code.
-5. If the issue cannot be fixed by patching files (e.g. missing env var), return an empty array and explain in "note".
+4. If the fix requires more than 3 files OR is outside the scope of a code patch (e.g. missing env var, infrastructure issue), return an empty array and explain in "note" — this triggers human escalation.
 
 Return ONLY valid JSON:
 {
   "patches": [{ "file": "...", "content": "...", "reason": "..." }],
-  "note": "optional explanation if no patches"
+  "note": "optional explanation if no patches or if scope exceeded"
 }`;
 
   let patches: Array<{ file: string; content: string; reason: string }> = [];
@@ -447,8 +578,47 @@ Return ONLY valid JSON:
     { patches: patches.map((p) => ({ file: p.file, reason: p.reason })) },
   );
 
+  // ── Surgical enforcement ────────────────────────────────────────────────────
+  // Hard limit: >3 files means the model overstepped. Reject and escalate.
+  if (patches.length > 3) {
+    const escalationNote = `Surgical limit exceeded: LLM proposed ${patches.length} file(s). Maximum is 3. ${patchNote || 'Manual review required.'}`;
+    await finishStep(supabase, patchStep, 'blocked', {
+      reason: 'surgical_limit_exceeded',
+      file_count: patches.length,
+      files: patches.map((p) => p.file),
+      note: escalationNote,
+    });
+    try {
+      await createIssue(
+        `[Bud] Escalation: ${typedTask.source_agent ?? 'agent'} repair scope too large`,
+        [
+          `## Bud Escalation — Manual Review Required`,
+          `**Agent:** ${typedTask.source_agent ?? 'unknown'}`,
+          `**Root cause:** ${rootCause.type} — ${rootCause.summary}`,
+          `**Reason:** The automated repair would touch ${patches.length} files, exceeding the 3-file surgical limit.`,
+          '',
+          '## Proposed patches (not applied)',
+          ...patches.map((p) => `- \`${p.file}\`: ${p.reason}`),
+          '',
+          `**Recommended fix:** ${recommendedFix}`,
+          '',
+          `> Bud stopped automatically to protect production. Review and apply the fix manually.`,
+        ].join('\n'),
+        ['bud', 'escalation', 'manual-review'],
+      );
+    } catch {
+      // GitHub not configured — escalation issue creation is best-effort
+    }
+    await updateExecution(supabase, executionId, { status: 'blocked', verification_status: 'blocked', finished_at: new Date().toISOString() });
+    await updateTaskState(supabase, typedTask.id, 'blocked');
+    await writeRepairLearning(supabase, executionId, typedTask, rootCause, 'blocked', escalationNote);
+    return { executionId, status: 'blocked', blockedReason: 'surgical_limit_exceeded' };
+  }
+
   // Write patches to the branch
   const appliedFiles: string[] = [];
+  // Record the timestamp just before we push — used to filter workflow runs we triggered.
+  const pushTimestamp = new Date().toISOString();
   for (const patch of patches) {
     try {
       const existing = await getFileContent(patch.file, branchName);
@@ -470,10 +640,186 @@ Return ONLY valid JSON:
   await finishStep(supabase, patchStep,
     appliedFiles.length > 0 ? 'passed' : 'blocked',
     { branch: branchName, files_patched: appliedFiles, note: patchNote },
-    rootCause.confidence,
+    boostedConfidence,
   );
 
-  // Open a GitHub issue and PR
+  // ── Validation step ──────────────────────────────────────────────────────────
+  // If files were patched, poll GitHub Actions for a CI result before opening a PR.
+  // - CI passes  → open PR normally
+  // - CI fails   → roll back the branch and open an escalation issue
+  // - No CI / timeout with in-progress run → open a draft PR flagged for human review
+
+  let ciConclusion: string | null = null;
+  let ciRunUrl: string | null = null;
+  let ciWorkflowRunId: string | null = null;
+  let openAsDraft = false;
+  let tasteResult: VisualScore | null = null;
+
+  if (appliedFiles.length > 0) {
+    const validateStep = await startStep(supabase, executionId, 'validating',
+      'Polling GitHub Actions for CI result on repair branch.');
+    await updateExecution(supabase, executionId, { verification_status: 'running' });
+
+    const CI_TIMEOUT_MS = 30_000;
+    const { result: workflowResult, timedOut } = await pollWorkflowUntilComplete(
+      branchName, CI_TIMEOUT_MS, pushTimestamp,
+    );
+
+    if (workflowResult) {
+      ciConclusion = workflowResult.conclusion ?? 'in_progress';
+      ciRunUrl = workflowResult.url;
+      ciWorkflowRunId = String(workflowResult.runId);
+    }
+
+    const ciFailure = workflowResult?.conclusion === 'failure'
+      || workflowResult?.conclusion === 'cancelled'
+      || workflowResult?.conclusion === 'timed_out';
+
+    if (ciFailure) {
+      // CI failed — roll back branch and escalate
+      await finishStep(supabase, validateStep, 'failed', {
+        workflow_run_id: ciWorkflowRunId,
+        conclusion: workflowResult!.conclusion,
+        url: ciRunUrl,
+      });
+      await updateExecution(supabase, executionId, {
+        verification_status: 'failed',
+        ci_workflow_run_id: ciWorkflowRunId,
+        ci_conclusion: ciConclusion,
+        ci_run_url: ciRunUrl,
+        rollback_reason: `CI ${workflowResult!.conclusion} on ${branchName}`,
+      });
+
+      // Delete the repair branch to prevent it from cluttering the repo
+      try { await deleteBranch(branchName); } catch { /* best-effort */ }
+
+      // Open an escalation issue with CI context
+      try {
+        await createIssue(
+          `[Bud] CI failed on repair branch: ${typedTask.source_agent ?? 'agent'}`,
+          [
+            `## Automated Repair — CI Failure`,
+            `**Agent:** ${typedTask.source_agent ?? 'unknown'}`,
+            `**Root cause:** ${rootCause.type} — ${rootCause.summary}`,
+            `**Branch:** \`${branchName}\` (deleted after CI failure)`,
+            `**CI conclusion:** \`${workflowResult!.conclusion}\``,
+            ciRunUrl ? `**CI run:** [View logs](${ciRunUrl})` : '',
+            '',
+            '## Files Bud attempted to patch',
+            ...appliedFiles.map((f) => `- \`${f}\``),
+            '',
+            '## Patch reasoning',
+            ...patches.filter((p) => appliedFiles.includes(p.file)).map((p) => `- **\`${p.file}\`:** ${p.reason}`),
+            '',
+            `**Recommended fix:** ${recommendedFix}`,
+            '',
+            `> CI failed on Bud's patch. The branch has been deleted. Manual review and a new fix are required.`,
+          ].filter(Boolean).join('\n'),
+          ['bud', 'ci-failed', 'escalation'],
+        );
+      } catch { /* GitHub may not be configured */ }
+
+      await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
+      await updateTaskState(supabase, typedTask.id, 'failed');
+      await writeRepairLearning(
+        supabase, executionId, typedTask, rootCause, 'failed',
+        `CI ${workflowResult!.conclusion} — patch rolled back from ${branchName}`,
+      );
+      return { executionId, status: 'failed' };
+
+    } else if (workflowResult?.conclusion === 'success') {
+      await finishStep(supabase, validateStep, 'passed', {
+        workflow_run_id: ciWorkflowRunId,
+        conclusion: 'success',
+        url: ciRunUrl,
+      });
+      await updateExecution(supabase, executionId, {
+        verification_status: 'passed',
+        ci_workflow_run_id: ciWorkflowRunId,
+        ci_conclusion: 'success',
+        ci_run_url: ciRunUrl,
+      });
+      await log(supabase, executionId, validateStep, 'info', 'CI passed — proceeding to open PR.');
+
+    } else if (timedOut) {
+      // CI is running but didn't finish in time — open a draft PR so humans can see it
+      openAsDraft = true;
+      await finishStep(supabase, validateStep, 'skipped', {
+        reason: 'ci_still_running',
+        workflow_run_id: ciWorkflowRunId,
+        url: ciRunUrl,
+      });
+      await updateExecution(supabase, executionId, {
+        verification_status: 'running',
+        ci_workflow_run_id: ciWorkflowRunId,
+        ci_run_url: ciRunUrl,
+      });
+      await log(supabase, executionId, validateStep, 'warn',
+        `CI is still in progress after ${CI_TIMEOUT_MS / 1000}s — opening as draft PR.`);
+
+    } else {
+      // No workflow runs found — CI is probably not configured. Proceed normally.
+      await finishStep(supabase, validateStep, 'passed', { reason: 'no_ci_workflows_detected' });
+      await updateExecution(supabase, executionId, { verification_status: 'passed' });
+      await log(supabase, executionId, validateStep, 'info',
+        'No GitHub Actions workflow runs detected — skipping CI gate.');
+    }
+  }
+
+  // ── Bud Taste — Design Constitution visual compliance check ──────────────────
+  // Runs only when at least one patched file is a UI file (.tsx/.css page or component).
+  // Claude reads the patched source code and scores it against the Design Constitution.
+  // A failing taste score opens the PR as draft for design review — it does not block.
+
+  if (appliedFiles.some(isUiFile)) {
+    const tasteStep = await startStep(
+      supabase, executionId, 'verifying',
+      'Scoring UI changes against Design Constitution.',
+    );
+
+    // Read the patched content from the repair branch
+    const uiFileContents: Array<{ path: string; content: string }> = [];
+    for (const fp of appliedFiles.filter(isUiFile)) {
+      try {
+        const fetched = await getFileContent(fp, branchName);
+        if (fetched) {
+          uiFileContents.push({ path: fp, content: fetched.content });
+        }
+      } catch {
+        // Non-fatal — skip files that can't be read
+      }
+    }
+
+    tasteResult = await scoreVisualCompliance(uiFileContents);
+
+    await updateExecution(supabase, executionId, {
+      taste_score: tasteResult.score,
+      taste_pass: tasteResult.pass,
+      taste_violations: tasteResult.violations,
+      taste_suggestions: tasteResult.suggestions,
+      taste_checked_files: tasteResult.checkedFiles,
+      taste_checked_at: new Date().toISOString(),
+    });
+
+    if (!tasteResult.pass) {
+      openAsDraft = true; // Keep PR as draft so a designer can review
+    }
+
+    await log(
+      supabase, executionId, tasteStep,
+      tasteResult.pass ? 'info' : 'warn',
+      `Design Constitution score: ${(tasteResult.score * 100).toFixed(0)}% — ${tasteResult.pass ? 'passed' : 'FAILED (PR opened as draft)'}`,
+      { taste: tasteResult },
+    );
+    await finishStep(
+      supabase, tasteStep,
+      tasteResult.pass ? 'passed' : 'failed',
+      { taste: tasteResult },
+      tasteResult.score,
+    );
+  }
+
+  // ── Open GitHub issue and PR ──────────────────────────────────────────────────
   try {
     const issue = await createIssue(
       `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
@@ -492,11 +838,83 @@ Return ONLY valid JSON:
     issueUrl = issue.url;
 
     if (appliedFiles.length > 0) {
+      const pastFixSummary = history.pastRepairs.length > 0
+        ? history.pastRepairs.map((r) => `- [${r.outcome.toUpperCase()}] ${r.fixPattern.slice(0, 100)}`).join('\n')
+        : '_No prior fixes found for this root cause type._';
+
+      const recentFailureSummary = history.recentAgentFailures.length > 0
+        ? `${history.recentAgentFailures.length} failure(s) in the last 7 days`
+        : 'No recent failures on record';
+
+      const ciStatusLine = ciConclusion === 'success'
+        ? '**CI:** Passed'
+        : openAsDraft && !tasteResult
+          ? '**CI:** In progress — this PR is a draft until CI completes'
+          : '**CI:** Not configured (opened without CI gate)';
+
+      const tasteStatusLine = tasteResult
+        ? tasteResult.pass
+          ? `**Design Constitution:** Passed (${(tasteResult.score * 100).toFixed(0)}%)`
+          : `**Design Constitution:** ⚠️ Failed (${(tasteResult.score * 100).toFixed(0)}%) — see violations below`
+        : null;
+
+      const prBody = [
+        `Closes ${issueUrl}`,
+        '',
+        '## Repair Summary',
+        `**Agent:** \`${typedTask.source_agent ?? 'unknown'}\``,
+        `**Root cause:** ${rootCause.type} — ${rootCause.summary}`,
+        `**Confidence:** ${(boostedConfidence * 100).toFixed(0)}% (base ${(rootCause.confidence * 100).toFixed(0)}% + ${(history.confidenceBoost * 100).toFixed(0)}% from history)`,
+        `**Recent failures:** ${recentFailureSummary}`,
+        ciStatusLine,
+        ciRunUrl ? `**CI run:** ${ciRunUrl}` : '',
+        tasteStatusLine ?? '',
+        '',
+        ...(tasteResult && !tasteResult.pass
+          ? [
+              '## Design Constitution violations',
+              ...tasteResult.violations.map((v) => `- ${v}`),
+              '',
+              '## Design suggestions',
+              ...tasteResult.suggestions.map((s) => `- ${s}`),
+              '',
+            ]
+          : []),
+        '## Files patched',
+        ...appliedFiles.map((f) => `- \`${f}\``),
+        '',
+        '## Patch reasoning',
+        ...patches.filter((p) => appliedFiles.includes(p.file)).map((p) => `- **\`${p.file}\`:** ${p.reason}`),
+        '',
+        '## Historical context',
+        '**Past fixes for this root cause:**',
+        pastFixSummary,
+        history.githubIssues.length > 0 ? `\n**Related GitHub issues:**\n${history.githubIssues.map((i) => `- [${i.state.toUpperCase()}] [${i.title}](${i.url})`).join('\n')}` : '',
+        '',
+        '## Rollback strategy',
+        '```',
+        `git revert HEAD  # on branch: ${branchName}`,
+        '```',
+        'Or close this PR without merging — no production changes have been made.',
+        '',
+        openAsDraft
+          ? tasteResult && !tasteResult.pass
+            ? '> **Draft PR** — Design Constitution taste check failed. Resolve violations above before merging.'
+            : '> **Draft PR** — CI is still running. Convert to ready when checks pass.'
+          : '> Generated by Bud OS — review the patch carefully before merging.',
+      ].filter(Boolean).join('\n');
+
+      const tasteFailed = tasteResult && !tasteResult.pass;
       const pr = await createPR(
-        `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
-        `Closes ${issueUrl}\n\nAI-generated repair. **Patches:** ${appliedFiles.join(', ')}\n\n> Generated by Bud OS — review carefully before merging.`,
+        openAsDraft
+          ? tasteFailed
+            ? `[Bud][Draft][Taste] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`
+            : `[Bud][Draft] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`
+          : `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
+        prBody,
         branchName,
         'main',
+        openAsDraft,
       );
       prUrl = pr.url;
     }
@@ -507,7 +925,12 @@ Return ONLY valid JSON:
   const finalRepairStatus = appliedFiles.length > 0 ? 'recovered' : 'blocked';
   await updateExecution(supabase, executionId, {
     status: finalRepairStatus,
-    verification_status: appliedFiles.length > 0 ? 'pending' : 'blocked',
+    verification_status: appliedFiles.length > 0
+      ? (openAsDraft ? 'running' : 'passed')
+      : 'blocked',
+    ci_workflow_run_id: ciWorkflowRunId ?? undefined,
+    ci_conclusion: ciConclusion ?? undefined,
+    ci_run_url: ciRunUrl ?? undefined,
     finished_at: new Date().toISOString(),
   });
   await updateTaskState(supabase, typedTask.id, appliedFiles.length > 0 ? 'patching' : 'blocked');
@@ -515,7 +938,7 @@ Return ONLY valid JSON:
     supabase, executionId, typedTask, rootCause,
     appliedFiles.length > 0 ? 'recovered' : 'blocked',
     appliedFiles.length > 0
-      ? `LLM patch applied to: ${appliedFiles.join(', ')}`
+      ? `LLM patch applied to: ${appliedFiles.join(', ')}${openAsDraft ? ' (draft PR — CI pending)' : ''}`
       : `No patch applied — ${patchNote || 'LLM returned no patches'}`,
   );
 

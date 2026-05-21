@@ -243,17 +243,6 @@ export async function triggerInvestigation(
   agentId: string,
   agentName: string,
 ): Promise<BudTask> {
-  // Bud cannot investigate itself — self-investigation produces unreliable
-  // reports and can loop. Any failure in the bud agent needs human review.
-  if (agentId === 'bud') {
-    await writeBudActivity(
-      supabase,
-      'Bud detected an issue with itself but cannot self-investigate. Review the bud agent manually in Mission Control.',
-      { event_type: 'error', actor: 'bud', target: 'bud' },
-    );
-    throw new Error('Self-investigation blocked — Bud cannot investigate itself.');
-  }
-
   // Dedup: if an open task for this agent already exists in the last 24h, return it
   // rather than spawning another branch. This prevents the self-investigation loop
   // where each Bud cycle detects the prior failure and creates yet another repair branch.
@@ -387,17 +376,7 @@ export async function executeRepairPlan(
 
   if (!task) throw new Error(`Bud task ${taskId} not found`);
 
-  // Bud cannot repair itself — a broken Bud cannot reliably write its own fix.
   const targetAgent = task.source_agent ?? task.target_agent ?? 'unknown';
-  if (targetAgent === 'bud') {
-    await updateBudTask(supabase, taskId, { status: 'failed' });
-    await writeBudActivity(
-      supabase,
-      'Bud cannot repair itself — self-repair is disabled. Review the bud agent source manually.',
-      { event_type: 'error', actor: 'bud', target: 'bud' },
-    );
-    return;
-  }
 
   if (!approved) {
     await updateBudTask(supabase, taskId, { status: 'failed' });
