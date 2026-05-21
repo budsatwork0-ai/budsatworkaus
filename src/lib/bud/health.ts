@@ -218,6 +218,7 @@ function isUsefulSummary(summary: string | null): boolean {
 }
 
 export function hasParseFailure(run: RunRow): boolean {
+  if (!['failed', 'succeeded', 'needs_repair'].includes(run.status)) return false;
   const s = (run.summary ?? '').toLowerCase();
   return (
     s.includes('could not parse') ||

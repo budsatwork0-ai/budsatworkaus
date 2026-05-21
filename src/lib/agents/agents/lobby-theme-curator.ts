@@ -58,7 +58,8 @@ export const lobbyThemeCuratorAgent: AgentDefinition = {
 
     let theme: { id: string; name: string; description: string; tokens: Record<string, unknown> };
     try {
-      const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = codeBlock ? codeBlock[1].trim() : (raw.match(/\{[\s\S]*\}/) ?? [raw])[0].trim();
       theme = JSON.parse(jsonStr);
     } catch { return { summary: 'Could not parse theme JSON — LLM output was not valid JSON.' }; }
 

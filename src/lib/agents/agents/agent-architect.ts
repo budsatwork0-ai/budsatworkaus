@@ -121,7 +121,11 @@ export const agentArchitectAgent: AgentDefinition = {
     const raw = await ctx.llm(prompt, { system: SYSTEM });
 
     let parsed: { evolutions: Array<{ target_agent_id: string; evolution_type: string; rationale: string; proposed_diff: unknown }> };
-    try { parsed = JSON.parse(raw); } catch { return { summary: 'Could not parse architect output.' }; }
+    try {
+      const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = codeBlock ? codeBlock[1].trim() : (raw.match(/\{[\s\S]*\}/) ?? [raw])[0].trim();
+      parsed = JSON.parse(jsonStr);
+    } catch { return { summary: 'Could not parse architect output.' }; }
 
     let count = 0;
     const findingStrings: string[] = [];
