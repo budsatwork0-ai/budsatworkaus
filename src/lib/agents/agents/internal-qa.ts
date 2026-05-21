@@ -20,6 +20,7 @@ export const internalQaAgent: AgentDefinition = {
   description: 'Answers questions from your SOPs, contracts, and decisions log.',
   category: 'support',
   autonomy: 'manual',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const question = ctx.input?.question as string | undefined;
     if (!question) return { summary: 'No question provided.', output: { error: 'missing question' } };

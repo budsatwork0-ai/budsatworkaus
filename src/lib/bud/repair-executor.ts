@@ -2,6 +2,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeMemory } from '@/lib/memory/write';
+import {
+  createBranch,
+  createIssue,
+  createPR,
+  budBranchName,
+  getFileContent,
+  writeFileToBranch,
+} from './github-executor';
 
 const execFileAsync = promisify(execFile);
 
@@ -302,14 +310,202 @@ export async function executeRepairPipeline(
     return { executionId, status: 'blocked', blockedReason: 'missing AI patch provider' };
   }
 
-  await finishStep(supabase, patchStep, 'blocked', {
-    unavailable: true,
-    reason: 'AI patch invocation is intentionally not wired until provider-specific patch application is implemented.',
+  // ── Patch generation ────────────────────────────────────────────────────────
+  // Use the LLM to read each affected file, generate a minimal patch, and
+  // write it back to a new GitHub branch. Opens a PR for human review.
+
+  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
+  const PATCH_MODEL = 'claude-sonnet-4-6';
+
+  // Create the repair branch on GitHub
+  let branchName: string;
+  let issueUrl: string | null = null;
+  let prUrl: string | null = null;
+
+  try {
+    branchName = budBranchName(typedTask.source_agent ?? 'unknown');
+    await createBranch(branchName);
+    await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
+  } catch (branchErr) {
+    await finishStep(supabase, patchStep, 'failed', { error: String(branchErr) });
+    await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
+    await updateTaskState(supabase, typedTask.id, 'failed');
+    return { executionId, status: 'failed' };
+  }
+
+  // Build context: read affected files from the branch
+  const fileContextParts: string[] = [];
+  const affectedFiles = ((typedTask.raw_output as Record<string, unknown> | null)
+    ?.structured_failure as Record<string, unknown> | null)
+    ?.affectedFiles as string[] | undefined ?? [];
+
+  for (const fp of affectedFiles.slice(0, 4)) {
+    try {
+      const file = await getFileContent(fp, 'main');
+      if (file) {
+        fileContextParts.push(`=== FILE: ${fp} ===\n${file.content.slice(0, 8000)}`);
+      }
+    } catch {
+      // Non-fatal — we continue with whatever files we could read
+    }
+  }
+
+  const rawOutput = typedTask.raw_output as Record<string, unknown> | null;
+  const sf = rawOutput?.structured_failure as Record<string, unknown> | null;
+  const description = typedTask.description ?? 'Unknown failure';
+  const recommendedFix = (sf?.recommendedFix as string) ?? rootCause.summary;
+  const errorMsg = (sf?.message as string) ?? description;
+
+  const patchPrompt = `You are Bud, an autonomous repair agent for a TypeScript/Next.js codebase.
+
+TASK: Fix the following agent failure by generating minimal, targeted code patches.
+
+FAILURE SUMMARY: ${description}
+ERROR TYPE: ${rootCause.type}
+ERROR MESSAGE: ${errorMsg.slice(0, 600)}
+RECOMMENDED FIX: ${recommendedFix}
+
+${fileContextParts.length > 0 ? `AFFECTED FILES:\n${fileContextParts.join('\n\n')}` : 'No affected files could be read from the repository.'}
+
+INSTRUCTIONS:
+1. Identify the minimal change needed to fix this error.
+2. Return a JSON array of file patches. Each patch must have:
+   - "file": relative path from repo root (e.g. "src/lib/agents/agents/foo.ts")
+   - "content": the COMPLETE updated file content (not a diff)
+   - "reason": one sentence explaining what changed and why
+3. Only include files you are genuinely modifying. Do not include files that are already correct.
+4. Keep changes minimal — don't refactor surrounding code.
+5. If the issue cannot be fixed by patching files (e.g. missing env var), return an empty array and explain in "note".
+
+Return ONLY valid JSON:
+{
+  "patches": [{ "file": "...", "content": "...", "reason": "..." }],
+  "note": "optional explanation if no patches"
+}`;
+
+  let patches: Array<{ file: string; content: string; reason: string }> = [];
+  let patchNote = '';
+
+  try {
+    const patchRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: PATCH_MODEL,
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: patchPrompt }],
+      }),
+    });
+
+    if (!patchRes.ok) {
+      throw new Error(`Anthropic API ${patchRes.status}: ${await patchRes.text()}`);
+    }
+
+    const patchJson = await patchRes.json() as { content: Array<{ type: string; text?: string }> };
+    const rawText = patchJson.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+
+    // Extract JSON from the response
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        patches?: Array<{ file: string; content: string; reason: string }>;
+        note?: string;
+      };
+      patches = parsed.patches ?? [];
+      patchNote = parsed.note ?? '';
+    }
+  } catch (llmErr) {
+    await log(supabase, executionId, patchStep, 'warn', `LLM patch generation failed: ${llmErr}`, {});
+  }
+
+  await log(supabase, executionId, patchStep, 'info',
+    `LLM generated ${patches.length} patch(es).${patchNote ? ` Note: ${patchNote}` : ''}`,
+    { patches: patches.map((p) => ({ file: p.file, reason: p.reason })) },
+  );
+
+  // Write patches to the branch
+  const appliedFiles: string[] = [];
+  for (const patch of patches) {
+    try {
+      const existing = await getFileContent(patch.file, branchName);
+      await writeFileToBranch(
+        patch.file,
+        patch.content,
+        `fix(${typedTask.source_agent ?? 'agent'}): ${patch.reason.slice(0, 72)}`,
+        branchName,
+        existing?.sha,
+      );
+      appliedFiles.push(patch.file);
+    } catch (writeErr) {
+      await log(supabase, executionId, patchStep, 'warn',
+        `Failed to write ${patch.file}: ${writeErr}`, {},
+      );
+    }
+  }
+
+  await finishStep(supabase, patchStep,
+    appliedFiles.length > 0 ? 'passed' : 'blocked',
+    { branch: branchName, files_patched: appliedFiles, note: patchNote },
+    rootCause.confidence,
+  );
+
+  // Open a GitHub issue and PR
+  try {
+    const issue = await createIssue(
+      `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
+      [
+        `## Automated Repair`,
+        `**Agent:** ${typedTask.source_agent ?? 'unknown'}`,
+        `**Error:** ${rootCause.type} — ${rootCause.summary}`,
+        `**Recommended fix:** ${recommendedFix}`,
+        '',
+        appliedFiles.length > 0
+          ? `### Patches applied\n${appliedFiles.map((f) => `- \`${f}\``).join('\n')}\n\n*Review the branch before merging.*`
+          : `### No files patched\n${patchNote || 'The LLM determined no file changes are needed (e.g. config or env issue).'}`,
+      ].join('\n'),
+      ['bud', 'automated'],
+    );
+    issueUrl = issue.url;
+
+    if (appliedFiles.length > 0) {
+      const pr = await createPR(
+        `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
+        `Closes ${issueUrl}\n\nAI-generated repair. **Patches:** ${appliedFiles.join(', ')}\n\n> Generated by Bud OS — review carefully before merging.`,
+        branchName,
+        'main',
+      );
+      prUrl = pr.url;
+    }
+  } catch (ghErr) {
+    await log(supabase, executionId, patchStep, 'warn', `GitHub PR/issue creation failed: ${ghErr}`, {});
+  }
+
+  const finalRepairStatus = appliedFiles.length > 0 ? 'recovered' : 'blocked';
+  await updateExecution(supabase, executionId, {
+    status: finalRepairStatus,
+    verification_status: appliedFiles.length > 0 ? 'pending' : 'blocked',
+    finished_at: new Date().toISOString(),
   });
-  await updateExecution(supabase, executionId, { status: 'blocked', verification_status: 'blocked', finished_at: new Date().toISOString() });
-  await updateTaskState(supabase, typedTask.id, 'blocked');
-  await writeRepairLearning(supabase, executionId, typedTask, rootCause, 'blocked', 'AI provider exists, but patch application is not implemented yet.');
-  return { executionId, status: 'blocked', blockedReason: 'patch application not implemented' };
+  await updateTaskState(supabase, typedTask.id, appliedFiles.length > 0 ? 'patching' : 'blocked');
+  await writeRepairLearning(
+    supabase, executionId, typedTask, rootCause,
+    appliedFiles.length > 0 ? 'recovered' : 'blocked',
+    appliedFiles.length > 0
+      ? `LLM patch applied to: ${appliedFiles.join(', ')}`
+      : `No patch applied — ${patchNote || 'LLM returned no patches'}`,
+  );
+
+  return {
+    executionId,
+    status: finalRepairStatus,
+    branchName,
+    issueUrl: issueUrl ?? undefined,
+    prUrl: prUrl ?? undefined,
+  } as { executionId: string; status: string; blockedReason?: string };
 }
 
 async function writeRepairLearning(

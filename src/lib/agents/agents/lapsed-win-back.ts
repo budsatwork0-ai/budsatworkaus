@@ -17,6 +17,7 @@ export const lapsedWinBackAgent: AgentDefinition = {
   description: "Finds customers who haven't booked in 90+ days; drafts personalised win-back.",
   category: 'sales',
   autonomy: 'review',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const lapsedDays = Number((ctx.config?.lapsed_after_days as number) ?? 90);
     const cutoff = new Date(Date.now() - lapsedDays * 24 * 3600_000).toISOString();

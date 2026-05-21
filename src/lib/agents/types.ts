@@ -36,6 +36,12 @@ export interface AgentDefinition {
   autonomy: AgentAutonomy;
   schedule?: string | null;
   config?: Record<string, unknown>;
+  /**
+   * Override the fleet default model for this agent. Set to
+   * 'claude-haiku-4-5-20251001' for lightweight aggregation agents to
+   * cut cost ~5×. Leave undefined to use AGENT_DEFAULT_MODEL.
+   */
+  preferredModel?: string;
   /** The actual entry point. Returns a summary + proposed actions. */
   run: (ctx: AgentContext) => Promise<AgentRunResult>;
 }

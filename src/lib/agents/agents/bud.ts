@@ -692,7 +692,89 @@ ${investigationSummary}`;
       );
     }
 
-    // ── 11b. Prune old rows (fire-and-forget) ─────────────────────────────
+    // ── 11b. Cross-agent insight synthesis ───────────────────────────────────
+    // Correlate recent insights across agents to surface compound signals that
+    // no single agent can see alone (e.g. both cash-flow + lead-scorer flagging
+    // a weak pipeline, or multiple ops agents flagging crew load).
+    // Runs at most once per 6h per category pair to avoid duplicate compounds.
+    if (!stateUnchanged && llmResult.insights.length > 0) {
+      try {
+        const since6h = new Date(now - 6 * 3600_000).toISOString();
+        const { data: recentInsights } = await ctx.supabase
+          .from('bud_insights')
+          .select('id, agent_id, category, severity, title, created_at')
+          .gte('created_at', since7d)
+          .is('resolved_at', null)
+          .neq('category', 'compound') // avoid compounding compounds
+          .order('created_at', { ascending: false })
+          .limit(40);
+
+        // Group by category across agents
+        const byCat = new Map<string, Array<{ agentId: string | null; title: string }>>();
+        for (const ins of (recentInsights ?? [])) {
+          const cat = ins.category as string;
+          if (!byCat.has(cat)) byCat.set(cat, []);
+          byCat.get(cat)!.push({ agentId: ins.agent_id as string | null, title: ins.title as string });
+        }
+
+        // Find categories where ≥2 different agents raised an issue
+        const crossAgentCategories = Array.from(byCat.entries()).filter(([, items]) => {
+          const uniqueAgents = new Set(items.map((i) => i.agentId).filter(Boolean));
+          return uniqueAgents.size >= 2;
+        });
+
+        for (const [cat, items] of crossAgentCategories.slice(0, 2)) {
+          // Don't write a compound for this category if one was written in the last 6h
+          const { data: existing } = await ctx.supabase
+            .from('bud_insights')
+            .select('id')
+            .eq('category', 'compound')
+            .ilike('title', `%${cat}%`)
+            .gte('created_at', since6h)
+            .maybeSingle();
+          if (existing) continue;
+
+          const agentNames = Array.from(new Set(
+            items.map((i) => i.agentId)
+              .filter(Boolean)
+              .map((id) => agents.find((a) => a.id === id)?.name ?? id),
+          )).slice(0, 4);
+
+          const synthPrompt = `Two or more agents have independently flagged issues in the same category.
+Category: ${cat}
+Agents: ${agentNames.join(', ')}
+Individual signals:\n${items.slice(0, 6).map((i) => `- ${i.title}`).join('\n')}
+
+Write a single compound insight title (≤ 12 words) that captures the cross-agent pattern.
+Return only the title string, no JSON, no preamble.`;
+
+          try {
+            const synthTitle = await ctx.llm(synthPrompt, {
+              model: 'claude-haiku-4-5-20251001',
+            });
+            if (synthTitle.trim().length > 0) {
+              await ctx.supabase.from('bud_insights').insert({
+                agent_id: null,
+                category: 'compound',
+                severity: 'medium',
+                title: synthTitle.trim().slice(0, 120),
+                metadata: {
+                  source_category: cat,
+                  source_agents: agentNames,
+                  signal_count: items.length,
+                },
+              });
+            }
+          } catch {
+            // Non-fatal — synthesis is best-effort
+          }
+        }
+      } catch {
+        // Cross-agent synthesis must never break the main Bud cycle
+      }
+    }
+
+    // ── 11c. Prune old rows (fire-and-forget) ─────────────────────────────
     // Keep bud_insights and bud_activity_feed lean — delete rows older than 30 days.
     // Run in parallel and ignore errors so a prune failure never breaks the cycle.
     void Promise.all([

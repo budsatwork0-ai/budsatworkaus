@@ -82,3 +82,52 @@ export function budBranchName(agentId: string): string {
   const safe = agentId.replace(/[^a-z0-9-]/g, '-');
   return `bud/fix-${safe}-${ts}`;
 }
+
+/**
+ * Read a file from a specific branch. Returns the file content as a UTF-8
+ * string plus the blob SHA needed for subsequent writes.
+ * Returns null if the file does not exist on that branch.
+ */
+export async function getFileContent(
+  filePath: string,
+  branch: string,
+): Promise<{ content: string; sha: string } | null> {
+  const octokit = client();
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: OWNER,
+      repo: REPO,
+      path: filePath,
+      ref: branch,
+    });
+    if (!('content' in data) || typeof data.content !== 'string') return null;
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return { content, sha: data.sha };
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
+  }
+}
+
+/**
+ * Write (create or update) a file on a branch.
+ * Pass the SHA from `getFileContent` when updating; omit for new files.
+ */
+export async function writeFileToBranch(
+  filePath: string,
+  content: string,
+  commitMessage: string,
+  branch: string,
+  sha?: string,
+): Promise<void> {
+  const octokit = client();
+  await octokit.repos.createOrUpdateFileContents({
+    owner: OWNER,
+    repo: REPO,
+    path: filePath,
+    message: commitMessage,
+    content: Buffer.from(content, 'utf-8').toString('base64'),
+    branch,
+    sha,
+  });
+}

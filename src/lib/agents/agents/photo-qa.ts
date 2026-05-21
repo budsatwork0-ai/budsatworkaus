@@ -30,6 +30,7 @@ export const photoQaAgent: AgentDefinition = {
   description: 'Reviews before/after job photos; flags missing shots and picks marketing-ready ones.',
   category: 'ops',
   autonomy: 'review',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const { data: photos } = await ctx.supabase
       .from('job_photos')

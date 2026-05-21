@@ -66,6 +66,8 @@ interface CallModelResult {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
 }
 
 async function callModel(
@@ -81,6 +83,13 @@ async function callModel(
   const { state: circuitState, resetsAt } = await getCircuitState();
   if (circuitState === 'open') throw new CircuitOpenError(resetsAt);
 
+  // Wrap the system prompt in a cache_control block so Anthropic can reuse
+  // it across runs of the same agent. This is the single biggest cost lever:
+  // repeated runs pay ~10% of the input token price for cached system tokens.
+  const systemBlock = opts.system
+    ? [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }]
+    : undefined;
+
   let attempt = 0;
   let lastErr: Error | null = null;
 
@@ -91,11 +100,12 @@ async function callModel(
         'content-type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'prompt-caching-2024-07-31',
       },
       body: JSON.stringify({
         model,
         max_tokens: 2048,
-        system: opts.system,
+        system: systemBlock,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -103,7 +113,12 @@ async function callModel(
     if (res.ok) {
       const json = (await res.json()) as {
         content: Array<{ type: string; text?: string }>;
-        usage: { input_tokens: number; output_tokens: number };
+        usage: {
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_input_tokens?: number;
+          cache_creation_input_tokens?: number;
+        };
       };
 
       const text = json.content
@@ -118,6 +133,8 @@ async function callModel(
         text,
         inputTokens: json.usage.input_tokens,
         outputTokens: json.usage.output_tokens,
+        cacheReadTokens: json.usage.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: json.usage.cache_creation_input_tokens ?? 0,
       };
     }
 
@@ -207,7 +224,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       triggered_by: args.triggeredBy ?? null,
       status: 'running',
       input: args.input ?? {},
-      model: DEFAULT_MODEL,
+      model: (def as AgentDefinition).preferredModel ?? DEFAULT_MODEL,
     })
     .select('id')
     .single();
@@ -217,7 +234,9 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
 
   let inputTokens = 0;
   let outputTokens = 0;
-  let llmModel = DEFAULT_MODEL;
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
+  let llmModel = (def as AgentDefinition).preferredModel ?? DEFAULT_MODEL;
   let runCostCents = 0;
   let cumulativeCostCents = args.parentCumulativeCostCents ?? 0;
   let needsApproval = false;
@@ -324,17 +343,23 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         { prompt, system: opts.system, model: opts.model },
         pctx(),
       );
-      llmModel = pre.model ?? opts.model ?? DEFAULT_MODEL;
+      // Prefer: explicit opts.model > guardrail override > agent definition model > env default
+      llmModel = pre.model ?? opts.model ?? (def as AgentDefinition).preferredModel ?? DEFAULT_MODEL;
       const out = await callModel(pre.prompt, {
         model: llmModel,
         system: pre.system,
       });
       inputTokens += out.inputTokens;
       outputTokens += out.outputTokens;
+      cacheReadTokens += out.cacheReadTokens;
+      cacheCreationTokens += out.cacheCreationTokens;
       const pricing = PRICING_PER_MTOK[llmModel] ?? { input: 0, output: 0 };
+      // Cache reads cost ~10% of input price; creation costs ~125% (first write only).
       const callCostCents = Math.round(
         ((out.inputTokens / 1_000_000) * pricing.input +
-          (out.outputTokens / 1_000_000) * pricing.output) *
+          (out.outputTokens / 1_000_000) * pricing.output +
+          (out.cacheReadTokens / 1_000_000) * pricing.input * 0.1 +
+          (out.cacheCreationTokens / 1_000_000) * pricing.input * 1.25) *
           100,
       );
       runCostCents += callCostCents;
@@ -457,8 +482,36 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         duration_ms: durationMs,
         finished_at: new Date().toISOString(),
         model: llmModel,
+        cache_read_tokens: cacheReadTokens,
+        cache_creation_tokens: cacheCreationTokens,
       })
       .eq('id', runId);
+
+    // Fire-and-forget: generate a summary embedding for semantic search.
+    // Only fires when OPENAI_API_KEY is present and the summary is non-empty.
+    // Uses text-embedding-3-small (1536 dims, matches the migration).
+    if (result.summary && process.env.OPENAI_API_KEY && finalStatus === 'succeeded') {
+      setImmediate(() => {
+        fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({ input: result.summary, model: 'text-embedding-3-small' }),
+        })
+          .then((r) => r.json())
+          .then((j: { data?: Array<{ embedding?: number[] }> }) => {
+            const vec = j.data?.[0]?.embedding;
+            if (!vec) return;
+            return supabase
+              .from('agent_runs')
+              .update({ summary_embedding: JSON.stringify(vec) })
+              .eq('id', runId);
+          })
+          .catch(() => {/* non-fatal */});
+      });
+    }
 
     // Fire-and-forget: log run + any structured output to the agent workspace vault.
     // Never awaited — workspace logging must never block or fail the run.

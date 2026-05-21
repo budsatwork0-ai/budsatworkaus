@@ -12,6 +12,7 @@ export const crewBriefingAgent: AgentDefinition = {
   description: "Generates each crew member's morning run sheet message.",
   category: 'ops',
   autonomy: 'auto',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const today = new Date().toISOString().slice(0, 10);
 

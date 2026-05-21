@@ -45,6 +45,7 @@ export const schedulingAgent: AgentDefinition = {
   description: 'Builds the next-day run sheet from confirmed jobs and crew availability.',
   category: 'ops',
   autonomy: 'review',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const tomorrow = new Date(Date.now() + 24 * 3600_000);
     const yyyyMmDd = tomorrow.toISOString().slice(0, 10);

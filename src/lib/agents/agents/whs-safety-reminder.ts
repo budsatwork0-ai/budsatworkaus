@@ -13,6 +13,7 @@ export const whsSafetyReminderAgent: AgentDefinition = {
   description: 'Tracks crew compliance expiries (induction, WWCC, first-aid, licence, equipment).',
   category: 'compliance',
   autonomy: 'auto',
+  preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
     const remindAt = (ctx.config?.remind_days_before as number[] | undefined) ?? [30, 14, 7, 1];
     const today = new Date();
