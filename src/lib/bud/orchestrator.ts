@@ -526,6 +526,138 @@ export async function executeRepairPlan(
   }
 }
 
+// ── Improvement trigger ───────────────────────────────────────────────────────
+
+/**
+ * Create an improvement signal from any source (Bud Observer output, admin
+ * UX proposal, design insight, bud insight, or manual trigger) and immediately
+ * start the improvement pipeline if autonomy level ≥ 3.
+ *
+ * At autonomy level 0–2 the signal is queued and an approval is created.
+ * At autonomy level 3–5 the improvement pipeline fires autonomously.
+ */
+export async function triggerImprovement(
+  supabase: SupabaseClient,
+  params: {
+    source: string;
+    signalType: string;
+    severity: string;
+    title: string;
+    description?: string;
+    affectedArea?: string;
+    proposedApproach?: string;
+    referenceFiles?: string[];
+    metadata?: Record<string, unknown>;
+    requestedBy?: string;
+  },
+): Promise<{ signalId: string; executionId?: string; status: string }> {
+  // Dedup: skip if a matching open signal exists in the last 6h
+  const since6h = new Date(Date.now() - 6 * 3600_000).toISOString();
+  const { data: existing } = await supabase
+    .from('bud_improvement_signals')
+    .select('id, status')
+    .eq('signal_type', params.signalType)
+    .eq('title', params.title)
+    .in('status', ['new', 'queued', 'executing'])
+    .gte('created_at', since6h)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return { signalId: existing.id as string, status: 'deduplicated' };
+  }
+
+  const { data: signal, error } = await supabase
+    .from('bud_improvement_signals')
+    .insert({
+      source: params.source,
+      signal_type: params.signalType,
+      severity: params.severity,
+      title: params.title,
+      description: params.description ?? null,
+      affected_area: params.affectedArea ?? null,
+      proposed_approach: params.proposedApproach ?? null,
+      reference_files: params.referenceFiles ?? null,
+      metadata: params.metadata ?? null,
+      status: 'new',
+    })
+    .select('id')
+    .single();
+
+  if (error || !signal) throw new Error(`Failed to create improvement signal: ${error?.message}`);
+  const signalId = signal.id as string;
+
+  const level = getDefaultAutonomyLevel();
+
+  await writeBudActivity(
+    supabase,
+    `Bud detected improvement opportunity: ${params.title} (${params.signalType}, ${params.severity}).`,
+    { event_type: 'detection', actor: params.source, target: params.affectedArea,
+      metadata: { signal_id: signalId, signal_type: params.signalType } },
+  );
+
+  if (level <= 2) {
+    // Queue for human approval
+    await supabase
+      .from('bud_improvement_signals')
+      .update({ status: 'queued' })
+      .eq('id', signalId);
+
+    // Reuse bud_approval_queue so Mission Control can surface it
+    const dummyTask = await createBudTask(supabase, {
+      description: `[Improvement] ${params.title}`,
+      source_agent: params.source,
+      confidence: 0.7,
+      risk_level: (params.severity === 'critical' || params.severity === 'high') ? 'high' : 'medium',
+      raw_input: { signal_id: signalId },
+    });
+
+    await queueApproval(supabase, {
+      task_id: dummyTask.id,
+      action_type: 'run_improvement_pipeline',
+      payload: { signal_id: signalId, title: params.title },
+      requested_by: params.requestedBy ?? 'bud',
+    });
+
+    await writeBudActivity(
+      supabase,
+      `Bud queued improvement for approval: ${params.title} (autonomy level ${level} — auto-execution requires level 3+).`,
+      { event_type: 'approval', actor: 'bud', target: params.affectedArea,
+        metadata: { signal_id: signalId, task_id: dummyTask.id } },
+    );
+
+    return { signalId, status: 'queued_for_approval' };
+  }
+
+  // Level 3+: fire the improvement pipeline immediately
+  try {
+    const { executeImprovementPipeline } = await import('./improvement-executor');
+    const result = await executeImprovementPipeline(supabase, {
+      signalId,
+      userId: params.requestedBy ?? null,
+      trigger: 'observer',
+    });
+
+    await writeBudActivity(
+      supabase,
+      result.status === 'recovered' || result.status === 'patching'
+        ? `Bud improvement pipeline completed for: ${params.title}. PR: ${result.prUrl ?? 'no PR (blocked)'}`
+        : `Bud improvement pipeline blocked for: ${params.title}. Reason: ${result.blockedReason ?? 'unknown'}.`,
+      { event_type: 'completion', actor: 'bud', target: params.affectedArea,
+        metadata: { signal_id: signalId, execution_id: result.executionId, pr_url: result.prUrl } },
+    );
+
+    return { signalId, executionId: result.executionId, status: result.status };
+  } catch (err) {
+    await writeBudActivity(
+      supabase,
+      `Bud improvement pipeline failed to start for: ${params.title} — ${err instanceof Error ? err.message : err}`,
+      { event_type: 'error', actor: 'bud', target: params.affectedArea, metadata: { signal_id: signalId } },
+    );
+    return { signalId, status: 'failed' };
+  }
+}
+
 // ── Parse failure handler ─────────────────────────────────────────────────────
 
 export async function handleParseFailure(

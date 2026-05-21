@@ -210,6 +210,127 @@ export function budBranchName(agentId: string): string {
   return `bud/fix-${safe}-${ts}`;
 }
 
+export function budImproveBranchName(area: string): string {
+  const ts = Date.now();
+  const safe = area.replace(/[^a-z0-9-]/g, '-').slice(0, 32);
+  return `bud/improve-${safe}-${ts}`;
+}
+
+/**
+ * Merge an open PR by number. Uses the squash merge strategy so the commit
+ * history stays clean. Returns the merge commit SHA.
+ */
+export async function mergePR(
+  prNumber: number,
+  commitTitle?: string,
+  commitMessage?: string,
+): Promise<{ sha: string }> {
+  const octokit = client();
+  const res = await octokit.pulls.merge({
+    owner: OWNER,
+    repo: REPO,
+    pull_number: prNumber,
+    merge_method: 'squash',
+    commit_title: commitTitle,
+    commit_message: commitMessage,
+  });
+  return { sha: res.data.sha ?? '' };
+}
+
+/**
+ * Enable auto-merge on a PR (requires branch protection with required status checks).
+ * Falls back silently if the repo does not have auto-merge enabled.
+ */
+export async function enableAutoMerge(prNumber: number): Promise<void> {
+  if (!OWNER || !REPO) return;
+  const octokit = client();
+  try {
+    // Auto-merge is only available via GraphQL
+    const prRes = await octokit.pulls.get({ owner: OWNER, repo: REPO, pull_number: prNumber });
+    const nodeId = prRes.data.node_id;
+    await octokit.graphql(`
+      mutation EnableAutoMerge($pullRequestId: ID!) {
+        enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
+          pullRequest { autoMergeRequest { mergeMethod } }
+        }
+      }
+    `, { pullRequestId: nodeId });
+  } catch {
+    // Silently skip — auto-merge may not be enabled on this repo
+  }
+}
+
+/**
+ * List open PRs that have a specific label. Used by the improvement pipeline
+ * to check if an equivalent improvement is already in flight.
+ */
+export async function listOpenPRsByLabel(
+  label: string,
+  maxResults = 10,
+): Promise<Array<{ number: number; title: string; url: string; branch: string }>> {
+  if (!OWNER || !REPO) return [];
+  const octokit = client();
+  try {
+    const res = await octokit.pulls.list({
+      owner: OWNER,
+      repo: REPO,
+      state: 'open',
+      per_page: maxResults,
+    });
+    return res.data
+      .filter((pr) => pr.labels.some((l) => l.name === label))
+      .map((pr) => ({
+        number: pr.number,
+        title: pr.title,
+        url: pr.html_url,
+        branch: pr.head.ref,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get the current state of a PR, including whether it is mergeable.
+ */
+export async function getPRDetails(prNumber: number): Promise<{
+  state: 'open' | 'closed' | 'merged';
+  mergeable: boolean | null;
+  ciStatus: 'pending' | 'success' | 'failure' | 'unknown';
+  isDraft: boolean;
+} | null> {
+  if (!OWNER || !REPO) return null;
+  const octokit = client();
+  try {
+    const res = await octokit.pulls.get({ owner: OWNER, repo: REPO, pull_number: prNumber });
+    const pr = res.data;
+    const state = pr.merged ? 'merged' : (pr.state as 'open' | 'closed');
+
+    // Get combined status of the head commit
+    let ciStatus: 'pending' | 'success' | 'failure' | 'unknown' = 'unknown';
+    try {
+      const statusRes = await octokit.repos.getCombinedStatusForRef({
+        owner: OWNER,
+        repo: REPO,
+        ref: pr.head.sha,
+      });
+      const s = statusRes.data.state;
+      ciStatus = s === 'success' ? 'success' : s === 'failure' || s === 'error' ? 'failure' : 'pending';
+    } catch {
+      // Status API not configured — leave unknown
+    }
+
+    return {
+      state,
+      mergeable: pr.mergeable ?? null,
+      ciStatus,
+      isDraft: pr.draft ?? false,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read a file from a specific branch. Returns the file content as a UTF-8
  * string plus the blob SHA needed for subsequent writes.

@@ -1,0 +1,299 @@
+/**
+ * Bud Observer
+ *
+ * Continuously watches the platform for improvement opportunities across six
+ * signal categories and feeds them into the autonomous improvement pipeline
+ * via triggerImprovement().
+ *
+ * Signal categories:
+ *   1. UX friction      — unacted admin_ux_proposals (high/critical, > 3 days old)
+ *   2. Design debt      — design_insights not yet shipped
+ *   3. Agent quality    — agents with declining quality scores or parse failures
+ *   4. Performance      — slow agent runs, expensive LLM calls, timeout patterns
+ *   5. Conversion hints — conversion_funnel agent findings, lapsed-win-back signals
+ *   6. Error spikes     — rising failure rates across the fleet
+ *
+ * The observer ranks signals by: severity × recency × recurrence.
+ * Top signals that haven't been acted on recently are passed to triggerImprovement().
+ * It does NOT generate code itself — that's the improvement-executor's job.
+ */
+
+import type { AgentDefinition, AgentContext } from '../types';
+import { triggerImprovement } from '@/lib/bud/orchestrator';
+
+const SYSTEM = `You are the Bud Observer for Buds At Work. Your role is to analyse
+cross-system signals and identify the top improvement opportunities.
+
+Given a data snapshot (UX proposals, agent health, performance metrics, conversion signals),
+return a prioritised JSON list of improvement opportunities:
+
+{
+  "signals": [
+    {
+      "signal_type": "ux_friction" | "design_debt" | "agent_quality" | "performance" | "conversion_drop" | "error_spike",
+      "severity": "low" | "medium" | "high" | "critical",
+      "title": "Concise, actionable title (max 80 chars)",
+      "description": "What is wrong, why it matters, evidence from the data",
+      "affected_area": "page path / agent id / service area",
+      "proposed_approach": "Specific suggestion for what to change",
+      "reference_files": ["src/..."],
+      "confidence": 0.0–1.0
+    }
+  ],
+  "summary": "One paragraph overview of fleet health"
+}
+
+Rules:
+- Return at most 5 signals. Prioritise high-impact, low-risk, actionable items.
+- Do NOT surface signals that already have an open PR or executing improvement.
+- Be specific: "Add skeleton loaders to the quotes table" > "Improve loading states".
+- Reference the actual file paths when you know them.`;
+
+export const budObserverAgent: AgentDefinition = {
+  id: 'bud-observer',
+  name: 'Bud Observer',
+  description: 'Continuously monitors UX, performance, conversions, agent quality, and design signals to feed the autonomous improvement pipeline.',
+  category: 'ops',
+  autonomy: 'auto',
+  schedule: '0 */6 * * *',  // every 6 hours
+
+  async run(ctx: AgentContext) {
+    const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const since3d = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const since30d = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+    // ── 1. UX Friction: unacted high/critical admin UX proposals ──────────────
+    const { data: uxProposals } = await ctx.supabase
+      .from('admin_ux_proposals')
+      .select('id, page_path, audience, severity, title, body, proposed_change, created_at')
+      .in('severity', ['high', 'critical'])
+      .is('status', null)
+      .lt('created_at', since3d)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // ── 2. Design Debt: design insights not yet shipped ────────────────────────
+    let designInsights: Array<{ id: string; page_path: string | null; insight_type: string | null; severity: string | null; title: string; body: string | null; proposed_change: unknown; created_at: string }> | null = null;
+    try {
+      const { data } = await ctx.supabase
+        .from('design_insights')
+        .select('id, page_path, insight_type, severity, title, body, proposed_change, created_at')
+        .in('severity', ['high', 'critical'])
+        .not('status', 'eq', 'shipped')
+        .lt('created_at', since3d)
+        .order('severity', { ascending: false })
+        .limit(5);
+      designInsights = data;
+    } catch { /* table may not exist yet */ }
+
+    // ── 3. Agent Quality: agents with quality score < 0.5 or rising parse failures
+    const { data: agentQuality } = await ctx.supabase
+      .from('agent_runs')
+      .select('agent_id, status, summary, cost_cents, started_at')
+      .in('status', ['failed', 'needs_repair'])
+      .gte('started_at', since7d)
+      .order('started_at', { ascending: false })
+      .limit(50);
+
+    // Group failures by agent
+    const failuresByAgent: Record<string, number> = {};
+    for (const run of agentQuality ?? []) {
+      const id = run.agent_id as string;
+      failuresByAgent[id] = (failuresByAgent[id] ?? 0) + 1;
+    }
+    const problematicAgents = Object.entries(failuresByAgent)
+      .filter(([, count]) => count >= 2)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
+    // ── 4. Performance: expensive LLM runs (>100 cost_cents) or slow runs ─────
+    const { data: expensiveRuns } = await ctx.supabase
+      .from('agent_runs')
+      .select('agent_id, cost_cents, duration_ms, started_at')
+      .eq('status', 'succeeded')
+      .gt('cost_cents', 100)
+      .gte('started_at', since7d)
+      .order('cost_cents', { ascending: false })
+      .limit(10);
+
+    // ── 5. Conversion signals from conversion_funnel agent findings ────────────
+    const { data: conversionFindings } = await ctx.supabase
+      .from('agent_runs')
+      .select('output, started_at')
+      .eq('agent_id', 'conversion-funnel')
+      .eq('status', 'succeeded')
+      .gte('started_at', since30d)
+      .order('started_at', { ascending: false })
+      .limit(3);
+
+    const conversionSignals: string[] = [];
+    for (const run of conversionFindings ?? []) {
+      const output = run.output as Record<string, unknown> | null;
+      const findings = Array.isArray(output?.findings) ? (output!.findings as string[]) : [];
+      conversionSignals.push(...findings.slice(0, 3));
+    }
+
+    // ── 6. Error spikes: check for rising failure rates vs prior week ──────────
+    const since14d = new Date(Date.now() - 14 * 86_400_000).toISOString();
+    const { data: allRecentRuns } = await ctx.supabase
+      .from('agent_runs')
+      .select('agent_id, status, started_at')
+      .gte('started_at', since14d)
+      .order('started_at', { ascending: false })
+      .limit(500);
+
+    const now = Date.now();
+    const week1Start = now - 7 * 86_400_000;
+    const week2Start = now - 14 * 86_400_000;
+
+    const ratesByAgent: Record<string, { thisWeek: number; lastWeek: number; total: number }> = {};
+    for (const run of allRecentRuns ?? []) {
+      const id = run.agent_id as string;
+      const ts = new Date(run.started_at as string).getTime();
+      if (!ratesByAgent[id]) ratesByAgent[id] = { thisWeek: 0, lastWeek: 0, total: 0 };
+      ratesByAgent[id].total += 1;
+      if (run.status === 'failed' || run.status === 'needs_repair') {
+        if (ts >= week1Start) ratesByAgent[id].thisWeek += 1;
+        else if (ts >= week2Start) ratesByAgent[id].lastWeek += 1;
+      }
+    }
+    const spikeAgents = Object.entries(ratesByAgent)
+      .filter(([, r]) => r.thisWeek > r.lastWeek * 1.5 && r.thisWeek >= 2)
+      .map(([id, r]) => ({ id, ...r }))
+      .slice(0, 3);
+
+    // ── Build data snapshot for LLM ───────────────────────────────────────────
+    const snapshot = {
+      ux_proposals: (uxProposals ?? []).map((p) => ({
+        id: p.id,
+        path: p.page_path,
+        severity: p.severity,
+        title: p.title,
+        body: (p.body as string | null)?.slice(0, 200),
+        proposed_change: p.proposed_change,
+        age_days: Math.floor((Date.now() - new Date(p.created_at as string).getTime()) / 86_400_000),
+      })),
+      design_insights: (designInsights ?? []).slice(0, 5),
+      problematic_agents: problematicAgents.map(([id, count]) => ({ id, failure_count: count })),
+      expensive_runs: (expensiveRuns ?? []).slice(0, 5).map((r) => ({
+        agent: r.agent_id,
+        cost_cents: r.cost_cents,
+        duration_ms: r.duration_ms,
+      })),
+      conversion_signals: conversionSignals.slice(0, 5),
+      error_spikes: spikeAgents,
+    };
+
+    const prompt = `Analyse this Buds At Work platform health snapshot and identify the top improvement opportunities.
+
+DATA SNAPSHOT:
+${JSON.stringify(snapshot, null, 2)}
+
+Focus on items that are:
+- Actionable with a ≤3 file code change
+- Have not been addressed in the last 3 days
+- Would measurably improve: UX, conversion, agent reliability, or operating cost
+
+Return the JSON as described in your system instructions.`;
+
+    const raw = await ctx.llm(prompt, { system: SYSTEM });
+
+    let signals: Array<{
+      signal_type: string;
+      severity: string;
+      title: string;
+      description: string;
+      affected_area: string;
+      proposed_approach: string;
+      reference_files?: string[];
+      confidence: number;
+    }> = [];
+    let observerSummary = '';
+
+    try {
+      const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      const parsed = JSON.parse(jsonStr) as typeof signals extends never ? never : {
+        signals?: typeof signals;
+        summary?: string;
+      };
+      signals = parsed.signals ?? [];
+      observerSummary = parsed.summary ?? '';
+    } catch {
+      ctx.log('bud-observer: failed to parse LLM response', { raw: raw.slice(0, 500) });
+    }
+
+    // ── Trigger improvements for high-confidence signals ──────────────────────
+    const triggered: string[] = [];
+    const MIN_CONFIDENCE = 0.65;
+
+    for (const signal of signals) {
+      if (signal.confidence < MIN_CONFIDENCE) continue;
+
+      try {
+        const result = await triggerImprovement(ctx.supabase, {
+          source: 'observer',
+          signalType: signal.signal_type,
+          severity: signal.severity,
+          title: signal.title,
+          description: signal.description,
+          affectedArea: signal.affected_area,
+          proposedApproach: signal.proposed_approach,
+          referenceFiles: signal.reference_files,
+          metadata: { observer_run_id: ctx.runId, confidence: signal.confidence },
+          requestedBy: 'bud-observer',
+        });
+
+        if (result.status !== 'deduplicated') {
+          triggered.push(`[${signal.severity}] ${signal.title} → ${result.status}`);
+          ctx.log(`bud-observer: triggered improvement for: ${signal.title}`, result);
+        }
+      } catch (err) {
+        ctx.log(`bud-observer: failed to trigger improvement for ${signal.title}`, { err: String(err) });
+      }
+    }
+
+    // ── Propose action for signals that need human review ─────────────────────
+    const reviewNeeded = signals.filter((s) => s.confidence < MIN_CONFIDENCE || s.severity === 'critical');
+    if (reviewNeeded.length > 0) {
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        payload: {
+          signals: reviewNeeded,
+          source: 'bud-observer',
+          run_id: ctx.runId,
+        },
+        preview: `Observer found ${reviewNeeded.length} signal(s) needing human review: ${reviewNeeded.map((s) => s.title).join(', ')}`,
+        requiresApproval: true,
+        confidence: 0.5,
+        risk_level: 'low',
+      });
+    }
+
+    const total = signals.length;
+    const autoTriggered = triggered.length;
+
+    return {
+      summary: `Bud Observer found ${total} signal(s). Auto-triggered ${autoTriggered} improvement(s). ${observerSummary.slice(0, 200)}`,
+      output: {
+        status: total > 0 ? 'success' : 'partial',
+        summary: `Found ${total} improvement opportunities, triggered ${autoTriggered} autonomously.`,
+        findings: signals.map((s) => `[${s.severity}] ${s.title}`),
+        recommended_actions: reviewNeeded.length > 0
+          ? [`Review ${reviewNeeded.length} signal(s) in Mission Control → Improvement Queue`]
+          : ['No manual review needed — all signals handled autonomously'],
+        confidence: 0.80,
+        risk_level: 'low',
+        raw_output: {
+          signals_found: total,
+          auto_triggered: autoTriggered,
+          triggered_titles: triggered,
+          snapshot_summary: {
+            ux_proposals: (uxProposals ?? []).length,
+            problematic_agents: problematicAgents.length,
+            error_spikes: spikeAgents.length,
+          },
+        },
+      },
+    };
+  },
+};

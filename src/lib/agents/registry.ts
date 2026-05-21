@@ -73,6 +73,9 @@ import { efficiencyArchitectAgent } from './agents/efficiency-architect';
 // Browser Agent — runs Playwright golden-path tests
 import { browserAgent } from './agents/browser-agent';
 
+// Bud Observer — continuous monitoring + improvement signal generation
+import { budObserverAgent } from './agents/bud-observer';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -114,6 +117,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [budAgent.id]:                     budAgent,
   [efficiencyArchitectAgent.id]:     efficiencyArchitectAgent,
   [browserAgent.id]:                 browserAgent,
+  [budObserverAgent.id]:             budObserverAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);
