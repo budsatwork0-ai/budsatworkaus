@@ -480,10 +480,12 @@ export function buildBudOsActionQueue(args: {
       bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
     };
     const task = annotated.bud_tasks;
-    // Skip Bud self-repair approvals — Bud investigating itself creates an infinite
-    // loop where each run spawns another branch. These items should never appear in
-    // the queue since we block self-investigation in bud.ts.
-    if (task?.source_agent === 'bud') continue;
+    // Skip autonomous Bud self-investigation approvals — these are created by the
+    // Bud cron investigating itself, which causes an infinite loop. They have both
+    // source_agent='bud' AND requested_by='bud'. User-triggered "Fix with Bud"
+    // commands also have source_agent='bud' but requested_by=<user UUID>, so they
+    // must NOT be skipped.
+    if (task?.source_agent === 'bud' && (approval.requested_by === 'bud' || !approval.requested_by)) continue;
     const repairSession = approval.task_id ? sessionByTask.get(approval.task_id) : undefined;
     const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession });
     items.push({

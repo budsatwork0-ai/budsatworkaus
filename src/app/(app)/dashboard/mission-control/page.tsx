@@ -52,7 +52,7 @@ async function loadData() {
       .order('name'),
     supabase
       .from('agent_runs')
-      .select('id, agent_id, status, summary, cost_cents, duration_ms, started_at, trigger')
+      .select('id, agent_id, status, summary, error, cost_cents, duration_ms, started_at, trigger')
       .order('started_at', { ascending: false })
       .limit(40),
     supabase
@@ -276,6 +276,7 @@ async function loadData() {
       agent_id: r.agent_id as string | null,
       status: r.status as string,
       summary: r.summary as string | null,
+      error: r.error as string | null | undefined,
       started_at: r.started_at as string,
     })),
     agentNameById,

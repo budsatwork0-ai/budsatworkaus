@@ -1845,6 +1845,18 @@ export function MissionControlClient({
   const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
   const [investigatingIds, setInvestigatingIds] = useState<Set<string>>(new Set());
 
+  // Sync queue from server props whenever router.refresh() brings new data.
+  // useState only uses its initializer on mount, so without this effect new
+  // approvals/dismissals from the server never appear without a full reload.
+  const incomingQueueKey = budOs.actionQueue.map((i) => i.id).join(',');
+  useEffect(() => {
+    setQueue(budOs.actionQueue);
+    setSelectedId((prev) =>
+      budOs.actionQueue.find((i) => i.id === prev) ? prev : (budOs.actionQueue[0]?.id ?? null),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingQueueKey]);
+
   const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
   const workspace = useMemo(
     () =>
@@ -1979,8 +1991,6 @@ export function MissionControlClient({
         if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
       }
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
-      // Small delay so the DB write commits before the server re-fetch hits the read path.
-      await new Promise((resolve) => setTimeout(resolve, 600));
       router.refresh();
     } catch (error) {
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });

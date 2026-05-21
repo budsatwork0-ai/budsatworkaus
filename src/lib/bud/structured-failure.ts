@@ -30,6 +30,7 @@ type RunLike = {
   agent_id?: string | null;
   status: string;
   summary: string | null;
+  error?: string | null;
   output?: Record<string, unknown> | null;
   started_at: string;
 };
@@ -137,7 +138,7 @@ export function buildStructuredFailure(args: {
   agentName: string;
 }): StructuredFailure {
   const { run, agentName } = args;
-  const summary = run.summary ?? '';
+  const summary = run.summary ?? run.error ?? '';
   const classification = classify(summary);
   const stack = extractStack(summary, run.output);
   const affectedFiles = extractAffectedFiles(summary, run.output);

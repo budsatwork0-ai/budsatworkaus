@@ -101,6 +101,41 @@ export async function POST(req: NextRequest) {
       supabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'enabled'),
     ]);
 
+    // Dedup: if there's already an open task for this same command in the last 24h,
+    // return it instead of spawning another. Prevents stale "waiting" thoughts from
+    // accumulating when the user clicks "Fix with Bud" multiple times.
+    const { data: existingTask } = await supabase
+      .from('bud_tasks')
+      .select('id, status')
+      .eq('source_agent', 'bud')
+      .eq('description', classified.description)
+      .in('status', ['pending', 'awaiting_approval', 'in_progress'])
+      .gte('created_at', since24h)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: existingApproval } = existingTask
+      ? await supabase
+          .from('bud_approval_queue')
+          .select('id')
+          .eq('task_id', existingTask.id)
+          .eq('status', 'pending')
+          .maybeSingle()
+      : { data: null };
+
+    if (existingTask && existingApproval) {
+      return NextResponse.json({
+        ok: true,
+        task_id: existingTask.id,
+        intent: classified.intent,
+        approval_id: existingApproval.id,
+        status: 'awaiting_approval',
+        bud_response: null,
+        deduplicated: true,
+      });
+    }
+
     const [task, budResponse] = await Promise.all([
       createBudTask(supabase, {
         description: classified.description,

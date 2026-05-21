@@ -492,6 +492,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       .update({
         status: 'failed',
         error: msg,
+        summary: msg,
         output: {
           logs,
           ...(isGuardrail
