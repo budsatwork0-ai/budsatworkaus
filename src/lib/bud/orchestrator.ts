@@ -374,7 +374,29 @@ export async function executeRepairPlan(
   const risk_level = task.risk_level ?? 'low';
 
   if (level >= 3 && ['low', 'medium'].includes(risk_level)) {
-    const branchName = budBranchName(task.source_agent ?? 'unknown');
+    // Dedup: if there's already an open change request for the same target agent
+    // created in the last 24h, link to it rather than spawning a second branch.
+    const targetAgent = task.source_agent ?? task.target_agent ?? 'unknown';
+    const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { data: openCr } = await supabase
+      .from('bud_change_requests')
+      .select('id, branch_name, issue_url')
+      .eq('status', 'open')
+      .gte('created_at', since24h)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openCr) {
+      await updateBudTask(supabase, taskId, { status: 'completed', linked_issue: openCr.issue_url });
+      await writeBudActivity(supabase,
+        `Bud skipped duplicate branch for ${targetAgent} — existing branch \`${openCr.branch_name}\` is already open. Work on that branch instead.`,
+        { event_type: 'repair', actor: 'bud', target: targetAgent, metadata: { existing_change_request_id: openCr.id, branch: openCr.branch_name } },
+      );
+      return;
+    }
+
+    const branchName = budBranchName(targetAgent);
     try {
       await updateBudTask(supabase, taskId, { status: 'in_progress' });
 

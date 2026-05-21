@@ -1844,15 +1844,20 @@ export function MissionControlClient({
   const [selectedId, setSelectedId] = useState<string | null>(budOs.actionQueue[0]?.id ?? null);
   const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
   const [investigatingIds, setInvestigatingIds] = useState<Set<string>>(new Set());
+  // Track item IDs the user has already actioned this session so they don't
+  // snap back when router.refresh() re-syncs agent-health items that are
+  // still technically broken.
+  const actionedIdsRef = useRef<Set<string>>(new Set());
 
   // Sync queue from server props whenever router.refresh() brings new data.
   // useState only uses its initializer on mount, so without this effect new
   // approvals/dismissals from the server never appear without a full reload.
   const incomingQueueKey = budOs.actionQueue.map((i) => i.id).join(',');
   useEffect(() => {
-    setQueue(budOs.actionQueue);
+    const filtered = budOs.actionQueue.filter((i) => !actionedIdsRef.current.has(i.id));
+    setQueue(filtered);
     setSelectedId((prev) =>
-      budOs.actionQueue.find((i) => i.id === prev) ? prev : (budOs.actionQueue[0]?.id ?? null),
+      filtered.find((i) => i.id === prev) ? prev : (filtered[0]?.id ?? null),
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingQueueKey]);
@@ -1925,6 +1930,7 @@ export function MissionControlClient({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error ?? 'Dismiss failed');
+      actionedIdsRef.current.add(item.id);
       setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
       toast.success('Bud dismissed the item');
     } catch (error) {
@@ -1945,6 +1951,7 @@ export function MissionControlClient({
       const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? 'Approval failed');
+      actionedIdsRef.current.add(item.id);
       setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
       toast.success(notes ? 'Approved with note' : 'Bud approval recorded');
       router.refresh();
@@ -1962,6 +1969,7 @@ export function MissionControlClient({
       const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? 'Rejection failed');
+      actionedIdsRef.current.add(item.id);
       setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
       toast.success('Rejection recorded - Bud will learn from this');
       router.refresh();
@@ -1991,6 +1999,13 @@ export function MissionControlClient({
         if (!res.ok) throw new Error(body?.error ?? 'Bud command failed');
       }
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+      // Optimistically remove the item so the user sees immediate feedback.
+      // Agent-health items will return on the next full refresh if the agent is
+      // still broken, but the approval/task will appear in the queue meanwhile.
+      actionedIdsRef.current.add(item.id);
+      setQueue((prev) => prev.filter((e) => e.id !== item.id));
+      const agentLabel = item.agent_name ?? item.title;
+      toast.success(`Bud is on it — investigating ${agentLabel}. Check the approvals queue.`);
       router.refresh();
     } catch (error) {
       setInvestigatingIds((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
