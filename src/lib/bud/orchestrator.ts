@@ -418,6 +418,22 @@ export async function executeRepairPlan(
       openCr = data ?? null;
     }
 
+    // Fallback: search directly by branch-name pattern in case task linkage is broken
+    // (e.g. command-bar tasks have source_agent='bud', not the target agent's id).
+    if (!openCr) {
+      const branchPrefix = `bud/fix-${targetAgent.replace(/[^a-z0-9]/g, '-')}-`;
+      const { data: nameCr } = await supabase
+        .from('bud_change_requests')
+        .select('id, branch_name, issue_url')
+        .eq('status', 'open')
+        .ilike('branch_name', `${branchPrefix}%`)
+        .gte('created_at', since24h)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      openCr = nameCr ?? null;
+    }
+
     if (openCr) {
       const live = await branchExists(openCr.branch_name);
       if (live) {

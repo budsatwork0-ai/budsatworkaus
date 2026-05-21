@@ -105,6 +105,8 @@ export type BudOsRepairWorkspace = {
   browser_test_status: string | null;
   pr_url: string | null;
   issue_url: string | null;
+  /** GitHub compare URL for this branch — present when a branch exists but no PR has been opened yet. */
+  branch_compare_url: string | null;
   // Phase 6 — Rollback monitoring
   rollback_count: number;
   rollback_triggers: Record<string, number>;
@@ -784,6 +786,7 @@ export function buildRepairWorkspace(args: {
   logs: RepairLogRow[];
   activity: BudActivityEvent[];
   rollbackEvents?: RollbackEventRow[];
+  changeRequests?: Array<{ id: string; task_id: string | null; branch_name: string | null; issue_url: string | null; pr_url: string | null; status: string }>;
 }): BudOsRepairWorkspace {
   const selected = args.selectedItem;
   const explicitTaskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected.source_id : null);
@@ -797,6 +800,23 @@ export function buildRepairWorkspace(args: {
   const strategy = execution?.repair_strategy;
   const strategySteps = Array.isArray(strategy?.steps) ? strategy.steps.map(String) : [];
   const strategyBranch = typeof strategy?.branchName === 'string' ? strategy.branchName : null;
+
+  // Find the change request for this task — used to surface the branch compare URL
+  // when the repair pipeline hasn't run yet (branch exists, no PR opened).
+  const taskCr = taskId
+    ? (args.changeRequests ?? []).find((cr) => cr.task_id === taskId) ?? null
+    : null;
+  const crBranch = taskCr?.branch_name ?? null;
+  const activeBranch = strategyBranch ?? crBranch;
+  const prUrl = execution?.pr_url ?? session?.linked_pr ?? taskCr?.pr_url ?? null;
+  const issueUrl = execution?.issue_url ?? session?.linked_issue ?? taskCr?.issue_url ?? null;
+  // Derive compare URL from the issue URL's repo prefix + branch name
+  const repoBase = issueUrl
+    ? issueUrl.replace(/\/issues\/\d+.*$/, '')
+    : null;
+  const branchCompareUrl = (!prUrl && activeBranch && repoBase)
+    ? `${repoBase}/compare/main...${activeBranch}`
+    : null;
   const strategyFiles = Array.isArray(strategy?.affectedFiles) ? (strategy.affectedFiles as string[]) : [];
 
   // Rollback monitoring — scoped to the selected agent if there is one
@@ -838,7 +858,7 @@ export function buildRepairWorkspace(args: {
     logs: executionLogs,
     steps: executionSteps.map((step) => ({ id: step.id, state: step.state, status: step.status, summary: step.summary, started_at: step.started_at })),
     task_id: taskId,
-    sandbox_branch: strategyBranch,
+    sandbox_branch: activeBranch,
     deployment_url: execution?.deployment_url ?? null,
     affected_files: strategyFiles,
     // Gate results — only populated after a repair pipeline has run
@@ -852,8 +872,9 @@ export function buildRepairWorkspace(args: {
     browser_tests_failed: execution?.browser_tests_failed ?? null,
     browser_tests_total: execution?.browser_tests_total ?? null,
     browser_test_status: execution?.browser_test_status ?? null,
-    pr_url: execution?.pr_url ?? null,
-    issue_url: execution?.issue_url ?? null,
+    pr_url: prUrl,
+    issue_url: issueUrl,
+    branch_compare_url: branchCompareUrl,
     rollback_count: agentRollbacks.length,
     rollback_triggers: rollbackTriggers,
     repair_success_rate: repairSuccessRate,

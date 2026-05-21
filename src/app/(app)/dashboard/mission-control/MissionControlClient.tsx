@@ -113,6 +113,7 @@ type Props = {
     repairExecutions: RepairExecutionRow[];
     repairSteps: RepairStepRow[];
     repairLogs: RepairLogRow[];
+    changeRequests: Array<{ id: string; task_id: string | null; branch_name: string | null; issue_url: string | null; pr_url: string | null; status: string }>;
     rollbackEvents: Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>;
     authority: BudAuthority;
     capabilities: BudCapability[];
@@ -931,12 +932,17 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
               Issue →
             </a>
           )}
-          {workspace.pr_url && (
+          {workspace.pr_url ? (
             <a href={workspace.pr_url} target="_blank" rel="noreferrer"
               className="rounded border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-semibold text-sky-300 hover:text-sky-200 transition">
               View PR →
             </a>
-          )}
+          ) : workspace.branch_compare_url ? (
+            <a href={workspace.branch_compare_url} target="_blank" rel="noreferrer"
+              className="rounded border border-emerald-400/30 bg-emerald-500/[0.08] px-2 py-1 text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 transition">
+              Open PR →
+            </a>
+          ) : null}
           {workspace.task_id && (
             <button
               onClick={() => onExecute(workspace.task_id!)}
@@ -2336,8 +2342,9 @@ export function MissionControlClient({
         logs: budOs.repairLogs,
         activity: budActivity,
         rollbackEvents: budOs.rollbackEvents,
+        changeRequests: budOs.changeRequests,
       }),
-    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity, budOs.rollbackEvents],
+    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity, budOs.rollbackEvents, budOs.changeRequests],
   );
 
   useEffect(() => {
