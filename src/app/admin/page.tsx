@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ function StatCard({
 
 // ─── Server component — fetches stats at request time ────────────────────────
 export default async function AdminDashboardPage() {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   // Today's date range (local midnight → next midnight, stored as ISO strings)
   const todayStart = new Date();
