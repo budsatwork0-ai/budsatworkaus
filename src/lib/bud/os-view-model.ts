@@ -87,6 +87,23 @@ export type BudOsRepairWorkspace = {
   logs: Array<{ id: string; level: string; message: string; created_at: string }>;
   steps: Array<{ id: string; state: string; status: string; summary: string; started_at: string }>;
   task_id: string | null;
+  // Gate results (populated after a repair pipeline runs)
+  ci_conclusion: string | null;
+  ci_run_url: string | null;
+  taste_score: number | null;
+  taste_pass: boolean | null;
+  taste_violations: string[];
+  taste_suggestions: string[];
+  browser_tests_passed: number | null;
+  browser_tests_failed: number | null;
+  browser_tests_total: number | null;
+  browser_test_status: string | null;
+  pr_url: string | null;
+  issue_url: string | null;
+  // Phase 6 — Rollback monitoring
+  rollback_count: number;
+  rollback_triggers: Record<string, number>;
+  repair_success_rate: number | null;
 };
 
 export type BudOsWorkforceCluster = {
@@ -160,6 +177,22 @@ type RepairExecutionRow = {
   diff_summary: string | null;
   deployment_url: string | null;
   verification_status: string;
+  // Phase 2 — CI gate
+  ci_conclusion: string | null;
+  ci_run_url: string | null;
+  // Phase 3 — Design Constitution taste
+  taste_score: number | null;
+  taste_pass: boolean | null;
+  taste_violations: string[] | null;
+  taste_suggestions: string[] | null;
+  // Phase 4 — Browser / Playwright gate
+  browser_tests_passed: number | null;
+  browser_tests_failed: number | null;
+  browser_tests_total: number | null;
+  browser_test_status: string | null;
+  // Phase 5 — PR + issue links
+  pr_url: string | null;
+  issue_url: string | null;
   created_at: string;
 };
 
@@ -177,6 +210,14 @@ type RepairLogRow = {
   execution_id: string;
   level: string;
   message: string;
+  created_at: string;
+};
+
+type RollbackEventRow = {
+  id: string;
+  execution_id: string | null;
+  agent_id: string | null;
+  trigger: string;
   created_at: string;
 };
 
@@ -713,6 +754,7 @@ export function buildRepairWorkspace(args: {
   steps: RepairStepRow[];
   logs: RepairLogRow[];
   activity: BudActivityEvent[];
+  rollbackEvents?: RollbackEventRow[];
 }): BudOsRepairWorkspace {
   const selected = args.selectedItem;
   const taskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected.source_id : null);
@@ -724,6 +766,25 @@ export function buildRepairWorkspace(args: {
     : args.activity.slice(0, 6).map((event) => ({ id: event.id, level: event.event_type, message: event.narrative, created_at: event.created_at }));
   const strategy = execution?.repair_strategy;
   const strategySteps = Array.isArray(strategy?.steps) ? strategy.steps.map(String) : [];
+
+  // Rollback monitoring — scoped to the selected agent if there is one
+  const allRollbacks = args.rollbackEvents ?? [];
+  const agentRollbacks = selected?.agent_id
+    ? allRollbacks.filter((r) => r.agent_id === selected.agent_id)
+    : allRollbacks;
+  const rollbackTriggers: Record<string, number> = {};
+  for (const r of agentRollbacks) {
+    rollbackTriggers[r.trigger] = (rollbackTriggers[r.trigger] ?? 0) + 1;
+  }
+  const totalRepairs = selected?.agent_id
+    ? args.executions.filter((e) => {
+        const task = args.commandState.repair_sessions.find((s) => s.id === e.task_id);
+        return task?.agent_id === selected.agent_id || e.task_id === taskId;
+      }).length
+    : args.executions.length;
+  const repairSuccessRate = totalRepairs > 0
+    ? Math.round((1 - agentRollbacks.length / totalRepairs) * 100) / 100
+    : null;
 
   return {
     selected_item_id: selected?.id ?? null,
@@ -743,5 +804,21 @@ export function buildRepairWorkspace(args: {
     logs: executionLogs,
     steps: executionSteps.map((step) => ({ id: step.id, state: step.state, status: step.status, summary: step.summary, started_at: step.started_at })),
     task_id: taskId,
+    // Gate results — only populated after a repair pipeline has run
+    ci_conclusion: execution?.ci_conclusion ?? null,
+    ci_run_url: execution?.ci_run_url ?? null,
+    taste_score: execution?.taste_score ?? null,
+    taste_pass: execution?.taste_pass ?? null,
+    taste_violations: (execution?.taste_violations as string[] | null | undefined) ?? [],
+    taste_suggestions: (execution?.taste_suggestions as string[] | null | undefined) ?? [],
+    browser_tests_passed: execution?.browser_tests_passed ?? null,
+    browser_tests_failed: execution?.browser_tests_failed ?? null,
+    browser_tests_total: execution?.browser_tests_total ?? null,
+    browser_test_status: execution?.browser_test_status ?? null,
+    pr_url: execution?.pr_url ?? null,
+    issue_url: execution?.issue_url ?? null,
+    rollback_count: agentRollbacks.length,
+    rollback_triggers: rollbackTriggers,
+    repair_success_rate: repairSuccessRate,
   };
 }

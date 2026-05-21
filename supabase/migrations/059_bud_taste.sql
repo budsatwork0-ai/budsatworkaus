@@ -24,3 +24,4 @@ ALTER TABLE public.bud_repair_executions
 CREATE INDEX IF NOT EXISTS idx_bud_repair_executions_taste_pass
   ON public.bud_repair_executions (taste_pass)
   WHERE taste_pass IS NOT NULL;
+

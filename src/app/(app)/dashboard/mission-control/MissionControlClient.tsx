@@ -70,6 +70,18 @@ type RepairExecutionRow = {
   diff_summary: string | null;
   deployment_url: string | null;
   verification_status: string;
+  ci_conclusion: string | null;
+  ci_run_url: string | null;
+  taste_score: number | null;
+  taste_pass: boolean | null;
+  taste_violations: string[] | null;
+  taste_suggestions: string[] | null;
+  browser_tests_passed: number | null;
+  browser_tests_failed: number | null;
+  browser_tests_total: number | null;
+  browser_test_status: string | null;
+  pr_url: string | null;
+  issue_url: string | null;
   created_at: string;
 };
 type RepairStepRow = {
@@ -101,6 +113,7 @@ type Props = {
     repairExecutions: RepairExecutionRow[];
     repairSteps: RepairStepRow[];
     repairLogs: RepairLogRow[];
+    rollbackEvents: Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>;
     authority: BudAuthority;
     capabilities: BudCapability[];
     initiatives: BudInitiative[];
@@ -759,20 +772,58 @@ function StatusTile({ label, value, tone = 'neutral' }: { label: string; value: 
   );
 }
 
+function GatePill({ pass, label }: { pass: boolean | null; label: string }) {
+  if (pass === null) return <span className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-white/40">{label}</span>;
+  return pass
+    ? <span className="rounded border border-emerald-400/30 bg-emerald-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">{label} passed</span>
+    : <span className="rounded border border-red-400/40 bg-red-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-red-300">{label} failed</span>;
+}
+
 function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspace; onExecute: (taskId: string) => void }) {
+  const [showViolations, setShowViolations] = useState(false);
+  const [showBrowserFails, setShowBrowserFails] = useState(false);
+
+  const hasGateResults = workspace.ci_conclusion !== null
+    || workspace.taste_score !== null
+    || workspace.browser_test_status !== null;
+
+  const ciTone =
+    workspace.ci_conclusion === 'success' ? 'text-emerald-300'
+    : workspace.ci_conclusion === null ? 'text-white/40'
+    : 'text-red-300';
+
+  const browserTone =
+    workspace.browser_test_status === 'passed' ? 'text-emerald-300'
+    : workspace.browser_test_status === 'skipped' || workspace.browser_test_status === null ? 'text-white/40'
+    : 'text-red-300';
+
   return (
     <Card
       title="Repair studio"
       subtitle="Issue → diagnose → plan → patch → approve → deploy → verify → learn"
       action={
-        workspace.task_id ? (
-          <button
-            onClick={() => onExecute(workspace.task_id!)}
-            className="rounded-md bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:bg-slate-100"
-          >
-            Run gated repair
-          </button>
-        ) : null
+        <div className="flex items-center gap-2">
+          {workspace.issue_url && (
+            <a href={workspace.issue_url} target="_blank" rel="noreferrer"
+              className="rounded border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-sky-300 hover:text-sky-200 transition">
+              Issue →
+            </a>
+          )}
+          {workspace.pr_url && (
+            <a href={workspace.pr_url} target="_blank" rel="noreferrer"
+              className="rounded border border-sky-400/30 bg-sky-500/[0.08] px-2 py-1 text-[10px] font-semibold text-sky-300 hover:text-sky-200 transition">
+              View PR →
+            </a>
+          )}
+          {workspace.task_id && (
+            <button
+              onClick={() => onExecute(workspace.task_id!)}
+              className="rounded-md bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-900 transition hover:bg-slate-100"
+            >
+              Run gated repair
+            </button>
+          )}
+        </div>
       }
     >
       <div className="grid gap-4 px-5 py-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -842,6 +893,138 @@ function RepairStudio({ workspace, onExecute }: { workspace: BudOsRepairWorkspac
           </div>
         </div>
       </div>
+
+      {/* ── Gate results panel ──────────────────────────────────────────────── */}
+      {hasGateResults && (
+        <div className="border-t border-white/[0.06] px-5 py-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-white/45">Gate results</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+
+            {/* CI gate */}
+            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">CI</p>
+                <GatePill pass={workspace.ci_conclusion === 'success' ? true : workspace.ci_conclusion === null ? null : false} label="CI" />
+              </div>
+              <p className={`mt-1.5 text-xs font-semibold ${ciTone}`}>
+                {workspace.ci_conclusion ?? 'not run'}
+              </p>
+              {workspace.ci_run_url && (
+                <a href={workspace.ci_run_url} target="_blank" rel="noreferrer"
+                  className="mt-1.5 block text-[10px] text-sky-300 hover:text-sky-200 transition">
+                  View run →
+                </a>
+              )}
+            </div>
+
+            {/* Taste gate */}
+            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Design taste</p>
+                <GatePill pass={workspace.taste_pass} label="Taste" />
+              </div>
+              {workspace.taste_score !== null ? (
+                <>
+                  {/* Score bar */}
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full transition-all ${workspace.taste_pass ? 'bg-emerald-400' : 'bg-red-400'}`}
+                      style={{ width: `${Math.round(workspace.taste_score * 100)}%` }}
+                    />
+                  </div>
+                  <p className={`mt-1 text-xs font-semibold ${workspace.taste_pass ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {Math.round(workspace.taste_score * 100)}%
+                  </p>
+                  {workspace.taste_violations.length > 0 && (
+                    <button
+                      onClick={() => setShowViolations((v) => !v)}
+                      className="mt-1 text-[10px] text-amber-300 hover:text-amber-200 transition"
+                    >
+                      {showViolations ? 'Hide' : `${workspace.taste_violations.length} violation${workspace.taste_violations.length === 1 ? '' : 's'}`}
+                    </button>
+                  )}
+                  {showViolations && workspace.taste_violations.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {workspace.taste_violations.map((v, i) => (
+                        <li key={i} className="text-[10px] leading-relaxed text-red-300/80">· {v}</li>
+                      ))}
+                      {workspace.taste_suggestions.length > 0 && (
+                        <>
+                          <li className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Suggestions</li>
+                          {workspace.taste_suggestions.map((s, i) => (
+                            <li key={`s-${i}`} className="text-[10px] leading-relaxed text-white/55">· {s}</li>
+                          ))}
+                        </>
+                      )}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-xs text-white/35">no UI files patched</p>
+              )}
+            </div>
+
+            {/* Browser gate */}
+            <div className="rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Browser</p>
+                <GatePill
+                  pass={
+                    workspace.browser_test_status === 'passed' ? true
+                    : workspace.browser_test_status === 'failed' ? false
+                    : null
+                  }
+                  label="Playwright"
+                />
+              </div>
+              {workspace.browser_tests_total !== null && workspace.browser_tests_total > 0 ? (
+                <>
+                  <p className={`mt-1.5 text-xs font-semibold ${browserTone}`}>
+                    {workspace.browser_tests_passed ?? 0}/{workspace.browser_tests_total} passed
+                  </p>
+                  {(workspace.browser_tests_failed ?? 0) > 0 && (
+                    <button
+                      onClick={() => setShowBrowserFails((v) => !v)}
+                      className="mt-1 text-[10px] text-red-300 hover:text-red-200 transition"
+                    >
+                      {showBrowserFails ? 'Hide' : `${workspace.browser_tests_failed} failure${workspace.browser_tests_failed === 1 ? '' : 's'}`}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-xs text-white/35">
+                  {workspace.browser_test_status === 'skipped' ? 'skipped' : workspace.browser_test_status === 'blocked' ? 'blocked — env required' : 'not run'}
+                </p>
+              )}
+            </div>
+
+          </div>
+
+          {/* ── Rollback monitoring ──────────────────────────────────────────── */}
+          {(workspace.rollback_count > 0 || workspace.repair_success_rate !== null) && (
+            <div className="mt-4 rounded-md border border-white/[0.06] bg-black/15 px-3 py-3">
+              <div className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Rollback monitoring</p>
+                {workspace.repair_success_rate !== null && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${workspace.repair_success_rate >= 0.8 ? 'bg-emerald-500/10 text-emerald-300' : workspace.repair_success_rate >= 0.5 ? 'bg-amber-500/10 text-amber-300' : 'bg-red-500/10 text-red-300'}`}>
+                    {Math.round(workspace.repair_success_rate * 100)}% success rate
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <span className="text-xs text-white/55">
+                  <span className="font-semibold text-white/80">{workspace.rollback_count}</span> rollback{workspace.rollback_count === 1 ? '' : 's'}
+                </span>
+                {Object.entries(workspace.rollback_triggers).map(([trigger, count]) => (
+                  <span key={trigger} className="text-[10px] text-white/40">
+                    {trigger.replace('_', ' ')}: <span className="text-white/65">{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1872,8 +2055,9 @@ export function MissionControlClient({
         steps: budOs.repairSteps,
         logs: budOs.repairLogs,
         activity: budActivity,
+        rollbackEvents: budOs.rollbackEvents,
       }),
-    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity],
+    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity, budOs.rollbackEvents],
   );
 
   useEffect(() => {

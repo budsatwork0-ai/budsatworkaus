@@ -45,7 +45,7 @@ async function loadData() {
 
   const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
 
-  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes, resilienceEventsRes, efficiencyFindingsRes] = await Promise.all([
+  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes, resilienceEventsRes, efficiencyFindingsRes, rollbackEventsRes] = await Promise.all([
     supabase
       .from('agents')
       .select('id, name, status, category, autonomy')
@@ -121,7 +121,7 @@ async function loadData() {
       .limit(20),
     supabase
       .from('bud_repair_executions')
-      .select('id, task_id, status, root_cause_type, root_cause_summary, repair_strategy, diff_summary, deployment_url, verification_status, created_at')
+      .select('id, task_id, status, root_cause_type, root_cause_summary, repair_strategy, diff_summary, deployment_url, verification_status, ci_conclusion, ci_run_url, taste_score, taste_pass, taste_violations, taste_suggestions, browser_tests_passed, browser_tests_failed, browser_tests_total, browser_test_status, pr_url, issue_url, created_at')
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
@@ -168,6 +168,11 @@ async function loadData() {
       .in('status', ['new', 'reviewing'])
       .order('created_at', { ascending: false })
       .limit(20),
+    supabase
+      .from('bud_rollback_events')
+      .select('id, execution_id, agent_id, trigger, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100),
   ]);
 
   let memory: { id: string; category: string; title: string; vault_path: string; created_at: string }[] = [];
@@ -369,6 +374,7 @@ async function loadData() {
       repairExecutions: repairExecutionsRes.data ?? [],
       repairSteps: repairStepsRes.data ?? [],
       repairLogs: repairLogsRes.data ?? [],
+      rollbackEvents: (rollbackEventsRes.data ?? []) as Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>,
       authority,
       capabilities,
       initiatives,

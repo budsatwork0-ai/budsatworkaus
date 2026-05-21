@@ -16,6 +16,8 @@ import {
 import { readNote } from './obsidian-memory';
 import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
+import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
+import { writeLearningEmbedding, searchSimilarLearnings } from './embedding';
 
 const execFileAsync = promisify(execFile);
 
@@ -215,6 +217,24 @@ function classifyRootCause(task: RepairTaskRow): { type: string; summary: string
   return { type: 'runtime_error', summary: 'Failure requires code and log inspection before patching.', confidence: 0.45 };
 }
 
+async function writeRollbackEvent(
+  supabase: SupabaseClient,
+  executionId: string,
+  agentId: string | null,
+  trigger: 'ci_failure' | 'surgical_limit' | 'taste_failure' | 'browser_failure' | 'manual',
+  extra: { branchName?: string; ciConclusion?: string; ciRunUrl?: string; notes?: string } = {},
+): Promise<void> {
+  await supabase.from('bud_rollback_events').insert({
+    execution_id: executionId,
+    agent_id: agentId,
+    trigger,
+    branch_name: extra.branchName ?? null,
+    ci_conclusion: extra.ciConclusion ?? null,
+    ci_run_url: extra.ciRunUrl ?? null,
+    notes: extra.notes ?? null,
+  });
+}
+
 function buildStrategy(task: RepairTaskRow, rootCause: ReturnType<typeof classifyRootCause>): Record<string, unknown> {
   return {
     root_cause_type: rootCause.type,
@@ -252,13 +272,35 @@ async function searchHistoricalContext(
   agentId: string,
   rootCauseType: string,
 ): Promise<HistoricalContext> {
-  // Past repairs with the same root cause type (across all agents)
-  const { data: pastRepairs } = await supabase
+  // Semantic similarity search over past repair learnings (falls back gracefully if no embeddings)
+  const semanticText = `${agentId} ${rootCauseType} agent failure repair`;
+  const semanticLearnings = await searchSimilarLearnings(supabase, semanticText, 5).catch(() => []);
+
+  // Exact root-cause-type match as fallback / supplement
+  const { data: exactRepairs } = await supabase
     .from('bud_repair_learnings')
     .select('root_cause_type, fix_pattern, outcome, created_at')
     .eq('root_cause_type', rootCauseType)
     .order('created_at', { ascending: false })
     .limit(5);
+
+  // Merge: semantic results first (already filtered to similarity >= 0.72 in searchSimilarLearnings),
+  // then append any exact matches not already covered by semantic results.
+  const semanticKeys = new Set(semanticLearnings.map((l) => `${l.fixPattern}|${l.outcome}`));
+  const mergedRepairs = [
+    ...semanticLearnings.map((l) => ({
+      root_cause_type: l.rootCauseType,
+      fix_pattern: l.fixPattern,
+      outcome: l.outcome,
+      created_at: l.createdAt,
+    })),
+    ...(exactRepairs ?? []).filter(
+      (r) => !semanticKeys.has(`${r.fix_pattern}|${r.outcome}`),
+    ),
+  ].slice(0, 5);
+
+  // Alias for downstream usage
+  const pastRepairs = mergedRepairs;
 
   // Recent failures of this specific agent in the last 7 days
   const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -611,6 +653,9 @@ Return ONLY valid JSON:
     }
     await updateExecution(supabase, executionId, { status: 'blocked', verification_status: 'blocked', finished_at: new Date().toISOString() });
     await updateTaskState(supabase, typedTask.id, 'blocked');
+    await writeRollbackEvent(supabase, executionId, typedTask.source_agent ?? null, 'surgical_limit', {
+      notes: escalationNote,
+    }).catch(() => { /* non-fatal */ });
     await writeRepairLearning(supabase, executionId, typedTask, rootCause, 'blocked', escalationNote);
     return { executionId, status: 'blocked', blockedReason: 'surgical_limit_exceeded' };
   }
@@ -692,6 +737,14 @@ Return ONLY valid JSON:
 
       // Delete the repair branch to prevent it from cluttering the repo
       try { await deleteBranch(branchName); } catch { /* best-effort */ }
+
+      // Record rollback event for trend monitoring
+      await writeRollbackEvent(supabase, executionId, typedTask.source_agent ?? null, 'ci_failure', {
+        branchName,
+        ciConclusion: workflowResult!.conclusion ?? undefined,
+        ciRunUrl: ciRunUrl ?? undefined,
+        notes: `CI ${workflowResult!.conclusion} — branch ${branchName} deleted`,
+      }).catch(() => { /* non-fatal */ });
 
       // Open an escalation issue with CI context
       try {
@@ -819,6 +872,69 @@ Return ONLY valid JSON:
     );
   }
 
+  // ── Browser tests — golden-path Playwright gate ──────────────────────────────
+  // Runs only when:
+  //   1. UI files were patched (any .tsx / .css page or component)
+  //   2. BUD_OS_EXECUTION_ENABLED=true (same guard used by the patch step)
+  //   3. A Playwright-compatible base URL is reachable (PLAYWRIGHT_BASE_URL or localhost)
+  //
+  // A failing browser gate opens the PR as a draft and marks the step failed,
+  // but does NOT roll back the patch (unlike CI — the patch may still be correct).
+
+  let browserResult: BrowserTestResult | null = null;
+
+  if (appliedFiles.some(isUiFile) && isExecutionEnabled()) {
+    const browserStep = await startStep(
+      supabase, executionId, 'verifying',
+      'Running Playwright golden-path tests against the patched UI.',
+    );
+
+    try {
+      browserResult = await runBrowserTests(supabase, executionId, browserStep, {
+        testDir: 'tests/e2e/golden-paths',
+        project: 'chromium',
+        baseUrl: process.env.PLAYWRIGHT_BASE_URL,
+        timeout: 120_000,
+      });
+
+      const browserPassed = browserResult.failed === 0 && browserResult.total > 0;
+
+      // Record aggregate on the execution row
+      await updateExecution(supabase, executionId, {
+        browser_tests_passed: browserResult.passed,
+        browser_tests_failed: browserResult.failed,
+        browser_tests_total: browserResult.total,
+        browser_test_status: browserResult.total === 0
+          ? 'skipped'
+          : browserPassed ? 'passed' : 'failed',
+      });
+
+      await log(
+        supabase, executionId, browserStep,
+        browserPassed ? 'info' : 'warn',
+        formatBrowserSummary(browserResult),
+        { browser: browserResult },
+      );
+
+      if (!browserPassed && browserResult.total > 0) {
+        openAsDraft = true; // Keep PR as draft until golden paths are green
+      }
+
+      await finishStep(
+        supabase, browserStep,
+        browserResult.total === 0 ? 'skipped' : browserPassed ? 'passed' : 'failed',
+        { browser: browserResult },
+        browserPassed ? 0.95 : 0.3,
+      );
+
+    } catch (browserErr) {
+      await log(supabase, executionId, browserStep, 'warn',
+        `Browser test step failed non-fatally: ${browserErr}`, {});
+      await finishStep(supabase, browserStep, 'skipped', { error: String(browserErr) });
+      await updateExecution(supabase, executionId, { browser_test_status: 'blocked' });
+    }
+  }
+
   // ── Open GitHub issue and PR ──────────────────────────────────────────────────
   try {
     const issue = await createIssue(
@@ -858,6 +974,14 @@ Return ONLY valid JSON:
           : `**Design Constitution:** ⚠️ Failed (${(tasteResult.score * 100).toFixed(0)}%) — see violations below`
         : null;
 
+      const browserStatusLine = browserResult
+        ? browserResult.total === 0
+          ? null
+          : browserResult.failed === 0
+            ? `**Browser tests:** ✅ ${browserResult.passed}/${browserResult.total} golden paths passed`
+            : `**Browser tests:** ❌ ${browserResult.failed}/${browserResult.total} golden paths failed — PR opened as draft`
+        : null;
+
       const prBody = [
         `Closes ${issueUrl}`,
         '',
@@ -869,6 +993,7 @@ Return ONLY valid JSON:
         ciStatusLine,
         ciRunUrl ? `**CI run:** ${ciRunUrl}` : '',
         tasteStatusLine ?? '',
+        browserStatusLine ?? '',
         '',
         ...(tasteResult && !tasteResult.pass
           ? [
@@ -905,11 +1030,14 @@ Return ONLY valid JSON:
       ].filter(Boolean).join('\n');
 
       const tasteFailed = tasteResult && !tasteResult.pass;
+      const browserFailed = browserResult && browserResult.failed > 0 && browserResult.total > 0;
+      const draftTags = [
+        tasteFailed ? '[Taste]' : '',
+        browserFailed ? '[Browser]' : '',
+      ].filter(Boolean).join('');
       const pr = await createPR(
         openAsDraft
-          ? tasteFailed
-            ? `[Bud][Draft][Taste] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`
-            : `[Bud][Draft] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`
+          ? `[Bud][Draft]${draftTags} Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`
           : `[Bud] Fix ${typedTask.source_agent ?? 'agent'}: ${rootCause.type}`,
         prBody,
         branchName,
@@ -931,6 +1059,8 @@ Return ONLY valid JSON:
     ci_workflow_run_id: ciWorkflowRunId ?? undefined,
     ci_conclusion: ciConclusion ?? undefined,
     ci_run_url: ciRunUrl ?? undefined,
+    pr_url: prUrl ?? undefined,
+    issue_url: issueUrl ?? undefined,
     finished_at: new Date().toISOString(),
   });
   await updateTaskState(supabase, typedTask.id, appliedFiles.length > 0 ? 'patching' : 'blocked');
@@ -976,15 +1106,26 @@ async function writeRepairLearning(
   }, { agentId: 'bud', status: 'pending', allowSoftDuplicate: true });
 
   const memoryDocId = memory.ok ? memory.doc.id : null;
-  await supabase.from('bud_repair_learnings').insert({
-    execution_id: executionId,
-    task_id: task.id,
-    memory_doc_id: memoryDocId,
-    root_cause_type: rootCause.type,
-    fix_pattern: fixPattern,
-    outcome,
-    evidence: { memory_write: memory },
-  });
+  const { data: learningRow } = await supabase
+    .from('bud_repair_learnings')
+    .insert({
+      execution_id: executionId,
+      task_id: task.id,
+      memory_doc_id: memoryDocId,
+      root_cause_type: rootCause.type,
+      fix_pattern: fixPattern,
+      outcome,
+      evidence: { memory_write: memory },
+    })
+    .select('id')
+    .single();
+
+  // Fire-and-forget: write embedding for semantic similarity search
+  const learningId = (learningRow as { id?: string } | null)?.id;
+  if (learningId) {
+    const embedText = `${rootCause.type}: ${rootCause.summary}. Fix: ${fixPattern}. Outcome: ${outcome}.`;
+    setImmediate(() => { writeLearningEmbedding(supabase, learningId, embedText).catch(() => {}); });
+  }
 }
 
 const TERMINAL_COMMANDS: Record<string, { command: string; args: string[]; timeoutMs?: number; write?: boolean }> = {
