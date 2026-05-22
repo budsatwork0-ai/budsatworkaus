@@ -268,6 +268,36 @@ export default function AutonomyPipeline({
       )
       .subscribe();
 
+    // 6. Watch for new convention learnings (dev-session captured rules)
+    const conventionLearningsChannel = supabase
+      .channel('bud_convention_learnings_feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bud_convention_learnings' },
+        (payload) => {
+          const row = payload.new as {
+            id: string; title: string; rule: string;
+            category: string | null;
+            example_wrong: string | null; example_correct: string | null;
+            created_at: string;
+          };
+          const entry: PipelineLearningEntry = {
+            id: row.id, kind: 'convention',
+            outcome: 'shipped',
+            pattern: `${row.title}: ${row.rule}`,
+            signal_type: row.category,
+            affected_area: null,
+            diff_summary: row.example_wrong ?? null,
+            pr_url: null, confidence: null,
+            ci_conclusion: row.example_correct ?? null,
+            taste_pass: null,
+            created_at: row.created_at,
+          };
+          setLearnings((prev) => [entry, ...prev].slice(0, 20));
+        },
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(newRunChannel);
       supabase.removeChannel(runUpdatesChannel);
@@ -276,6 +306,7 @@ export default function AutonomyPipeline({
       supabase.removeChannel(scoresChannel);
       supabase.removeChannel(improvementLearningsChannel);
       supabase.removeChannel(repairLearningsChannel);
+      supabase.removeChannel(conventionLearningsChannel);
     };
   }, [supabase, surface]);
 
@@ -751,7 +782,7 @@ function LearningFeed({
             Continuous learning loop
           </div>
           <p className="mt-0.5 text-[12.5px] text-white/45">
-            Each successful improvement and each rollback feeds Bud's memory, design intelligence, and operational knowledge graph.
+            Improvements, rollbacks, and dev-session conventions all feed Bud's memory, design intelligence, and operational knowledge graph.
           </p>
         </div>
       </div>
@@ -832,14 +863,19 @@ function LearningCard({ entry }: { entry: PipelineLearningEntry }) {
   const isGood = entry.outcome === 'shipped' || entry.outcome === 'recovered';
   const isRollback = entry.outcome === 'rolled_back';
   const isRepair = entry.kind === 'repair';
+  const isConvention = entry.kind === 'convention';
 
-  const outcomeColor = isGood
+  const outcomeColor = isConvention
+    ? 'border-violet-400/30 text-violet-300'
+    : isGood
     ? 'border-emerald-400/30 text-emerald-300'
     : isRollback
     ? 'border-amber-400/30 text-amber-300'
     : 'border-red-400/20 text-red-300';
 
-  const leftBar = isGood
+  const leftBar = isConvention
+    ? 'bg-violet-400/60'
+    : isGood
     ? 'bg-emerald-400/60'
     : isRollback
     ? 'bg-amber-400/60'
@@ -859,7 +895,13 @@ function LearningCard({ entry }: { entry: PipelineLearningEntry }) {
 
       {/* icon */}
       <div className="mt-0.5 flex-shrink-0">
-        {isRepair ? (
+        {isConvention ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-300">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        ) : isRepair ? (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-300">
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
@@ -880,7 +922,7 @@ function LearningCard({ entry }: { entry: PipelineLearningEntry }) {
             {entry.outcome}
           </span>
           <span className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-white/40">
-            {isRepair ? 'repair' : entry.signal_type ?? 'improvement'}
+            {isConvention ? entry.signal_type ?? 'convention' : isRepair ? 'repair' : entry.signal_type ?? 'improvement'}
           </span>
           {entry.affected_area && (
             <span className="font-mono text-[10.5px] text-white/30 truncate max-w-[180px]">
@@ -945,7 +987,15 @@ function LearningCard({ entry }: { entry: PipelineLearningEntry }) {
             Rollback pattern written to memory — Bud will avoid this approach next time
           </div>
         )}
-        {isGood && (
+        {isConvention && (
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[10.5px] text-violet-300/60">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            Convention written to CLAUDE.md + vault — enforced on every future session
+          </div>
+        )}
+        {!isConvention && isGood && (
           <div className="mt-2 flex items-center gap-1.5 font-mono text-[10.5px] text-emerald-300/50">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />

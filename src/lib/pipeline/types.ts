@@ -5,15 +5,15 @@ export type LearningOutcome = 'shipped' | 'blocked' | 'rolled_back' | 'draft' | 
 
 export interface PipelineLearningEntry {
   id: string;
-  kind: 'improvement' | 'repair';
+  kind: 'improvement' | 'repair' | 'convention';
   outcome: LearningOutcome;
   pattern: string;
-  signal_type: string | null;
+  signal_type: string | null;   // category for convention entries
   affected_area: string | null;
-  diff_summary: string | null;
+  diff_summary: string | null;  // example_wrong for convention entries
   pr_url: string | null;
   confidence: number | null;
-  ci_conclusion: string | null;
+  ci_conclusion: string | null; // example_correct for convention entries
   taste_pass: boolean | null;
   created_at: string;
 }

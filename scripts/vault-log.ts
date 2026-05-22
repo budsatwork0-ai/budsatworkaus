@@ -111,9 +111,9 @@ function textOf(content: string | ContentBlock[]): string {
     .join('\n');
 }
 
-function editedFiles(messages: Message[]): string[] {
-  const cwd  = process.cwd();
-  const seen = new Set<string>();
+function editedFiles(messages: Message[]): { files: string[]; reEdited: string[] } {
+  const cwd    = process.cwd();
+  const counts = new Map<string, number>();
 
   for (const msg of messages) {
     if (msg.role !== 'assistant' || typeof msg.content === 'string') continue;
@@ -124,11 +124,13 @@ function editedFiles(messages: Message[]): string[] {
       const fp = b.input.file_path as string | undefined;
       if (!fp) continue;
       const rel = fp.startsWith(cwd) ? fp.slice(cwd.length + 1) : fp;
-      seen.add(rel);
+      counts.set(rel, (counts.get(rel) ?? 0) + 1);
     }
   }
 
-  return [...seen].sort();
+  const files    = [...counts.keys()].sort();
+  const reEdited = files.filter(f => (counts.get(f) ?? 0) > 1);
+  return { files, reEdited };
 }
 
 // ── ADR detection ─────────────────────────────────────────────────────────────
@@ -183,7 +185,7 @@ function main() {
   const summary = textOf(lastAsst.content).trim().slice(0, 500);
   if (summary.length < MIN_CHARS) return; // trivial session
 
-  const files  = editedFiles(msgs);
+  const { files, reEdited } = editedFiles(msgs);
   const adr    = hasAdrSignal(summary) || hasAdrSignal(task);
   const sid    = (input.session_id ?? '').slice(0, 8);
   const now    = new Date();
@@ -199,7 +201,10 @@ function main() {
 
   if (files.length) {
     lines.push('**Files changed:**');
-    for (const f of files.slice(0, 12)) lines.push(`- \`${f}\``);
+    for (const f of files.slice(0, 12)) {
+      const tag = reEdited.includes(f) ? ' *(re-edited)*' : '';
+      lines.push(`- \`${f}\`${tag}`);
+    }
     lines.push('');
   }
 
@@ -207,6 +212,16 @@ function main() {
   // Wrap summary so it doesn't overflow Obsidian reading pane
   lines.push(summary);
   lines.push('');
+
+  if (reEdited.length) {
+    lines.push(
+      `> **Re-edit detected** on ${reEdited.map(f => `\`${f}\``).join(', ')} — Claude corrected itself mid-session. If this was a convention violation, capture the rule:`,
+    );
+    lines.push('> ```');
+    lines.push('> npx tsx scripts/vault-convention.ts');
+    lines.push('> ```');
+    lines.push('');
+  }
 
   if (adr) {
     lines.push(

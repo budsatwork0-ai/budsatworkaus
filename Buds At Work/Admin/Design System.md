@@ -100,6 +100,24 @@ Font: System default (Inter via Tailwind / Next.js default). No custom font load
 
 ---
 
+## Anti-patterns (recurring AI mistakes)
+
+These are known patterns that break when an AI assistant doesn't know the project conventions.
+
+| What broke | Wrong | Right |
+|---|---|---|
+| `glass` is a string, not an object | `style={{...glass}}` | `className={glass}` |
+| glass with extra classes | `className={glass + " p-4"}` | `` className={`${glass} p-4`} `` |
+| Importing theme tokens | `import { glass } from '../theme'` | `import { glass } from '@/app/ui/theme'` |
+| Button background colour | `background: brand.primary` | `background: brand.accent` |
+| Inline CSS for layout | `style={{ padding: '16px' }}` | `className="p-4"` |
+
+**When changing a pattern:** grep for all usages first — `grep -r "glass" src/` — because changes to shared tokens cascade across all dashboard tabs and portals.
+
+**Capture new rules:** `npx tsx scripts/vault-convention.ts` — saves to CLAUDE.md, this vault, and the Continuous Learning Loop dashboard.
+
+---
+
 ## Related
 - [[Admin]]
 - [[Engineering]]

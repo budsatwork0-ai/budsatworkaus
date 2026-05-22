@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
   );
 
-  const [improvementResult, repairResult] = await Promise.all([
+  const [improvementResult, repairResult, conventionResult] = await Promise.all([
     // Improvement learnings joined with execution for diff_summary / pr_url / confidence
     supabase
       .from('bud_improvement_learnings')
@@ -61,6 +61,13 @@ export async function GET(req: NextRequest) {
       `)
       .order('created_at', { ascending: false })
       .limit(Math.floor(limit / 2)),
+
+    // Convention learnings (dev-session captured rules)
+    supabase
+      .from('bud_convention_learnings')
+      .select('id, title, rule, category, example_wrong, example_correct, created_at')
+      .order('created_at', { ascending: false })
+      .limit(Math.floor(limit / 3)),
   ]);
 
   type ImprovementRow = {
@@ -131,8 +138,36 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  type ConventionRow = {
+    id: string;
+    title: string;
+    rule: string;
+    category: string | null;
+    example_wrong: string | null;
+    example_correct: string | null;
+    created_at: string;
+  };
+
+  const conventions: PipelineLearningEntry[] = (conventionResult.data ?? []).map((r) => {
+    const row = r as unknown as ConventionRow;
+    return {
+      id: row.id,
+      kind: 'convention',
+      outcome: 'shipped',
+      pattern: `${row.title}: ${row.rule}`,
+      signal_type: row.category,
+      affected_area: null,
+      diff_summary: row.example_wrong ?? null,
+      pr_url: null,
+      confidence: null,
+      ci_conclusion: row.example_correct ?? null,
+      taste_pass: null,
+      created_at: row.created_at,
+    };
+  });
+
   // Merge and sort by date descending
-  const all = [...improvements, ...repairs].sort(
+  const all = [...improvements, ...repairs, ...conventions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   ).slice(0, limit);
 
