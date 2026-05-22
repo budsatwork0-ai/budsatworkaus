@@ -491,13 +491,23 @@ function describeStep(step: string): string {
 }
 
 function humanise(narrative: string, _state: BudThought['state']): string {
-  // Strip flashy phrases.
+  // Strip internal chain-of-thought narration and flashy phrases.
+  // Operators should see cause / action / result — not LLM reasoning steps.
   return narrative
+    // Remove first-person internal access narration ("I'm accessing X...", "I'm reading Y")
+    .replace(/\bI'?m\s+(?:accessing|reading|scanning|searching|reviewing|looking\s+at|checking|fetching)\s+[^\s.]+\.?\.\./gi, '')
+    // Remove first-person framing
+    .replace(/\bI'?(?:ve|m| am| have)\s+(?:found|identified|noticed|detected|confirmed|determined)\s*/gi, '')
+    // Strip AI-theatre vocabulary
     .replace(/surgical/gi, 'targeted')
     .replace(/quorum/gi, 'review')
     .replace(/constitution/gi, 'design rules')
     .replace(/self[- ]heal(ing)?/gi, 'repair$1')
     .replace(/autonomous (?:operator|fleet)/gi, 'Bud')
+    .replace(/\bBud OS\b/gi, 'Bud')
+    // Collapse multiple spaces and leading punctuation left by removals
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^\s*[·,.\s]+/, '')
     .trim();
 }
 
@@ -618,7 +628,15 @@ export type ExecutionEvidence = {
 
 export function deriveExecutionStates(workspace: BudOsRepairWorkspace): ExecutionEvidence[] {
   const proposedReached = Boolean(workspace.task_id || workspace.diagnosis);
-  const patchedReached = Boolean(workspace.sandbox_branch || workspace.diff_summary?.startsWith('http') || (workspace.diff_summary && workspace.diff_summary !== 'No code/config diff has been produced yet.'));
+  // sandbox_branch alone is not proof of a patch — a branch can be created before any code is written.
+  // Require a PR URL or a substantive diff string.
+  const patchedReached = Boolean(
+    workspace.pr_url ||
+    workspace.diff_summary?.startsWith('http') ||
+    (workspace.diff_summary &&
+      workspace.diff_summary !== 'No code/config diff has been produced yet.' &&
+      workspace.diff_summary.length > 30),
+  );
   const ciPassed = workspace.ci_conclusion === 'success';
   const ciFailed = workspace.ci_conclusion === 'failure';
   const browserPassed = workspace.browser_test_status === 'passed' || (workspace.browser_tests_total != null && workspace.browser_tests_failed === 0 && workspace.browser_tests_total > 0);
@@ -627,7 +645,8 @@ export function deriveExecutionStates(workspace: BudOsRepairWorkspace): Executio
   const testedReached = ciPassed && (workspace.browser_tests_total == null || browserPassed) && !tasteFailed;
   const approvedReached = /no approval pending/i.test(workspace.approval_status) === false && /approved/i.test(workspace.approval_status);
   const deployedReached = Boolean(workspace.deployment_url);
-  const verifiedReached = workspace.verification_status === 'verified' || /recovered|verified/i.test(workspace.verification_status);
+  // Cannot be verified live without a deployment — gate explicitly.
+  const verifiedReached = deployedReached && (workspace.verification_status === 'verified' || /recovered|verified/i.test(workspace.verification_status));
 
   return [
     {
@@ -721,8 +740,17 @@ export function deriveConfidence(workspace: BudOsRepairWorkspace): EvidenceBreak
     {
       label: 'Verified live',
       weight: 20,
-      present: workspace.verification_status === 'verified' || /recovered|verified/i.test(workspace.verification_status),
-      detail: workspace.verification_status,
+      // Cannot be verified without a deployment — matches the verifiedReached gate above.
+      present: Boolean(workspace.deployment_url) && (workspace.verification_status === 'verified' || /recovered|verified/i.test(workspace.verification_status)),
+      detail: !workspace.deployment_url
+        ? 'not deployed'
+        : /verified|recovered/i.test(workspace.verification_status)
+          ? 'confirmed'
+          : /running|verifying/i.test(workspace.verification_status)
+            ? 'in progress'
+            : /blocked|failed/i.test(workspace.verification_status)
+              ? 'blocked'
+              : 'not started',
     },
   ];
   const total = evidence.reduce((sum, e) => sum + e.weight, 0);

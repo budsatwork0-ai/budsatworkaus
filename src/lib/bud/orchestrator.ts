@@ -181,6 +181,20 @@ function classifyFailure(
         'Agent output was flagged needs_repair by the runtime schema checker. Inspect the output field in agent_runs for the specific validation error.',
     };
   }
+  // Guard: investigation/command language with no error signals is not a runtime failure.
+  // Without this, operator requests ("investigate X", "propose a fix") fall through to runtime_error
+  // and get routed into the repair engine, triggering classification and branch creation for non-failures.
+  if (
+    /\b(investigate|propose\s+a\s+fix|review|diagnose|look\s+into|assess|examine)\b/i.test(lower) &&
+    !/\b(error|exception|fail(?:ed|ure)?|crash|timeout|undefined)\b/i.test(lower) &&
+    logsText.length === 0
+  ) {
+    return {
+      errorType: 'investigation_request',
+      recommendedFix:
+        'This appears to be an investigation or operator command, not a runtime failure. Use the investigation workflow or the command bar instead of triggering an autonomous repair.',
+    };
+  }
   return {
     errorType: 'runtime_error',
     recommendedFix:

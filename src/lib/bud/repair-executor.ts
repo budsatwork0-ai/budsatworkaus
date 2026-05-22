@@ -400,6 +400,18 @@ export async function executeRepairPipeline(
   if (error || !task) throw new Error(`Bud task not found: ${error?.message ?? params.taskId}`);
 
   const typedTask = task as RepairTaskRow;
+
+  // Early dedup: if an active execution already exists for this task, skip creating another.
+  const { data: existingExecution } = await supabase
+    .from('bud_repair_executions')
+    .select('id, status')
+    .eq('task_id', typedTask.id)
+    .in('status', ['detected', 'reproducing', 'analyzing', 'planning', 'awaiting_approval', 'patching', 'validating', 'verifying'])
+    .maybeSingle();
+  if (existingExecution) {
+    return { executionId: existingExecution.id as string, status: 'skipped', blockedReason: 'duplicate_repair_in_progress' };
+  }
+
   const executionId = await createExecution(supabase, typedTask, params.userId, params.trigger ?? 'manual');
   await updateTaskState(supabase, typedTask.id, 'detected');
 

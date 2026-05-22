@@ -553,9 +553,23 @@ function PipelineCard({
 }) {
   const [openState, setOpenState] = useState<ExecutionState | null>(null);
 
+  // When preflight is hard-blocked, don't show pipeline stages as reachable —
+  // the constraints that gate the pipeline aren't met. Show preflight first.
+  const preflightHard = preflight.overall === 'blocked';
+
   // Find first non-reached state to highlight as "current".
   const currentIdx = execStates.findIndex((s) => !s.reached);
   const blocked = execStates.find((s) => s.blocker && !s.reached);
+
+  // When no item is selected, show a neutral placeholder.
+  if (!workspace.task_id && !workspace.selected_item_id) {
+    return (
+      <section className="flex flex-col justify-center rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">Repair pipeline</h3>
+        <p className="mt-3 text-sm text-white/40">Select an item from the queue to see the repair lifecycle.</p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
@@ -573,11 +587,13 @@ function PipelineCard({
         )}
       </header>
 
-      {/* Preflight - only render if there's something to highlight */}
+      {/* Preflight — shown whenever not ready. When hard-blocked, it's the primary signal. */}
       {preflight.overall !== 'ready' && (
-        <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-500/[0.06] p-3 text-xs text-amber-200">
-          <div className="font-semibold">Preflight {preflight.overall === 'blocked' ? 'blocked' : 'needs attention'}</div>
-          <ul className="mt-1 space-y-0.5 text-amber-200/80">
+        <div className={`mt-4 rounded-lg border p-3 text-xs ${preflightHard ? 'border-red-400/40 bg-red-500/[0.06] text-red-200' : 'border-amber-400/30 bg-amber-500/[0.06] text-amber-200'}`}>
+          <div className="font-semibold">
+            {preflightHard ? 'Preflight blocked — pipeline cannot advance' : 'Preflight needs attention before repair can proceed'}
+          </div>
+          <ul className="mt-1 space-y-0.5 opacity-80">
             {preflight.checks
               .filter((c) => c.status !== 'ready')
               .map((c) => (
@@ -587,39 +603,40 @@ function PipelineCard({
         </div>
       )}
 
-      {/* Compact horizontal pipeline */}
-      <div className="mt-4 flex items-center gap-1 overflow-x-auto pb-1">
-        {PIPELINE_ORDER.map((stateKey, idx) => {
-          const entry = execStates.find((s) => s.state === stateKey)!;
-          const isCurrent = idx === currentIdx && !entry.reached;
-          // Hide stages that are not reached AND not the current next stage AND have no blocker.
-          // Conditional visibility — show reached stages + the immediate next stage; collapse the rest.
-          const visible = entry.reached || isCurrent || Boolean(entry.blocker);
-          if (!visible) return null;
-          const tone = entry.reached
-            ? 'border-emerald-400/40 bg-emerald-500/[0.08] text-emerald-300'
-            : entry.blocker
-              ? 'border-red-400/40 bg-red-500/[0.08] text-red-300'
-              : isCurrent
-                ? 'border-sky-400/40 bg-sky-500/[0.06] text-sky-300'
-                : 'border-white/10 bg-white/[0.02] text-white/55';
-          const open = openState === stateKey;
-          return (
-            <React.Fragment key={stateKey}>
-              {idx > 0 && <span className="h-px flex-1 bg-white/[0.06]" />}
-              <button
-                onClick={() => setOpenState(open ? null : stateKey)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${tone} ${open ? 'ring-2 ring-white/15' : ''}`}
-              >
-                {entry.reached ? '✓ ' : ''}{PIPELINE_LABEL[stateKey]}
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
+      {/* Compact horizontal pipeline — suppressed when preflight is hard-blocked */}
+      {!preflightHard && (
+        <div className="mt-4 flex items-center gap-1 overflow-x-auto pb-1">
+          {PIPELINE_ORDER.map((stateKey, idx) => {
+            const entry = execStates.find((s) => s.state === stateKey)!;
+            const isCurrent = idx === currentIdx && !entry.reached;
+            // Show reached stages + the immediate next stage + any with a blocker.
+            const visible = entry.reached || isCurrent || Boolean(entry.blocker);
+            if (!visible) return null;
+            const tone = entry.reached
+              ? 'border-emerald-400/40 bg-emerald-500/[0.08] text-emerald-300'
+              : entry.blocker
+                ? 'border-red-400/40 bg-red-500/[0.08] text-red-300'
+                : isCurrent
+                  ? 'border-sky-400/40 bg-sky-500/[0.06] text-sky-300'
+                  : 'border-white/10 bg-white/[0.02] text-white/55';
+            const open = openState === stateKey;
+            return (
+              <React.Fragment key={stateKey}>
+                {idx > 0 && <span className="h-px flex-1 bg-white/[0.06]" />}
+                <button
+                  onClick={() => setOpenState(open ? null : stateKey)}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${tone} ${open ? 'ring-2 ring-white/15' : ''}`}
+                >
+                  {entry.reached ? '✓ ' : ''}{PIPELINE_LABEL[stateKey]}
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
 
       {/* Drawer for the open stage */}
-      {openState && (
+      {openState && !preflightHard && (
         <div className="mt-3 rounded-lg border border-white/[0.07] bg-black/30 p-3 text-xs text-white/75">
           {(() => {
             const entry = execStates.find((s) => s.state === openState)!;
