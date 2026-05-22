@@ -255,7 +255,9 @@ export function classifyIntent(item: BudOsQueueItem): ClassifiedSignal {
     } else {
       intent = 'runtime_error';
       shouldTriggerRepair = item.severity === 'critical' || item.severity === 'high';
-      reason = 'Concrete runtime failure with actionable signal.';
+      reason = shouldTriggerRepair
+        ? 'Concrete runtime failure with actionable signal.'
+        : `Severity is ${item.severity} — raise to high or critical to auto-trigger repair.`;
     }
   } else if (item.source === 'ux_evolution') {
     intent = 'ux_issue';
