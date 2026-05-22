@@ -137,6 +137,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Fetch build logs to understand the error
   const logs = deploymentId ? await fetchBuildLogs(deploymentId) : 'No deployment ID in payload';
+
+  // Skip if we can't extract a real error — there's nothing for Bud to patch
+  if (
+    logs === 'No error lines found in build logs' ||
+    logs.startsWith('Failed to fetch logs') ||
+    logs.startsWith('VERCEL_API_TOKEN not set') ||
+    logs.startsWith('No deployment ID')
+  ) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'no actionable error lines — cannot generate a repair signal', branch });
+  }
+
   const { title, description, referenceFiles } = extractErrorSummary(logs);
 
   const supabase = createClient(

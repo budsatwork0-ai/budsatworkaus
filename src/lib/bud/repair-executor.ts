@@ -478,6 +478,31 @@ export async function executeRepairPipeline(
   // Use the LLM to read each affected file, generate a minimal patch, and
   // write it back to a new GitHub branch. Opens a PR for human review.
 
+  // Guard: tasks from the command bar have no structured_failure and no affectedFiles.
+  // Without file context the LLM cannot generate a meaningful patch — block early
+  // before creating an empty branch on GitHub.
+  const preAffectedFiles = ((typedTask.raw_output as Record<string, unknown> | null)
+    ?.structured_failure as Record<string, unknown> | null)
+    ?.affectedFiles as string[] | undefined ?? [];
+  const hasStructuredFailure = Boolean((typedTask.raw_output as Record<string, unknown> | null)?.structured_failure);
+  const descLower = (typedTask.description ?? '').toLowerCase();
+  const isMetaCommand = !hasStructuredFailure && preAffectedFiles.length === 0 && (
+    descLower.startsWith('investigate and propose') ||
+    descLower.startsWith('investigate ') ||
+    descLower.startsWith('propose a fix') ||
+    descLower.startsWith('fix ') && !descLower.includes('error') && !descLower.includes('fail')
+  );
+
+  if (isMetaCommand) {
+    await finishStep(supabase, patchStep, 'blocked', {
+      reason: 'meta_command_task',
+      hint: 'Repair tasks need structured failure data from a real agent run. Trigger an investigation on a failed agent_run row first.',
+    });
+    await updateExecution(supabase, executionId, { status: 'blocked', verification_status: 'blocked', finished_at: new Date().toISOString() });
+    await updateTaskState(supabase, typedTask.id, 'blocked');
+    return { executionId, status: 'blocked', blockedReason: 'meta_command_not_repairable' };
+  }
+
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
   const PATCH_MODEL = 'claude-sonnet-4-6';
 
@@ -497,11 +522,9 @@ export async function executeRepairPipeline(
     return { executionId, status: 'failed' };
   }
 
-  // Build context: read affected files from the branch
+  // Build context: read affected files from the branch (preAffectedFiles already extracted above)
   const fileContextParts: string[] = [];
-  const affectedFiles = ((typedTask.raw_output as Record<string, unknown> | null)
-    ?.structured_failure as Record<string, unknown> | null)
-    ?.affectedFiles as string[] | undefined ?? [];
+  const affectedFiles = preAffectedFiles;
 
   for (const fp of affectedFiles.slice(0, 4)) {
     try {

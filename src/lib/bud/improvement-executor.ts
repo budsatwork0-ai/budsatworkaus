@@ -174,13 +174,22 @@ async function identifyTargetFiles(signal: ImprovementSignalRow): Promise<string
     'theme':           ['src/app/ui/theme.ts'],
     'quote':           ['src/app/(public)/services/page.tsx', 'src/app/api/quotes/route.ts'],
     'email':           ['src/lib/email/templates.ts'],
-    'agent':           [],  // resolved by agent id in description
   };
 
   const hint = Object.entries(FILE_MAP).find(([k]) =>
     area.toLowerCase().includes(k) || description.toLowerCase().includes(k),
   );
   if (hint) return hint[1];
+
+  // For agent signals: extract the agent ID from the area or description and build the source path.
+  // Matches kebab-case agent IDs like "admin-ux-designer", "quote-triage", "cash-flow-forecaster".
+  const combinedText = `${area} ${description}`;
+  const agentIdMatch = combinedText.match(
+    /\b([a-z][a-z0-9]+(?:-[a-z0-9]+)*(?:-agent|-designer|-critic|-watcher|-analyst|-screener|-scorer|-coach|-triage|-forecaster|-reminder|-matcher|-optimizer|-manager|-architect|-curator|-executor|-inspector))\b/i,
+  );
+  if (agentIdMatch) {
+    return [`src/lib/agents/agents/${agentIdMatch[1].toLowerCase()}.ts`];
+  }
 
   // Fall back to asking the LLM — capped at 3 files
   try {
@@ -446,8 +455,17 @@ CONSTRAINTS — CRITICAL:
 - Make the SMALLEST possible change that delivers the improvement.
 - Do NOT refactor, rename, or reorganise anything beyond scope.
 - Preserve all existing functionality.
-- Follow the glass-morphism design system (brand.primary=#0f3d2e, glass morphism cards, Tailwind v4).
 - TypeScript must remain strict — no \`any\` casts unless already present.
+
+DESIGN SYSTEM (taste gate enforces these — violations cause the PR to open as a draft):
+- \`glass\` and \`glassSoft\` from \`@/app/ui/theme\` are plain STRINGS (Tailwind class lists).
+  Use them as: className={glass}  or  className={\`\${glass} extra-class\`}
+  NEVER as: style={{...glass}}  or  {...glass}
+- CTA / action buttons: background must use brand.accent (#1C7C54), not brand.primary.
+- Body text: brand.text — secondary labels: brand.muted.
+- Surfaces: brand.bg (page), brand.card (white card), brand.surface (tinted).
+- Import tokens exclusively from \`@/app/ui/theme\` — never from \`../theme\` or re-export paths.
+- Tailwind utilities only — no arbitrary inline CSS for layout, spacing, or colour.
 
 Return ONLY valid JSON:
 {
