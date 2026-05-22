@@ -20,6 +20,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type {
   PipelineKpis,
+  PipelineLearningEntry,
   PipelineRun,
   PipelineRunDetail,
   PipelineStageEvent,
@@ -118,6 +119,36 @@ export default async function MissionControlAutonomy({
     .eq('id', 1)
     .maybeSingle<{ paused: boolean }>();
 
+  // Recent learnings for the continuous learning feed
+  type ImprovementRow = {
+    id: string; outcome: string; improvement_pattern: string;
+    signal_type: string | null; affected_area: string | null; created_at: string;
+    bud_improvement_executions: { diff_summary: string | null; pr_url: string | null; confidence: number | null; ci_conclusion: string | null; taste_pass: boolean | null } | null;
+  };
+  type RepairRow = {
+    id: string; outcome: string; fix_pattern: string;
+    root_cause_type: string | null; created_at: string;
+    bud_repair_executions: { diff_summary: string | null; pr_url: string | null; confidence: number | null; ci_conclusion: string | null } | null;
+  };
+
+  const [{ data: improvementRows }, { data: repairRows }] = await Promise.all([
+    supabase.from('bud_improvement_learnings').select(`id, outcome, improvement_pattern, signal_type, affected_area, created_at, bud_improvement_executions ( diff_summary, pr_url, confidence, ci_conclusion, taste_pass )`).order('created_at', { ascending: false }).limit(8),
+    supabase.from('bud_repair_learnings').select(`id, outcome, fix_pattern, root_cause_type, created_at, bud_repair_executions ( diff_summary, pr_url, confidence, ci_conclusion )`).order('created_at', { ascending: false }).limit(4),
+  ]);
+
+  const initialLearnings: PipelineLearningEntry[] = [
+    ...(improvementRows ?? []).map((r) => {
+      const row = r as unknown as ImprovementRow;
+      const exec = row.bud_improvement_executions;
+      return { id: row.id, kind: 'improvement' as const, outcome: row.outcome as PipelineLearningEntry['outcome'], pattern: row.improvement_pattern, signal_type: row.signal_type, affected_area: row.affected_area, diff_summary: exec?.diff_summary ?? null, pr_url: exec?.pr_url ?? null, confidence: exec?.confidence ?? null, ci_conclusion: exec?.ci_conclusion ?? null, taste_pass: exec?.taste_pass ?? null, created_at: row.created_at };
+    }),
+    ...(repairRows ?? []).map((r) => {
+      const row = r as unknown as RepairRow;
+      const exec = row.bud_repair_executions;
+      return { id: row.id, kind: 'repair' as const, outcome: row.outcome as PipelineLearningEntry['outcome'], pattern: row.fix_pattern, signal_type: row.root_cause_type, affected_area: null, diff_summary: exec?.diff_summary ?? null, pr_url: exec?.pr_url ?? null, confidence: exec?.confidence ?? null, ci_conclusion: exec?.ci_conclusion ?? null, taste_pass: null, created_at: row.created_at };
+    }),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 10);
+
   return (
     <div
       className="rounded-3xl border border-white/10 p-6 backdrop-blur-2xl"
@@ -150,6 +181,7 @@ export default async function MissionControlAutonomy({
         initialRun={initialRun}
         initialKpis={kpisRow ?? null}
         killSwitchPaused={!!kill?.paused}
+        initialLearnings={initialLearnings}
       />
     </div>
   );

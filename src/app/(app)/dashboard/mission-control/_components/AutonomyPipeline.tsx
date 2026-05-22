@@ -16,6 +16,7 @@ import type {
   PipelineAgentScore,
   PipelineArtifact,
   PipelineKpis,
+  PipelineLearningEntry,
   PipelineRun,
   PipelineRunDetail,
   PipelineStageEvent,
@@ -38,6 +39,7 @@ interface Props {
   surface: PipelineSurface;
   initialRun: PipelineRunDetail | null;
   initialKpis: PipelineKpis | null;
+  initialLearnings?: PipelineLearningEntry[];
   /** When non-null, the kill-switch state shown in the header. */
   killSwitchPaused?: boolean;
 }
@@ -57,9 +59,11 @@ export default function AutonomyPipeline({
   surface,
   initialRun,
   initialKpis,
+  initialLearnings = [],
   killSwitchPaused = false,
 }: Props) {
   const [run, setRun] = useState<PipelineRunDetail | null>(initialRun);
+  const [learnings, setLearnings] = useState<PipelineLearningEntry[]>(initialLearnings);
   const [selectedId, setSelectedId] = useState<PipelineStageId>('detect');
   const [simulating, setSimulating] = useState(false);
   const [simOutcome, setSimOutcome] = useState<SimulateOutcome>('success');
@@ -213,12 +217,65 @@ export default function AutonomyPipeline({
       )
       .subscribe();
 
+    // 5. Watch for new improvement and repair learnings
+    const improvementLearningsChannel = supabase
+      .channel('bud_improvement_learnings_feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bud_improvement_learnings' },
+        async (payload) => {
+          const row = payload.new as {
+            id: string; outcome: string; improvement_pattern: string;
+            signal_type: string | null; affected_area: string | null; created_at: string;
+          };
+          const entry: PipelineLearningEntry = {
+            id: row.id, kind: 'improvement',
+            outcome: row.outcome as PipelineLearningEntry['outcome'],
+            pattern: row.improvement_pattern,
+            signal_type: row.signal_type,
+            affected_area: row.affected_area,
+            diff_summary: null, pr_url: null, confidence: null,
+            ci_conclusion: null, taste_pass: null,
+            created_at: row.created_at,
+          };
+          setLearnings((prev) => [entry, ...prev].slice(0, 20));
+        },
+      )
+      .subscribe();
+
+    const repairLearningsChannel = supabase
+      .channel('bud_repair_learnings_feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bud_repair_learnings' },
+        (payload) => {
+          const row = payload.new as {
+            id: string; outcome: string; fix_pattern: string;
+            root_cause_type: string | null; created_at: string;
+          };
+          const entry: PipelineLearningEntry = {
+            id: row.id, kind: 'repair',
+            outcome: row.outcome as PipelineLearningEntry['outcome'],
+            pattern: row.fix_pattern,
+            signal_type: row.root_cause_type,
+            affected_area: null,
+            diff_summary: null, pr_url: null, confidence: null,
+            ci_conclusion: null, taste_pass: null,
+            created_at: row.created_at,
+          };
+          setLearnings((prev) => [entry, ...prev].slice(0, 20));
+        },
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(newRunChannel);
       supabase.removeChannel(runUpdatesChannel);
       supabase.removeChannel(eventsChannel);
       supabase.removeChannel(artifactsChannel);
       supabase.removeChannel(scoresChannel);
+      supabase.removeChannel(improvementLearningsChannel);
+      supabase.removeChannel(repairLearningsChannel);
     };
   }, [supabase, surface]);
 
@@ -323,6 +380,9 @@ export default function AutonomyPipeline({
         <div className="lg:col-span-2">
           <TelemetryStrip kpis={initialKpis} />
         </div>
+        <div className="lg:col-span-2">
+          <LearningFeed learnings={learnings} run={run} />
+        </div>
       </div>
     </div>
   );
@@ -387,19 +447,6 @@ function PipelineColumn({
         })}
       </ol>
 
-      <div className="mt-5 flex items-center gap-3 rounded-xl border border-dashed border-white/15 bg-emerald-400/[0.03] px-4 py-3 text-[13px] text-white/60">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-300">
-          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-          <path d="M21 3v5h-5" /><path d="M3 21v-5h5" />
-        </svg>
-        <span>
-          <span className="text-white">Continuous learning loop.</span>{' '}
-          Each successful improvement and each rollback feeds Bud’s memory, design intelligence,
-          and operational knowledge graph.
-        </span>
-      </div>
     </section>
   );
 }
@@ -673,4 +720,252 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}m ${s.toString().padStart(2, '0')}s`;
+}
+
+/* ──────────────────────────── Learning feed ──────────────────────────── */
+
+function LearningFeed({
+  learnings,
+  run,
+}: {
+  learnings: PipelineLearningEntry[];
+  run: PipelineRunDetail | null;
+}) {
+  const currentVerdict = run?.run.verdict;
+  const currentScore = run?.run.composite_score;
+  const currentPR = run?.run.pr_url;
+  const currentRollbackReason = run?.run.rollback_reason;
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl">
+      {/* ── Header ── */}
+      <div className="mb-5 flex items-center gap-3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-300 flex-shrink-0">
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+          <path d="M21 3v5h-5" /><path d="M3 21v-5h5" />
+        </svg>
+        <div>
+          <div className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-emerald-300">
+            Continuous learning loop
+          </div>
+          <p className="mt-0.5 text-[12.5px] text-white/45">
+            Each successful improvement and each rollback feeds Bud's memory, design intelligence, and operational knowledge graph.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Current run result banner ── */}
+      {run && currentVerdict && currentVerdict !== 'pending' && (
+        <div className={[
+          'mb-5 rounded-xl border px-4 py-3 text-[13px]',
+          currentVerdict === 'auto_merge'
+            ? 'border-emerald-400/30 bg-emerald-400/[0.06]'
+            : currentVerdict === 'rolled_back'
+            ? 'border-amber-400/30 bg-amber-400/[0.06]'
+            : currentVerdict === 'rejected'
+            ? 'border-red-400/20 bg-red-500/[0.05]'
+            : 'border-sky-400/20 bg-sky-400/[0.04]',
+        ].join(' ')}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={[
+                  'rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest',
+                  currentVerdict === 'auto_merge' ? 'border-emerald-400/40 text-emerald-300'
+                    : currentVerdict === 'rolled_back' ? 'border-amber-400/40 text-amber-300'
+                    : currentVerdict === 'rejected' ? 'border-red-400/30 text-red-300'
+                    : 'border-sky-400/30 text-sky-300',
+                ].join(' ')}>
+                  {currentVerdict === 'auto_merge' ? 'shipped' : currentVerdict.replace('_', ' ')}
+                </span>
+                {currentScore != null && (
+                  <span className="font-mono text-[11px] text-white/45">
+                    composite score {(currentScore * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+              <p className="text-white/65">
+                {currentVerdict === 'auto_merge'
+                  ? 'This run was auto-merged — all gates passed. The change is in production.'
+                  : currentVerdict === 'human_review'
+                  ? 'Composite score 65–80% — queued for your review before merging.'
+                  : currentVerdict === 'rolled_back'
+                  ? `Rolled back${currentRollbackReason ? `: ${currentRollbackReason}` : '. Live telemetry detected a regression — production was restored automatically.'}`
+                  : 'Rejected by the debate quorum or a hard safety rule before reaching production.'}
+              </p>
+            </div>
+            {currentPR && (
+              <a
+                href={currentPR}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] text-white/60 hover:text-white hover:border-white/20 transition-colors"
+              >
+                View PR →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Learning records ── */}
+      {learnings.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-white/10 py-8 text-center">
+          <p className="font-mono text-[12px] text-white/30">
+            No learnings yet — they appear here after the first pipeline run completes.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {learnings.map((l) => (
+            <LearningCard key={l.id} entry={l} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LearningCard({ entry }: { entry: PipelineLearningEntry }) {
+  const isGood = entry.outcome === 'shipped' || entry.outcome === 'recovered';
+  const isRollback = entry.outcome === 'rolled_back';
+  const isRepair = entry.kind === 'repair';
+
+  const outcomeColor = isGood
+    ? 'border-emerald-400/30 text-emerald-300'
+    : isRollback
+    ? 'border-amber-400/30 text-amber-300'
+    : 'border-red-400/20 text-red-300';
+
+  const leftBar = isGood
+    ? 'bg-emerald-400/60'
+    : isRollback
+    ? 'bg-amber-400/60'
+    : 'bg-red-400/40';
+
+  const timeAgo = formatRelativeTime(entry.created_at);
+
+  // Split diff_summary into individual file lines
+  const diffLines = entry.diff_summary
+    ? entry.diff_summary.split('\n').map((l) => l.trim()).filter(Boolean)
+    : [];
+
+  return (
+    <div className={`relative flex gap-4 rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3.5 overflow-hidden`}>
+      {/* left accent bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${leftBar} rounded-l-xl`} />
+
+      {/* icon */}
+      <div className="mt-0.5 flex-shrink-0">
+        {isRepair ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-300">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-300">
+            <path d="M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" />
+            <path d="M12 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z" />
+          </svg>
+        )}
+      </div>
+
+      {/* content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+          <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${outcomeColor}`}>
+            {entry.outcome}
+          </span>
+          <span className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-white/40">
+            {isRepair ? 'repair' : entry.signal_type ?? 'improvement'}
+          </span>
+          {entry.affected_area && (
+            <span className="font-mono text-[10.5px] text-white/30 truncate max-w-[180px]">
+              {entry.affected_area}
+            </span>
+          )}
+          <span className="ml-auto font-mono text-[10px] text-white/25 flex-shrink-0">{timeAgo}</span>
+        </div>
+
+        {/* What was implemented */}
+        <p className="text-[13px] leading-relaxed text-white/70 mb-2">{entry.pattern}</p>
+
+        {/* Diff / files changed */}
+        {diffLines.length > 0 && (
+          <div className="mb-2 rounded-lg border border-white/8 bg-black/20 px-3 py-2 space-y-1">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-white/30 mb-1.5">What changed</div>
+            {diffLines.slice(0, 4).map((line, i) => (
+              <div key={i} className="font-mono text-[11px] text-white/55 flex gap-2">
+                <span className="text-emerald-300/60 flex-shrink-0">›</span>
+                <span className="truncate">{line}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Quality signals */}
+        <div className="flex flex-wrap gap-2">
+          {entry.confidence != null && (
+            <span className="font-mono text-[10.5px] text-white/35">
+              confidence {Math.round(entry.confidence * 100)}%
+            </span>
+          )}
+          {entry.ci_conclusion && (
+            <span className={`font-mono text-[10.5px] ${entry.ci_conclusion === 'success' ? 'text-emerald-300/70' : 'text-red-300/70'}`}>
+              CI {entry.ci_conclusion}
+            </span>
+          )}
+          {entry.taste_pass != null && (
+            <span className={`font-mono text-[10.5px] ${entry.taste_pass ? 'text-emerald-300/70' : 'text-amber-300/70'}`}>
+              taste {entry.taste_pass ? 'passed' : 'failed'}
+            </span>
+          )}
+          {entry.pr_url && (
+            <a
+              href={entry.pr_url}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-[10.5px] text-sky-300/70 hover:text-sky-300 transition-colors"
+            >
+              PR →
+            </a>
+          )}
+        </div>
+
+        {/* Memory / knowledge graph note for rollbacks */}
+        {isRollback && (
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[10.5px] text-amber-300/60">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M21 3v5h-5" /><path d="M3 21v-5h5" />
+            </svg>
+            Rollback pattern written to memory — Bud will avoid this approach next time
+          </div>
+        )}
+        {isGood && (
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[10.5px] text-emerald-300/50">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M21 3v5h-5" /><path d="M3 21v-5h5" />
+            </svg>
+            Fix pattern written to knowledge graph — boosts confidence on similar future signals
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  const h = Math.floor(diff / 3_600_000);
+  const d = Math.floor(diff / 86_400_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  if (h < 24) return `${h}h ago`;
+  return `${d}d ago`;
 }

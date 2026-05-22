@@ -1,6 +1,23 @@
 // Shared types for the Autonomous Improvement Pipeline.
 // Mirrors the Supabase enums in supabase/migrations/065_autonomy_pipeline.sql.
 
+export type LearningOutcome = 'shipped' | 'blocked' | 'rolled_back' | 'draft' | 'recovered' | 'failed';
+
+export interface PipelineLearningEntry {
+  id: string;
+  kind: 'improvement' | 'repair';
+  outcome: LearningOutcome;
+  pattern: string;
+  signal_type: string | null;
+  affected_area: string | null;
+  diff_summary: string | null;
+  pr_url: string | null;
+  confidence: number | null;
+  ci_conclusion: string | null;
+  taste_pass: boolean | null;
+  created_at: string;
+}
+
 export type PipelineSurface = 'public' | 'admin' | 'crew' | 'customer';
 
 export type PipelineStageId =
