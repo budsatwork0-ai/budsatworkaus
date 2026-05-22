@@ -70,6 +70,7 @@ export default function CrewHomePage() {
   const [expiringDocs, setExpiringDocs] = useState<DocAlert[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(false);
+  const [errorDismissed, setErrorDismissed] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(), []);
   // Memoised so it doesn't shift value between renders and is stable in the
@@ -80,6 +81,7 @@ export default function CrewHomePage() {
     if (!employee) return;
 
     setStatsError(false);
+    setErrorDismissed(false);
 
     async function loadData() {
       // Fetch each endpoint independently — a single failing API should not
@@ -195,199 +197,155 @@ export default function CrewHomePage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Hey {firstName}!</h1>
-        <p className="mt-1 text-sm" style={{ color: brand.muted }}>{today}</p>
+        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Hey, {firstName} 👋</h1>
+        <p className="text-sm mt-0.5" style={{ color: brand.muted }}>{today}</p>
       </div>
 
+      {/* Onboarding prompt */}
       {!onboardingComplete && (
-        <Link href="/crew/onboarding" className={`block ${glass} rounded-2xl p-5 transition-transform hover:scale-[1.005]`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold" style={{ color: brand.text }}>Complete your onboarding</p>
-              <p className="text-sm mt-0.5" style={{ color: brand.muted }}>Finish all sections to start accepting jobs.</p>
-            </div>
-            <span className="shrink-0 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(251,191,36,0.15)', color: '#92400E' }}>Incomplete</span>
+        <Link href="/crew/onboarding"
+          className="flex items-center justify-between p-4 rounded-2xl border"
+          style={{ ...glass, borderColor: '#F59E0B33', background: 'rgba(245,158,11,0.08)' }}
+        >
+          <div>
+            <p className="font-semibold text-sm" style={{ color: '#F59E0B' }}>Complete your onboarding</p>
+            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Finish setup to unlock available jobs</p>
           </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
         </Link>
       )}
 
-      {/* Document expiry alerts */}
+      {/* Expiring docs alert */}
       {expiringDocs.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-          <div className="flex items-start gap-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2" className="shrink-0 mt-0.5">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <div className="flex-1">
-              <p className="text-sm font-semibold" style={{ color: '#92400E' }}>Documents expiring soon</p>
-              <div className="mt-2 space-y-2">
-                {expiringDocs.map((doc) => (
-                  <div key={doc.doc_type} className="flex items-center justify-between gap-3 bg-white/60 rounded-lg px-3 py-2">
-                    <div>
-                      <p className="text-xs font-medium" style={{ color: '#92400E' }}>{DOC_LABELS[doc.doc_type] || doc.doc_type}</p>
-                      <p className="text-[11px]" style={{ color: '#B45309' }}>
-                        Expires {doc.expires_at ? new Date(doc.expires_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : 'soon'}
-                      </p>
-                    </div>
-                    <Link
-                      href={`/crew/documents?upload=${doc.doc_type}`}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-                      style={{ background: '#92400E' }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
-                      Re-upload
-                    </Link>
-                  </div>
-                ))}
-              </div>
-              <Link href="/crew/documents" className="inline-block mt-2 text-xs font-medium underline" style={{ color: '#92400E' }}>
-                View all documents
-              </Link>
-            </div>
+        <Link href="/crew/documents"
+          className="flex items-center justify-between p-4 rounded-2xl border"
+          style={{ ...glass, borderColor: '#EF444433', background: 'rgba(239,68,68,0.08)' }}
+        >
+          <div>
+            <p className="font-semibold text-sm" style={{ color: '#EF4444' }}>
+              {expiringDocs.length} document{expiringDocs.length > 1 ? 's' : ''} expiring soon
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+              {expiringDocs.map((d) => DOC_LABELS[d.doc_type] ?? d.doc_type).join(', ')}
+            </p>
           </div>
-        </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+        </Link>
       )}
 
-      {statsError && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800">
-          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
-          </svg>
-          Some stats could not be loaded — figures below may be incomplete.
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {statCards.map((card, i) => (
-          <motion.div key={card.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Link href={card.href} className={`${glass} rounded-2xl p-4 block transition-transform hover:scale-[1.01]`}>
-              <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>{card.label}</p>
-              {statsLoading ? (
-                <div className="h-8 w-12 rounded bg-slate-100 animate-pulse mt-1" />
-              ) : (
-                <p className="text-2xl font-bold mt-1" style={{ color: card.color }}>{card.value}</p>
-              )}
-            </Link>
-          </motion.div>
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-3">
+        {statCards.map((card) => (
+          <Link key={card.label} href={card.href}
+            className="flex flex-col gap-1 p-4 rounded-2xl border"
+            style={{ ...glass, borderColor: `${card.color}33` }}
+          >
+            <span className="text-2xl font-bold" style={{ color: card.color }}>
+              {statsLoading ? '—' : card.value}
+            </span>
+            <span className="text-xs" style={{ color: brand.muted }}>{card.label}</span>
+          </Link>
         ))}
       </div>
 
-      {/* This Week — mini calendar + hours summary */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold" style={{ color: brand.text }}>This Week</h2>
-          <Link href="/crew/schedule" className="text-xs font-medium underline" style={{ color: brand.primary }}>
-            Full schedule
-          </Link>
-        </div>
+      {/* Stats error banner */}
+      {statsError && !errorDismissed && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border"
+          style={{ ...glass, borderColor: `${brand.primary}40`, background: 'rgba(15,61,46,0.18)' }}
+        >
+          <button
+            onClick={() => {
+              setErrorDismissed(false);
+              setStatsLoading(true);
+              setStatsError(false);
+              // Re-trigger load by briefly toggling — reload via location for simplicity
+              window.location.reload();
+            }}
+            className="flex-1 text-left text-xs"
+            style={{ color: brand.muted }}
+          >
+            ⚠️ Some stats may be unavailable —{' '}
+            <span className="underline underline-offset-2" style={{ color: brand.primary }}>tap to retry</span>
+          </button>
+          <button
+            onClick={() => setErrorDismissed(true)}
+            aria-label="Dismiss"
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            style={{ color: brand.muted }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        </motion.div>
+      )}
 
-        {/* 7-day mini calendar */}
-        <div className="grid grid-cols-7 gap-1.5 mb-4">
+      {/* This-week summary */}
+      <div className="p-4 rounded-2xl border" style={{ ...glass }}>
+        <p className="text-sm font-semibold mb-3" style={{ color: brand.text }}>This Week</p>
+        <div className="flex gap-4 mb-4">
+          <div>
+            <p className="text-xl font-bold" style={{ color: brand.primary }}>{weekStats.count}</p>
+            <p className="text-xs" style={{ color: brand.muted }}>jobs</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold" style={{ color: brand.primary }}>{weekStats.estHours}h</p>
+            <p className="text-xs" style={{ color: brand.muted }}>est. hours</p>
+          </div>
+        </div>
+        {/* Mini week calendar */}
+        <div className="grid grid-cols-7 gap-1">
           {weekDates.map((date, i) => {
             const dateStr = date.toISOString().split('T')[0];
+            const jobs = jobsByDate.get(dateStr) ?? [];
             const isToday = dateStr === todayStr;
-            const dayJobs = jobsByDate.get(dateStr) || [];
-
             return (
               <div key={dateStr} className="flex flex-col items-center gap-1">
-                <span className="text-[10px] font-medium uppercase" style={{ color: brand.muted }}>
-                  {DAYS_SHORT[i]}
-                </span>
+                <span className="text-xs" style={{ color: brand.muted }}>{DAYS_SHORT[i]}</span>
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isToday ? 'text-white' : ''}`}
-                  style={isToday ? { background: brand.primary } : { color: brand.text }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium"
+                  style={{
+                    background: isToday ? brand.primary : 'transparent',
+                    color: isToday ? '#fff' : brand.text,
+                    border: isToday ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                  }}
                 >
                   {date.getDate()}
                 </div>
-                {/* Job colour dots */}
-                <div className="flex flex-wrap justify-center gap-0.5 min-h-[10px]">
-                  {dayJobs.slice(0, 3).map((job) => {
-                    const color = SERVICE_COLORS[job.orders?.service_type ?? ''] || brand.primary;
-                    return (
-                      <span key={job.id} className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    );
-                  })}
-                </div>
+                {jobs.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-0.5">
+                    {jobs.slice(0, 3).map((j) => (
+                      <div
+                        key={j.id}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: SERVICE_COLORS[j.orders?.service_type ?? ''] ?? brand.primary }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-
-        {/* Hours + earnings summary strip */}
-        {statsLoading ? (
-          <div className="h-10 rounded-xl bg-slate-100 animate-pulse" />
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(15,61,46,0.06)' }}>
-              <p className="text-lg font-bold" style={{ color: brand.primary }}>{weekStats.count}</p>
-              <p className="text-[11px] mt-0.5" style={{ color: brand.muted }}>Jobs</p>
-            </div>
-            <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(59,130,246,0.08)' }}>
-              <p className="text-lg font-bold" style={{ color: '#3B82F6' }}>~{weekStats.estHours.toFixed(1)}h</p>
-              <p className="text-[11px] mt-0.5" style={{ color: brand.muted }}>Est. hours</p>
-            </div>
-            <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
-              <p className="text-lg font-bold" style={{ color: '#10B981' }}>${stats.weekEarnings.toFixed(0)}</p>
-              <p className="text-[11px] mt-0.5" style={{ color: brand.muted }}>Earned</p>
-            </div>
-          </div>
-        )}
-
-        {/* Today's jobs detail */}
-        {(() => {
-          const todayJobs = jobsByDate.get(todayStr) || [];
-          if (todayJobs.length === 0) return null;
-          return (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: brand.muted }}>Today</p>
-              {todayJobs.map((job) => {
-                const color = SERVICE_COLORS[job.orders?.service_type ?? ''] || brand.primary;
-                const label = SERVICE_TYPE_LABELS[job.orders?.service_type as ServiceType] || job.orders?.service_type || '';
-                const estH = SERVICE_HOURS[job.orders?.service_type ?? ''] ?? 2;
-                return (
-                  <Link
-                    key={job.id}
-                    href={`/crew/jobs/${job.id}`}
-                    className="flex items-center justify-between rounded-xl px-3 py-2.5 transition-opacity hover:opacity-80"
-                    style={{ background: `${color}12`, borderLeft: `3px solid ${color}` }}
-                  >
-                    <div>
-                      <p className="text-sm font-medium" style={{ color }}>{label}</p>
-                      <p className="text-[11px]" style={{ color: brand.muted }}>~{estH}h</p>
-                    </div>
-                    <p className="text-sm font-bold" style={{ color: brand.text }}>
-                      ${job.orders?.final_price.toFixed(0)}
-                    </p>
-                  </Link>
-                );
-              })}
-            </div>
-          );
-        })()}
       </div>
 
-      {/* Quick Actions */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Quick actions */}
+      <div>
+        <p className="text-sm font-semibold mb-3" style={{ color: brand.text }}>Quick Actions</p>
+        <div className="grid grid-cols-2 gap-3">
           {quickActions.map((action) => (
-            <Link
-              key={action.href}
-              href={action.href}
-              className="flex items-center gap-3 p-3 rounded-xl border transition-colors hover:bg-slate-50"
-              style={{ borderColor: brand.border }}
+            <Link key={action.href} href={action.href}
+              className="flex items-start gap-3 p-4 rounded-2xl border"
+              style={{ ...glass }}
             >
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(15,61,46,0.08)' }}>
-                {action.icon}
-              </div>
+              <div className="mt-0.5">{action.icon}</div>
               <div>
                 <p className="text-sm font-medium" style={{ color: brand.text }}>{action.label}</p>
-                <p className="text-xs" style={{ color: brand.muted }}>{action.desc}</p>
+                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{action.desc}</p>
               </div>
             </Link>
           ))}
