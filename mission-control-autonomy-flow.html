@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control · Autonomous Improvement Pipeline</title>
+<style>
+  :root {
+    --bg:        #0a0b0e;
+    --surface:   #11141a;
+    --surface-2: #161a22;
+    --border:    #1e2330;
+    --border-2:  #2a3142;
+    --text:      #e7ebf2;
+    --muted:     #8a93a3;
+    --dim:       #5a6275;
+    --accent:    #4ade80;   /* Bud green */
+    --accent-2:  #38bdf8;   /* signal cyan */
+    --warn:      #f59e0b;
+    --danger:    #ef4444;
+    --info:      #818cf8;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(74,222,128,.06), transparent 60%),
+      radial-gradient(900px 500px at -5% 105%, rgba(56,189,248,.05), transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 28px 28px 80px; }
+
+  /* ───────── Header ───────── */
+  header.top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 24px; padding-bottom: 22px; border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  .crumbs {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  .crumbs .live {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(74,222,128,.08); color: var(--accent);
+    border: 1px solid rgba(74,222,128,.25); margin-left: 8px;
+  }
+  .crumbs .live::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.6s infinite ease-in-out;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 14px; max-width: 720px; line-height: 1.55; }
+  .header-right { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .legend i {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #06251a; border: none;
+    padding: 9px 14px; border-radius: 8px; font-family: var(--mono);
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; cursor: pointer;
+    transition: transform .1s ease, box-shadow .15s ease, background .15s;
+    box-shadow: 0 0 0 0 rgba(74,222,128,.4);
+  }
+  .btn:hover { box-shadow: 0 0 22px rgba(74,222,128,.35); }
+  .btn:active { transform: translateY(1px); }
+  .btn.ghost {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border-2);
+  }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); box-shadow: none; }
+
+  /* ───────── Layout ───────── */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 28px;
+  }
+  @media (max-width: 1080px) {
+    .layout { grid-template-columns: 1fr; }
+    .detail { position: static !important; }
+  }
+
+  /* ───────── Pipeline ───────── */
+  .pipeline { position: relative; padding-left: 36px; }
+  .pipeline::before {
+    content: "";
+    position: absolute; left: 17px; top: 18px; bottom: 18px;
+    width: 2px; background: linear-gradient(180deg,
+      transparent 0%, var(--border-2) 8%, var(--border-2) 92%, transparent 100%);
+  }
+  .stage {
+    position: relative; margin-bottom: 14px;
+    padding: 14px 18px 16px; border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--border); cursor: pointer;
+    transition: border-color .2s, transform .15s, box-shadow .25s;
+  }
+  .stage:hover { border-color: var(--border-2); transform: translateX(2px); }
+  .stage.selected {
+    border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 30px rgba(74,222,128,.08);
+  }
+  .stage::before {  /* timeline dot */
+    content: ""; position: absolute; left: -25px; top: 22px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--surface-2); border: 2px solid var(--border-2);
+    transition: all .3s;
+  }
+  .stage.active::before {
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(74,222,128,.18), 0 0 14px var(--accent);
+  }
+  .stage.done::before { background: var(--accent); border-color: var(--accent); }
+  .stage.rejected::before { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 12px var(--danger); }
+
+  .stage-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px;
+  }
+  .stage-idx {
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    letter-spacing: .08em;
+  }
+  .stage-name { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
+  .stage-owner {
+    margin-left: auto; font-family: var(--mono); font-size: 10.5px;
+    color: var(--accent-2); letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(56,189,248,.06); border: 1px solid rgba(56,189,248,.18);
+  }
+  .stage-desc { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0; }
+  .stage-signals {
+    margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .chip {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,255,255,.025); border: 1px solid var(--border);
+  }
+  .chip.ok    { color: var(--accent);   border-color: rgba(74,222,128,.25); }
+  .chip.warn  { color: var(--warn);     border-color: rgba(245,158,11,.25); }
+  .chip.fail  { color: var(--danger);   border-color: rgba(239,68,68,.28);  }
+  .chip.info  { color: var(--accent-2); border-color: rgba(56,189,248,.22); }
+
+  /* status badge for the simulator */
+  .status-badge {
+    margin-left: auto; font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 4px;
+    background: rgba(255,255,255,.03); color: var(--dim);
+    border: 1px solid var(--border);
+  }
+  .stage.active  .status-badge { color: var(--accent);   border-color: rgba(74,222,128,.3); background: rgba(74,222,128,.08); }
+  .stage.done    .status-badge { color: var(--accent);   border-color: rgba(74,222,128,.2); }
+  .stage.rejected .status-badge { color: var(--danger);  border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.08); }
+
+  /* feedback loop */
+  .loop-back {
+    margin-top: 20px; display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; border: 1px dashed var(--border-2); border-radius: 12px;
+    color: var(--muted); font-size: 13px;
+    background: rgba(74,222,128,.02);
+  }
+  .loop-back svg { color: var(--accent-2); }
+  .loop-back b { color: var(--text); font-weight: 600; }
+
+  /* ───────── Detail panel ───────── */
+  .detail {
+    position: sticky; top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px;
+    height: calc(100vh - 48px); min-height: 600px;
+    overflow-y: auto;
+  }
+  .detail::-webkit-scrollbar { width: 6px; }
+  .detail::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+  .detail-tag {
+    font-family: var(--mono); font-size: 10.5px; color: var(--accent);
+    letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .detail h2 { font-size: 20px; margin: 0 0 6px; letter-spacing: -.01em; font-weight: 600; }
+  .detail .agent { font-family: var(--mono); font-size: 11px; color: var(--accent-2); margin-bottom: 18px; }
+  .detail p.lead { color: var(--muted); font-size: 13.5px; line-height: 1.6; margin: 0 0 20px; }
+
+  .section { margin-bottom: 18px; }
+  .section h3 {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+    color: var(--dim); text-transform: uppercase; font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .section ul { margin: 0; padding-left: 0; list-style: none; }
+  .section li {
+    position: relative; padding-left: 18px; font-size: 13px;
+    color: var(--text); margin-bottom: 6px; line-height: 1.5;
+  }
+  .section li::before {
+    content: ""; position: absolute; left: 0; top: 8px;
+    width: 6px; height: 1px; background: var(--accent-2);
+  }
+  .section li span.k { color: var(--muted); }
+  .section li code {
+    font-family: var(--mono); font-size: 12px;
+    background: rgba(255,255,255,.04); padding: 1px 6px; border-radius: 4px;
+    color: var(--accent);
+  }
+  .kv {
+    display: grid; grid-template-columns: max-content 1fr;
+    gap: 6px 14px; font-size: 12.5px;
+  }
+  .kv dt { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+  .kv dd { margin: 0; color: var(--text); }
+  .scorebar {
+    display: grid; grid-template-columns: 96px 1fr 40px;
+    align-items: center; gap: 10px; margin-bottom: 6px;
+    font-family: var(--mono); font-size: 11.5px;
+  }
+  .scorebar .k { color: var(--muted); }
+  .scorebar .bar {
+    height: 6px; border-radius: 4px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border);
+  }
+  .scorebar .bar > i {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  }
+  .scorebar .v { color: var(--accent); text-align: right; }
+
+  /* footer telemetry strip */
+  .telemetry {
+    margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; padding: 18px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface), transparent);
+  }
+  .tile { display: flex; flex-direction: column; gap: 4px; }
+  .tile .label {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  .tile .value { font-family: var(--mono); font-size: 18px; color: var(--text); font-weight: 500; }
+  .tile .delta { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .tile .delta.bad { color: var(--danger); }
+  @media (max-width: 720px) {
+    .telemetry { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .scan-line {
+    position: absolute; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="crumbs">
+        Mission Control / Overview <span class="live">LIVE</span>
+      </div>
+      <h1>Autonomous Improvement Pipeline</h1>
+      <p class="sub">
+        Every failure or optimisation opportunity flows through ten gates before it touches production.
+        Bud agents observe, debate, validate and learn — Claude writes surgical code, never broad rewrites.
+        Click any stage for the engineering contract; press <b>Simulate</b> to run a synthetic improvement end-to-end.
+      </p>
+    </div>
+    <div class="header-right">
+      <div class="legend">
+        <span><i style="background:var(--dim)"></i>idle</span>
+        <span><i style="background:var(--accent)"></i>active</span>
+        <span><i style="background:var(--danger)"></i>rejected</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" id="resetBtn">Reset</button>
+        <button class="btn" id="simBtn">▶ Simulate run</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="pipeline" id="pipeline">
+      <!-- stages injected -->
+
+      <div class="loop-back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+          <path d="M21 3v5h-5"/><path d="M3 21v-5h5"/>
+        </svg>
+        <span><b>Continuous learning loop.</b> Each successful improvement and each rollback feeds Bud's memory, design intelligence, and operational knowledge graph — sharpening future detections, root-cause searches, and taste decisions.</span>
+      </div>
+    </section>
+
+    <aside class="detail" id="detail">
+      <!-- detail content injected -->
+    </aside>
+  </div>
+
+  <div class="telemetry">
+    <div class="tile">
+      <div class="label">Auto-merged · 7d</div>
+      <div class="value">142</div>
+      <div class="delta">+18 vs prior</div>
+    </div>
+    <div class="tile">
+      <div class="label">Auto-rejected · 7d</div>
+      <div class="value">31</div>
+      <div class="delta">22% rejection rate</div>
+    </div>
+    <div class="tile">
+      <div class="label">Rollbacks · 7d</div>
+      <div class="value">2</div>
+      <div class="delta bad">0.014% of deploys</div>
+    </div>
+    <div class="tile">
+      <div class="label">Median detect → deploy</div>
+      <div class="value">11m 24s</div>
+      <div class="delta">−2m vs prior</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────── Pipeline definition ─────────────────────────── */
+const STAGES = [
+  {
+    id: 'detect',
+    name: 'Detect',
+    owner: 'Bud Observer',
+    desc: 'Continuously monitors UX, performance, conversions, logs, infrastructure health, and behaviour. Surfaces failures and quantifiable optimisation opportunities.',
+    signals: ['LCP', 'CLS', 'JS errors', 'conversion Δ', 'infra health', 'session friction'],
+    inputs:  ['RUM stream', 'server logs', 'Sentry events', 'analytics funnels', 'infra metrics'],
+    outputs: ['anomaly ticket', 'opportunity card with impact estimate'],
+    criteria:['Confidence ≥ 0.70 to forward', 'Deduped against open tickets', 'Severity scored against revenue / a11y / stability']
+  },
+  {
+    id: 'analyze',
+    name: 'Analyse',
+    owner: 'Bud Memory',
+    desc: 'Resolves root cause by searching historical memory: prior fixes, architecture decisions, and successful patterns across GitHub, logs, and Obsidian.',
+    signals: ['ADR matches', 'commit blame', 'similar-issue cosine ≥ 0.82', 'pattern library hit'],
+    inputs:  ['signal payload', 'git history', 'ADR + Obsidian vault', 'prior-fix index'],
+    outputs: ['root-cause hypothesis', 'reuse-candidate diffs', 'risk class'],
+    criteria:['At least one supporting precedent OR explicit no-precedent flag', 'Hypothesis must name file + cause']
+  },
+  {
+    id: 'design',
+    name: 'Design',
+    owner: 'Bud Architect + Bud Taste',
+    desc: 'Architect drafts the safest minimal improvement strategy. Taste evaluates hierarchy, simplicity, responsiveness, accessibility, spacing, motion, and cognitive clarity — benchmarked against Base44, Linear, Stripe, Apple, and the Bud Design Constitution.',
+    signals: ['blast radius', 'reversibility', 'constitution score', 'benchmark deltas'],
+    inputs:  ['root-cause hypothesis', 'design tokens', 'benchmark corpus', 'constitution rules'],
+    outputs: ['strategy spec', 'taste scorecard', 'acceptance criteria'],
+    criteria:['Smallest possible diff that solves cause', 'No constitution violations', 'No motion/spacing regressions vs benchmarks']
+  },
+  {
+    id: 'generate',
+    name: 'Generate',
+    owner: 'Claude API',
+    desc: 'Generates surgical code improvements bounded by the strategy spec — never broad rewrites. Outputs a patch with rationale and test plan.',
+    signals: ['patch size LOC', 'files touched', 'public-API delta', 'test coverage Δ'],
+    inputs:  ['strategy spec', 'acceptance criteria', 'pinned context window'],
+    outputs: ['unified diff', 'inline rationale', 'proposed tests'],
+    criteria:['Touches only files named in spec', 'No new dependencies without justification', 'Self-bounded ≤ change budget']
+  },
+  {
+    id: 'sandbox',
+    name: 'Sandbox',
+    owner: 'Ephemeral Runner',
+    desc: 'An isolated sandbox and preview environment is created automatically. The patch is built and served with a shareable preview URL.',
+    signals: ['build time', 'preview URL', 'env hash'],
+    inputs:  ['diff', 'lockfiles', 'env template'],
+    outputs: ['preview-N.budsatwork.dev', 'build artefacts', 'runtime probe'],
+    criteria:['Cold build succeeds', 'No prod credentials in env', 'Network egress limited to allowlist']
+  },
+  {
+    id: 'validate',
+    name: 'Validate',
+    owner: 'CI · Visual · Browser-Sim',
+    desc: 'Automated builds, tests, dependency validation, visual regression, and real-world browser simulations across desktop and mobile.',
+    signals: ['unit', 'integration', 'visual diff %', 'a11y axe', 'Lighthouse', 'bundle Δ'],
+    inputs:  ['preview build', 'baseline screenshots', 'test matrices'],
+    outputs: ['pass/fail per check', 'visual diff report', 'perf delta'],
+    criteria:['All required checks green', 'Visual diff ≤ threshold (or labelled intentional)', 'No new a11y violations', 'Bundle Δ ≤ +1%']
+  },
+  {
+    id: 'reject',
+    name: 'Auto-reject gate',
+    owner: 'Safety Net',
+    desc: 'Unsafe code, dramatic UI shifts, performance degradation, accessibility regressions, inconsistent design patterns, or low-confidence decisions are rejected here. The change is closed with a learnable explanation.',
+    signals: ['rule trips', 'confidence score', 'shift index'],
+    inputs:  ['validate report', 'taste scorecard', 'generator rationale'],
+    outputs: ['REJECT verdict + reason', 'memory entry for failure mode'],
+    criteria:['Hard rules trip → reject', 'Confidence < 0.65 → reject', 'Shift index > τ → reject', 'Pattern drift → reject']
+  },
+  {
+    id: 'debate',
+    name: 'Debate & score',
+    owner: 'Bud agent quorum',
+    desc: 'Bud agents debate, score, and validate the change through confidence, trust, rollback, UX, and stability scoring. A weighted vote decides whether to ship.',
+    signals: ['confidence', 'trust', 'rollback', 'UX', 'stability'],
+    inputs:  ['all upstream signals', 'historical agent calibration'],
+    outputs: ['composite score', 'per-agent rationales', 'ship verdict'],
+    criteria:['Composite ≥ 0.80 to auto-ship', '0.65–0.80 → human review queue', '< 0.65 → reject']
+  },
+  {
+    id: 'deploy',
+    name: 'Deploy & roll out',
+    owner: 'Release Bot',
+    desc: 'If safe, Bud autonomously commits, merges, deploys, and gradually rolls out the change through staged deployment with progressive traffic.',
+    signals: ['canary %', 'cohort', 'stage gate'],
+    inputs:  ['ship verdict', 'release manifest'],
+    outputs: ['commit', 'merged PR', 'staged production rollout 1% → 10% → 50% → 100%'],
+    criteria:['Each stage holds for guardrail window', 'Gate metrics must stay within SLO', 'Halt-and-hold if any KPI degrades']
+  },
+  {
+    id: 'observe',
+    name: 'Observe & self-heal',
+    owner: 'Production Sentinel',
+    desc: 'Live telemetry continuously watches for anomalies, friction, conversion drops, or instability. If issues are detected, automatic rollback and self-healing recovery is triggered. Successful improvements are written into Bud’s evolving memory, design intelligence, and operational knowledge graph.',
+    signals: ['error rate', 'conversion Δ', 'core-vitals Δ', 'session friction', 'anomaly score'],
+    inputs:  ['live RUM / logs / infra', 'pre-change baseline'],
+    outputs: ['rollback if degraded', 'memory write on success', 'tuning of detector thresholds'],
+    criteria:['Any guardrail breach → instant rollback', 'Stable for hold window → graduate', 'Always write outcome to knowledge graph']
+  }
+];
+
+/* Default verdicts that drive the simulator. ‘rejected’ stops the run there. */
+const SIM_DEFAULT = {
+  detect: 'done', analyze: 'done', design: 'done', generate: 'done',
+  sandbox: 'done', validate: 'done', reject: 'done', debate: 'done',
+  deploy: 'done', observe: 'done'
+};
+
+/* Compose a synthetic score panel for the Debate stage detail */
+const DEBATE_SCORES = [
+  { k: 'confidence', v: 0.91 },
+  { k: 'trust',      v: 0.86 },
+  { k: 'rollback',   v: 0.94 },
+  { k: 'UX',         v: 0.83 },
+  { k: 'stability',  v: 0.88 }
+];
+
+/* ─────────────────────────── Render ─────────────────────────── */
+const pipeline = document.getElementById('pipeline');
+const detail   = document.getElementById('detail');
+let selectedId = STAGES[0].id;
+
+function renderPipeline() {
+  // wipe existing stages (preserve the loop-back element which is the LAST child)
+  Array.from(pipeline.querySelectorAll('.stage')).forEach(el => el.remove());
+  const loopBack = pipeline.querySelector('.loop-back');
+
+  STAGES.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'stage';
+    el.dataset.id = s.id;
+    if (s.id === selectedId) el.classList.add('selected');
+    el.innerHTML = `
+      <div class="stage-head">
+        <span class="stage-idx">STAGE ${String(i+1).padStart(2,'0')}</span>
+        <span class="stage-name">${s.name}</span>
+        <span class="stage-owner">${s.owner}</span>
+        <span class="status-badge" data-role="status">idle</span>
+      </div>
+      <p class="stage-desc">${s.desc}</p>
+      <div class="stage-signals">
+        ${s.signals.map(x => `<span class="chip">${x}</span>`).join('')}
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      selectedId = s.id;
+      document.querySelectorAll('.stage').forEach(n => n.classList.toggle('selected', n.dataset.id === s.id));
+      renderDetail();
+    });
+    pipeline.insertBefore(el, loopBack);
+  });
+}
+
+function renderDetail() {
+  const s = STAGES.find(x => x.id === selectedId);
+  const debateBlock = s.id === 'debate' ? `
+    <div class="section">
+      <h3>Live composite — last synthetic run</h3>
+      ${DEBATE_SCORES.map(x => `
+        <div class="scorebar">
+          <span class="k">${x.k}</span>
+          <span class="bar"><i style="width:${(x.v*100).toFixed(0)}%"></i></span>
+          <span class="v">${x.v.toFixed(2)}</span>
+        </div>`).join('')}
+      <div class="scorebar" style="margin-top:8px;">
+        <span class="k" style="color:var(--text)">composite</span>
+        <span class="bar"><i style="width:88%; background: var(--accent);"></i></span>
+        <span class="v">0.88</span>
+      </div>
+    </div>` : '';
+
+  detail.innerHTML = `
+    <div class="detail-tag">Stage · ${s.id}</div>
+    <h2>${s.name}</h2>
+    <div class="agent">owner: ${s.owner}</div>
+    <p class="lead">${s.desc}</p>
+
+    <div class="section">
+      <h3>Signals watched</h3>
+      <div class="stage-signals">
+        ${s.signals.map(x => `<span class="chip info">${x}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Inputs</h3>
+      <ul>${s.inputs.map(x => `<li>${x}</li>`).join('')}</ul>
+    </div>
+
+    <div class="section">
+      <h3>Outputs</h3>
+      <ul>${s.outputs.map(x => `<li>${x}</li>`).join('')}</ul>
+    </div>
+
+    <div class="section">
+      <h3>Pass criteria</h3>
+      <ul>${s.criteria.map(x => `<li>${x}</li>`).join('')}</ul>
+    </div>
+
+    ${debateBlock}
+  `;
+  detail.scrollTop = 0;
+}
+
+/* ─────────────────────────── Simulator ─────────────────────────── */
+let running = false;
+async function simulate(plan = SIM_DEFAULT) {
+  if (running) return; running = true;
+  document.getElementById('simBtn').disabled = true;
+  // reset
+  document.querySelectorAll('.stage').forEach(el => {
+    el.classList.remove('active','done','rejected');
+    el.querySelector('[data-role=status]').textContent = 'idle';
+  });
+
+  for (const stage of STAGES) {
+    const el = document.querySelector(`.stage[data-id="${stage.id}"]`);
+    selectedId = stage.id;
+    document.querySelectorAll('.stage').forEach(n => n.classList.toggle('selected', n.dataset.id === stage.id));
+    renderDetail();
+
+    el.classList.add('active');
+    el.querySelector('[data-role=status]').textContent = 'running';
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(900 + Math.random()*500);
+
+    const verdict = plan[stage.id];
+    el.classList.remove('active');
+    if (verdict === 'rejected') {
+      el.classList.add('rejected');
+      el.querySelector('[data-role=status]').textContent = 'rejected';
+      break;
+    } else {
+      el.classList.add('done');
+      el.querySelector('[data-role=status]').textContent = stage.id === 'reject' ? 'passed gate' : 'ok';
+    }
+  }
+  running = false;
+  document.getElementById('simBtn').disabled = false;
+}
+
+function reset() {
+  document.querySelectorAll('.stage').forEach(el => {
+    el.classList.remove('active','done','rejected');
+    el.querySelector('[data-role=status]').textContent = 'idle';
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+document.getElementById('simBtn').addEventListener('click', () => simulate());
+document.getElementById('resetBtn').addEventListener('click', reset);
+
+renderPipeline();
+renderDetail();
+</script>
+</body>
+</html>

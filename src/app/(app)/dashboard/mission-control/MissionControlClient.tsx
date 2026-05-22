@@ -40,6 +40,8 @@ import type { BudCapability } from '@/lib/bud/capabilities';
 import type { BudInitiative } from '@/lib/bud/initiatives';
 import type { StructuredFailure } from '@/lib/bud/structured-failure';
 import type { BudThought } from '@/lib/bud/thought-stream';
+import { OverviewV2 } from './_components/OverviewV2';
+import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
 type RunRow = {
@@ -2310,6 +2312,11 @@ export function MissionControlClient({
   const search = useSearchParams();
   const initialTab = (search?.get('tab') ?? 'overview') as TabKey;
   const [tab, setTab] = useState<TabKey>(initialTab);
+  // View mode — "mission" is the operator cockpit (default). "diagnostics" exposes the
+  // legacy deep-debug surface for engineering work.
+  type ViewMode = 'mission' | 'diagnostics';
+  const initialMode = (search?.get('mode') === 'diagnostics' ? 'diagnostics' : 'mission') as ViewMode;
+  const [mode, setMode] = useState<ViewMode>(initialMode);
   const [savingAuthority, setSavingAuthority] = useState<BudAuthorityLevel | null>(null);
   const [queue, setQueue] = useState<BudOsQueueItem[]>(budOs.actionQueue);
   const [selectedId, setSelectedId] = useState<string | null>(budOs.actionQueue[0]?.id ?? null);
@@ -2357,8 +2364,13 @@ export function MissionControlClient({
   useEffect(() => {
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tab);
+    if (mode === 'diagnostics') {
+      url.searchParams.set('mode', 'diagnostics');
+    } else {
+      url.searchParams.delete('mode');
+    }
     window.history.replaceState({}, '', url.toString());
-  }, [tab]);
+  }, [tab, mode]);
 
   useEffect(() => {
     const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
@@ -2498,30 +2510,46 @@ export function MissionControlClient({
     }
   }
 
-  const globalTone = GLOBAL_STATUS_TONE[commandState.global_status];
+  const truth = deriveGlobalTruth(commandState);
+  const truthDot = {
+    healthy: 'bg-emerald-400',
+    degraded: 'bg-amber-400',
+    recovering: 'bg-sky-400',
+    blocked: 'bg-red-400',
+  }[truth.state];
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-black text-white">
-      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_top,rgba(56,189,248,0.07),transparent_55%)]" />
+      {mode === 'diagnostics' && (
+        <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_top,rgba(56,189,248,0.07),transparent_55%)]" />
+      )}
       <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6">
-        {/* Header */}
+        {/* Header — calm. Single status indicator, mode toggle replaces redundant badges. */}
         <header className="flex flex-wrap items-center gap-3 pb-4">
           <div className="flex items-center gap-3">
-            <span className="relative inline-flex h-3 w-3">
-              <span className={`absolute inset-0 animate-ping rounded-full ${globalTone.dot} opacity-60`} />
-              <span className={`relative h-3 w-3 rounded-full ${globalTone.dot}`} />
-            </span>
+            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${truthDot}`} />
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">Buds OS</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">Bud · {truth.headline}</p>
               <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
             </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ${globalTone.ring} ${globalTone.text}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${globalTone.dot}`} />
-              {globalTone.label}
-            </span>
-            <Pill tone="cool">{budOs.authority.label}</Pill>
+            <div className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[11px] font-semibold">
+              <button
+                onClick={() => setMode('mission')}
+                className={`rounded-md px-3 py-1 transition ${mode === 'mission' ? 'bg-white text-slate-900' : 'text-white/65 hover:text-white'}`}
+                title="Operator view"
+              >
+                Mission Control
+              </button>
+              <button
+                onClick={() => setMode('diagnostics')}
+                className={`rounded-md px-3 py-1 transition ${mode === 'diagnostics' ? 'bg-white text-slate-900' : 'text-white/65 hover:text-white'}`}
+                title="Engineering / deep-debug view"
+              >
+                Diagnostics
+              </button>
+            </div>
             <button onClick={() => router.refresh()} className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]">
               Refresh
             </button>
@@ -2549,8 +2577,8 @@ export function MissionControlClient({
           </div>
         </nav>
 
-        {/* Persistent presence + command */}
-        {tab !== 'command' && (
+        {/* Persistent presence + command — diagnostics only. Mission view embeds Ask Bud in the cockpit. */}
+        {tab !== 'command' && mode === 'diagnostics' && (
           <div className="mb-5 space-y-4">
             <CommandBar onCreated={refreshHint} presenceState={budOs.state.label} />
             <PresencePanel presence={budOs.state} commandState={commandState} authority={budOs.authority} thoughts={budOs.thoughtStream} />
@@ -2563,7 +2591,25 @@ export function MissionControlClient({
             <CommandTab presenceState={budOs.state.label} onSubmitted={refreshHint} initiatives={budOs.initiatives} />
           )}
 
-          {tab === 'overview' && (
+          {tab === 'overview' && mode === 'mission' && (
+            <OverviewV2
+              commandState={commandState}
+              queue={queue}
+              workspace={workspace}
+              failures={budOs.structuredFailures}
+              thoughts={budOs.thoughtStream}
+              activity={liveActivity}
+              uxEvolution={budOs.uxEvolution}
+              selectedId={selected?.id ?? null}
+              investigatingIds={investigatingIds}
+              onSelect={(item) => setSelectedId(item.id)}
+              onApprove={(item) => void approve(item)}
+              onInvestigate={(item) => void investigate(item)}
+              onDismiss={(item) => void dismiss(item)}
+            />
+          )}
+
+          {tab === 'overview' && mode === 'diagnostics' && (
             <>
               <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
                 <div style={{ minWidth: 0, overflow: 'hidden' }}>

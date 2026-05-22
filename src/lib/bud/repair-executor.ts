@@ -421,7 +421,7 @@ export async function executeRepairPipeline(
   // A non-zero exit means we are not in a git repo — skip the dirty-worktree gate and continue.
   const gitStatus = await runCommand('git', ['status', '--short'], 30_000);
   const gitAvailable = gitStatus.exitCode === 0;
-  await log(supabase, executionId, reproduceStep, gitAvailable ? 'info' : 'warn',
+  await log(supabase, executionId, reproduceStep, 'info',
     gitAvailable ? 'Captured git status.' : 'git not available in this environment — skipping worktree check.',
     gitStatus,
   );
