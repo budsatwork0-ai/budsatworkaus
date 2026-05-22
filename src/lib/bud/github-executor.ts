@@ -204,10 +204,10 @@ export async function branchExists(name: string): Promise<boolean> {
   }
 }
 
-export function budBranchName(agentId: string): string {
-  const ts = Date.now();
+export function budBranchName(agentId: string, taskId: string): string {
   const safe = agentId.replace(/[^a-z0-9-]/g, '-');
-  return `bud/fix-${safe}-${ts}`;
+  const shortId = taskId.slice(0, 8);
+  return `bud/fix-${safe}-${shortId}`;
 }
 
 export function budImproveBranchName(area: string): string {

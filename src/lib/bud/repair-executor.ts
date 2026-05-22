@@ -7,6 +7,7 @@ import {
   createIssue,
   createPR,
   budBranchName,
+  branchExists,
   getFileContent,
   writeFileToBranch,
   searchIssues,
@@ -524,9 +525,14 @@ export async function executeRepairPipeline(
   let prUrl: string | null = null;
 
   try {
-    branchName = budBranchName(typedTask.source_agent ?? 'unknown');
-    await createBranch(branchName);
-    await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
+    branchName = budBranchName(typedTask.source_agent ?? 'unknown', typedTask.id);
+    const alreadyExists = await branchExists(branchName);
+    if (alreadyExists) {
+      await log(supabase, executionId, patchStep, 'info', `Reusing existing branch ${branchName}.`);
+    } else {
+      await createBranch(branchName);
+      await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
+    }
   } catch (branchErr) {
     await finishStep(supabase, patchStep, 'failed', { error: String(branchErr) });
     await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });

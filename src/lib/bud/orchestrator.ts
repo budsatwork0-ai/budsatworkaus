@@ -468,7 +468,7 @@ export async function executeRepairPlan(
       );
     }
 
-    const branchName = budBranchName(targetAgent);
+    const branchName = budBranchName(targetAgent, taskId);
     try {
       await updateBudTask(supabase, taskId, { status: 'in_progress' });
 
