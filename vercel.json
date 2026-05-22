@@ -26,15 +26,15 @@
     },
     {
       "path": "/api/agents/cron?agent_id=analytics-intelligence",
-      "schedule": "0 7 * * 3"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/agents/cron?agent_id=admin-optimization",
-      "schedule": "30 7 * * 3"
+      "schedule": "30 7 * * *"
     },
     {
       "path": "/api/agents/cron?agent_id=ux-intelligence",
-      "schedule": "0 8 * * 1"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/agents/cron?agent_id=github-historian",
@@ -46,15 +46,15 @@
     },
     {
       "path": "/api/cron/bud",
-      "schedule": "0 9 * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/agents/cron?agent_id=bud-observer",
-      "schedule": "0 6 * * *"
+      "schedule": "0 */4 * * *"
     },
     {
       "path": "/api/cron/pipeline",
-      "schedule": "0 7 * * *"
+      "schedule": "0 1,7,13,19 * * *"
     }
   ]
 }

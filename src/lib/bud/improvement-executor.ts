@@ -394,18 +394,40 @@ Then return the plan as JSON: { "approach": "...", "confidence": 0.0-1.0, "estim
   await emitStage(supabase, pipelineRunId, 'generate', 'active', {});
   const patchStep = await startStep(supabase, executionId, 'patching', 'Generating surgical code improvement.');
 
-  // Check for duplicate in-flight PRs
-  const existingPRs = await listOpenPRsByLabel('bud-improvement').catch(() => []);
-  const area = (typedSignal.affected_area ?? typedSignal.title).slice(0, 30).toLowerCase();
-  const duplicate = existingPRs.find((pr) => pr.title.toLowerCase().includes(area));
-  if (duplicate) {
-    await log(supabase, executionId, patchStep, 'warn',
-      `Skipping: duplicate improvement PR already open: ${duplicate.url}`);
-    await finishStep(supabase, patchStep, 'blocked', { duplicate_pr: duplicate.url });
-    await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
-    await supabase.from('bud_improvement_signals').update({ status: 'stale' }).eq('id', typedSignal.id);
-    return { executionId, status: 'blocked', blockedReason: 'duplicate_pr', prUrl: duplicate.url };
+  // For Vercel build failures: fix the existing branch, not a new one.
+  const isVercelBuildFix = typedSignal.signal_type === 'vercel_build_failure';
+  const existingBranchForFix = isVercelBuildFix ? (typedSignal.affected_area ?? null) : null;
+
+  // Check for duplicate in-flight PRs (skip for Vercel build fixes — we're fixing an open branch)
+  if (!isVercelBuildFix) {
+    const existingPRs = await listOpenPRsByLabel('bud-improvement').catch(() => []);
+    const area = (typedSignal.affected_area ?? typedSignal.title).slice(0, 30).toLowerCase();
+    const duplicate = existingPRs.find((pr) => pr.title.toLowerCase().includes(area));
+    if (duplicate) {
+      await log(supabase, executionId, patchStep, 'warn',
+        `Skipping: duplicate improvement PR already open: ${duplicate.url}`);
+      await finishStep(supabase, patchStep, 'blocked', { duplicate_pr: duplicate.url });
+      await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
+      await supabase.from('bud_improvement_signals').update({ status: 'stale' }).eq('id', typedSignal.id);
+      return { executionId, status: 'blocked', blockedReason: 'duplicate_pr', prUrl: duplicate.url };
+    }
   }
+
+  // For Vercel build failures: read target files from the failing branch, not main.
+  // The build error context is in the signal description — add it to the prompt.
+  const sourceBranchForRead = existingBranchForFix ?? 'main';
+  if (existingBranchForFix && fileContextParts.length === 0 && targetFiles.length > 0) {
+    for (const fp of targetFiles.slice(0, 3)) {
+      try {
+        const file = await getFileContent(fp, existingBranchForFix);
+        if (file) fileContextParts.push(`=== FILE: ${fp} (from ${existingBranchForFix}) ===\n${file.content.slice(0, 8000)}`);
+      } catch { /* non-fatal */ }
+    }
+  }
+
+  const buildErrorContext = isVercelBuildFix
+    ? `\nBUILD ERROR (must fix exactly this):\n${(typedSignal.description ?? '').slice(0, 1200)}\n\nKNOWN EXPORTS in src/lib/supabase/server.ts: createServiceClient(), createServiceClientSafe()\n(createClient is NOT exported — use createServiceClient() instead, it is synchronous)\n`
+    : '';
 
   const patchPrompt = `You are Bud, an autonomous code improvement agent for a TypeScript/Next.js 15/Supabase codebase.
 
@@ -413,8 +435,8 @@ IMPROVEMENT TO IMPLEMENT:
   Title: ${typedSignal.title}
   Approach: ${approach}
   Signal type: ${typedSignal.signal_type}
-
-${fileContextParts.length > 0 ? `CURRENT CODE:\n${fileContextParts.join('\n\n')}` : 'No file context could be read from the repository.'}
+${buildErrorContext}
+${fileContextParts.length > 0 ? `CURRENT CODE (from branch ${sourceBranchForRead}):\n${fileContextParts.join('\n\n')}` : 'No file context could be read from the repository.'}
 
 HISTORICAL PATTERNS:
 ${historyContext}
@@ -491,19 +513,26 @@ Return ONLY valid JSON:
     return { executionId, status: 'blocked', blockedReason: 'no_patches' };
   }
 
-  // Create branch and write patches
+  // Create branch and write patches.
+  // For Vercel build failures: push to the EXISTING failing branch, not a new one.
   let branchName: string;
-  try {
-    branchName = budImproveBranchName(typedSignal.affected_area ?? typedSignal.signal_type);
-    await createBranch(branchName);
-    await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
-    await emitStage(supabase, pipelineRunId, 'sandbox', 'passed', { branch: branchName });
-  } catch (branchErr) {
-    await finishStep(supabase, patchStep, 'failed', { error: String(branchErr) });
-    await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
-    await emitStage(supabase, pipelineRunId, 'sandbox', 'rejected', { error: String(branchErr) });
-    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
-    return { executionId, status: 'failed' };
+  if (existingBranchForFix) {
+    branchName = existingBranchForFix;
+    await log(supabase, executionId, patchStep, 'info', `Reusing existing branch ${branchName} for Vercel build fix.`);
+    await emitStage(supabase, pipelineRunId, 'sandbox', 'passed', { branch: branchName, reused: true });
+  } else {
+    try {
+      branchName = budImproveBranchName(typedSignal.affected_area ?? typedSignal.signal_type);
+      await createBranch(branchName);
+      await log(supabase, executionId, patchStep, 'info', `Created branch ${branchName}.`);
+      await emitStage(supabase, pipelineRunId, 'sandbox', 'passed', { branch: branchName });
+    } catch (branchErr) {
+      await finishStep(supabase, patchStep, 'failed', { error: String(branchErr) });
+      await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
+      await emitStage(supabase, pipelineRunId, 'sandbox', 'rejected', { error: String(branchErr) });
+      await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+      return { executionId, status: 'failed' };
+    }
   }
 
   const pushTimestamp = new Date().toISOString();
