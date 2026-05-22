@@ -460,22 +460,46 @@ function PipelineColumn({
       {/* spine */}
       <div className="pointer-events-none absolute left-7 top-12 bottom-12 w-px bg-gradient-to-b from-transparent via-white/15 to-transparent" />
 
-      <header className="mb-5 flex items-baseline justify-between">
+      <header className="mb-5 flex items-start justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-300/70">
             Surface · {SURFACE_LABEL[surface]}
           </div>
           <div className="mt-1 text-sm text-white/60">
             {run
-              ? `Run ${runId} · ${run.run.trigger_signal} · verdict ${verdict}`
+              ? `Run ${runId} · ${run.run.trigger_signal}`
               : 'No active run · waiting for next opportunity from Bud Observer'}
           </div>
         </div>
-        {killSwitchPaused && (
-          <span className="rounded-full border border-red-400/30 bg-red-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-red-300">
-            kill-switch paused
-          </span>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {run && verdict && (() => {
+            if (verdict === 'pending') return (
+              <span className="flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-sky-300">
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+                running
+              </span>
+            );
+            return (
+              <span className={[
+                'rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest',
+                verdict === 'auto_merge'
+                  ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+                  : verdict === 'rolled_back'
+                  ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+                  : verdict === 'rejected'
+                  ? 'border-red-400/30 bg-red-500/10 text-red-300'
+                  : 'border-sky-400/30 bg-sky-400/10 text-sky-300',
+              ].join(' ')}>
+                {verdict === 'auto_merge' ? '✓ shipped' : verdict.replace('_', ' ')}
+              </span>
+            );
+          })()}
+          {killSwitchPaused && (
+            <span className="rounded-full border border-red-400/30 bg-red-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-red-300">
+              kill-switch paused
+            </span>
+          )}
+        </div>
       </header>
 
       <ol className="space-y-3">
