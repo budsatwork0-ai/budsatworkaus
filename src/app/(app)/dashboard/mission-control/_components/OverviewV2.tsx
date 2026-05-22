@@ -40,13 +40,16 @@ import {
   deriveForecasts,
   derivePreflight,
   deriveGlobalTruth,
+  deriveHealthDimensions,
   deriveOperationalRisk,
+  deriveOrchestrationPhases,
   deriveSystemsMap,
   deriveVerifiedOutcomes,
   type CanonicalIncident,
   type ExecutionState,
   type GlobalTruthState,
   type OpRiskLevel,
+  type OrchestrationPhase,
 } from '@/lib/bud/overview-v2';
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -56,6 +59,7 @@ import {
 const TRUTH_TONE: Record<GlobalTruthState, { ring: string; text: string; dot: string; barBg: string; bar: string }> = {
   healthy: { ring: 'ring-emerald-400/30', text: 'text-emerald-300', dot: 'bg-emerald-400', barBg: 'bg-emerald-500/15', bar: 'bg-emerald-400' },
   degraded: { ring: 'ring-amber-400/30', text: 'text-amber-300', dot: 'bg-amber-400', barBg: 'bg-amber-500/15', bar: 'bg-amber-400' },
+  approval: { ring: 'ring-yellow-300/30', text: 'text-yellow-200', dot: 'bg-yellow-300', barBg: 'bg-yellow-300/15', bar: 'bg-yellow-300' },
   recovering: { ring: 'ring-sky-400/30', text: 'text-sky-300', dot: 'bg-sky-400', barBg: 'bg-sky-500/15', bar: 'bg-sky-400' },
   blocked: { ring: 'ring-red-400/40', text: 'text-red-300', dot: 'bg-red-400', barBg: 'bg-red-500/15', bar: 'bg-red-400' },
 };
@@ -82,6 +86,18 @@ const PIPELINE_LABEL: Record<ExecutionState, string> = {
   approved: 'Approved',
   deployed: 'Deployed',
   verified: 'Verified',
+};
+
+const ORCHESTRATION_LABEL: Record<OrchestrationPhase, string> = {
+  investigation: 'Investigation',
+  root_cause: 'Root cause',
+  diff_generated: 'Diff generated',
+  sandbox_validation: 'Sandbox validation',
+  ux_review: 'UX review',
+  browser_simulation: 'Browser simulation',
+  human_approval: 'Human approval',
+  deploy: 'Deploy',
+  live_verification: 'Live verification',
 };
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -139,6 +155,7 @@ export function OverviewV2(props: Props) {
     [thoughts, failures, commandState],
   );
   const execStates = useMemo(() => deriveExecutionStates(workspace), [workspace]);
+  const orchestration = useMemo(() => deriveOrchestrationPhases(workspace), [workspace]);
   const confidence = useMemo(() => deriveConfidence(workspace), [workspace]);
   const map = useMemo(() => deriveSystemsMap(commandState), [commandState]);
   const forecasts = useMemo(
@@ -154,6 +171,10 @@ export function OverviewV2(props: Props) {
     [failures, uxEvolution, commandState],
   );
   const capabilities = useMemo(() => activeCapabilities(commandState), [commandState]);
+  const dimensions = useMemo(
+    () => deriveHealthDimensions({ commandState, failures, uxEvolution }),
+    [commandState, failures, uxEvolution],
+  );
   const preflight = useMemo(
     () => derivePreflight({ commandState, incident: incidents[0] ?? null }),
     [commandState, incidents],
@@ -167,6 +188,7 @@ export function OverviewV2(props: Props) {
         cockpit={cockpit}
         commandState={commandState}
         capabilities={capabilities}
+        dimensions={dimensions}
         onJumpTo={(id) => {
           const target = queue.find((q) => q.id === id);
           if (target) onSelect(target);
@@ -189,6 +211,7 @@ export function OverviewV2(props: Props) {
         <PipelineCard
           workspace={workspace}
           execStates={execStates}
+          orchestration={orchestration}
           confidence={confidence}
           preflight={preflight}
         />
@@ -228,12 +251,14 @@ function GlobalTruthCockpit({
   cockpit,
   commandState,
   capabilities,
+  dimensions,
   onJumpTo,
 }: {
   truth: ReturnType<typeof deriveGlobalTruth>;
   cockpit: ReturnType<typeof buildCockpitSummary>;
   commandState: MissionControlHealth;
   capabilities: ReturnType<typeof activeCapabilities>;
+  dimensions: ReturnType<typeof deriveHealthDimensions>;
   onJumpTo: (id: string) => void;
 }) {
   const tone = TRUTH_TONE[truth.state];
@@ -285,6 +310,21 @@ function GlobalTruthCockpit({
               <div className={`h-full ${tone.bar}`} style={{ width: `${truth.index}%` }} />
             </div>
             <p className="mt-2 text-xs text-white/45">{truth.detail}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {dimensions.map((dimension) => {
+              const dimensionTone = TRUTH_TONE[dimension.state];
+              return (
+                <div key={dimension.key} className={`rounded-lg border border-white/[0.06] bg-black/20 p-3 ring-1 ring-inset ${dimensionTone.ring}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{dimension.label}</span>
+                    <span className={`h-1.5 w-1.5 rounded-full ${dimensionTone.dot}`} />
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-white">{dimension.value}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/45">{dimension.detail}</p>
+                </div>
+              );
+            })}
           </div>
           {capabilities.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -386,6 +426,7 @@ function GlobalTruthCockpit({
 
 function suggestedQuestions(state: GlobalTruthState, c: MissionControlHealth): string[] {
   if (state === 'blocked') return ['What is blocked right now?', 'How do I unblock the next deploy?'];
+  if (state === 'approval') return ['What needs approval?', 'Is this safe to approve?'];
   if (state === 'recovering') return ['What is being repaired?', 'When will verification complete?'];
   if (state === 'degraded') return ['What needs my decision?', 'Which capability is hurting customers?'];
   if (c.repair_sessions.length > 0) return ['Show me the last successful repair', 'What did Bud learn this week?'];
@@ -458,10 +499,13 @@ function ActionQueueV2({
         {incidents.map((incident) => {
           const primary = incident.signals[0];
           if (!primary) return null;
-          const weight = SEVERITY_WEIGHT[incident.severity];
           const active = primary.id === selectedId;
           const investigating = investigatingIds.has(primary.id);
           const classified = classifyIntent(primary);
+          const isWatch = !classified.shouldTriggerRepair && !primary.approval;
+          const weight = isWatch
+            ? { label: 'Watch', tone: 'border-sky-400/30 text-sky-300 bg-sky-500/[0.06]' }
+            : SEVERITY_WEIGHT[incident.severity];
           return (
             <li key={incident.key}>
               <button
@@ -475,7 +519,11 @@ function ActionQueueV2({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium text-white">{incident.title}</p>
+                    <p className="truncate text-sm font-medium text-white">
+                      {incident.occurrences > 1
+                        ? `${incident.occurrences} agents affected by identical ${intentLabel(classified.intent).toLowerCase()} issue`
+                        : incident.title}
+                    </p>
                     {incident.occurrences > 1 && (
                       <span className="rounded-full border border-white/10 bg-white/[0.03] px-1.5 py-px text-[10px] text-white/55">×{incident.occurrences}</span>
                     )}
@@ -485,6 +533,10 @@ function ActionQueueV2({
                     {incident.agentName && <span>{incident.agentName}</span>}
                     <span>·</span>
                     <span title={classified.reason}>{intentLabel(classified.intent)}</span>
+                    <span>·</span>
+                    <span className={isWatch ? 'text-sky-300/80' : classified.shouldTriggerRepair ? 'text-amber-300/80' : 'text-white/45'}>
+                      {isWatch ? 'Internal optimization only' : classified.shouldTriggerRepair ? 'Repairable' : 'No customer impact'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
@@ -543,11 +595,13 @@ function intentLabel(intent: ReturnType<typeof classifyIntent>['intent']): strin
 function PipelineCard({
   workspace,
   execStates,
+  orchestration,
   confidence,
   preflight,
 }: {
   workspace: BudOsRepairWorkspace;
   execStates: ReturnType<typeof deriveExecutionStates>;
+  orchestration: ReturnType<typeof deriveOrchestrationPhases>;
   confidence: ReturnType<typeof deriveConfidence>;
   preflight: ReturnType<typeof derivePreflight>;
 }) {
@@ -602,6 +656,27 @@ function PipelineCard({
           </ul>
         </div>
       )}
+
+      <div className="mt-4 rounded-lg border border-white/[0.06] bg-black/20 p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Orchestration state</div>
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+          {orchestration.map((phase) => {
+            const tone = phase.reached
+              ? 'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300'
+              : phase.blocker && !/pending|deploy first|no approval required/i.test(phase.blocker)
+                ? 'border-amber-400/30 bg-amber-500/[0.06] text-amber-300'
+                : 'border-white/10 bg-white/[0.02] text-white/45';
+            return (
+              <div key={phase.phase} className={`rounded-md border px-2 py-1.5 ${tone}`} title={phase.evidence ?? phase.blocker ?? undefined}>
+                <div className="truncate text-[11px] font-semibold">{ORCHESTRATION_LABEL[phase.phase]}</div>
+                <div className="mt-0.5 truncate text-[10px] opacity-70">
+                  {phase.reached ? 'complete' : phase.blocker ?? 'pending'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Compact horizontal pipeline — suppressed when preflight is hard-blocked */}
       {!preflightHard && (
@@ -666,15 +741,18 @@ function PipelineCard({
       <div className="mt-5">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Confidence</span>
-          <span className={`text-sm font-semibold tabular-nums ${confidence.confidence >= 80 ? 'text-emerald-300' : confidence.confidence >= 50 ? 'text-amber-300' : 'text-red-300'}`}>
-            {confidence.confidence}%
-          </span>
+          <span className="text-[11px] text-white/35">staged, evidence-based</span>
         </div>
-        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
-          <div
-            className={`h-full ${confidence.confidence >= 80 ? 'bg-emerald-400' : confidence.confidence >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
-            style={{ width: `${confidence.confidence}%` }}
-          />
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {confidence.stages.map((stage) => (
+            <div key={stage.label} className="rounded-lg border border-white/[0.06] bg-black/20 p-2.5">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{stage.label}</div>
+              <div className={`mt-1 text-sm font-semibold ${stage.value == null ? 'text-white/45' : stage.value >= 75 ? 'text-emerald-300' : stage.value >= 50 ? 'text-amber-300' : 'text-red-300'}`}>
+                {stage.value == null ? 'Unavailable' : `${stage.value}%`}
+              </div>
+              <div className="mt-0.5 text-[10px] text-white/40">{stage.status}</div>
+            </div>
+          ))}
         </div>
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
           {confidence.evidence.map((e) => (
@@ -968,7 +1046,7 @@ function DeploymentTimelineCard({
 }
 
 function relTime(iso: string | null): string {
-  if (!iso) return 'never';
+  if (!iso) return 'Telemetry unavailable';
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 60_000) return 'just now';
   if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;

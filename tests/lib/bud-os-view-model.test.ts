@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBudOsActionQueue, deriveBudOsState } from '@/lib/bud/os-view-model';
+import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 import type { MissionControlHealth } from '@/lib/bud/health';
 
 const baseCommandState: MissionControlHealth = {
@@ -125,5 +126,36 @@ describe('Bud OS view model', () => {
       'suggested_improvements',
       'watch_items',
     ]);
+  });
+
+  it('treats approval thresholds as awaiting decision, not platform blocked', () => {
+    const truth = deriveGlobalTruth({
+      ...baseCommandState,
+      global_status: 'blocked',
+      status: 'attention_required',
+      bud_status: 'critical',
+      is_nominal: false,
+      counts: { ...baseCommandState.counts, blocked_repairs: 1 },
+    });
+
+    expect(truth.state).toBe('approval');
+    expect(truth.headline).toBe('Awaiting decision');
+  });
+
+  it('keeps failed deployments in the blocked state', () => {
+    const truth = deriveGlobalTruth({
+      ...baseCommandState,
+      global_status: 'blocked',
+      status: 'attention_required',
+      bud_status: 'critical',
+      is_nominal: false,
+      deployment: {
+        ...baseCommandState.deployment,
+        status: 'failed',
+        summary: 'Last deployment failed.',
+      },
+    });
+
+    expect(truth.state).toBe('blocked');
   });
 });

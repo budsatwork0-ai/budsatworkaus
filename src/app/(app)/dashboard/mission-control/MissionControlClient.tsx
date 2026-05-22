@@ -2514,6 +2514,7 @@ export function MissionControlClient({
   const truthDot = {
     healthy: 'bg-emerald-400',
     degraded: 'bg-amber-400',
+    approval: 'bg-yellow-300',
     recovering: 'bg-sky-400',
     blocked: 'bg-red-400',
   }[truth.state];
@@ -2737,7 +2738,7 @@ export function MissionControlClient({
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
           <span>Buds OS · operational intelligence layer</span>
-          <span className="ml-auto">global_status: {commandState.global_status} · bud_status: {commandState.bud_status}</span>
+          <span className="ml-auto">{truth.headline} · {truth.detail}</span>
         </footer>
       </div>
     </div>

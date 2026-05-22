@@ -23,7 +23,7 @@ import type { UxEvolutionRecommendation } from './ux-evolution-engine';
 /*                              GLOBAL TRUTH STATE                            */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-export type GlobalTruthState = 'healthy' | 'degraded' | 'blocked' | 'recovering';
+export type GlobalTruthState = 'healthy' | 'degraded' | 'approval' | 'blocked' | 'recovering';
 
 export type GlobalTruth = {
   state: GlobalTruthState;
@@ -35,10 +35,12 @@ export type GlobalTruth = {
 
 export function deriveGlobalTruth(commandState: MissionControlHealth): GlobalTruth {
   const c = commandState.counts;
-  const blocked =
-    c.blocked_repairs > 0 ||
-    commandState.deployment.status === 'failed' ||
-    commandState.global_status === 'blocked';
+  const hardBlocked = commandState.deployment.status === 'failed' || c.broken_agents > 0;
+  const awaitingDecision =
+    !hardBlocked &&
+    (c.blocked_repairs > 0 ||
+      c.pending_approvals > 0 ||
+      commandState.repair_sessions.some((s) => s.phase === 'awaiting_approval' || s.phase === 'blocked'));
   const recovering =
     commandState.global_status === 'repairing' ||
     commandState.operating_mode === 'repairing' ||
@@ -57,8 +59,9 @@ export function deriveGlobalTruth(commandState: MissionControlHealth): GlobalTru
     c.pending_approvals > 0;
 
   let state: GlobalTruthState;
-  if (blocked) state = 'blocked';
+  if (hardBlocked) state = 'blocked';
   else if (recovering) state = 'recovering';
+  else if (awaitingDecision) state = 'approval';
   else if (degraded) state = 'degraded';
   else state = 'healthy';
 
@@ -76,6 +79,7 @@ export function deriveGlobalTruth(commandState: MissionControlHealth): GlobalTru
   const headline = ({
     healthy: 'Healthy',
     degraded: 'Degraded',
+    approval: 'Awaiting decision',
     blocked: 'Blocked',
     recovering: 'Recovering',
   } as const)[state];
@@ -85,9 +89,11 @@ export function deriveGlobalTruth(commandState: MissionControlHealth): GlobalTru
       ? 'No active incidents. Platform is operating within expected envelopes.'
       : state === 'blocked'
         ? buildBlockedDetail(commandState)
-        : state === 'recovering'
-          ? buildRecoveringDetail(commandState)
-          : buildDegradedDetail(commandState);
+        : state === 'approval'
+          ? buildApprovalDetail(commandState)
+          : state === 'recovering'
+            ? buildRecoveringDetail(commandState)
+            : buildDegradedDetail(commandState);
 
   return { state, headline, detail, index };
 }
@@ -111,8 +117,81 @@ function buildRecoveringDetail(c: MissionControlHealth): string {
 
 function buildBlockedDetail(c: MissionControlHealth): string {
   if (c.deployment.status === 'failed') return 'Last deployment failed. Verification gates are holding new releases.';
-  if (c.counts.blocked_repairs > 0) return `${c.counts.blocked_repairs} repair${c.counts.blocked_repairs === 1 ? '' : 's'} blocked and need a human decision.`;
-  return 'Bud cannot make forward progress without operator input.';
+  if (c.counts.broken_agents > 0) return `${c.counts.broken_agents} agent${c.counts.broken_agents === 1 ? '' : 's'} halted. Treat as operationally blocked.`;
+  return 'A hard operational gate is preventing forward progress.';
+}
+
+function buildApprovalDetail(c: MissionControlHealth): string {
+  const waiting = c.counts.blocked_repairs + c.approvals.total_pending;
+  if (waiting > 0) return `${waiting} item${waiting === 1 ? '' : 's'} awaiting operator approval. Platform remains operational.`;
+  return 'Repair is pending an operator decision.';
+}
+
+export type HealthDimension = {
+  key: 'platform_health' | 'repair_pipeline_health' | 'watch_agents' | 'customer_impact';
+  label: string;
+  value: string;
+  state: GlobalTruthState;
+  detail: string;
+};
+
+export function deriveHealthDimensions(args: {
+  commandState: MissionControlHealth;
+  failures?: StructuredFailure[];
+  uxEvolution?: UxEvolutionRecommendation[];
+}): HealthDimension[] {
+  const { commandState } = args;
+  const impact = deriveCustomerImpact({
+    commandState,
+    failures: args.failures ?? [],
+    uxEvolution: args.uxEvolution ?? [],
+  });
+  const activeRepairs = commandState.repair_sessions.filter((s) =>
+    ['repairing', 'patching', 'validating', 'verifying', 'deploying', 'monitoring'].includes(s.phase),
+  ).length;
+  const waitingRepairs =
+    commandState.counts.blocked_repairs +
+    commandState.repair_sessions.filter((s) => s.phase === 'awaiting_approval' || s.phase === 'blocked').length;
+  const platformBlocked = commandState.deployment.status === 'failed' || commandState.counts.broken_agents > 0;
+
+  return [
+    {
+      key: 'platform_health',
+      label: 'Platform health',
+      value: platformBlocked ? 'Platform intervention required' : 'Platform operational',
+      state: platformBlocked ? 'blocked' : 'healthy',
+      detail: commandState.deployment.status === 'failed'
+        ? 'Last deployment failed verification.'
+        : `${commandState.agents.length} agents registered.`,
+    },
+    {
+      key: 'repair_pipeline_health',
+      label: 'Repair pipeline',
+      value: waitingRepairs > 0
+        ? `${waitingRepairs} repair${waitingRepairs === 1 ? '' : 's'} pending approval`
+        : activeRepairs > 0
+          ? `${activeRepairs} repair${activeRepairs === 1 ? '' : 's'} in flight`
+          : 'No active repair pressure',
+      state: waitingRepairs > 0 ? 'approval' : activeRepairs > 0 ? 'recovering' : 'healthy',
+      detail: waitingRepairs > 0 ? 'Operator threshold or approval is holding execution.' : commandState.deployment.summary,
+    },
+    {
+      key: 'watch_agents',
+      label: 'Watch agents',
+      value: commandState.counts.watch_agents > 0
+        ? `${commandState.counts.watch_agents} watch agent${commandState.counts.watch_agents === 1 ? '' : 's'} degraded`
+        : 'Watch agents normal',
+      state: commandState.counts.watch_agents > 0 ? 'degraded' : 'healthy',
+      detail: commandState.counts.watch_agents > 0 ? 'Internal optimization only. No customer impact by default.' : 'Monitoring output is within expected bounds.',
+    },
+    {
+      key: 'customer_impact',
+      label: 'Customer impact',
+      value: impact.length > 0 ? `${impact.length} customer-facing signal${impact.length === 1 ? '' : 's'}` : 'No customer impact',
+      state: impact.some((i) => i.severity === 'critical') ? 'blocked' : impact.length > 0 ? 'degraded' : 'healthy',
+      detail: impact.length > 0 ? 'Review affected surfaces before deploy.' : 'Current signals are internal optimization or background monitoring.',
+    },
+  ];
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -312,7 +391,7 @@ export type CanonicalIncident = {
 function canonicalKey(item: BudOsQueueItem): string {
   const agent = item.agent_name ?? item.agent_id ?? 'system';
   if (item.source === 'agent_health') return `health:${agent}`;
-  if (item.source === 'agent_run') return `run-failure:${agent}`;
+  if (item.source === 'agent_run') return `run-failure:${failureSignature(item)}`;
   if (item.source === 'bud_insight') return `insight:${slug(item.title)}`;
   if (item.source === 'ux_evolution') return `ux:${slug(item.title)}`;
   if (item.source === 'bud_approval' || item.source === 'agent_action') return `pending:${item.id}`;
@@ -321,6 +400,16 @@ function canonicalKey(item: BudOsQueueItem): string {
 
 function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+}
+
+function failureSignature(item: BudOsQueueItem): string {
+  const normalised = `${item.title} ${item.detail}`
+    .toLowerCase()
+    .replace(/[a-f0-9]{7,40}/g, '<hash>')
+    .replace(/\b\d+\b/g, '<n>')
+    .replace(/[^a-z0-9<>]+/g, ' ')
+    .trim();
+  return slug(normalised) || (item.agent_id ?? 'runtime');
 }
 
 export function deduplicateSignals(items: BudOsQueueItem[]): CanonicalIncident[] {
@@ -381,11 +470,11 @@ const CAPABILITY_MAP: Array<{ match: RegExp; capability: string }> = [
   { match: /accessibility|a11y/i, capability: 'Validating accessibility' },
   { match: /quote|pricing|price/i, capability: 'Watching quote flow' },
   { match: /scheduling|crew|whs|safety/i, capability: 'Coordinating crew' },
-  { match: /stripe|invoice|cash|reconcil|payment/i, capability: 'Watching finance' },
-  { match: /seo|copy|content|competitor|review/i, capability: 'Tracking growth' },
+  { match: /stripe|invoice|cash|reconcil|payment/i, capability: 'Revenue telemetry stable' },
+  { match: /seo|copy|content|competitor|review/i, capability: 'Conversion monitoring active' },
   { match: /heatmap|ab[-_ ]test|intelligence|analytic/i, capability: 'Reading intelligence signals' },
   { match: /github|qa|ndis|compliance|historian/i, capability: 'Maintaining infrastructure' },
-  { match: /customer|reply|applicant|lead|transcrib|coach|map/i, capability: 'Watching customer surface' },
+  { match: /customer|reply|applicant|lead|transcrib|coach|map/i, capability: 'Customer systems monitored' },
 ];
 
 export function capabilityFor(agentName: string | null): string {
@@ -428,9 +517,9 @@ function severityForLevel(level: BudCapabilityActivity['level']): number {
 }
 
 function levelDescription(cap: string, level: BudCapabilityActivity['level']): string {
-  if (level === 'attention') return `Bud is repairing the ${cap.toLowerCase()} surface.`;
-  if (level === 'active') return `Bud is ${cap.toLowerCase()} right now.`;
-  return `Bud is ${cap.toLowerCase()} in the background.`;
+  if (level === 'attention') return `${cap} needs operator review.`;
+  if (level === 'active') return cap;
+  return `${cap} in background.`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -545,10 +634,12 @@ export function buildCockpitSummary(args: {
   const headline = truth.state === 'healthy'
     ? 'Platform is operating cleanly.'
     : truth.state === 'blocked'
-      ? 'Bud cannot make progress without a decision.'
-      : truth.state === 'recovering'
-        ? 'A repair is in flight. Verification is in progress.'
-        : `${critical.length + high.length} issue${critical.length + high.length === 1 ? '' : 's'} need attention.`;
+      ? 'Platform intervention is required.'
+      : truth.state === 'approval'
+        ? 'Repair is pending operator approval.'
+        : truth.state === 'recovering'
+          ? 'A repair is in flight. Verification is in progress.'
+          : `${critical.length + high.length} issue${critical.length + high.length === 1 ? '' : 's'} need attention.`;
 
   const bodyParts: string[] = [];
   if (approvalsPending > 0) {
@@ -616,6 +707,16 @@ function capitalise(s: string): string {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export type ExecutionState = 'proposed' | 'patched' | 'tested' | 'approved' | 'deployed' | 'verified';
+export type OrchestrationPhase =
+  | 'investigation'
+  | 'root_cause'
+  | 'diff_generated'
+  | 'sandbox_validation'
+  | 'ux_review'
+  | 'browser_simulation'
+  | 'human_approval'
+  | 'deploy'
+  | 'live_verification';
 
 export type ExecutionEvidence = {
   state: ExecutionState;
@@ -623,6 +724,13 @@ export type ExecutionEvidence = {
   /** Concrete proof that this state was reached. */
   evidence: string | null;
   /** When this state can't be reached because of a real block. */
+  blocker: string | null;
+};
+
+export type OrchestrationEvidence = {
+  phase: OrchestrationPhase;
+  reached: boolean;
+  evidence: string | null;
   blocker: string | null;
 };
 
@@ -702,6 +810,83 @@ export function deriveExecutionStates(workspace: BudOsRepairWorkspace): Executio
   ];
 }
 
+export function deriveOrchestrationPhases(workspace: BudOsRepairWorkspace): OrchestrationEvidence[] {
+  const hasInvestigation = Boolean(workspace.task_id || workspace.selected_item_id);
+  const hasRootCause = Boolean(workspace.root_cause_type || (workspace.diagnosis && !/has not opened/i.test(workspace.diagnosis)));
+  const hasDiff = Boolean(
+    workspace.pr_url ||
+      (workspace.diff_summary &&
+        workspace.diff_summary !== 'No code/config diff has been produced yet.' &&
+        workspace.diff_summary.length > 30),
+  );
+  const ciPassed = workspace.ci_conclusion === 'success';
+  const ciFailed = workspace.ci_conclusion === 'failure';
+  const uxReviewed = workspace.taste_pass === true || workspace.taste_pass === false;
+  const browserRun = workspace.browser_tests_total != null && workspace.browser_tests_total > 0;
+  const browserPassed = browserRun && workspace.browser_tests_failed === 0;
+  const approved = /approved/i.test(workspace.approval_status);
+  const needsApproval = workspace.approval_status === 'Needs your approval';
+  const deployed = Boolean(workspace.deployment_url);
+  const verified = deployed && (workspace.verification_status === 'verified' || /recovered|verified/i.test(workspace.verification_status));
+
+  return [
+    {
+      phase: 'investigation',
+      reached: hasInvestigation,
+      evidence: hasInvestigation ? 'Investigation selected or opened.' : null,
+      blocker: hasInvestigation ? null : 'No investigation started.',
+    },
+    {
+      phase: 'root_cause',
+      reached: hasRootCause,
+      evidence: hasRootCause ? workspace.root_cause_type ?? 'Root cause summary exists.' : null,
+      blocker: hasRootCause ? null : 'Root cause not established.',
+    },
+    {
+      phase: 'diff_generated',
+      reached: hasDiff,
+      evidence: hasDiff ? workspace.pr_url ?? workspace.diff_summary : null,
+      blocker: hasDiff ? null : 'No code diff generated.',
+    },
+    {
+      phase: 'sandbox_validation',
+      reached: ciPassed,
+      evidence: ciPassed ? 'CI validation passed.' : null,
+      blocker: ciFailed ? 'CI failed.' : ciPassed ? null : 'Sandbox validation pending.',
+    },
+    {
+      phase: 'ux_review',
+      reached: workspace.taste_pass === true,
+      evidence: workspace.taste_pass === true ? `UX review passed${workspace.taste_score != null ? `: ${workspace.taste_score}` : ''}.` : null,
+      blocker: workspace.taste_pass === false ? 'UX review failed.' : uxReviewed ? null : 'UX review pending.',
+    },
+    {
+      phase: 'browser_simulation',
+      reached: Boolean(browserPassed),
+      evidence: browserPassed ? `${workspace.browser_tests_passed ?? 0}/${workspace.browser_tests_total ?? 0} browser checks passed.` : null,
+      blocker: browserRun && !browserPassed ? 'Browser simulation failed.' : browserRun ? null : 'Browser simulation pending.',
+    },
+    {
+      phase: 'human_approval',
+      reached: approved,
+      evidence: approved ? 'Human approval recorded.' : null,
+      blocker: approved ? null : needsApproval ? 'Awaiting operator decision.' : 'No approval required yet.',
+    },
+    {
+      phase: 'deploy',
+      reached: deployed,
+      evidence: deployed ? `Deployment recorded: ${workspace.deployment_url}` : null,
+      blocker: deployed ? null : 'Deploy not recorded.',
+    },
+    {
+      phase: 'live_verification',
+      reached: verified,
+      evidence: verified ? 'Live verification confirmed.' : null,
+      blocker: verified ? null : deployed ? 'Live verification pending.' : 'Deploy first.',
+    },
+  ];
+}
+
 /* ────────────────────────────────────────────────────────────────────────── */
 /*                          EVIDENCE-BASED CONFIDENCE                         */
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -709,6 +894,11 @@ export function deriveExecutionStates(workspace: BudOsRepairWorkspace): Executio
 export type EvidenceBreakdown = {
   confidence: number; // 0-100
   evidence: Array<{ label: string; weight: number; present: boolean; detail?: string }>;
+  stages: Array<{
+    label: 'Root cause confidence' | 'Patch safety' | 'Production confidence';
+    value: number | null;
+    status: string;
+  }>;
 };
 
 export function deriveConfidence(workspace: BudOsRepairWorkspace): EvidenceBreakdown {
@@ -758,7 +948,42 @@ export function deriveConfidence(workspace: BudOsRepairWorkspace): EvidenceBreak
   return {
     confidence: total === 0 ? 0 : Math.round((earned / total) * 100),
     evidence,
+    stages: deriveStagedConfidence(workspace),
   };
+}
+
+function deriveStagedConfidence(workspace: BudOsRepairWorkspace): EvidenceBreakdown['stages'] {
+  const rootCauseSignals = [
+    Boolean(workspace.task_id),
+    Boolean(workspace.root_cause_type),
+    Boolean(workspace.diagnosis && !/has not opened/i.test(workspace.diagnosis)),
+    workspace.confidence != null,
+  ].filter(Boolean).length;
+  const rootCause = workspace.confidence != null
+    ? Math.round(workspace.confidence * 100)
+    : Math.min(85, 35 + rootCauseSignals * 12);
+
+  const patchSignals = [
+    Boolean(workspace.pr_url || (workspace.diff_summary && workspace.diff_summary.length > 30)),
+    workspace.ci_conclusion === 'success',
+    workspace.taste_pass === true,
+    workspace.browser_test_status === 'passed' ||
+      (workspace.browser_tests_total != null && workspace.browser_tests_failed === 0 && workspace.browser_tests_total > 0),
+  ].filter(Boolean).length;
+  const patchSafety = patchSignals === 0 ? null : Math.min(95, 20 + patchSignals * 18);
+
+  const productionSignals = [
+    Boolean(workspace.deployment_url),
+    /verified|recovered/i.test(workspace.verification_status),
+    workspace.repair_success_rate != null && workspace.repair_success_rate >= 0.8,
+  ].filter(Boolean).length;
+  const production = !workspace.deployment_url ? null : Math.min(96, 30 + productionSignals * 20);
+
+  return [
+    { label: 'Root cause confidence', value: rootCause, status: rootCauseSignals > 1 ? 'evidence available' : 'investigating' },
+    { label: 'Patch safety', value: patchSafety, status: patchSafety == null ? 'pending' : patchSafety >= 70 ? 'supported by checks' : 'needs validation' },
+    { label: 'Production confidence', value: production, status: production == null ? 'unavailable until deploy' : production >= 70 ? 'verification evidence available' : 'waiting on live proof' },
+  ];
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
