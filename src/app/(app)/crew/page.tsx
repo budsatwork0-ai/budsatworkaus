@@ -207,8 +207,8 @@ export default function CrewHomePage() {
       {/* Onboarding prompt */}
       {!onboardingComplete && (
         <Link href="/crew/onboarding"
-          className="flex items-center justify-between p-4 rounded-2xl border"
-          style={{ ...glass, borderColor: '#F59E0B33', background: 'rgba(245,158,11,0.08)' }}
+          className={`flex items-center justify-between p-4 rounded-2xl border ${glass}`}
+          style={{ borderColor: '#F59E0B33', background: 'rgba(245,158,11,0.08)' }}
         >
           <div>
             <p className="font-semibold text-sm" style={{ color: '#F59E0B' }}>Complete your onboarding</p>
@@ -221,8 +221,8 @@ export default function CrewHomePage() {
       {/* Expiring docs alert */}
       {expiringDocs.length > 0 && (
         <Link href="/crew/documents"
-          className="flex items-center justify-between p-4 rounded-2xl border"
-          style={{ ...glass, borderColor: '#EF444433', background: 'rgba(239,68,68,0.08)' }}
+          className={`flex items-center justify-between p-4 rounded-2xl border ${glass}`}
+          style={{ borderColor: '#EF444433', background: 'rgba(239,68,68,0.08)' }}
         >
           <div>
             <p className="font-semibold text-sm" style={{ color: '#EF4444' }}>
@@ -240,8 +240,8 @@ export default function CrewHomePage() {
       <div className="grid grid-cols-2 gap-3">
         {statCards.map((card) => (
           <Link key={card.label} href={card.href}
-            className="flex flex-col gap-1 p-4 rounded-2xl border"
-            style={{ ...glass, borderColor: `${card.color}33` }}
+            className={`flex flex-col gap-1 p-4 rounded-2xl border ${glass}`}
+            style={{ borderColor: `${card.color}33` }}
           >
             <span className="text-2xl font-bold" style={{ color: card.color }}>
               {statsLoading ? '—' : card.value}
@@ -256,8 +256,8 @@ export default function CrewHomePage() {
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border"
-          style={{ ...glass, borderColor: `${brand.primary}40`, background: 'rgba(15,61,46,0.18)' }}
+          className={`flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border ${glass}`}
+          style={{ borderColor: `${brand.primary}40`, background: 'rgba(15,61,46,0.18)' }}
         >
           <button
             onClick={() => {
@@ -285,7 +285,7 @@ export default function CrewHomePage() {
       )}
 
       {/* This-week summary */}
-      <div className="p-4 rounded-2xl border" style={{ ...glass }}>
+      <div className={`p-4 rounded-2xl border ${glass}`}>
         <p className="text-sm font-semibold mb-3" style={{ color: brand.text }}>This Week</p>
         <div className="flex gap-4 mb-4">
           <div>
@@ -339,8 +339,7 @@ export default function CrewHomePage() {
         <div className="grid grid-cols-2 gap-3">
           {quickActions.map((action) => (
             <Link key={action.href} href={action.href}
-              className="flex items-start gap-3 p-4 rounded-2xl border"
-              style={{ ...glass }}
+              className={`flex items-start gap-3 p-4 rounded-2xl border ${glass}`}
             >
               <div className="mt-0.5">{action.icon}</div>
               <div>
