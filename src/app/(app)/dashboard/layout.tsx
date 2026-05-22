@@ -148,9 +148,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { kind: 'link', href: '/dashboard/crew',      label: 'Crew',      icon: crewIcon,      badgeKey: 'applicants'},
     { kind: 'link', href: '/dashboard/insights',  label: 'Insights',  icon: insightsIcon,                        },
     { kind: 'link', href: '/dashboard/mission-control', label: 'Bud OS', icon: missionIcon, adminOnly: true },
-    { kind: 'link', href: '/dashboard/agents',    label: 'Workforce', icon: agentsIcon,    adminOnly: true       },
-    { kind: 'link', href: '/dashboard/agents/lobby', label: 'Runtime', icon: lobbyIcon,     adminOnly: true       },
-    { kind: 'link', href: '/dashboard/agents/intel', label: 'Intelligence', icon: agentsIcon, adminOnly: true       },
     { kind: 'link', href: '/dashboard/ndis',      label: 'NDIS',      icon: ndisIcon,      adminOnly: true       },
     { kind: 'link', href: '/dashboard/settings',  label: 'Settings',  icon: settingsIcon,  adminOnly: true       },
   ], []);

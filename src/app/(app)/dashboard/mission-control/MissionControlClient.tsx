@@ -17,6 +17,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { WORKFLOWS } from '@/lib/agents/workflows';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
@@ -1667,7 +1668,80 @@ function Workforce({ clusters, commandState }: { clusters: BudOsWorkforceCluster
           )}
         </div>
       </Card>
+      <WorkflowChainsCard />
     </div>
+  );
+}
+
+const DOMAIN_DOT: Record<string, string> = {
+  customer:   'bg-emerald-400',
+  operations: 'bg-violet-400',
+  finance:    'bg-rose-400',
+  growth:     'bg-sky-400',
+  compliance: 'bg-zinc-400',
+  talent:     'bg-amber-400',
+};
+
+function WorkflowChainsCard() {
+  const [running, setRunning] = useState<string | null>(null);
+
+  async function runChain(workflowId: string, leadAgentId: string) {
+    setRunning(workflowId);
+    try {
+      const res = await fetch('/api/agents/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ agent_id: leadAgentId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(`Workflow started — ${body.summary ?? 'lead agent running'}`);
+      } else {
+        toast.error(body?.error ?? 'Could not start workflow');
+      }
+    } catch {
+      toast.error('Network error — try again');
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  return (
+    <Card title="Workflow chains" subtitle="Run a workflow. The lead agent runs first; Bud sequences the rest as they complete.">
+      <div className="divide-y divide-white/[0.04] px-5">
+        {WORKFLOWS.map((wf) => {
+          const isRunning = running === wf.id;
+          const domainDot = DOMAIN_DOT[wf.domain] ?? 'bg-zinc-400';
+          return (
+            <div key={wf.id} className="flex items-start gap-3 py-3">
+              <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${domainDot}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-white">{wf.label}</p>
+                  <span className="text-[10px] uppercase tracking-wider text-white/40">{wf.type}</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-white/50">{wf.description}</p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {wf.chain.map((agentId, i) => (
+                    <span key={agentId} className="flex items-center gap-1">
+                      {i > 0 && <span className="text-white/25 text-[9px]">→</span>}
+                      <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-white/60">{agentId}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => void runChain(wf.id, wf.chain[0])}
+                disabled={isRunning || running !== null}
+                className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition hover:border-sky-400/30 hover:bg-sky-500/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isRunning ? 'Running…' : 'Run'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -2133,6 +2207,61 @@ function DeploymentsTab({ commandState, autonomy, circuit, resilienceEvents }: {
 /*                                SETTINGS TAB                                */
 /* ────────────────────────────────────────────────────────────────────────── */
 
+function MissionDirectiveCard() {
+  const [directive, setDirective] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/bud/directive')
+      .then((r) => r.json())
+      .then((b: { directive?: string }) => { setDirective(b.directive ?? ''); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/bud/directive', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ directive }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      toast.success('Mission directive saved — Bud will read this on next run');
+    } catch {
+      toast.error('Could not save directive');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card title="Mission directive" subtitle="Tell Bud what to focus on this cycle. Read at the start of every briefing run.">
+      <div className="px-5 py-4 space-y-3">
+        <textarea
+          value={loaded ? directive : ''}
+          onChange={(e) => setDirective(e.target.value)}
+          placeholder="e.g. Focus on closing the open pipeline this week. Prioritise customer-pipeline agents."
+          rows={3}
+          maxLength={500}
+          className="w-full rounded-md border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-sky-400/40 resize-none"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-white/35">{directive.length}/500 chars</span>
+          <button
+            onClick={save}
+            disabled={saving || !loaded}
+            className="rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save directive'}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsTab({
   authority,
   capabilities,
@@ -2147,6 +2276,7 @@ function SettingsTab({
   const levels: BudAuthorityLevel[] = ['L0_OBSERVER', 'L1_ASSISTANT', 'L2_OPERATOR', 'L3_AUTONOMOUS_OPERATOR', 'L4_SELF_EVOLVING_SYSTEM'];
   return (
     <div className="space-y-4">
+      <MissionDirectiveCard />
       <Card title="Bud authority" subtitle="Authority scales with verified outcomes. Configure the ceiling.">
         <div className="grid gap-3 px-5 py-4 lg:grid-cols-[1fr_1.2fr]">
           <div>
@@ -2578,10 +2708,16 @@ export function MissionControlClient({
           </div>
         </nav>
 
-        {/* Persistent presence + command — diagnostics only. Mission view embeds Ask Bud in the cockpit. */}
-        {tab !== 'command' && mode === 'diagnostics' && (
-          <div className="mb-5 space-y-4">
+        {/* Always-visible command bar — ask Bud from any tab */}
+        {tab !== 'command' && (
+          <div className="mb-5">
             <CommandBar onCreated={refreshHint} presenceState={budOs.state.label} />
+          </div>
+        )}
+
+        {/* Diagnostics-only: presence panel */}
+        {tab !== 'command' && mode === 'diagnostics' && (
+          <div className="mb-5">
             <PresencePanel presence={budOs.state} commandState={commandState} authority={budOs.authority} thoughts={budOs.thoughtStream} />
           </div>
         )}

@@ -116,7 +116,8 @@ Rules:
 - CRITICAL: "operational_status" MUST be "elevated" or "critical" if ANY agents are degraded, overloaded, or have parse failures. NEVER return "nominal" when needs-attention agents exist. Only "nominal" when zero agents need attention.
 - CRITICAL: "operational_status" MUST be "critical" if more than 2 agents are degraded, or any agent has been failing continuously.
 - "bud_state": use "investigating" if Bud ran investigations this cycle. Use "repairing" if repair tasks are open. Use "needs_human_approval" if investigations are awaiting approval. Use "blocked" if investigations failed. Use "idle" only when ALL agents are healthy. NEVER use "idle" when agents need attention.
-- "section_priorities": 1 = show first, 7 = show last, 0 = hide entirely.
+- "section_priorities": 1 = show first, 7 = show last, 0 = hide entirely. If a mission directive is provided, let it influence which sections are prioritised.
+- If a mission directive is provided, acknowledge it in your summary and factor it into section_priorities and insights.
 - "insights": 0–5 items. Category is one of: bottleneck, anomaly, pattern, opportunity, risk.
 - Severity: low | medium | high | critical.
 - Be terse. Admin reads this at a glance.`;
@@ -152,7 +153,7 @@ export const budAgent: AgentDefinition = {
     'Autonomous AI orchestrator — monitors all agents, investigates failures, detects bottlenecks, coordinates repairs, and generates the living operational state for Mission Control.',
   category: 'ops',
   autonomy: 'manual',
-  schedule: null,
+  schedule: '*/15 * * * *',
 
   async run(ctx: AgentContext) {
     const now = Date.now();
@@ -175,6 +176,13 @@ export const budAgent: AgentDefinition = {
 
     const agents = agentsRes.data ?? [];
     const enabledAgentIds = agents.filter((a) => a.status !== 'disabled').map((a) => a.id);
+
+    const { data: directiveRow } = await ctx.supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'bud_mission_directive')
+      .maybeSingle();
+    const missionDirective = (directiveRow?.value as string | null | undefined) ?? null;
 
     const [runs24hRes, runs7dRes, pendingRes, budTasksRes, stuckTasksRes, unresolvedInsightsRes, budApprovalsRes, prevLobbyRes] = await Promise.all([
       ctx.supabase
@@ -559,7 +567,7 @@ export const budAgent: AgentDefinition = {
         ).join('\n')
       : '  none this cycle';
 
-    const llmPrompt = `Workforce status as of ${new Date().toISOString()}:
+    const llmPrompt = `Workforce status as of ${new Date().toISOString()}:${missionDirective ? `\nAdmin mission directive: "${missionDirective}"` : ''}
 Total agents: ${agents.length}
 Active right now: ${kpis.agents_active}
 Awaiting review: ${highPendingAgents.join(', ') || 'none'}
