@@ -68,6 +68,7 @@ export default function AutonomyPipeline({
   const [simulating, setSimulating] = useState(false);
   const [simOutcome, setSimOutcome] = useState<SimulateOutcome>('success');
   const [triggering, setTriggering] = useState(false);
+  const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
 
   async function startSimulation() {
     if (simulating) return;
@@ -86,8 +87,9 @@ export default function AutonomyPipeline({
   async function triggerRealRun() {
     if (triggering) return;
     setTriggering(true);
+    setTriggerMsg(null);
     try {
-      await fetch('/api/pipeline/start', {
+      const res = await fetch('/api/pipeline/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -99,6 +101,15 @@ export default function AutonomyPipeline({
           proposed_approach: 'Analyse the surface for low-hanging improvements and apply the safest one.',
         }),
       });
+      const json = await res.json().catch(() => ({})) as { status?: string; error?: string };
+      if (!res.ok) {
+        setTriggerMsg(`Error: ${json.error ?? res.statusText}`);
+      } else {
+        setTriggerMsg('Pipeline started — watch stages light up via Realtime.');
+        setTimeout(() => setTriggerMsg(null), 6000);
+      }
+    } catch {
+      setTriggerMsg('Network error — check console.');
     } finally {
       setTriggering(false);
     }
@@ -392,6 +403,11 @@ export default function AutonomyPipeline({
         <p className="w-full font-mono text-[10px] text-white/30">
           Simulate: walks all ten stages live · ~5 s · no real code changed&nbsp;&nbsp;·&nbsp;&nbsp;Run Real: fires the actual improvement pipeline via Bud
         </p>
+        {triggerMsg && (
+          <p className={`w-full font-mono text-[10.5px] ${triggerMsg.startsWith('Error') ? 'text-red-300' : 'text-sky-300'}`}>
+            {triggerMsg}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_420px]">
