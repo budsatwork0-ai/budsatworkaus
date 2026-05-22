@@ -1085,6 +1085,72 @@ Return ONLY valid JSON:
   }
 
   const finalRepairStatus = appliedFiles.length > 0 ? 'recovered' : 'blocked';
+
+  // ── Intelligence summary ─────────────────────────────────────────────────────
+  // When a repair succeeds, ask Claude to generate structured actionable output:
+  // what broke, how the fix works, patterns to watch, and agents at risk.
+  // Stored on the execution row so the dashboard can surface it immediately.
+  let intelligenceSummary: string | null = null;
+  if (appliedFiles.length > 0) {
+    try {
+      const patchReasons = patches
+        .filter((p) => appliedFiles.includes(p.file))
+        .map((p) => `${p.file}: ${p.reason}`)
+        .join('; ');
+      const historyNote = history.pastRepairs.length > 0
+        ? `This root-cause type has appeared ${history.pastRepairs.length} time(s) before.`
+        : 'First occurrence of this root-cause type on record.';
+
+      const intelRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          messages: [{
+            role: 'user',
+            content: `You are Bud, summarising a completed repair for an operator dashboard.
+
+Agent: ${typedTask.source_agent ?? 'unknown'}
+Root cause type: ${rootCause.type}
+Root cause summary: ${rootCause.summary}
+Files patched: ${appliedFiles.join(', ')}
+Patch reasoning: ${patchReasons}
+History: ${historyNote}
+
+Return a JSON object with exactly these fields (all strings, all ≤ 15 words each):
+{
+  "what_broke": "one sentence — specific failure, not generic type name",
+  "how_fixed": "one sentence — what the patch actually does",
+  "pattern": "recurring pattern to watch across similar agents",
+  "next_action": "one concrete operator action",
+  "at_risk": ["agent-id-1", "agent-id-2"]
+}
+
+Return ONLY valid JSON. No prose.`,
+          }],
+        }),
+      });
+
+      if (intelRes.ok) {
+        const intelJson = await intelRes.json() as { content: Array<{ type: string; text?: string }> };
+        const rawText = intelJson.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) intelligenceSummary = jsonMatch[0];
+      }
+    } catch {
+      // Non-fatal — dashboard falls back to diff_summary
+    }
+  }
+
+  const fixPattern = appliedFiles.length > 0
+    ? `LLM patch applied to: ${appliedFiles.join(', ')}${openAsDraft ? ' (draft PR — CI pending)' : ''}`
+    : `No patch applied — ${patchNote || 'LLM returned no patches'}`;
+
   await updateExecution(supabase, executionId, {
     status: finalRepairStatus,
     verification_status: appliedFiles.length > 0
@@ -1095,15 +1161,14 @@ Return ONLY valid JSON:
     ci_run_url: ciRunUrl ?? undefined,
     pr_url: prUrl ?? undefined,
     issue_url: issueUrl ?? undefined,
+    intelligence_summary: intelligenceSummary ?? undefined,
     finished_at: new Date().toISOString(),
   });
-  await updateTaskState(supabase, typedTask.id, appliedFiles.length > 0 ? 'patching' : 'blocked');
+  await updateTaskState(supabase, typedTask.id, appliedFiles.length > 0 ? 'recovered' : 'blocked');
   await writeRepairLearning(
     supabase, executionId, typedTask, rootCause,
     appliedFiles.length > 0 ? 'recovered' : 'blocked',
-    appliedFiles.length > 0
-      ? `LLM patch applied to: ${appliedFiles.join(', ')}${openAsDraft ? ' (draft PR — CI pending)' : ''}`
-      : `No patch applied — ${patchNote || 'LLM returned no patches'}`,
+    fixPattern,
   );
 
   return {

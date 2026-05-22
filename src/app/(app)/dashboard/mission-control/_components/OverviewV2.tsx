@@ -679,7 +679,66 @@ function PipelineCard({
           <span className="font-semibold">Blocking:</span> {blocked.blocker}
         </p>
       )}
+
+      {/* Intelligence card — shown when repair succeeded and summary is available */}
+      {workspace.intelligence_summary && (
+        <IntelligenceCard raw={workspace.intelligence_summary} />
+      )}
     </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                          REPAIR INTELLIGENCE CARD                          */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+type IntelligencePayload = {
+  what_broke?: string;
+  how_fixed?: string;
+  pattern?: string;
+  next_action?: string;
+  at_risk?: string[];
+};
+
+function IntelligenceCard({ raw }: { raw: string }) {
+  let intel: IntelligencePayload = {};
+  try { intel = JSON.parse(raw) as IntelligencePayload; } catch { return null; }
+
+  const rows: Array<{ label: string; value: string }> = [
+    intel.what_broke  ? { label: 'What broke',   value: intel.what_broke }  : null,
+    intel.how_fixed   ? { label: 'How fixed',    value: intel.how_fixed }   : null,
+    intel.pattern     ? { label: 'Pattern',      value: intel.pattern }     : null,
+    intel.next_action ? { label: 'Next',         value: intel.next_action } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/[0.05] p-4">
+      <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400/80">
+        What Bud learned
+      </h4>
+      <dl className="mt-2 space-y-1.5">
+        {rows.map((r) => (
+          <div key={r.label} className="flex gap-2 text-xs">
+            <dt className="w-20 shrink-0 text-white/40">{r.label}</dt>
+            <dd className="text-white/75">{r.value}</dd>
+          </div>
+        ))}
+        {intel.at_risk && intel.at_risk.length > 0 && (
+          <div className="flex gap-2 text-xs">
+            <dt className="w-20 shrink-0 text-white/40">Also check</dt>
+            <dd className="flex flex-wrap gap-1">
+              {intel.at_risk.map((a) => (
+                <span key={a} className="rounded-full border border-amber-400/30 bg-amber-500/[0.08] px-2 py-0.5 text-[11px] text-amber-300/80">
+                  {a}
+                </span>
+              ))}
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
   );
 }
 

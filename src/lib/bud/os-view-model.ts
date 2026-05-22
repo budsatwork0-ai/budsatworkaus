@@ -107,7 +107,9 @@ export type BudOsRepairWorkspace = {
   issue_url: string | null;
   /** GitHub compare URL for this branch — present when a branch exists but no PR has been opened yet. */
   branch_compare_url: string | null;
-  // Phase 6 — Rollback monitoring
+  /** Structured JSON string with what_broke/how_fixed/pattern/next_action/at_risk from successful repair. */
+  intelligence_summary: string | null;
+  // Phase 7 — Rollback monitoring
   rollback_count: number;
   rollback_triggers: Record<string, number>;
   repair_success_rate: number | null;
@@ -200,6 +202,8 @@ type RepairExecutionRow = {
   // Phase 5 — PR + issue links
   pr_url: string | null;
   issue_url: string | null;
+  // Phase 6 — Actionable intelligence (generated on successful repair)
+  intelligence_summary?: string | null;
   created_at: string;
 };
 
@@ -875,6 +879,7 @@ export function buildRepairWorkspace(args: {
     pr_url: prUrl,
     issue_url: issueUrl,
     branch_compare_url: branchCompareUrl,
+    intelligence_summary: execution?.intelligence_summary ?? null,
     rollback_count: agentRollbacks.length,
     rollback_triggers: rollbackTriggers,
     repair_success_rate: repairSuccessRate,
