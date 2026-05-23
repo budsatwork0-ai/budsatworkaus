@@ -7,6 +7,7 @@ import type {
   DashboardCrewMember,
   PartnerReferralSnapshot,
   DashboardQuote,
+  DashboardLead,
   MoneyFlowData,
   ReceivableRecord,
   PayableRecord,
@@ -27,6 +28,7 @@ type UseDashboardDataResult = {
   dismissedAlertCount: number;
   crew: DashboardCrewMember[];
   quotes: DashboardQuote[];
+  channelLeads: DashboardLead[];
   partnerReferrals: PartnerReferralSnapshot[];
   applicantCount: number;
   lastUpdated: string | null;
@@ -153,6 +155,7 @@ export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDash
   const [dismissedAlertCount, setDismissedAlertCount] = useState(0);
   const [crew, setCrew] = useState<DashboardCrewMember[]>([]);
   const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
+  const [channelLeads, setChannelLeads] = useState<DashboardLead[]>([]);
   const [partnerReferrals, setPartnerReferrals] = useState<PartnerReferralSnapshot[]>([]);
   const [applicantCount, setApplicantCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -171,6 +174,7 @@ export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDash
     setDismissedAlertCount(data.dismissedAlertCount ?? 0);
     setCrew(data.crew || []);
     setQuotes(data.quotes || []);
+    setChannelLeads((data.leads as DashboardLead[] | undefined) || []);
     setPartnerReferrals(data.partnerReferrals || []);
     setApplicantCount(data.applicantCount ?? 0);
     setLastUpdated(data.lastUpdated || null);
@@ -237,6 +241,7 @@ export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDash
     dismissedAlertCount,
     crew,
     quotes,
+    channelLeads,
     partnerReferrals,
     applicantCount,
     lastUpdated,

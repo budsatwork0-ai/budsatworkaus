@@ -11,6 +11,7 @@ import {
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReceivedEmail, ndisForwardQuoteEmail } from '@/lib/email/templates';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
+import { resolveLeadSource } from '@/lib/leads/source';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -224,6 +225,21 @@ export async function POST(request: NextRequest) {
     typeof body.notes === 'string' ? body.notes : '',
   ].filter(Boolean).join('\n') || null;
 
+  // Resolve the lead source (module 9 attribution). The client passes any
+  // utm_* params + document.referrer captured on landing; we map those to a
+  // LeadSource, falling back to 'website' so the column is never null for
+  // form-submitted quotes.
+  const referrerHeader = request.headers.get('referer') || request.headers.get('referrer');
+  const leadSource = resolveLeadSource({
+    source: typeof body.source === 'string' ? body.source : null,
+    utm_source: typeof body.utm_source === 'string' ? body.utm_source : null,
+    utm_medium: typeof body.utm_medium === 'string' ? body.utm_medium : null,
+    referrer:
+      typeof body.referrer === 'string' && body.referrer.length > 0
+        ? body.referrer
+        : referrerHeader,
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any)
     .from('quotes')
@@ -244,6 +260,7 @@ export async function POST(request: NextRequest) {
       payment_status: 'not_requested',
       service_address: typeof body.service_address === 'string' ? body.service_address.trim() : null,
       notes: combinedNotes,
+      source: leadSource,
       // NDIS-specific routing + pricing (null for non-NDIS quotes).
       ndis_management_type: ndisManagementType,
       ndis_forward_contact: ndisForwardContact,
@@ -273,6 +290,9 @@ export async function POST(request: NextRequest) {
       frequency: typeof body.frequency === 'string' ? body.frequency : 'none',
       has_address: Boolean(typeof body.service_address === 'string' && body.service_address.trim()),
       customer_type: authUser?.role ?? 'anonymous',
+      source: leadSource,
+      utm_source: typeof body.utm_source === 'string' ? body.utm_source : null,
+      utm_medium: typeof body.utm_medium === 'string' ? body.utm_medium : null,
     },
   });
 

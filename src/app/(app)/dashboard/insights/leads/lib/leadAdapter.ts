@@ -9,7 +9,7 @@
 // that changes — the rest of Bud Leads consumes Lead[] and doesn't care.
 // -----------------------------------------------------------------------------
 
-import { SERVICE_LABELS, normalizeQuoteStatus, type DashboardQuote } from '@/types/dashboard';
+import { SERVICE_LABELS, normalizeQuoteStatus, type DashboardQuote, type DashboardLead } from '@/types/dashboard';
 import {
   type Lead,
   type LeadSource,
@@ -73,16 +73,26 @@ export function parseSuburb(address: string | null | undefined): string | null {
 }
 
 /**
- * Heuristic source inference until quotes carries a real `source` column.
- * Conservative — only returns 'website' / 'unknown' here, with hooks for
- * future expansion (e.g. analytics_events table joined later).
+ * Source resolution. The 070_bud_leads migration adds a `source` column on
+ * quotes and the /api/quotes route now writes a real value on insert via
+ * resolveLeadSource(). We trust that value when it's one of the canonical
+ * LeadSource keys; otherwise we fall back to 'website' (every legacy quote
+ * came through the website flow before module 9 landed).
  */
+const VALID_SOURCES: ReadonlySet<string> = new Set<LeadSource>([
+  'website',
+  'messenger',
+  'sms',
+  'instagram',
+  'email',
+  'phone',
+  'referral',
+  'unknown',
+]);
+
 function inferSource(q: DashboardQuote): LeadSource {
   const raw = (q.source ?? '').toString().toLowerCase();
-  if (raw === 'messenger' || raw === 'sms' || raw === 'instagram' || raw === 'email' || raw === 'phone' || raw === 'referral' || raw === 'website') {
-    return raw;
-  }
-  // Until the migration lands, every quote came through the website flow.
+  if (VALID_SOURCES.has(raw)) return raw as LeadSource;
   return 'website';
 }
 
@@ -225,6 +235,137 @@ export function quotesToLeads(quotes: DashboardQuote[], now: Date = new Date()):
       href: `/dashboard/quotes?q=${encodeURIComponent(q.id)}`,
     };
   });
+}
+
+// ---------- leads-table adapter ---------------------------------------------
+
+/**
+ * Coerce a free-string response_status from the DB into our union. Anything
+ * unknown collapses to 'awaiting_response' so the funnel never breaks.
+ */
+const VALID_RESPONSE_STATUSES: ReadonlySet<string> = new Set<LeadResponseStatus>([
+  'awaiting_response',
+  'in_conversation',
+  'quoted',
+  'booked',
+  'completed',
+  'no_response',
+  'lost',
+]);
+
+function coerceResponseStatus(value: string | null | undefined): LeadResponseStatus {
+  if (typeof value === 'string' && VALID_RESPONSE_STATUSES.has(value)) {
+    return value as LeadResponseStatus;
+  }
+  return 'awaiting_response';
+}
+
+const VALID_TEMPERATURES: ReadonlySet<string> = new Set<LeadTemperature>(['HOT', 'WARM', 'COLD', 'LOST']);
+
+function coerceLeadSourceClient(value: string | null | undefined): LeadSource {
+  if (typeof value === 'string' && VALID_SOURCES.has(value.toLowerCase())) {
+    return value.toLowerCase() as LeadSource;
+  }
+  return 'unknown';
+}
+
+/**
+ * Map an array of DashboardLead (channel-ingested rows from the `leads`
+ * table) into Lead[]. Mirrors quotesToLeads — same Lead shape out, so the
+ * Live Feed / Funnel / Heatmap don't care where a lead came from.
+ *
+ * Heuristics:
+ *   - temperature: trust the DB value when set; recompute otherwise.
+ *   - value: leads-table rows have no quote yet, so value is 0 until they
+ *     roll up into a quote (quote_id set → represented in the quotes feed).
+ *   - href: deep-link to a future /dashboard/leads/[id] view; for now we
+ *     reuse the quotes page with a `lead=` param so clicks don't 404.
+ */
+export function dashboardLeadsToLeads(leads: DashboardLead[], now: Date = new Date()): Lead[] {
+  const nowMs = now.getTime();
+
+  return leads.map((row): Lead => {
+    const createdMs = new Date(row.created_at).getTime();
+    const ageHours = hoursBetween(nowMs, createdMs);
+    const responseStatus = coerceResponseStatus(row.response_status);
+    const source = coerceLeadSourceClient(row.source);
+    const value = 0;
+
+    const firstResponseAt = row.first_response_at ?? null;
+    const firstResponseHours = firstResponseAt
+      ? hoursBetween(new Date(firstResponseAt), createdMs)
+      : null;
+
+    // Trust the DB-set temperature when valid; otherwise recompute. Lets the
+    // nightly job override the live heuristic without code changes.
+    const dbTemp = typeof row.temperature === 'string' ? row.temperature : null;
+    const temperature: LeadTemperature =
+      dbTemp && VALID_TEMPERATURES.has(dbTemp)
+        ? (dbTemp as LeadTemperature)
+        : computeTemperatureLeadRow(responseStatus, ageHours);
+
+    const serviceSlug = row.service_type || 'other';
+    const suburb = row.suburb || parseSuburb(row.service_address);
+
+    // Promote awaiting_response > 24h to no_response, same rule as quotes.
+    const effectiveResponseStatus: LeadResponseStatus =
+      responseStatus === 'awaiting_response' && ageHours >= 24 ? 'no_response' : responseStatus;
+
+    const isStale = ageHours >= 48 && temperature !== 'WARM' && temperature !== 'LOST';
+    const isHotPulse = temperature === 'HOT';
+
+    let attentionReason: string | null = null;
+    if (effectiveResponseStatus === 'no_response') {
+      attentionReason = `Unanswered ${source} lead — ${formatAge(ageHours)}`;
+    } else if (effectiveResponseStatus === 'awaiting_response' && ageHours >= 1) {
+      attentionReason = `Awaiting first reply (${formatAge(ageHours)})`;
+    } else if (isStale && (effectiveResponseStatus === 'in_conversation' || effectiveResponseStatus === 'quoted')) {
+      attentionReason = `Stuck in ${effectiveResponseStatus.replace('_', ' ')} > 48h`;
+    }
+
+    return {
+      id: row.id,
+      customerName: row.customer_name || `Unnamed ${source} lead`,
+      service: serviceSlug,
+      serviceLabel: SERVICE_LABELS[serviceSlug] || serviceSlug,
+      suburb,
+      address: row.service_address ?? null,
+      source,
+      temperature,
+      responseStatus: effectiveResponseStatus,
+      quoteStatus: row.quote_id ? 'submitted' : 'draft',
+      value,
+      createdAt: row.created_at,
+      ageHours,
+      firstResponseAt,
+      firstResponseHours,
+      bookedAt: row.booked_at ?? null,
+      isHotPulse,
+      isAbandoned: false,
+      isStale,
+      attentionReason,
+      href: `/dashboard/quotes?lead=${encodeURIComponent(row.id)}`,
+    };
+  });
+}
+
+/**
+ * Lighter temperature calc for lead-table rows — value is unknown, so we
+ * key off response status + age only.
+ */
+function computeTemperatureLeadRow(
+  status: LeadResponseStatus,
+  ageHours: number
+): LeadTemperature {
+  if (status === 'lost') return 'LOST';
+  if (status === 'booked' || status === 'completed') return 'WARM';
+  if (status === 'awaiting_response') {
+    if (ageHours < 1) return 'HOT';
+    if (ageHours < 24) return 'WARM';
+    return 'COLD';
+  }
+  if (ageHours < 48) return 'WARM';
+  return 'COLD';
 }
 
 // ---------- formatters (small, internal) ------------------------------------

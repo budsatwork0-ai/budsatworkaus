@@ -751,8 +751,17 @@ async function createQuoteEffect(payload: Record<string, unknown>): Promise<void
   // existing quote, so this path is rarely hit. When it IS hit (agent
   // proposes a brand-new quote from a phone call, say), insert through
   // the service-role Supabase client to bypass RLS.
+  //
+  // Source attribution: agent-created quotes default to 'phone' since the
+  // typical trigger is an inbound call the agent transcribed. Callers can
+  // override by including `source` on the payload — coerceLeadSource keeps
+  // it consistent with the CHECK constraint.
+  const { coerceLeadSource } = await import('@/lib/leads/source');
+  const explicitSource = coerceLeadSource(payload.source);
+  const sourced = { ...payload, source: explicitSource ?? 'phone' };
+
   const supabase = adminClient();
-  const { error } = await supabase.from('quotes').insert(payload);
+  const { error } = await supabase.from('quotes').insert(sourced);
   if (error) throw new Error(`create_quote: ${error.message}`);
 }
 

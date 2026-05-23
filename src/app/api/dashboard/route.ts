@@ -269,6 +269,29 @@ export type DashboardData = {
     nextJobDate: string | null;
   }[];
   quotes: { id: string; status: string; customer_name: string | null; service_type: string | null; created_at: string; submitted_total: number | null; reviewed_total: number | null; total: number | null; converted_order_id: string | null }[];
+  /**
+   * Channel-ingested leads (Messenger, SMS, IG) that haven't rolled up into
+   * a quote yet. Bud Leads merges these with quote-derived leads.
+   */
+  leads?: Array<{
+    id: string;
+    customer_name: string | null;
+    customer_email: string | null;
+    customer_phone: string | null;
+    service_type: string | null;
+    suburb: string | null;
+    service_address: string | null;
+    source: string;
+    response_status: string;
+    temperature: string | null;
+    quote_id: string | null;
+    first_response_at: string | null;
+    booked_at: string | null;
+    completed_at: string | null;
+    lost_at: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
   partnerReferrals: Array<{
     partner: string;
     destinationUrl: string;
@@ -598,6 +621,7 @@ export async function GET(request: Request) {
       partnerReferralEventsResult,
       applicantsResult,
       alertState,
+      leadsResult,
     ] = await Promise.all([
       // All non-cancelled orders for receivables (join customers for address)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -663,7 +687,7 @@ export async function GET(request: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
         .from('quotes')
-        .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total, converted_order_id, payment_status, payment_requested_at, finalized_at, service_address')
+        .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total, converted_order_id, payment_status, payment_requested_at, finalized_at, service_address, source')
         .order('created_at', { ascending: false })
         .limit(200),
 
@@ -687,6 +711,21 @@ export async function GET(request: Request) {
         .eq('stage', 'intake'),
 
       getAdminAlertState(),
+
+      // Channel-ingested leads (Module 9). Only leads that haven't rolled up
+      // into a quote yet — leads with quote_id set are already represented in
+      // the quotes feed and would double-count. Wrapped in try/catch via a
+      // resolved fallback so missing table or RLS issues never break the
+      // dashboard's primary path.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((client as any)
+        .from('leads')
+        .select('id, customer_name, customer_email, customer_phone, service_type, suburb, service_address, source, response_status, temperature, quote_id, first_response_at, booked_at, completed_at, lost_at, created_at, updated_at')
+        .is('quote_id', null)
+        .order('created_at', { ascending: false })
+        .limit(200)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((r: any) => r, () => ({ data: [], error: null }))),
     ]);
 
     // Handle errors
@@ -1545,6 +1584,9 @@ export async function GET(request: Request) {
       payouts: isSummary ? [] : payoutsData,
       crew,
       quotes: quotesData,
+      // Lead-table rows (un-quoted, channel-ingested). Safe to be empty —
+      // the Bud Leads adapter handles missing/empty arrays cleanly.
+      leads: (leadsResult?.data ?? []) as DashboardData['leads'],
       partnerReferrals: isSummary ? [] : partnerReferrals,
       applicantCount,
       lastUpdated: now.toISOString(),

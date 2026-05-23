@@ -364,6 +364,40 @@ export function normalizeQuoteStatus(status: string): string {
   return status;
 }
 
+/**
+ * Lead row from the `leads` table (Module 9). Returned by the dashboard API
+ * once Messenger / SMS / IG ingest is wired in. Quote-derived leads still
+ * arrive via `quotes` — Bud Leads unions both into a single Lead[] feed in
+ * the adapter.
+ */
+export type DashboardLead = {
+  id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  service_type: string | null;
+  suburb: string | null;
+  service_address: string | null;
+  source: 'website' | 'messenger' | 'sms' | 'instagram' | 'email' | 'phone' | 'referral' | 'unknown' | string;
+  response_status:
+    | 'awaiting_response'
+    | 'in_conversation'
+    | 'quoted'
+    | 'booked'
+    | 'completed'
+    | 'no_response'
+    | 'lost'
+    | string;
+  temperature: 'HOT' | 'WARM' | 'COLD' | 'LOST' | null;
+  quote_id: string | null;
+  first_response_at: string | null;
+  booked_at: string | null;
+  completed_at: string | null;
+  lost_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DashboardData = {
   metrics: DashboardMetrics;
   moneyFlow: MoneyFlowData;
@@ -377,6 +411,11 @@ export type DashboardData = {
   lastUpdated: string;
   crew: DashboardCrewMember[];
   quotes: DashboardQuote[];
+  /**
+   * Channel-ingested leads (Messenger, SMS, IG) that haven't rolled up into
+   * a quote yet. Empty until module 9's channels are wired in.
+   */
+  leads?: DashboardLead[];
   partnerReferrals: PartnerReferralSnapshot[];
   applicantCount: number;
 };

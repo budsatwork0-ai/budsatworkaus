@@ -28,6 +28,7 @@ import { SuburbHeatmap } from './components/SuburbHeatmap';
 import { PulseDot } from './components/NightPrimitives';
 import {
   quotesToLeads,
+  dashboardLeadsToLeads,
   buildAttentionQueue,
   buildSuburbInsights,
   buildFunnelSnapshot,
@@ -36,14 +37,25 @@ import {
 } from './lib/leadAdapter';
 
 export default function BudLeadsWorkspace() {
-  const { quotes, isLoading, error } = useDashboardData('full');
+  const { quotes, channelLeads, isLoading, error } = useDashboardData('full');
 
   // Single fixed "now" per render so adapter outputs are stable across the
   // child components in this pass (otherwise each memo recomputes against
   // a slightly different timestamp).
   const now = useMemo(() => new Date(), [quotes]);
 
-  const leads = useMemo(() => quotesToLeads(quotes, now), [quotes, now]);
+  // Lead[] is the union of:
+  //   - quotesToLeads(quotes)         — every quote becomes a lead
+  //   - dashboardLeadsToLeads(leads)  — channel-ingested leads with no quote yet
+  //
+  // The dashboard route only returns leads where quote_id IS NULL, so there
+  // is no double-counting — a lead that produces a quote gets represented
+  // exclusively by the quote row.
+  const leads = useMemo(() => {
+    const fromQuotes = quotesToLeads(quotes, now);
+    const fromChannels = dashboardLeadsToLeads(channelLeads, now);
+    return [...fromQuotes, ...fromChannels];
+  }, [quotes, channelLeads, now]);
   const attention = useMemo(() => buildAttentionQueue(leads), [leads]);
   const funnel = useMemo(() => buildFunnelSnapshot(leads, null), [leads]); // visitor count = null until PostHog wired
   const responseMetrics = useMemo(() => buildResponseMetrics(leads), [leads]);

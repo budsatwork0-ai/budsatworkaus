@@ -7,7 +7,12 @@ import { useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import { sendGAEvent } from '@next/third-parties/google';
 import { trackQuoteSubmitted } from '@/lib/analytics/conversions';
-import { getPublicAnalyticsSessionId, trackPublicAnalyticsEvent } from '@/lib/analytics/public';
+import {
+  captureLeadAttribution,
+  getLeadAttribution,
+  getPublicAnalyticsSessionId,
+  trackPublicAnalyticsEvent,
+} from '@/lib/analytics/public';
 import { trackFunnelStart, trackFunnelStepComplete, trackFunnelAbandon, trackFunnelSubmit } from '@/lib/analytics/behavior';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
@@ -3419,6 +3424,13 @@ function ServicesPageContent() {
   // Prevent double-submit on slow networks (AbortController cleanup on unmount).
   useEffect(() => { return () => { submitAbortRef.current?.abort(); }; }, []);
 
+  // Capture lead attribution (utm_*, referrer, landing path) on first mount.
+  // Idempotent — first-touch wins. The /api/quotes route reads these out of
+  // the submit payload to set quotes.source via resolveLeadSource().
+  useEffect(() => {
+    captureLeadAttribution();
+  }, []);
+
   // --- Tracking: record when Step 2 becomes active so we can measure time-to-advance ---
   const step2StartTsRef = useRef<number | null>(null);
   useEffect(() => {
@@ -4767,6 +4779,11 @@ function winSessionMinutes(S: WizardState) {
     submitAbortRef.current = new AbortController();
     setIsCheckoutLoading(true);
 
+    // First-touch attribution captured on landing. Server resolves this to
+    // a LeadSource via resolveLeadSource() — missing fields just fall back
+    // to the 'website' default.
+    const attribution = getLeadAttribution();
+
     try {
       const res = await fetch('/api/quotes', {
         method: 'POST',
@@ -4781,6 +4798,11 @@ function winSessionMinutes(S: WizardState) {
           scope: S.scope,
           frequency: S.commFrequency || 'none',
           analytics_session_id: getPublicAnalyticsSessionId(),
+          utm_source: attribution?.utm_source ?? null,
+          utm_medium: attribution?.utm_medium ?? null,
+          utm_campaign: attribution?.utm_campaign ?? null,
+          referrer: attribution?.referrer ?? null,
+          landing_path: attribution?.landing_path ?? null,
           ...(isGuest && guestToken ? { turnstileToken: guestToken } : {}),
           submitted_total: effectiveTotal,
           total: effectiveTotal,
