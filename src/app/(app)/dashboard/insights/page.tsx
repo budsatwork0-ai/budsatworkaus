@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ReportsView } from '../reports/ReportsView';
 const VisitorsTab = dynamic(() => import('../components/tabs/VisitorsTab'), { ssr: false });
+const BudLeadsWorkspace = dynamic(() => import('./leads/BudLeadsWorkspace'), { ssr: false });
 import { WorkbenchHeader, WorkbenchQueue, WorkbenchStatGrid, WorkbenchTabs } from '../components/Workbench';
 import { ErrorMessage, Panel, RefreshIcon, StatRow } from '../components/shared';
 import { PanelSkeleton } from '../components/Skeletons';
@@ -12,11 +13,11 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useTabbedNav } from '../hooks/useTabbedNav';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/dashboard/utils';
 
-type Tab = 'overview' | 'reports' | 'visitors';
+type Tab = 'leads' | 'overview' | 'reports' | 'visitors';
 type FocusArea = 'ceo' | 'growth' | 'sales' | 'ops' | 'finance';
 
 function sanitizeTab(value: string | null): Tab {
-  if (value === 'reports' || value === 'visitors') return value;
+  if (value === 'reports' || value === 'visitors' || value === 'leads') return value;
   return 'overview';
 }
 
@@ -475,6 +476,7 @@ function InsightsPageContent() {
   ];
 
   const tabs = [
+    { key: 'leads' as const, label: 'Bud Leads' },
     { key: 'overview' as const, label: 'Overview' },
     { key: 'reports' as const, label: 'Reports' },
     { key: 'visitors' as const, label: 'Visitors' },
@@ -560,11 +562,15 @@ function InsightsPageContent() {
         <>
           <WorkbenchStatGrid stats={stats} />
           <WorkbenchTabs tabs={tabs} activeTab={tab} onTabChange={setTab} />
-          <WorkbenchQueue
-            title="Insights Focus Queue"
-            subtitle="Priority signals derived from the current dashboard snapshot."
-            items={queueItems}
-          />
+          {tab !== 'leads' ? (
+            <WorkbenchQueue
+              title="Insights Focus Queue"
+              subtitle="Priority signals derived from the current dashboard snapshot."
+              items={queueItems}
+            />
+          ) : null}
+
+          {tab === 'leads' ? <BudLeadsWorkspace /> : null}
 
           {tab === 'overview' ? (
             <div className="grid gap-5">

@@ -663,7 +663,7 @@ export async function GET(request: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
         .from('quotes')
-        .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total, converted_order_id, payment_status, payment_requested_at, finalized_at')
+        .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total, converted_order_id, payment_status, payment_requested_at, finalized_at, service_address')
         .order('created_at', { ascending: false })
         .limit(200),
 

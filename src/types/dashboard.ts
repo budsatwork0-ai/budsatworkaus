@@ -329,6 +329,17 @@ export type DashboardQuote = {
   payment_status?: string | null;
   payment_requested_at?: string | null;
   finalized_at?: string | null;
+  /**
+   * Free-text service address ("12 Acacia St, Springfield QLD 4300").
+   * Surfaced into the dashboard payload so Bud Leads can derive suburb
+   * heatmaps without round-tripping per quote.
+   */
+  service_address?: string | null;
+  /**
+   * Lead source channel — defaults to 'website' on the API side when a quote
+   * is created without explicit attribution. Used by the Live Leads Feed.
+   */
+  source?: 'website' | 'messenger' | 'sms' | 'instagram' | 'email' | 'phone' | 'referral' | 'unknown' | string | null;
 };
 
 export type PartnerReferralSnapshot = {
