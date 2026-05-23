@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { createServiceClientSafe } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +40,7 @@ const GRAPH_FIELDS = 'first_name,last_name';
 function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = process.env.MESSENGER_APP_SECRET;
   if (!appSecret) {
-    // Missing secret in production is a misconfiguration — reject everything.
     if (process.env.NODE_ENV === 'production') return false;
-    // In dev, allow through without verification so local tunnels work.
     return true;
   }
   if (!signatureHeader) return false;
@@ -70,7 +69,7 @@ async function fetchSenderProfile(psid: string): Promise<GraphProfile> {
   try {
     const res = await fetch(
       `${GRAPH_API_BASE}/${psid}?fields=${GRAPH_FIELDS}&access_token=${token}`,
-      { next: { revalidate: 0 } }
+      { cache: 'no-store' }
     );
     if (!res.ok) return {};
     return (await res.json()) as GraphProfile;
@@ -79,25 +78,69 @@ async function fetchSenderProfile(psid: string): Promise<GraphProfile> {
   }
 }
 
-// ---------- Ingest relay -----------------------------------------------------
+// ---------- Direct DB ingest (no self-fetch) ---------------------------------
 
-async function relayToIngest(
-  payload: Record<string, unknown>,
-  baseUrl: string
-): Promise<void> {
-  const secret = process.env.MESSENGER_INGEST_SECRET;
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (secret) headers['x-messenger-secret'] = secret;
-
-  const res = await fetch(`${baseUrl}/api/leads/messenger`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    console.error('[messenger adapter] ingest relay failed:', res.status, await res.text());
+async function ingestEvent(event: {
+  external_id: string;
+  sender_psid: string;
+  customer_name: string | null;
+  message_body: string;
+  page_id: string | null;
+  timestamp: number | null;
+}): Promise<void> {
+  const client = createServiceClientSafe();
+  if (!client) {
+    console.error('[messenger adapter] DB client unavailable');
+    return;
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = client as any;
+
+  const existing = await db
+    .from('leads')
+    .select('id')
+    .eq('source', 'messenger')
+    .eq('external_ref', event.external_id)
+    .maybeSingle();
+
+  if (existing?.data?.id) {
+    await db.from('lead_conversations').insert({
+      lead_id: existing.data.id,
+      direction: 'inbound',
+      channel: 'messenger',
+      body: event.message_body,
+      external_id: event.external_id,
+      author_label: event.customer_name ?? 'Customer',
+      metadata: { sender_psid: event.sender_psid, page_id: event.page_id, timestamp: event.timestamp },
+    });
+    return;
+  }
+
+  const { data: lead, error } = await db
+    .from('leads')
+    .insert({
+      customer_name: event.customer_name,
+      source: 'messenger',
+      external_ref: event.external_id,
+      response_status: 'awaiting_response',
+    })
+    .select('id')
+    .single();
+
+  if (error || !lead?.id) {
+    console.error('[messenger adapter] insert failed:', error?.message);
+    return;
+  }
+
+  await db.from('lead_conversations').insert({
+    lead_id: lead.id,
+    direction: 'inbound',
+    channel: 'messenger',
+    body: event.message_body,
+    external_id: event.external_id,
+    author_label: event.customer_name ?? 'Customer',
+    metadata: { sender_psid: event.sender_psid, page_id: event.page_id, timestamp: event.timestamp },
+  });
 }
 
 // ---------- GET: verification handshake -------------------------------------
@@ -150,13 +193,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
-  const relays: Promise<void>[] = [];
+  const ingests: Promise<void>[] = [];
 
   for (const entry of fbPayload.entry ?? []) {
     for (const ev of entry.messaging ?? []) {
-      // Skip non-message events (reads, delivery receipts, postbacks without
-      // text). The ingest route expects a message_body.
       const text = ev.message?.text;
       if (!text) continue;
 
@@ -165,35 +205,25 @@ export async function POST(req: NextRequest) {
 
       const mid = ev.message?.mid ?? `${psid}_${ev.timestamp ?? Date.now()}`;
 
-      // Enrich profile on first touch — Graph API call per sender.
-      // For subsequent messages the ingest route's idempotency check will
-      // short-circuit before hitting the DB write, so this profile fetch is
-      // the only per-message overhead beyond a SELECT.
       const profile = await fetchSenderProfile(psid);
       const customerName = [profile.first_name, profile.last_name]
         .filter(Boolean)
         .join(' ')
         .trim() || null;
 
-      relays.push(
-        relayToIngest(
-          {
-            external_id: mid,
-            sender_psid: psid,
-            customer_name: customerName,
-            message_body: text,
-            source: 'messenger',
-            metadata: {
-              page_id: entry.id ?? null,
-              timestamp: ev.timestamp ?? null,
-            },
-          },
-          baseUrl
-        )
+      ingests.push(
+        ingestEvent({
+          external_id: mid,
+          sender_psid: psid,
+          customer_name: customerName,
+          message_body: text,
+          page_id: entry.id ?? null,
+          timestamp: ev.timestamp ?? null,
+        })
       );
     }
   }
 
-  await Promise.all(relays);
+  await Promise.all(ingests);
   return NextResponse.json({ ok: true });
 }
