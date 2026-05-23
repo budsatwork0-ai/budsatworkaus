@@ -76,7 +76,7 @@ export default function BudLeadsWorkspace() {
 
   return (
     <div
-      className={cx(nightSurface, 'rounded-[28px] border')}
+      className={cx(nightSurface, 'rounded-[28px] border overflow-hidden')}
       style={{ borderColor: night.border, background: night.bg }}
     >
       {/* Top bar */}
@@ -100,11 +100,11 @@ export default function BudLeadsWorkspace() {
         </div>
 
         {/* Header KPI strip */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 shrink-0">
           <HeaderKpi label="HOT" value={hotCount} tone={hotCount > 0 ? 'hot' : 'neutral'} pulse={hotCount > 0} />
           <HeaderKpi label="WARM" value={warmCount} tone="warm" />
           <HeaderKpi label="New · 24h" value={newToday} tone="accent" />
-          <HeaderKpi label="Pipeline" value={formatLeadMoney(pipelineValue)} tone="neutral" wide />
+          <HeaderKpi label="Pipeline" value={formatLeadMoney(pipelineValue)} tone="neutral" />
         </div>
       </header>
 

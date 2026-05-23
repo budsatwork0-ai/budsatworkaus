@@ -93,7 +93,7 @@ export function LiveLeadsFeed({ leads }: { leads: Lead[] }) {
       pad="sm"
     >
       {/* Filters */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         <FilterPill active={filter === 'all'} onClick={() => setFilter('all')}>
           All · {ordered.length}
         </FilterPill>
@@ -129,7 +129,7 @@ export function LiveLeadsFeed({ leads }: { leads: Lead[] }) {
           detail="Try clearing the filter, or check back when new quotes arrive."
         />
       ) : (
-        <ul className="flex flex-col" role="list">
+        <ul className="flex flex-col max-h-[480px] overflow-y-auto overscroll-contain pr-1" role="list">
           <AnimatePresence initial={false}>
             {visible.map((lead, idx) => (
               <motion.li

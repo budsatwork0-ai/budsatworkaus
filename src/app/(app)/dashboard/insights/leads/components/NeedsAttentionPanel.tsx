@@ -65,7 +65,7 @@ export function NeedsAttentionPanel({
       }
     >
       {/* Summary chip strip */}
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-3">
         {(Object.entries(counts) as Array<[AttentionItem['category'], number]>).map(([cat, n]) => {
           const meta = CATEGORY_META[cat];
           const t = tempTone[meta.tone.toUpperCase() as 'HOT' | 'WARM' | 'COLD' | 'LOST'];
