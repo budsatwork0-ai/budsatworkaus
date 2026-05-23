@@ -212,7 +212,7 @@ const NOISE_PHRASES = [
 ];
 
 function isUsefulSummary(summary: string | null): boolean {
-  if (!summary || summary.trim().length < 15) return false;
+  if (!summary || summary.trim().length < 40) return false;
   const s = summary.toLowerCase();
   return !NOISE_PHRASES.some((p) => s.includes(p));
 }
@@ -692,7 +692,12 @@ export function scoreAgentHealth(
   const usefulSummaryRuns = succeededRuns.filter((r) => isUsefulSummary(r.summary));
   const output_useful = usefulSummaryRuns.length > 0 || validOutputRuns.length > 0;
 
-  const repeated_failures = failedRuns.length >= 3;
+  // Only flag repeated_failures when the 3 most recent runs all failed — prevents
+  // an agent with old failures + recent successes from being labelled 'broken'.
+  const top3 = recentRuns.slice(0, 3);
+  const repeated_failures =
+    top3.length >= 3 &&
+    top3.every((r) => r.status === 'failed' || r.status === 'needs_repair');
   const failure_rate = failedRuns.length / recentRuns.length;
 
   // Scoring: start at 100, deduct

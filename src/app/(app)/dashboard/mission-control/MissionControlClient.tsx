@@ -115,9 +115,7 @@ type Props = {
     uxEvolution: UxEvolutionRecommendation[];
     repairExecutions: RepairExecutionRow[];
     repairSteps: RepairStepRow[];
-    repairLogs: RepairLogRow[];
     changeRequests: Array<{ id: string; task_id: string | null; branch_name: string | null; issue_url: string | null; pr_url: string | null; status: string }>;
-    rollbackEvents: Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>;
     authority: BudAuthority;
     capabilities: BudCapability[];
     initiatives: BudInitiative[];
@@ -125,13 +123,6 @@ type Props = {
     thoughtStream: BudThought[];
     githubConnected: boolean;
     circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
-    resilienceEvents: Array<{
-      id: number;
-      guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
-      event_type: string;
-      payload: Record<string, unknown>;
-      created_at: string;
-    }>;
     efficiencyFindings: Array<{
       id: string;
       domain: string;
@@ -2006,11 +1997,19 @@ function EvolutionTab({
 /*                              DEPLOYMENTS TAB                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
+type ResilienceEvent = {
+  id: number;
+  guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 function DeploymentsTab({ commandState, autonomy, circuit, resilienceEvents }: {
   commandState: MissionControlHealth;
   autonomy: BudOsAutonomyCapability[];
   circuit: { state: 'closed' | 'open' | 'half_open'; resetsAt: string | null; failureStreak: number; label: string };
-  resilienceEvents: Props['budOs']['resilienceEvents'];
+  resilienceEvents: ResilienceEvent[];
 }) {
   const dep = commandState.deployment;
   const tone = dep.status === 'healthy' ? 'good' : dep.status === 'failed' ? 'bad' : dep.status === 'deploying' ? 'warn' : 'neutral';
@@ -2470,20 +2469,59 @@ export function MissionControlClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingQueueKey]);
 
+  // Lazy-loaded per-execution data (logs, steps, rollbacks). Fetched client-side
+  // when a repair item is selected so the SSR payload stays lean.
+  const [lazyRepairData, setLazyRepairData] = useState<{
+    logs: RepairLogRow[];
+    steps: RepairStepRow[];
+    rollbackEvents: Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>;
+  } | null>(null);
+
+  // Lazy-loaded resilience events — fetched when the Deployments tab opens.
+  const [lazyResilienceEvents, setLazyResilienceEvents] = useState<Array<{
+    id: number;
+    guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
+    event_type: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>>([]);
+
   const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
+
+  useEffect(() => {
+    const taskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected?.source_id : null);
+    const execution = taskId
+      ? budOs.repairExecutions.find((e) => e.task_id === taskId)
+      : null;
+    if (!execution) { setLazyRepairData(null); return; }
+    void fetch(`/api/bud/repairs/logs?execution_id=${execution.id}`)
+      .then((r) => r.json())
+      .then((d) => setLazyRepairData(d))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, budOs.repairExecutions]);
+
+  useEffect(() => {
+    if (tab !== 'deployments') return;
+    void fetch('/api/bud/resilience')
+      .then((r) => r.json())
+      .then((d) => setLazyResilienceEvents(d.events ?? []))
+      .catch(() => {});
+  }, [tab]);
+
   const workspace = useMemo(
     () =>
       buildRepairWorkspace({
         selectedItem: selected,
         commandState,
         executions: budOs.repairExecutions,
-        steps: budOs.repairSteps,
-        logs: budOs.repairLogs,
+        steps: lazyRepairData?.steps ?? budOs.repairSteps,
+        logs: lazyRepairData?.logs ?? [],
         activity: budActivity,
-        rollbackEvents: budOs.rollbackEvents,
+        rollbackEvents: lazyRepairData?.rollbackEvents ?? [],
         changeRequests: budOs.changeRequests,
       }),
-    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, budOs.repairLogs, budActivity, budOs.rollbackEvents, budOs.changeRequests],
+    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, lazyRepairData, budActivity, budOs.changeRequests],
   );
 
   useEffect(() => {
@@ -2837,7 +2875,7 @@ export function MissionControlClient({
               commandState={commandState}
               autonomy={budOs.autonomy}
               circuit={budOs.circuit}
-              resilienceEvents={budOs.resilienceEvents}
+              resilienceEvents={lazyResilienceEvents}
             />
           )}
 

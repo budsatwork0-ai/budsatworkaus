@@ -6,7 +6,7 @@ import type { PipelineSurface } from '@/lib/pipeline/types';
 
 const VALID_SURFACES: PipelineSurface[] = ['public', 'admin', 'crew', 'customer'];
 import { MissionControlClient } from './MissionControlClient';
-import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
+import { computeMissionControlHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildBudOsAutonomy, buildBudOsMemoryLayer, buildBudOsWorkforce, deriveBudOsState } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
 import { computeBudAuthority, type BudAuthorityLevel } from '@/lib/bud/authority';
@@ -48,9 +48,7 @@ async function loadData() {
     { auth: { persistSession: false } },
   );
 
-  const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
-
-  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLogsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes, resilienceEventsRes, efficiencyFindingsRes, rollbackEventsRes] = await Promise.all([
+  const [agentsRes, runsRes, actionsRes, githubRes, insightsRes, statsRes, budStateRes, budActivityRes, budApprovalsRes, budTasksRes, changeRequestsRes, repairExecutionsRes, repairStepsRes, repairLearningsRes, adminUxRes, designInsightsRes, agentEvolutionsRes, efficiencyFindingsRes] = await Promise.all([
     supabase
       .from('agents')
       .select('id, name, status, category, autonomy')
@@ -76,9 +74,8 @@ async function loadData() {
       .order('created_at', { ascending: false })
       .limit(8),
     supabase
-      .from('agent_runs')
-      .select('agent_id, status, cost_cents, duration_ms')
-      .gte('started_at', since7d),
+      .from('v_agent_stats_7d')
+      .select('agent_id, runs, successes, failures, cost_cents, avg_duration_ms'),
     supabase
       .from('bud_lobby_states')
       .select('bud_state, operational_status, summary')
@@ -135,11 +132,6 @@ async function loadData() {
       .order('started_at', { ascending: false })
       .limit(80),
     supabase
-      .from('bud_repair_logs')
-      .select('id, execution_id, level, message, created_at')
-      .order('created_at', { ascending: false })
-      .limit(100),
-    supabase
       .from('bud_repair_learnings')
       .select('id, root_cause_type, fix_pattern, outcome, created_at')
       .order('created_at', { ascending: false })
@@ -163,21 +155,11 @@ async function loadData() {
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
-      .from('resilience_events')
-      .select('id, guard, event_type, payload, created_at')
-      .order('created_at', { ascending: false })
-      .limit(50),
-    supabase
       .from('efficiency_findings')
       .select('id, domain, title, severity, priority, body, affected_agents, proposed_fix, estimated_saving, automation_candidate, created_at')
       .in('status', ['new', 'reviewing'])
       .order('created_at', { ascending: false })
       .limit(20),
-    supabase
-      .from('bud_rollback_events')
-      .select('id, execution_id, agent_id, trigger, created_at')
-      .order('created_at', { ascending: false })
-      .limit(100),
   ]);
 
   let memory: { id: string; category: string; title: string; vault_path: string; created_at: string }[] = [];
@@ -191,41 +173,22 @@ async function loadData() {
     memory = data ?? [];
   } catch {}
 
-  const rawStats = new Map<string, {
-    runs: number; successes: number; failures: number;
-    costCents: number; totalDurationMs: number; durationCount: number;
-  }>();
-  for (const r of statsRes.data ?? []) {
-    const cur = rawStats.get(r.agent_id as string) ?? {
-      runs: 0, successes: 0, failures: 0, costCents: 0, totalDurationMs: 0, durationCount: 0,
-    };
-    cur.runs += 1;
-    if (r.status === 'succeeded') cur.successes += 1;
-    if (r.status === 'failed') cur.failures += 1;
-    cur.costCents += (r.cost_cents as number) ?? 0;
-    if (r.duration_ms != null) {
-      cur.totalDurationMs += r.duration_ms as number;
-      cur.durationCount += 1;
-    }
-    rawStats.set(r.agent_id as string, cur);
-  }
-
   const statsMap = new Map(
-    Array.from(rawStats.entries()).map(([id, s]) => [
-      id,
+    (statsRes.data ?? []).map((r) => [
+      r.agent_id as string,
       {
-        runs: s.runs,
-        successes: s.successes,
-        failures: s.failures,
-        costCents: s.costCents,
-        avgDurationMs: s.durationCount > 0 ? Math.round(s.totalDurationMs / s.durationCount) : 0,
+        runs: (r.runs as number) ?? 0,
+        successes: (r.successes as number) ?? 0,
+        failures: (r.failures as number) ?? 0,
+        costCents: (r.cost_cents as number) ?? 0,
+        avgDurationMs: (r.avg_duration_ms as number) ?? 0,
       },
     ]),
   );
 
-  const totalRuns7d = Array.from(rawStats.values()).reduce((s, x) => s + x.runs, 0);
-  const totalCostCents7d = Array.from(rawStats.values()).reduce((s, x) => s + x.costCents, 0);
-  const totalSuccesses7d = Array.from(rawStats.values()).reduce((s, x) => s + x.successes, 0);
+  const totalRuns7d = (statsRes.data ?? []).reduce((s, r) => s + ((r.runs as number) ?? 0), 0);
+  const totalCostCents7d = (statsRes.data ?? []).reduce((s, r) => s + ((r.cost_cents as number) ?? 0), 0);
+  const totalSuccesses7d = (statsRes.data ?? []).reduce((s, r) => s + ((r.successes as number) ?? 0), 0);
   const agents = agentsRes.data ?? [];
   const actions = actionsRes.data ?? [];
   const runs = runsRes.data ?? [];
@@ -237,19 +200,6 @@ async function loadData() {
   const vercelConnected = githubData.some((e) => e.event_type === 'deployment_status');
 
   const budState = budStateRes.data;
-  const globalHealth = evaluateGlobalHealth({
-    agents,
-    runs,
-    actions: [
-      ...actions,
-      ...budApprovals.map((approval) => ({
-        id: approval.id,
-        agent_id: null,
-        status: approval.status,
-      })),
-    ],
-    unresolvedAlerts: insightsRes.data?.length ?? 0,
-  });
   const commandState = computeMissionControlHealth({
     agents,
     runs,
@@ -363,11 +313,10 @@ async function loadData() {
       pendingActions: actions.length + budApprovals.length,
     },
     budState: (budState?.bud_state ?? 'idle') as import('@/lib/bud/types').BudState,
-    budStatus: globalHealth.bud_status,
-    budSummary: globalHealth.is_nominal ? budState?.summary ?? null : globalHealth.summary,
+    budStatus: commandState.bud_status,
+    budSummary: commandState.is_nominal ? budState?.summary ?? null : commandState.summary,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     budApprovals,
-    globalHealth,
     commandState,
     budOs: {
       state: budOsState,
@@ -378,7 +327,6 @@ async function loadData() {
       uxEvolution,
       repairExecutions: repairExecutionsRes.data ?? [],
       repairSteps: repairStepsRes.data ?? [],
-      repairLogs: repairLogsRes.data ?? [],
       changeRequests: changeRequests.map((cr) => ({
         id: cr.id as string,
         task_id: (cr.task_id as string | null) ?? null,
@@ -387,7 +335,6 @@ async function loadData() {
         pr_url: (cr.pr_url as string | null) ?? null,
         status: (cr.status as string) ?? 'open',
       })),
-      rollbackEvents: (rollbackEventsRes.data ?? []) as Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>,
       authority,
       capabilities,
       initiatives,
@@ -395,13 +342,6 @@ async function loadData() {
       thoughtStream,
       githubConnected: githubData.length > 0,
       circuit,
-      resilienceEvents: (resilienceEventsRes.data ?? []) as Array<{
-        id: number;
-        guard: 'circuit_breaker' | 'zombie_reaper' | 'concurrency_guard';
-        event_type: string;
-        payload: Record<string, unknown>;
-        created_at: string;
-      }>,
       efficiencyFindings: (efficiencyFindingsRes.data ?? []) as Array<{
         id: string;
         domain: string;
