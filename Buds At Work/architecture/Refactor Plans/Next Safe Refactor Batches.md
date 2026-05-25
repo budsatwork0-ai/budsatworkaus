@@ -33,11 +33,17 @@ Ordered list of safe, staged refactors. Each batch is self-contained — complet
 
 ---
 
-## Batch 4 — Shared components audit (LOW RISK)
-**Target:** `SummaryCard`, `Panel`, `StatRow`, `StatusChip` in `components/shared/index.tsx`  
-**Scope:** Ensure all dashboard tabs use the shared components and no tab re-implements any of these inline.  
-**Why safe:** Components already extracted — this batch audits and standardises usage.  
-**Verify with:** `grep -r "SummaryCard\|StatRow\|StatusChip" src/`
+## ~~Batch 4 — Shared components audit~~ ✅ DONE (2026-05-26)
+
+Audit findings:
+- All 6 tab files (`OverviewTab`, `ReceivablesTab`, `PayablesTab`, `JobsTab`, `ReportsTab`, `VisitorsTab`) already imported from `../shared` correctly.
+- `orders/page.tsx` and `subscriptions/page.tsx` each had an identical inline `SummaryCard` copy.
+- Both local `StatusChip` implementations were intentionally page-specific (`OrderStatus`/`SubscriptionStatus` have different type domains and color maps from the shared `statusStyles`) — left in place.
+
+Fix applied:
+- Made `viewLabel` optional in shared `SummaryCard`; "View →" button now only renders when `viewLabel` is provided.
+- Removed inline `SummaryCard` from `orders/page.tsx` and `subscriptions/page.tsx`.
+- Both pages now import `SummaryCard` from `'../components/shared'`.
 
 ---
 

@@ -20,6 +20,7 @@ import EmptyState from '@/components/EmptyState';
 import LoadingSkeleton, { SummaryCardsSkeleton } from '@/components/LoadingSkeleton';
 import CreateOrderModal from '@/components/CreateOrderModal';
 import { formatCurrency, formatDate } from '@/lib/dashboard/utils';
+import { SummaryCard } from '../components/shared';
 
 type TabKey = 'all' | 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
@@ -52,33 +53,6 @@ const StatusChip = ({ status }: { status: OrderStatus }) => {
   );
 };
 
-const SummaryCard = ({
-  label,
-  value,
-  hint,
-  isLoading,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  isLoading?: boolean;
-}) => (
-  <div className="rounded-2xl border border-black/5 bg-white/90 px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
-    {isLoading ? (
-      <div className="animate-pulse">
-        <div className="h-3 bg-slate-200 rounded w-20 mb-2" />
-        <div className="h-6 bg-slate-200 rounded w-12 mb-1" />
-        <div className="h-3 bg-slate-200 rounded w-16" />
-      </div>
-    ) : (
-      <>
-        <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-        <div className="text-2xl font-semibold text-slate-900 mt-1">{value}</div>
-        {hint && <div className="text-xs text-slate-500 mt-1">{hint}</div>}
-      </>
-    )}
-  </div>
-);
 
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('all');

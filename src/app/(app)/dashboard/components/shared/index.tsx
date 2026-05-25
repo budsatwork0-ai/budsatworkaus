@@ -51,7 +51,7 @@ export const SummaryCard = ({
   value: string;
   hint?: string;
   change?: string | null;
-  viewLabel: string;
+  viewLabel?: string;
   isLoading?: boolean;
   onClick?: () => void;
 }) => (
@@ -78,13 +78,15 @@ export const SummaryCard = ({
       </div>
     )}
     {hint && <div className="text-[11px] sm:text-xs text-slate-500 mt-1 truncate">{hint}</div>}
-    <button
-      type="button"
-      className="mt-2 sm:mt-3 text-[11px] sm:text-xs font-semibold hover:text-slate-900 underline decoration-slate-200"
-      style={{ color: brand.primary }}
-    >
-      View {viewLabel} →
-    </button>
+    {viewLabel && (
+      <button
+        type="button"
+        className="mt-2 sm:mt-3 text-[11px] sm:text-xs font-semibold hover:text-slate-900 underline decoration-slate-200"
+        style={{ color: brand.primary }}
+      >
+        View {viewLabel} →
+      </button>
+    )}
   </div>
 );
 
