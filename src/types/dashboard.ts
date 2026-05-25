@@ -340,6 +340,8 @@ export type DashboardQuote = {
    * is created without explicit attribution. Used by the Live Leads Feed.
    */
   source?: 'website' | 'messenger' | 'sms' | 'instagram' | 'email' | 'phone' | 'referral' | 'unknown' | string | null;
+  lead_score?: number | null;
+  lead_score_at?: string | null;
 };
 
 export type PartnerReferralSnapshot = {

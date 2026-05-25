@@ -233,6 +233,7 @@ export function quotesToLeads(quotes: DashboardQuote[], now: Date = new Date()):
       isStale,
       attentionReason,
       href: `/dashboard/quotes?q=${encodeURIComponent(q.id)}`,
+      leadScore: typeof q.lead_score === 'number' ? q.lead_score : null,
     };
   });
 }
@@ -345,6 +346,7 @@ export function dashboardLeadsToLeads(leads: DashboardLead[], now: Date = new Da
       isStale,
       attentionReason,
       href: `/dashboard/quotes?lead=${encodeURIComponent(row.id)}`,
+      leadScore: null,
     };
   });
 }

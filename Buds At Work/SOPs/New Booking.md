@@ -37,3 +37,7 @@ Stripe fires `checkout.session.completed` → order status → `confirmed` → B
 - [[Failed Payment]]
 - [[Checklist Template]]
 - [[Services Flow Improvements — April 2026]]
+
+## Architecture
+- [[Quote Pipeline]] — the code path that fires when payment completes
+- [[Mission Control]] — operational state that reflects the new confirmed booking

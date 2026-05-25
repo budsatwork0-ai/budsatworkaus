@@ -3,9 +3,10 @@ import type {
   ServiceType, ScopeKey, ScopeDef, ImpactLevel, MicroPreset,
   Task, CommercialCleaningType, CommMeta, CommParamDef,
   ParamTable, YardMeasurementConfig, YardMeasurementMode,
-  StoreyRow,
+  StoreyRow, Context, NdisManagementType,
 } from '../types';
 import { WindowIcon, CleanIcon, LawnIcon, TruckIcon, CarIcon, ShoeIcon } from '../utils/icons';
+import { ACCENT } from '@/app/ui/theme';
 
 /* =========================
    SERVICES
@@ -538,3 +539,146 @@ export const HOUSE_SNAPS: { name: string; rows: StoreyRow[] }[] = [
   { name: 'Small home', rows: [{ int: 10, ext: 10, tracks: 10, screens: 10, label: 'Level' }] },
   { name: 'Large home', rows: [{ int: 16, ext: 16, tracks: 16, screens: 16, label: 'Level' }] },
 ];
+
+/* =========================
+   ACCESS TOGGLES
+   ========================= */
+export const ACCESS_TOGGLES: ReadonlyArray<{
+  key: 'paidParking' | 'secondStorey' | 'afterHours' | 'clutterAccess' | 'petHair';
+  label: string;
+}> = [
+  { key: 'paidParking',   label: 'Paid/Street parking' },
+  { key: 'secondStorey',  label: 'Second storey' },
+  { key: 'afterHours',    label: 'After-hours (post-6pm)' },
+  { key: 'clutterAccess', label: 'Tight access' },
+  { key: 'petHair',       label: 'Pets present' },
+];
+
+/* =========================
+   COMMERCIAL CLEANING CONFIG
+   ========================= */
+export const COMM_FEATURES: Record<CommercialCleaningType, string[]> = {
+  office: ['Desks & bins', 'Kitchens/tea rooms', 'Restrooms', 'High-touch points'],
+  medical: ['Consult rooms', 'Waiting area', 'Restrooms', 'Infection-control touchpoints'],
+  fitness: ['Equipment wipe-down', 'Locker/change rooms', 'Showers', 'Mirrors & mats'],
+  hospitality: ['Dining/bar areas', 'Kitchen/prep zones', 'Restrooms', 'Grease/touch points'],
+  education: ['Classrooms & play', 'Staff rooms', 'Restrooms', 'High-touch toys/rails'],
+  event: ['Pre/post-event reset', 'Restrooms', 'Seating/table sets', 'High-traffic touchpoints'],
+  accommodation: ['Rooms/units turnover', 'Lobbies & lifts', 'Restrooms/amenities', 'High-touch railings'],
+};
+
+export const COMM_STANDARDS: Record<CommercialCleaningType, string[]> = {
+  office: ['After-hours ready', 'Insured', 'WC/Police checked', 'Supplies optional'],
+  medical: ['Infection control', 'Insured', 'WC/Police checked', 'After-hours ready'],
+  fitness: ['Anti-microbial', 'Insured', 'After-hours ready', 'Supplies optional'],
+  hospitality: ['Grease-safe', 'Insured', 'After-hours ready', 'Supplies optional'],
+  education: ['Child-safe', 'Insured', 'WC/Police checked', 'Supplies optional'],
+  event: ['Pre/post turnaround', 'Insured', 'After-hours ready', 'Supplies optional'],
+  accommodation: ['After-hours ready', 'Insured', 'WC/Police checked', 'Supplies optional'],
+};
+
+export const COMM_PRESETS: Record<
+  CommercialCleaningType,
+  { key: string; label: string; params: Partial<Record<string, number>> }[]
+> = {
+  office: [
+    { key: 'essential', label: 'Essential', params: { sqm: 600, workstations: 20, restrooms: 2, break_rooms: 1, floors: 1 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 900, workstations: 60, restrooms: 4, break_rooms: 2, floors: 2 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 1800, workstations: 120, restrooms: 8, break_rooms: 3, floors: 3 } },
+  ],
+  medical: [
+    { key: 'essential', label: 'Essential', params: { sqm: 350, workstations: 6, restrooms: 2, break_rooms: 10, floors: 1, high_traffic: 6 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 550, workstations: 12, restrooms: 4, break_rooms: 20, floors: 2, high_traffic: 10 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 1200, workstations: 20, restrooms: 6, break_rooms: 30, floors: 3, high_traffic: 16 } },
+  ],
+  fitness: [
+    { key: 'essential', label: 'Essential', params: { sqm: 450, workstations: 25, restrooms: 2, break_rooms: 3, floors: 100, high_traffic: 8 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 750, workstations: 50, restrooms: 3, break_rooms: 5, floors: 150, high_traffic: 12 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 1600, workstations: 80, restrooms: 4, break_rooms: 8, floors: 200, high_traffic: 16 } },
+  ],
+  hospitality: [
+    { key: 'essential', label: 'Essential', params: { sqm: 550, workstations: 15, restrooms: 2, break_rooms: 1, floors: 1, high_traffic: 6 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 850, workstations: 30, restrooms: 3, break_rooms: 2, floors: 2, high_traffic: 10 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 1800, workstations: 60, restrooms: 5, break_rooms: 3, floors: 3, high_traffic: 14 } },
+  ],
+  education: [
+    { key: 'essential', label: 'Essential', params: { sqm: 550, workstations: 6, restrooms: 3, break_rooms: 2, floors: 1, high_traffic: 8 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 850, workstations: 10, restrooms: 5, break_rooms: 3, floors: 2, high_traffic: 12 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 1700, workstations: 16, restrooms: 7, break_rooms: 4, floors: 3, high_traffic: 16 } },
+  ],
+  event: [
+    { key: 'essential', label: 'Essential', params: { sqm: 700, workstations: 20, restrooms: 4, break_rooms: 50, floors: 1, high_traffic: 8 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 1200, workstations: 40, restrooms: 6, break_rooms: 80, floors: 2, high_traffic: 12 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 2800, workstations: 80, restrooms: 10, break_rooms: 120, floors: 3, high_traffic: 18 } },
+  ],
+  accommodation: [
+    { key: 'essential', label: 'Essential', params: { sqm: 700, workstations: 25, restrooms: 4, break_rooms: 2, floors: 3, high_traffic: 6 } },
+    { key: 'standard', label: 'Standard', params: { sqm: 1100, workstations: 60, restrooms: 8, break_rooms: 4, floors: 5, high_traffic: 10 } },
+    { key: 'intensive', label: 'Intensive', params: { sqm: 2400, workstations: 100, restrooms: 12, break_rooms: 6, floors: 8, high_traffic: 14 } },
+  ],
+};
+
+/* =========================
+   CONTEXT / WIZARD CONFIG
+   ========================= */
+export const NDIS_ACCENT = '#6d28d9';
+
+export const CONTEXT_OPTIONS: { key: Context; label: string; activeColor: string }[] = [
+  { key: 'home', label: 'Home', activeColor: ACCENT },
+  { key: 'commercial', label: 'Commercial', activeColor: ACCENT },
+  { key: 'ndis', label: 'NDIS', activeColor: NDIS_ACCENT },
+];
+
+export const CONTEXT_LABELS: Record<Context, string> = {
+  home: 'Home',
+  commercial: 'Commercial',
+  ndis: 'NDIS',
+};
+
+export const RESIDENTIAL_CLEANING_SCOPE_LABELS: Record<string, string> = {
+  weekly: 'Weekly Clean',
+  general: 'Standard Clean',
+  deep: 'Deep Clean',
+  endoflease: 'Move In / Out',
+  hourly: 'Hourly / Directed',
+};
+
+export const NDIS_MANAGEMENT_OPTIONS: {
+  key: NdisManagementType;
+  title: string;
+  description: string;
+  destination: string;
+}[] = [
+  {
+    key: 'plan_managed',
+    title: 'Plan-Managed',
+    description: 'We send the quote straight to the participant’s plan management provider for budgeting and payment processing.',
+    destination: 'Send to the participant’s Plan Management Provider',
+  },
+  {
+    key: 'self_managed',
+    title: 'Self-Managed',
+    description: 'We send the quote directly to the participant or their nominee so they can pay and claim back through the NDIS.',
+    destination: 'Send to the participant or nominee/family',
+  },
+  {
+    key: 'agency_managed',
+    title: 'Agency-Managed (NDIA)',
+    description: 'We send the quote to the participant first. After approval, an NDIS-registered provider creates the service booking in myplace.',
+    destination: 'Send to the participant for review and acceptance',
+  },
+];
+
+/* =========================
+   SCOPE RECOMMENDATIONS
+   ========================= */
+export const RECOMMENDED: Record<string, string[]> = {
+  windows: ['windows_full', 'windows_interior'],
+  cleaning: ['general', 'deep'],
+  yard: ['yard_mow', 'yard_leaves'],
+  auto: ['auto_express'],
+  dump: ['dump_runs'],
+  laundry_sneakers: ['laundry'],
+};
+
+export const isRec = (svc: string, key: string) => !!RECOMMENDED[svc]?.includes(key);

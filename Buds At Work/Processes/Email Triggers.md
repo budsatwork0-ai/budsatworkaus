@@ -100,3 +100,6 @@ Check Resend dashboard logs if emails are not arriving.
 ## Related
 - [[Quote Flow]]
 - [[Stripe Checkout]]
+
+## Architecture
+- [[Quote Pipeline]] — API routes where each email trigger fires

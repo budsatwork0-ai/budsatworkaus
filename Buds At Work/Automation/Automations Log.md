@@ -43,3 +43,7 @@ Each recipe:
 - [[Quote Flow]]
 - [[Email Triggers]]
 - [[New Booking]]
+
+## Architecture
+- [[Agent Runtime]] — the execution engine that runs automation agents
+- [[Mission Control]] — operational state that automation agents read and act on

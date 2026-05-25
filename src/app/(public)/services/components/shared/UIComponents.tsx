@@ -238,3 +238,72 @@ export function PickerCard<T extends string | number>({
     </div>
   );
 }
+
+// Isolated slider for commercial sqm — keeps local display value and only
+// propagates the final value on pointer/touch release, preventing full-page
+// re-renders during drag.
+type CommSqmSliderProps = { value: number; onChange: (v: number) => void };
+export function CommSqmSlider({ value, onChange }: CommSqmSliderProps) {
+  const [local, setLocal] = React.useState(value);
+  // Keep in sync when the parent changes the value externally (e.g. preset button click).
+  React.useEffect(() => { setLocal(value); }, [value]);
+  const commit = React.useCallback(() => onChange(local), [local, onChange]);
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-semibold text-slate-700">Approx. area</div>
+        <div className="text-[11px] text-slate-600">{local} sqm</div>
+      </div>
+      <input
+        type="range"
+        min={50}
+        max={3000}
+        step={50}
+        value={local}
+        onChange={(e) => setLocal(Number(e.target.value))}
+        onMouseUp={commit}
+        onTouchEnd={commit}
+        onClick={stop}
+        onPointerDown={stop}
+        onTouchStart={stop}
+        onTouchMove={stop}
+        className="w-full accent-emerald-600"
+        // pan-y lets the browser handle vertical scroll but gives horizontal drag to the slider
+        style={{ touchAction: 'pan-y' }}
+        aria-label="Square metres slider"
+      />
+      <div className="flex justify-between text-[10px] text-slate-500">
+        <span>50</span>
+        <span>1500</span>
+        <span>3000</span>
+      </div>
+    </div>
+  );
+}
+
+/** Compact +/– stepper for room/unit counts. Handles stopPropagation internally. */
+export function NumberStepper({ label, value, onStep }: {
+  label: string;
+  value: number;
+  onStep: (delta: 1 | -1) => void;
+}) {
+  return (
+    <div className="rounded-full border border-black/10 bg-white/80 px-1.5 py-0.5 inline-flex items-center gap-1">
+      <span className="font-semibold text-slate-700">{label}</span>
+      <button
+        type="button"
+        aria-label={`Decrease ${label}`}
+        className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
+        onClick={(e) => { e.stopPropagation(); onStep(-1); }}
+      >–</button>
+      <span className="min-w-[16px] text-center font-semibold text-slate-900">{value}</span>
+      <button
+        type="button"
+        aria-label={`Increase ${label}`}
+        className="w-5 h-5 flex items-center justify-center rounded-full border border-black/10"
+        onClick={(e) => { e.stopPropagation(); onStep(1); }}
+      >+</button>
+    </div>
+  );
+}

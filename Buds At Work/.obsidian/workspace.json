@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "9b59723b89c2fba1",
+        "id": "4514a63046dacba4",
         "type": "tabs",
         "children": [
           {
-            "id": "fe5348894e6dc413",
+            "id": "f733923fe846c40c",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -70,7 +70,8 @@
               "title": "Files"
             }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "horizontal",
@@ -176,44 +177,44 @@
       "bases:Create new base": false
     }
   },
-  "active": "fe5348894e6dc413",
+  "active": "f733923fe846c40c",
   "lastOpenFiles": [
-    "Dev/ADR-Drafts/README.md",
-    "Dev/Deployments/README.md",
-    "Dev/GitHub-Automation.md",
+    "Refactor Plans/Services Core Extraction.md.tmp.74398.8ee6145e7027",
+    "Dev/Bud Leads.md",
+    "Agents/Graph-Health-Agent.md",
+    "Automation/Graph Maintenance.md",
+    "Untitled.md",
+    "architecture/Graphify/GRAPH_REPORT.md",
+    "architecture/Graphify.md.tmp.73247.a7ff3175d416",
+    "2026-05-25.md",
+    "architecture/entities/getAuthUser.md",
+    "architecture/entities/AgentContext.md",
+    "architecture/entities/AgentDefinition.md",
+    "architecture/entities/Brand.md",
+    "architecture/entities/createServiceClient.md",
+    "architecture/entities/useRouteResult.md",
+    "architecture/entities/ServicesPageContent.md",
+    "architecture/entities/Agent Runtime.md",
+    "architecture/entities/Mission Control.md",
+    "architecture/entities/Quote Pipeline.md",
+    "architecture/entities/Route Service.md",
+    "architecture/entities/WizardState.md",
+    "architecture/entities/Pricing Engine.md",
+    "architecture/entities",
+    "architecture/Graphify.md",
+    "architecture/Bud Core Runtime.md",
+    "Pricing Engine.md",
+    "Untitled",
+    "Dev/Dev Log 2026-05-25.md",
+    "Refactor Plans/Services Core Extraction.md",
+    "Refactor Plans",
+    "architecture/Graphify/graph.json",
+    "architecture/Graphify/budsatwork-callflow.html",
+    "architecture/Graphify",
+    "00-Index/Home.md",
     "Dev/ADR-Drafts",
     "Dev/Releases",
     "Dev/Journal",
-    "Dev/Deployments",
-    "Dev/PRs",
-    "Agents/Admin-Agent/Findings/2026-05-18-admin-optimization-baseline.md",
-    "Agents/Admin-Agent/Active-Issues/2026-05-18-scheduling-multi-step-assign.md",
-    "Agents/Admin-Agent/Active-Issues/2026-05-18-quote-pipeline-no-single-pane.md",
-    "Agents/Admin-Agent/Decisions/2026-05-18-admin-optimization-agent-design.md",
-    "Dev/Dev Log 2026-05-18.md",
-    "Agents/UX-Agent/Findings/2026-05-18-ux-intelligence-baseline.md",
-    "Agents/UX-Agent/Active-Issues/2026-05-18-sticky-footer-zindex-conflict.md",
-    "Agents/UX-Agent/Active-Issues/2026-05-18-quote-wizard-mobile-cta-below-fold.md",
-    "Agents/UX-Agent/Decisions/2026-05-18-ux-intelligence-agent-design.md",
-    "Dev/ADR-Index.md",
-    "Dev/ADR-0001-use-pgvector-for-memory-semantic-search.md",
-    "Agents/Meta-Agent/Resolved-Issues/README.md",
-    "Agents/Meta-Agent/Tasks/README.md",
-    "Agents/Meta-Agent/Reports/README.md",
-    "Agents/Meta-Agent/Findings/README.md",
-    "Agents/Meta-Agent/Decisions/README.md",
-    "Agents/Meta-Agent/Active-Issues/README.md",
-    "Agents/Meta-Agent/Tasks",
-    "Agents/Meta-Agent/Resolved-Issues",
-    "Agents/Meta-Agent/Reports",
-    "Agents/Meta-Agent/README.md",
-    "Agents/Meta-Agent/Findings",
-    "Agents/Meta-Agent/Decisions",
-    "Agents/Design-System-Agent/Resolved-Issues/README.md",
-    "Agents/Design-System-Agent/Tasks/README.md",
-    "Agents/Design-System-Agent/Reports/README.md",
-    "Agents/Design-System-Agent/Findings/README.md",
-    "Agents/Design-System-Agent/Decisions/README.md",
     "Untitled 2.canvas",
     "Untitled 1.canvas",
     "Untitled.canvas"
