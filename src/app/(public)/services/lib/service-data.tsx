@@ -39,6 +39,13 @@ export const STORAGE_KEY = 'budsatwork.quote.v2';
 // Optional dev helper: flip to true to reset stored session on mount.
 export const RESET_ON_MOUNT = false;
 
+export const FALLBACK_INCLUSIONS = [
+  "Scope confirmed (what's in / out)",
+  'Access/parking/prep noted',
+  'Time & pricing confirmed',
+  'Handover/QA (photos or walkthrough)',
+];
+
 /* =========================
    SCOPES
    ========================= */

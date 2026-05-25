@@ -3,7 +3,7 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { cleaningAddonsForScope } from '../../lib/estimation';
-import { scopePresetFor } from '../../lib/service-helpers';
+import { CLEANING_SIZE_PRESETS, type CleaningSizeKey, deriveCleaningState } from '../../lib/service-helpers';
 import type { WizardState } from '../../types';
 import { cls } from '../../utils/formatting';
 import { M } from '../../utils/motion';
@@ -18,35 +18,7 @@ interface CleaningWizardPanelProps {
 }
 
 export function CleaningWizardPanel({ S, set, isConfigOpen, isActive, scopeKey }: CleaningWizardPanelProps) {
-  const cleaningSizePresets = {
-    studio: { bedrooms: 1, bathrooms: 1, kitchens: 1, living: 0, laundry: 0, storeys: 1 },
-    small: { bedrooms: 2, bathrooms: 1, kitchens: 1, living: 1, laundry: 0, storeys: 1 },
-    medium: { bedrooms: 4, bathrooms: 2, kitchens: 1, living: 2, laundry: 1, storeys: 1 },
-    large: { bedrooms: 5, bathrooms: 3, kitchens: 1, living: 2, laundry: 1, storeys: 2 },
-  } as const;
-  type CleaningSizeKey = keyof typeof cleaningSizePresets;
-  const cleaningParams =
-    (S.paramsByService.cleaning && Object.keys(S.paramsByService.cleaning).length > 0
-      ? S.paramsByService.cleaning
-      : (scopePresetFor('cleaning', scopeKey, S.context) || {})) as Record<string, number>;
-  const deriveSizeKey = (): CleaningSizeKey => {
-    const beds = cleaningParams.bedrooms ?? 1;
-    if (beds <= 1) return 'studio';
-    if (beds <= 2) return 'small';
-    if (beds <= 4) return 'medium';
-    return 'large';
-  };
-  const cleaningSizeKey = deriveSizeKey();
-  const sizePreset = cleaningSizePresets[cleaningSizeKey];
-  const bathroomsChoice = (() => {
-    const b = cleaningParams.bathrooms ?? sizePreset.bathrooms ?? 1;
-    if (b <= 1) return 1;
-    if (b <= 2) return 2;
-    return 3;
-  })() as 1 | 2 | 3;
-  const cupboardsSelected = (cleaningParams.kitchens ?? sizePreset.kitchens) > sizePreset.kitchens;
-  const wallsSelected = (cleaningParams.living ?? sizePreset.living) > sizePreset.living;
-  const messLevel = S.conditionLevel;
+  const { cleaningParams, cleaningSizeKey, sizePreset, bathroomsChoice, cupboardsSelected, wallsSelected, messLevel } = deriveCleaningState(S, scopeKey);
   const addonsState = cleaningAddonsForScope(scopeKey, S.cleaningAddons);
 
   const setCleaningWizard = ({
@@ -64,7 +36,7 @@ export function CleaningWizardPanel({ S, set, isConfigOpen, isActive, scopeKey }
     bedrooms?: number;
     storeys?: number;
   }) => {
-    const base = cleaningSizePresets[sizeKey] || cleaningSizePresets.medium;
+    const base = CLEANING_SIZE_PRESETS[sizeKey] || CLEANING_SIZE_PRESETS.medium;
     const nextBedrooms = Math.max(1, bedrooms ?? base.bedrooms);
     const nextBathrooms = Math.max(1, Math.min(3, bathrooms || base.bathrooms || 1));
     const nextStoreys = Math.max(1, Math.min(5, storeys ?? base.storeys ?? 1));

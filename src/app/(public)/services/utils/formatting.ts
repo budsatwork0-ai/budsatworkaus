@@ -61,6 +61,14 @@ export function fmtHrMinCompact(mins: number) {
   return `${h}h${m}m`;
 }
 
+// Inclusion list formatting
+export function formatInclusionText(inc: string): { isHeader: boolean; text: string } {
+  const trimmed = inc.trim();
+  const isHeader = /^—/.test(trimmed);
+  const text = trimmed.replace(/^—\s*|\s*—$/g, '').trim();
+  return { isHeader, text: text || inc };
+}
+
 // Region helper
 export const canonicalServiceRegion = (value?: string | null, serviceRegions: readonly string[] = []) => {
   if (!value) return null;

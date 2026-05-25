@@ -212,6 +212,59 @@ export function buildCleaningChecklistFromWizard(state: CleaningWizardChecklistS
 }
 
 /* =========================
+   CLEANING SIZE PRESETS + DERIVED STATE
+   ========================= */
+export const CLEANING_SIZE_PRESETS = {
+  studio: { bedrooms: 1, bathrooms: 1, kitchens: 1, living: 0, laundry: 0, storeys: 1 },
+  small:  { bedrooms: 2, bathrooms: 1, kitchens: 1, living: 1, laundry: 0, storeys: 1 },
+  medium: { bedrooms: 4, bathrooms: 2, kitchens: 1, living: 2, laundry: 1, storeys: 1 },
+  large:  { bedrooms: 5, bathrooms: 3, kitchens: 1, living: 2, laundry: 1, storeys: 2 },
+} as const;
+
+export type CleaningSizeKey = keyof typeof CLEANING_SIZE_PRESETS;
+
+export interface CleaningState {
+  cleaningParams: Record<string, number>;
+  cleaningSizeKey: CleaningSizeKey;
+  sizePreset: (typeof CLEANING_SIZE_PRESETS)[CleaningSizeKey];
+  bathroomsChoice: 1 | 2 | 3;
+  cupboardsSelected: boolean;
+  wallsSelected: boolean;
+  messLevel: string;
+}
+
+export function deriveCleaningState(S: WizardState, scopeKey: string): CleaningState {
+  const cleaningParams = (
+    S.paramsByService.cleaning && Object.keys(S.paramsByService.cleaning).length > 0
+      ? S.paramsByService.cleaning
+      : (scopePresetFor('cleaning', scopeKey, S.context) || {})
+  ) as Record<string, number>;
+
+  const deriveSizeKey = (): CleaningSizeKey => {
+    const beds = cleaningParams.bedrooms ?? 1;
+    if (beds <= 1) return 'studio';
+    if (beds <= 2) return 'small';
+    if (beds <= 4) return 'medium';
+    return 'large';
+  };
+  const cleaningSizeKey = deriveSizeKey();
+  const sizePreset = CLEANING_SIZE_PRESETS[cleaningSizeKey];
+
+  const bathroomsChoice = (() => {
+    const b = cleaningParams.bathrooms ?? sizePreset.bathrooms ?? 1;
+    if (b <= 1) return 1;
+    if (b <= 2) return 2;
+    return 3;
+  })() as 1 | 2 | 3;
+
+  const cupboardsSelected = (cleaningParams.kitchens ?? sizePreset.kitchens) > sizePreset.kitchens;
+  const wallsSelected = (cleaningParams.living ?? sizePreset.living) > sizePreset.living;
+  const messLevel = S.conditionLevel;
+
+  return { cleaningParams, cleaningSizeKey, sizePreset, bathroomsChoice, cupboardsSelected, wallsSelected, messLevel };
+}
+
+/* =========================
    YARD JOB FACTORY
    ========================= */
 export function createYardJob(): YardJob {
