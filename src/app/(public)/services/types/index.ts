@@ -87,18 +87,9 @@ export type DumpRunSelection = {
 
 export type DumpTier = 'small' | 'medium' | 'large';
 
-// Route types
-export type RouteLocation = {
-  address: string;
-  lat: number;
-  lng: number;
-  placeId?: string;
-};
-
-export type RouteLookupResult = {
-  distanceKm: number;
-  durationMinutes: number;
-};
+// Route types — canonical definitions live in services-core; re-exported here for backward compatibility.
+import type { RouteLocation, RouteLookupResult } from '@/lib/services-core/routing';
+export type { RouteLocation, RouteLookupResult };
 
 export type RouteScopeKey = 'dump_delivery' | 'dump_transport';
 export type TravelBand = DeliverySelection['distance'];

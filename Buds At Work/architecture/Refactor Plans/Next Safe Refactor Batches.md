@@ -8,34 +8,35 @@ Ordered list of safe, staged refactors. Each batch is self-contained — complet
 
 ---
 
-## Batch 1 — Pricing constants extraction (LOW RISK)
-**Target:** `src/app/(public)/services/lib/pricing/engine.ts`  
-**Extract:** Magic number constants and rate tables to a separate `src/lib/services-core/pricing/constants.ts`  
-**Why safe:** Pure data — no side-effects, no component dependencies.  
-**Verify with:** `graphify path "engine.ts" "WizardState"`
+## ~~Batch 1 — Pricing constants extraction~~ ✅ DONE
+
+`src/lib/services-core/constants.ts` — all rate tables and magic numbers already extracted.
+`src/app/(public)/services/lib/pricing/constants.ts` is a re-export shim.
 
 ---
 
-## Batch 2 — Yard pricing isolation (LOW RISK)
-**Target:** `src/app/ui/yard/yardPricing.ts`  
-**Extract:** Move to `src/lib/services-core/pricing/yardPricing.ts`  
-**Why safe:** Already a pure function. Only one import path to update.  
-**Verify with:** `graphify query "yard pricing polygon area"`
+## ~~Batch 2 — Yard pricing isolation~~ ✅ DONE
+
+`src/lib/services-core/yard-pricing.ts` — all pure pricing logic already extracted.
+`src/app/ui/yard/yardPricing.ts` is a thin shim that adds Google Maps utilities only (`polygonToArray`, `arrayToPolygon`).
 
 ---
 
-## Batch 3 — Route service stabilisation (MEDIUM RISK)
-**Target:** `src/app/(public)/services/lib/routing/index.ts`  
-**Extract:** Move to `src/lib/services-core/routing/index.ts`  
-**Why medium risk:** `useRouteResult` hook imports it — one import path update required.  
-**Verify with:** `graphify path "useRouteResult.ts" "routing/index.ts"`
+## ~~Batch 3 — Route service stabilisation~~ ✅ DONE (2026-05-26)
+
+`src/lib/services-core/routing.ts` — pure functions + `RouteLocation`/`RouteLookupResult` types extracted.
+`src/app/(public)/services/lib/routing/index.ts` is now a thin shim: re-exports from services-core + keeps `isQueenslandPlace` in UI layer (Google Maps type dependency).
+`src/app/(public)/services/types/index.ts` now re-exports the types from services-core for backward compatibility.
+`src/lib/services-core/index.ts` updated to include routing.
+
+**3 import sites — zero import path changes required for consumers.**
 
 ---
 
-## Batch 4 — Shared components extraction from dashboard tabs (LOW RISK)
+## Batch 4 — Shared components audit (LOW RISK)
 **Target:** `SummaryCard`, `Panel`, `StatRow`, `StatusChip` in `components/shared/index.tsx`  
-**Scope:** Ensure all call sites are consistent and no tab re-implements any of these.  
-**Why safe:** Already extracted — this batch audits and standardises usage.  
+**Scope:** Ensure all dashboard tabs use the shared components and no tab re-implements any of these inline.  
+**Why safe:** Components already extracted — this batch audits and standardises usage.  
 **Verify with:** `grep -r "SummaryCard\|StatRow\|StatusChip" src/`
 
 ---
@@ -43,7 +44,8 @@ Ordered list of safe, staged refactors. Each batch is self-contained — complet
 ## Batch 5 — NDIS pricing separation (MEDIUM RISK)
 **Target:** `src/app/(public)/services/lib/pricing/ndis.ts`  
 **Extract:** Move NDIS rate logic to `src/lib/services-core/ndis/pricing.ts`  
-**Why medium risk:** Must stay in sync with `engine.ts`. Run both tests together.  
+**Why medium risk:** NDIS rates are legislated — must stay in sync with `engine.ts`. Run both tests together.  
+**Constraint:** Never change NDIS rates without a reference to the current NDIS pricing catalogue. See [[Known Unsafe Areas]].  
 **Verify with:** `graphify path "ndis.ts" "engine.ts"`
 
 ---
