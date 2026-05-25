@@ -1,3 +1,7 @@
+---
+tags: [component, hook, react, routing]
+---
+
 # useRouteResult
 
 ## Purpose
@@ -9,8 +13,15 @@ React hook that watches the customer's address in `WizardState` and fires a debo
 ## How it fits in
 `ServicesPageContent` calls this hook near the top of its render. When the address changes, the hook calls [[Route Service]], then dispatches the `RouteLookupResult` back into `WizardState` so [[Pricing Engine]] can include any travel surcharge.
 
-## Related Systems
+## Claude should know
+- This hook is debounced — do not add extra debouncing around it.
+- If routing fails, the hook writes the `fallbackRoute()` result into `WizardState` (zero surcharge, no error shown).
+- Results are cached by address key so revisiting the same address doesn't trigger a new API call.
 
+## Related files/components
+- `src/app/(public)/services/lib/hooks/useRouteResult.ts`
+
+## Related Systems
 - [[Route Service]]
 - [[WizardState]]
 - [[ServicesPageContent]]

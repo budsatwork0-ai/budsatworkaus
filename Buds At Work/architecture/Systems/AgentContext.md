@@ -1,3 +1,7 @@
+---
+tags: [system, agents, context, god-node]
+---
+
 # AgentContext
 
 ## Purpose
@@ -15,8 +19,16 @@ Key properties:
 ## Why it's a god node
 Every agent's `run()` function receives it. It's the primary interface between agent logic and the runtime.
 
-## Related Systems
+## Claude should know
+- Never import `claude` or `anthropic` directly inside an agent definition — always use `ctx.llm()`.
+- `ctx.proposeAction()` is how agents request side-effects. All proposals go through guardrails.
+- `ctx.callAgent()` enforces recursion depth (max 5) and call-loop detection automatically.
+- Do not log sensitive data via `ctx.log()` — logs are stored and visible in the approval queue.
 
+## Related files/components
+- `src/lib/agents/types.ts` L49
+
+## Related Systems
 - [[AgentDefinition]]
 - [[Agent Runtime]]
 - [[Mission Control]]

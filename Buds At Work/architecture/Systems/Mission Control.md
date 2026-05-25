@@ -1,3 +1,7 @@
+---
+tags: [system, runtime, dashboard, read-model]
+---
+
 # Mission Control
 
 ## Purpose
@@ -11,16 +15,25 @@ Aggregates operational truth from jobs, quotes, crew, and finance into a unified
 ## How it fits in
 The admin dashboard (`/dashboard`) renders Mission Control data. The [[Agent Runtime]] queries this state when agents need current operational context (e.g. scheduling, cash-flow agents).
 
-## Related Systems
+## Claude should know
+- Mission Control is read-only from the UI side — never write to it directly from a component.
+- All state mutations happen via API routes or agent actions, then Mission Control re-derives on the next poll.
+- If the admin dashboard shows stale data, the issue is almost always in `deriveGlobalTruth()` not including a new data source.
+- Agents that need operational context should read from this layer, not query Supabase directly.
 
+## Related files/components
+- `src/lib/bud/health.ts`
+- `src/lib/bud/overview-v2.ts`
+- `src/lib/bud/os-view-model.ts`
+- `src/app/(app)/dashboard/` — renders this state
+
+## Related Systems
 - [[Bud Core Runtime]]
 - [[Agent Runtime]]
 - [[Quote Pipeline]]
-- [[Admin-Agent]]
 - [[createServiceClient]]
 - [[getAuthUser]]
-- [[New Booking]]
-- [[Automations Log]]
+- [[Automation/Automations Log|Automations Log]]
 
 ## Graphify queries
 ```bash

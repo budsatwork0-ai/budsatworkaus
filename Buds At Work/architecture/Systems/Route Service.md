@@ -1,3 +1,7 @@
+---
+tags: [system, routing, pricing, geo]
+---
+
 # Route Service
 
 ## Purpose
@@ -13,8 +17,16 @@ Key functions:
 ## How it fits in
 `useRouteResult` calls the route service when the customer address changes. The `RouteLookupResult` is stored in `WizardState` and read by the [[Pricing Engine]] to add any travel surcharge.
 
-## Related Systems
+## Claude should know
+- `fallbackRoute()` returns zero cost — if routing is broken, quotes will not include travel surcharge. This is intentional (degrade gracefully rather than block checkout).
+- Results are keyed by `formatRouteKey()` to avoid redundant API calls for the same address.
+- The Google Maps API key is `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` — it must be set in both `.env.local` and Vercel.
 
+## Related files/components
+- `src/app/(public)/services/lib/routing/index.ts`
+- `src/app/(public)/services/lib/hooks/useRouteResult.ts`
+
+## Related Systems
 - [[WizardState]]
 - [[useRouteResult]]
 - [[Pricing Engine]]

@@ -1,3 +1,7 @@
+---
+tags: [automation, log, recipes, site-settings]
+---
+
 # Automations Log
 
 Tracks which automation recipes are currently enabled in site settings.
@@ -38,12 +42,18 @@ Each recipe:
 
 ---
 
+## Claude should know
+- `site_settings` is a generic key-value table — keys are strings, values are JSON. Adding a new recipe key requires a migration if the key needs a default value.
+- Do not remove recipe keys from `site_settings` even if the recipe is disabled — the key tracks the admin's intent.
+
 ## Related
 - [[Checklist Template]]
-- [[Quote Flow]]
-- [[Email Triggers]]
-- [[New Booking]]
+- [[Bud Automation Roadmap]]
+- [[Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance Prompt]]
+- [[Processes/Quote Flow|Quote Flow]]
+- [[Processes/Email Triggers|Email Triggers]]
+- [[SOPs/New Booking|New Booking]]
 
 ## Architecture
-- [[Agent Runtime]] — the execution engine that runs automation agents
-- [[Mission Control]] — operational state that automation agents read and act on
+- [[../architecture/Systems/Agent Runtime|Agent Runtime]] — the execution engine that runs automation agents
+- [[../architecture/Systems/Mission Control|Mission Control]] — operational state that automation agents read and act on

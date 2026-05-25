@@ -1,3 +1,7 @@
+---
+tags: [system, supabase, infrastructure, god-node]
+---
+
 # createServiceClient
 
 ## Purpose
@@ -11,8 +15,16 @@ The most-imported function in the entire codebase (218 connections). Creates a s
 ## Why it's a god node
 Every API route imports it. If this function's signature changes, every route breaks simultaneously.
 
-## Related Systems
+## Claude should know
+- **Use `createServiceClientSafe()`** in any route where you want graceful degradation (returns `null` on failure).
+- **Use `createServiceClient()`** only when you need to guarantee the client or throw — e.g., critical write paths.
+- This client bypasses Row Level Security. Never expose it to the client side.
+- If you're adding a new API route, import from `src/lib/supabase/server.ts` — not a re-export path.
 
+## Related files/components
+- `src/lib/supabase/server.ts` L6
+
+## Related Systems
 - [[Quote Pipeline]]
 - [[Agent Runtime]]
 - [[Mission Control]]

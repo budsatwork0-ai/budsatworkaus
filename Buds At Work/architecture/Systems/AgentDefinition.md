@@ -1,3 +1,7 @@
+---
+tags: [system, agents, interface, god-node]
+---
+
 # AgentDefinition
 
 ## Purpose
@@ -15,13 +19,19 @@ Key fields:
 ## Why it's a god node
 Every agent file imports it. Adding a new capability means implementing this interface.
 
-## Related Systems
+## Claude should know
+- To add a new agent: create a new file in `src/lib/agents/agents/`, implement `AgentDefinition`, and the registry picks it up automatically — no other wiring needed.
+- The `category` field is used by the dashboard grid to group agents by domain.
+- Use `config.policies.disabled` sparingly — disabling guardrails should have a documented reason.
+- 30+ agent definitions exist across categories: sales, support, ops, hiring, finance, compliance.
 
+## Related files/components
+- `src/lib/agents/types.ts` L31
+- `src/lib/agents/agents/` — all agent implementations
+
+## Related Systems
 - [[Agent Runtime]]
 - [[AgentContext]]
-- [[Meta-Agent]]
-- [[Admin-Agent]]
-- [[Frontend-Agent]]
 
 ## Graphify queries
 ```bash
