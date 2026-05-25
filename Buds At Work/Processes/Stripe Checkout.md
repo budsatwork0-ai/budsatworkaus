@@ -87,3 +87,8 @@ Use test card `4242 4242 4242 4242` for successful payments.
 - [[Email Triggers]]
 - [[Checklist Template]]
 - [[Services Flow Improvements — April 2026]]
+
+## Architecture
+- [[Quote Pipeline]] — server-side checkout session creation and webhook handling
+- [[createServiceClient]] — Supabase client used in every route here
+- [[getAuthUser]] — auth gate on the checkout creation endpoint

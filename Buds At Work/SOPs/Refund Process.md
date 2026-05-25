@@ -46,3 +46,7 @@ When and how to issue refunds.
 - [[Quote Flow]]
 - [[Services Flow Improvements — April 2026]]
 - [[NDIS Pricing Rewrite & Stripe Hardening — April 2026]] *(disputes — see follow-ups; ops email on `charge.dispute.created` not yet wired)*
+
+## Architecture
+- [[Quote Pipeline]] — webhook handler that processes `charge.refunded`
+- [[createServiceClient]] — Supabase client used to update order/payment records

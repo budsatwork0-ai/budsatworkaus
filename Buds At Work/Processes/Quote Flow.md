@@ -71,3 +71,9 @@ submitted → finalized → payment_pending → paid
 - [[Bug Tracker]]
 - [[Automations Log]]
 - [[Services Flow Improvements — April 2026]]
+
+## Architecture
+- [[ServicesPageContent]] — the wizard component driving Steps 1–3
+- [[WizardState]] — shared state shape persisted across all steps
+- [[Pricing Engine]] — live price calculation on every state change
+- [[Quote Pipeline]] — server-side API and lifecycle after form submit

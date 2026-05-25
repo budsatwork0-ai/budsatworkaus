@@ -91,6 +91,8 @@ export type Lead = {
   /** Free-form action hint for the Needs Attention panel. */
   attentionReason: string | null;
   href: string;             // deep link to the quote in /dashboard/quotes
+  /** 0–100 quality score written by the lead-scorer agent. Null until scored. */
+  leadScore: number | null;
 };
 
 /**

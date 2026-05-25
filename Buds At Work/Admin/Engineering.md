@@ -44,6 +44,10 @@
 | `NEXT_PUBLIC_GOOGLE_ADS_ID` | Vercel env — format: `AW-XXXXXXXXXX` |
 | `NEXT_PUBLIC_GOOGLE_ADS_QUOTE_LABEL` | Vercel env — Google Ads quote conversion label |
 | `NEXT_PUBLIC_GOOGLE_ADS_PAYMENT_LABEL` | Vercel env — Google Ads payment conversion label |
+| `MESSENGER_APP_SECRET` | Vercel env (server only) — Facebook Messenger webhook signature verification |
+| `MESSENGER_INGEST_SECRET` | Vercel env (server only) — internal ingest route auth token |
+| `MESSENGER_VERIFY_TOKEN` | Vercel env (server only) — Facebook webhook verification handshake |
+| `NEXT_PUBLIC_BASE_URL` | Vercel env — base URL for absolute links in emails and webhooks |
 
 ---
 
@@ -69,6 +73,9 @@
 | NDIS types | `src/types/ndis.ts` |
 | NDIS admin matching page | `src/app/(app)/dashboard/ndis/match/[orderId]/page.tsx` |
 | NDIS crew support profile | `src/app/(app)/crew/support-profile/page.tsx` |
+| Bud Leads workspace | `src/app/(app)/dashboard/insights/leads/` |
+| Messenger webhook adapter | `src/app/api/webhooks/messenger/route.ts` |
+| Lead conversations DB | `lead_conversations`, `lead_follow_ups` tables in Supabase |
 
 ---
 
@@ -130,3 +137,14 @@ If something breaks in production:
 - [[Data & Analytics]]
 - [[Services Flow Improvements — April 2026]]
 - [[NDIS Participant Matching — May 2026]]
+
+## Architecture
+- [[Bud Core Runtime]] — operational truth engine (`deriveGlobalTruth`, `deriveBudOsState`, `buildBudOsActionQueue`)
+- [[Agent Runtime]] — AI agent execution layer (30+ agents, guardrails, approval queue)
+- [[Pricing Engine]] — `src/app/(public)/services/lib/pricing/engine.ts`
+- [[ServicesPageContent]] — main quote wizard (~5,500 lines, `src/app/(public)/services/page.tsx`)
+- [[Quote Pipeline]] — quote → checkout → webhook lifecycle
+- [[createServiceClient]] — Supabase service-role client, imported by every API route
+- [[getAuthUser]] — auth gate used across all protected routes
+- [[Brand]] — design token object, 137 dependents across the UI
+- [[Graphify]] — codebase knowledge graph (`graphify query "<question>"` for scoped lookups)

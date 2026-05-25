@@ -38,7 +38,7 @@ import {
   YARD_CALLOUT_FLOOR,
   type DifficultyFlags as YardDifficultyFlags,
   type YardScope,
-} from '@/app/ui/yard/yardPricing';
+} from '@/lib/services-core/yard-pricing';
 
 /* ===== SS Cleaning (scope-style minutes) ===== */
 

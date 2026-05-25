@@ -18,3 +18,18 @@ Every agent run is logged here. Findings, decisions, issues, and periodic report
 - [[Analytics-Agent/README|Analytics Agent]] — Customer reviews, phone transcription, analytics insights.
 - [[Design-System-Agent/README|Design System Agent]] — Design language, lobby themes, visual consistency.
 - [[Meta-Agent/README|Meta Agent]] — Platform orchestration, QA, agent architecture, system oversight.
+
+## Graph Health
+
+- [[Graph-Health-Agent]] — keeps the Obsidian + Graphify architecture graph organised and connected (find orphans, fix disconnected systems, reduce fragmentation)
+
+## Related Systems
+
+- [[Bud Core Runtime]]
+- [[Agent Runtime]]
+- [[Mission Control]]
+- [[Quote Pipeline]]
+- [[Frontend-Agent]]
+- [[Admin-Agent]]
+- [[Meta-Agent]]
+- [[Graphify]]

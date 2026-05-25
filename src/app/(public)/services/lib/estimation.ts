@@ -9,9 +9,28 @@ import type {
   StoreyRow,
   DeliverySelection,
   TransportSelection,
-  TravelBand,
   SelMap,
 } from '../types';
+import {
+  ESTIMATE_DISCLAIMER,
+  BASE_CALLOUT_PRICE,
+  EFFORT_BLOCK_RANGE,
+  PHYSICAL_BLOCK_RANGE,
+  TRAVEL_RANGES,
+  INCLUSION_MINUTES,
+  travelRange,
+  combinePricing,
+} from '@/lib/services-core/estimation';
+export {
+  ESTIMATE_DISCLAIMER,
+  BASE_CALLOUT_PRICE,
+  EFFORT_BLOCK_RANGE,
+  PHYSICAL_BLOCK_RANGE,
+  TRAVEL_RANGES,
+  INCLUSION_MINUTES,
+  travelRange,
+  combinePricing,
+} from '@/lib/services-core/estimation';
 import { calcTransportQuote, calcDeliveryQuote } from './pricing/transport';
 import { clamp, fmtAUD, fmtHrMin } from '../utils/formatting';
 import {
@@ -23,6 +42,7 @@ import {
 } from './pricing/constants';
 import {
   COMM_CLEAN_MIN_HOURS,
+  COMM_PRESET_PRICING,
   computeHomeExtras,
   computeCleaningAddons,
   computeYardQuote,
@@ -48,53 +68,11 @@ export const sumSelected = (...bags: Selected[]) => {
   return out;
 };
 
-/* ===== Estimation constants ===== */
-
-export const ESTIMATE_DISCLAIMER = 'Final timing and cost are confirmed before work begins.';
-export const BASE_CALLOUT_PRICE = 79;
-export const EFFORT_BLOCK_RANGE = { min: 20, max: 35, minutes: 20 };
-export const PHYSICAL_BLOCK_RANGE = { min: 25, max: 50 };
-export const TRAVEL_RANGES: Record<TravelBand, { min: number; max: number }> = {
-  same_suburb: { min: 0, max: 0 },
-  drive_30: { min: 30, max: 45 },
-  drive_60: { min: 50, max: 70 },
-  long: { min: 70, max: 110 },
-};
-
 type ServiceEstimate = {
   estimatedPrice: { min: number; max: number };
   estimatedTime: string;
   disclaimer: string;
 };
-
-/* ===== Travel range helper ===== */
-
-export function travelRange(key?: TravelBand | null, km?: number) {
-  if (key && TRAVEL_RANGES[key]) return TRAVEL_RANGES[key];
-  if (typeof km === 'number' && Number.isFinite(km)) {
-    if (km <= 10) return TRAVEL_RANGES.same_suburb;
-    if (km <= 30) return TRAVEL_RANGES.drive_30;
-    if (km <= 60) return TRAVEL_RANGES.drive_60;
-    return TRAVEL_RANGES.long;
-  }
-  return TRAVEL_RANGES.same_suburb;
-}
-
-export function combinePricing(effortBlocks: number, physicalBlocks: number, travel: { min: number; max: number }) {
-  const min =
-    BASE_CALLOUT_PRICE +
-    effortBlocks * EFFORT_BLOCK_RANGE.min +
-    physicalBlocks * PHYSICAL_BLOCK_RANGE.min +
-    travel.min;
-  const max =
-    BASE_CALLOUT_PRICE +
-    effortBlocks * EFFORT_BLOCK_RANGE.max +
-    physicalBlocks * PHYSICAL_BLOCK_RANGE.max +
-    travel.max;
-  const safeMin = Math.max(0, Math.round(min));
-  const safeMax = Math.max(safeMin, Math.round(max));
-  return { min: safeMin, max: safeMax };
-}
 
 /* ===== Estimated price / time (dump scopes) ===== */
 
@@ -214,20 +192,6 @@ export function buildServiceEstimate(serviceId: ScopeKey | string, wizardState: 
 }
 
 /* ===== Badge-based time adjustments ===== */
-
-export const INCLUSION_MINUTES: Record<string, number> = {
-  'Inside & Outside Windows': 0,
-  'Inside Windows Only': 0,
-  'Outside Windows Only': 0,
-  'Tracks Vacuum & Wipe': 10,
-  'Frames & Sills Wipe': 6,
-  'Fly Screens': 8,
-  'Mirrors / Glass Doors': 8,
-  'High Access (ladder/safety)': 15,
-  'Hard Water Spot Treatment': 15,
-  'Sticker/Residue Removal': 10,
-  'Detail Edges / Silicone': 6,
-};
 
 export function badgeMinutesForScope(S: WizardState, scopeKey: string): number {
   const selected = (S as any).selectedInclusions as SelMap | undefined;
@@ -651,3 +615,78 @@ export function emailHrefForContext(S: WizardState, body: string) {
   const subject = encodeURIComponent(`Quote request – ${S.context} / ${S.service}`);
   return `mailto:budsatwork@malucare.org?subject=${subject}&body=${encodeURIComponent(body)}`;
 }
+
+export const cleaningAddonsForScope = (scopeKey: ScopeKey, cleaningAddons: WizardState['cleaningAddons']) =>
+  (cleaningAddons && cleaningAddons[scopeKey]) || {};
+
+export const cleaningParamsForScope = (
+  scopeKey: ScopeKey,
+  scope: string,
+  paramsByService: WizardState['paramsByService'],
+  context: WizardState['context'],
+  cleaningAddons: WizardState['cleaningAddons']
+) => {
+  if (scopeKey === scope) {
+    return {
+      ...(paramsByService.cleaning || {}),
+      ...cleaningAddonsForScope(scopeKey, cleaningAddons),
+    };
+  }
+  const defaults = defaultParamsByService().cleaning || {};
+  const preset = scopePresetFor('cleaning', scopeKey, context) || {};
+  return { ...defaults, ...preset, ...cleaningAddonsForScope(scopeKey, cleaningAddons) };
+};
+
+export const computeMins = (S: WizardState, service: ServiceType, scopeKey: ScopeKey, conditionMult: number) => {
+  if (service === 'windows') {
+    return computeWindowsMinutes(
+      scopeKey,
+      S.winRows,
+      S.context,
+      S.paramsByService.windows
+    );
+  }
+  if (service === 'cleaning' && S.context === 'commercial') {
+    const kind = S.commercialCleaningType ?? 'office';
+    const preset =
+      COMM_PRESET_PRICING[kind]?.[S.commPreset ?? 'essential'] ||
+      COMM_PRESET_PRICING[kind]?.essential;
+    if (preset) return Math.round((preset.hours || 2) * 60);
+    return 120;
+  }
+  if (service === 'cleaning' && S.context !== 'commercial') {
+    if (scopeKey === 'hourly') {
+      const params = cleaningParamsForScope(scopeKey, S.scope, S.paramsByService, S.context, S.cleaningAddons);
+      return (params.hours || 1) * 60;
+    }
+    const params = cleaningParamsForScope(scopeKey, S.scope, S.paramsByService, S.context, S.cleaningAddons);
+    const extras = computeHomeExtras(scopeKey, params);
+    const addOns = computeCleaningAddons(scopeKey, params);
+    return extras.baseMinutes + extras.extraMinutes + addOns.minutes;
+  }
+  if (service === 'yard') {
+    const activeParams =
+      scopeKey === S.scope
+        ? S.paramsByService.yard || {}
+        : {
+            ...(defaultParamsByService().yard || {}),
+            ...(scopePresetFor('yard', scopeKey, S.context) || {}),
+          };
+    const yard = computeYardQuote(
+      { ...activeParams, yard_area: S.yardArea ?? (activeParams as any).yard_area },
+      {
+        scope: scopeKey,
+        isTwoStoreyGutter: S.secondStorey,
+        conditionMultiplier: conditionMult,
+        accessTight: S.clutterAccess,
+        conditionLevel: S.conditionLevel,
+      }
+    );
+    return yard.minutes;
+  }
+  return adjustedTypicalMinutes(S, service, scopeKey);
+}
+
+export function winSessionMinutes(S: WizardState): number {
+  return computeWindowsMinutes(S.scope, S.winRows, S.context, S.paramsByService.windows);
+};

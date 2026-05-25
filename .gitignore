@@ -47,3 +47,15 @@ next-env.d.ts
 # clerk configuration (can include secrets)
 /.clerk/
 .env*.local
+
+# Graphify generated artifacts
+graphify-out/
+graphify-out/cache/
+graphify-out/**/*.json
+graphify-out/**/*.html
+graphify-out/**/manifest.json
+graphify-out/**/.graphify_*
+
+# Generated architecture exports (keep GRAPH_REPORT.md and *.md)
+Buds At Work/architecture/Graphify/graph.json
+Buds At Work/architecture/Graphify/*.html

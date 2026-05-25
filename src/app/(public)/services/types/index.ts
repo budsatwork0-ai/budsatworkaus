@@ -32,6 +32,24 @@ export type YardJob = {
   created_at: string;
 };
 
+export type MmmDetectionState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'detected'; label: string }
+  | { status: 'failed'; message: string };
+
+export type MmmApiResponse = {
+  rawMMM: number;
+  pricingRegion: 'metro' | 'regional' | 'remote' | 'veryRemote';
+  label: string;
+  geocode?: {
+    address: string;
+    lat: number;
+    lng: number;
+    score: number;
+  };
+};
+
 export type Task = {
   code: string;
   service: ServiceType;
