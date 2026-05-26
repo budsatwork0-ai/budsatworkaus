@@ -9,8 +9,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const execFileAsync = promisify(execFile);
-const CWD = process.cwd();
-const REPORT_PATH = path.join(CWD, 'graphify-out', 'GRAPH_REPORT.md');
+const REPORT_PATH = () => path.join(process.cwd(), 'graphify-out', 'GRAPH_REPORT.md');
 
 export type GraphifyGodNode = { rank: number; name: string; edges: number };
 export type GraphifyConnection = { from: string; to: string; relation: string; note: string };
@@ -84,7 +83,7 @@ function parseReport(content: string): Exclude<GraphifyResponse, { available: fa
     }
   }
 
-  const stat = fs.statSync(REPORT_PATH);
+  const stat = fs.statSync(REPORT_PATH());
 
   return {
     available: true,
@@ -111,7 +110,7 @@ export async function GET(): Promise<NextResponse<GraphifyResponse>> {
     return NextResponse.json({ available: false, reason: 'unauthorized' }, { status: 401 });
   }
 
-  if (!fs.existsSync(REPORT_PATH)) {
+  if (!fs.existsSync(REPORT_PATH())) {
     return NextResponse.json({
       available: false,
       reason: 'graphify-out/GRAPH_REPORT.md not found — run `graphify update .` locally to generate it.',
@@ -119,13 +118,13 @@ export async function GET(): Promise<NextResponse<GraphifyResponse>> {
   }
 
   try {
-    const content = fs.readFileSync(REPORT_PATH, 'utf-8');
+    const content = fs.readFileSync(REPORT_PATH(), 'utf-8');
     const parsed = parseReport(content);
 
     // Check staleness: compare built-from commit to current HEAD
     let currentCommit = 'unknown';
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd: CWD, timeout: 5000 });
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd: process.cwd(), timeout: 5000 });
       currentCommit = stdout.trim();
     } catch { /* git unavailable in this env */ }
 

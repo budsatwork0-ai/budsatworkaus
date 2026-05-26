@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     },
   },
   outputFileTracingRoot: path.join(__dirname),
+  outputFileTracingIncludes: {
+    '/api/bud/obsidian':      ['./Buds At Work/architecture/**/*'],
+    '/api/bud/improvements':  ['./Buds At Work/architecture/Refactor Plans/**/*', './graphify-out/GRAPH_REPORT.md'],
+    '/api/bud/graphify':      ['./graphify-out/GRAPH_REPORT.md'],
+  },
   turbopack: {
     root: path.join(__dirname),
   },

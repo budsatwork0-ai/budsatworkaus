@@ -6,7 +6,6 @@ import path from 'node:path';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const CWD = process.cwd();
 
 const VAULT_SECTIONS = [
   { key: 'systems',        dir: 'Systems',        label: 'Systems' },
@@ -52,10 +51,9 @@ export async function GET(): Promise<NextResponse<ObsidianResponse>> {
     return NextResponse.json({ available: false, reason: 'unauthorized' }, { status: 401 });
   }
 
-  // Support explicit env override or fall back to repo-relative vault
   const vaultBase = process.env.OBSIDIAN_VAULT_PATH
     ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'architecture')
-    : path.join(CWD, 'Buds At Work', 'architecture');
+    : path.join(process.cwd(), 'Buds At Work', 'architecture');
 
   if (!fs.existsSync(vaultBase)) {
     return NextResponse.json({
