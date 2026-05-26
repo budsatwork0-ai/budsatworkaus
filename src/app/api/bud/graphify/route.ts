@@ -9,7 +9,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const execFileAsync = promisify(execFile);
-const REPORT_PATH = () => path.join(process.cwd(), 'graphify-out', 'GRAPH_REPORT.md');
+const REPORT_PATH = () => path.join(
+  process.env.VERCEL ? '/var/task' : process.cwd(),
+  'graphify-out', 'GRAPH_REPORT.md',
+);
 
 export type GraphifyGodNode = { rank: number; name: string; edges: number };
 export type GraphifyConnection = { from: string; to: string; relation: string; note: string };
@@ -124,7 +127,7 @@ export async function GET(): Promise<NextResponse<GraphifyResponse>> {
     // Check staleness: compare built-from commit to current HEAD
     let currentCommit = 'unknown';
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd: process.cwd(), timeout: 5000 });
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], { cwd: process.env.VERCEL ? '/var/task' : process.cwd(), timeout: 5000 });
       currentCommit = stdout.trim();
     } catch { /* git unavailable in this env */ }
 

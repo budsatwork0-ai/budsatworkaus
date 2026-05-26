@@ -51,9 +51,12 @@ export async function GET(): Promise<NextResponse<ObsidianResponse>> {
     return NextResponse.json({ available: false, reason: 'unauthorized' }, { status: 401 });
   }
 
+  // process.cwd() can be inlined by webpack at build time; use /var/task on Vercel.
+  const projectRoot = process.env.OBSIDIAN_VAULT_PATH
+    ?? (process.env.VERCEL ? '/var/task' : process.cwd());
   const vaultBase = process.env.OBSIDIAN_VAULT_PATH
-    ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'architecture')
-    : path.join(process.cwd(), 'Buds At Work', 'architecture');
+    ? path.join(projectRoot, 'architecture')
+    : path.join(projectRoot, 'Buds At Work', 'architecture');
 
   if (!fs.existsSync(vaultBase)) {
     return NextResponse.json({

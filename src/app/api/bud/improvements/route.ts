@@ -29,8 +29,10 @@ export type ImprovementsResponse = {
 
 // ── Vault-derived improvements ────────────────────────────────────────────────
 
+const runtimeRoot = () => process.env.VERCEL ? '/var/task' : process.cwd();
+
 function vaultImprovements(): ImprovementItem[] {
-  const refactorDir = path.join(process.cwd(), 'Buds At Work', 'architecture', 'Refactor Plans');
+  const refactorDir = path.join(runtimeRoot(), 'Buds At Work', 'architecture', 'Refactor Plans');
   const items: ImprovementItem[] = [];
 
   if (!fs.existsSync(refactorDir)) return items;
@@ -77,7 +79,7 @@ function vaultImprovements(): ImprovementItem[] {
 // ── Graphify-derived improvements (god node hotspots) ─────────────────────────
 
 function graphifyImprovements(): ImprovementItem[] {
-  const reportPath = path.join(process.cwd(), 'graphify-out', 'GRAPH_REPORT.md');
+  const reportPath = path.join(runtimeRoot(), 'graphify-out', 'GRAPH_REPORT.md');
   if (!fs.existsSync(reportPath)) return [];
 
   const content = fs.readFileSync(reportPath, 'utf-8');
