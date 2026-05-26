@@ -43,6 +43,7 @@ import type { StructuredFailure } from '@/lib/bud/structured-failure';
 import type { BudThought } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewV2 } from './_components/OverviewV2';
+import { BudTerminal } from './_components/BudTerminal';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
@@ -218,6 +219,7 @@ const TABS = [
   { key: 'deployments', label: 'Deployments' },
   { key: 'settings', label: 'Settings' },
   { key: 'dev-os', label: 'Dev OS' },
+  { key: 'terminal', label: 'Terminal' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -3221,6 +3223,8 @@ export function MissionControlClient({
           )}
 
           {tab === 'dev-os' && <DevOsTab devOs={devOs} />}
+
+          {tab === 'terminal' && <BudTerminal />}
 
           {tab === 'settings' && (
             <SettingsTab
