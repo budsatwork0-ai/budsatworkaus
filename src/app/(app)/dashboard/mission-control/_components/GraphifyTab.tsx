@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { GraphifyResponse } from '@/app/api/bud/graphify/route';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -12,11 +12,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+type ExtractMode = 'update' | 'extract_wiki' | 'extract_deep';
+type ExtractState = 'idle' | 'running' | 'done' | 'error' | 'vercel';
+
 export function GraphifyTab() {
   const [data, setData] = useState<GraphifyResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Extract panel state
+  const [extractState, setExtractState] = useState<ExtractState>('idle');
+  const [extractLog, setExtractLog] = useState<{ line: string; stderr?: boolean }[]>([]);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const loadGraph = useCallback(() => {
     setLoading(true);
     fetch('/api/bud/graphify')
       .then(r => r.json())
@@ -24,6 +33,66 @@ export function GraphifyTab() {
       .catch(() => setData({ available: false, reason: 'Request failed.' }))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadGraph(); }, [loadGraph]);
+
+  // Auto-scroll log to bottom
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [extractLog]);
+
+  async function runExtract(mode: ExtractMode) {
+    setExtractState('running');
+    setExtractLog([]);
+    setExtractError(null);
+
+    const res = await fetch('/api/bud/graphify/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+
+    if (res.status === 422) {
+      const d = await res.json() as { error: string };
+      setExtractState('vercel');
+      setExtractError(d.error);
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      setExtractState('error');
+      setExtractError(`HTTP ${res.status}`);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop() ?? '';
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        try {
+          const msg = JSON.parse(line) as { type: string; line?: string; stderr?: boolean; ok?: boolean; message?: string };
+          if (msg.type === 'log' && msg.line) {
+            setExtractLog(prev => [...prev, { line: msg.line!, stderr: msg.stderr }]);
+          } else if (msg.type === 'done') {
+            setExtractState(msg.ok ? 'done' : 'error');
+            if (msg.ok) loadGraph();
+          } else if (msg.type === 'error') {
+            setExtractState('error');
+            setExtractError(msg.message ?? 'Unknown error');
+          }
+        } catch { /* skip malformed */ }
+      }
+    }
+  }
 
   if (loading) {
     return (
@@ -130,6 +199,70 @@ export function GraphifyTab() {
           </div>
         </Section>
       )}
+
+      {/* ── Extract panel ──────────────────────────────────────────────────── */}
+      <Section title="Re-extract knowledge graph">
+        <p className="mb-3 text-[12px] text-white/45">
+          Run from your local machine. <strong className="text-white/70">Quick update</strong> is AST-only (fast, free).{' '}
+          <strong className="text-white/70">Deep extract</strong> uses Claude to add semantic relationships and builds the agent wiki.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            disabled={extractState === 'running'}
+            onClick={() => void runExtract('update')}
+            className="rounded-lg border border-white/[0.10] bg-white/[0.04] px-3.5 py-2 text-[12px] font-medium text-white/70 hover:bg-white/[0.08] disabled:opacity-40"
+          >
+            Quick update (AST)
+          </button>
+          <button
+            disabled={extractState === 'running'}
+            onClick={() => void runExtract('extract_wiki')}
+            className="rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-3.5 py-2 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/[0.14] disabled:opacity-40"
+          >
+            {extractState === 'running' ? 'Extracting…' : 'Deep extract (Claude + wiki)'}
+          </button>
+          <button
+            disabled={extractState === 'running'}
+            onClick={() => void runExtract('extract_deep')}
+            className="rounded-lg border border-violet-400/25 bg-violet-500/[0.07] px-3.5 py-2 text-[12px] font-medium text-violet-300 hover:bg-violet-500/[0.12] disabled:opacity-40"
+          >
+            Full deep + dedup
+          </button>
+        </div>
+
+        {extractState === 'vercel' && (
+          <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] p-3">
+            <p className="text-[12px] text-amber-300">Run locally — not available on Vercel.</p>
+            <pre className="mt-1 text-[11px] text-amber-200/70 whitespace-pre-wrap">{extractError}</pre>
+          </div>
+        )}
+
+        {(extractState === 'running' || extractLog.length > 0) && (
+          <div
+            ref={logRef}
+            className="mt-3 h-48 overflow-y-auto rounded-lg border border-white/[0.07] bg-black/40 p-3 font-mono text-[11px] leading-relaxed"
+          >
+            {extractLog.map((entry, i) => (
+              <div key={i} className={entry.stderr ? 'text-amber-300/70' : 'text-white/60'}>
+                {entry.line}
+              </div>
+            ))}
+            {extractState === 'running' && (
+              <div className="mt-1 animate-pulse text-emerald-400/60">▋</div>
+            )}
+          </div>
+        )}
+
+        {extractState === 'done' && (
+          <p className="mt-2 text-[12px] text-emerald-400">
+            ✓ Complete — graph reloaded above.
+          </p>
+        )}
+        {extractState === 'error' && extractError && (
+          <p className="mt-2 text-[12px] text-red-400">{extractError}</p>
+        )}
+      </Section>
 
       <p className="text-center text-[11px] text-white/25">
         Report generated {new Date(data.reportUpdatedAt).toLocaleString()} · update with <code className="rounded bg-white/[0.05] px-1">graphify update .</code>
