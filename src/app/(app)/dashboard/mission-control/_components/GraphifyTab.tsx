@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { GraphifyResponse } from '@/app/api/bud/graphify/route';
+import { BRIDGE_BASE } from './BridgeStatus';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -46,7 +47,18 @@ export function GraphifyTab() {
     setExtractLog([]);
     setExtractError(null);
 
-    const res = await fetch('/api/bud/graphify/extract', {
+    const isVercel = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+
+    // On Vercel: try the local bridge first, fall back to API (which will explain if unavailable)
+    let endpoint = '/api/bud/graphify/extract';
+    if (isVercel) {
+      try {
+        const ping = await fetch(`${BRIDGE_BASE}/health`, { signal: AbortSignal.timeout(1000) });
+        if (ping.ok) endpoint = `${BRIDGE_BASE}/graphify/extract`;
+      } catch { /* bridge not running — use API which returns 422 with instructions */ }
+    }
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }),
@@ -232,9 +244,10 @@ export function GraphifyTab() {
         </div>
 
         {extractState === 'vercel' && (
-          <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] p-3">
-            <p className="text-[12px] text-amber-300">Run locally — not available on Vercel.</p>
-            <pre className="mt-1 text-[11px] text-amber-200/70 whitespace-pre-wrap">{extractError}</pre>
+          <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] p-3 space-y-1.5">
+            <p className="text-[12px] font-medium text-amber-300">Start the local bridge to run from here:</p>
+            <pre className="rounded bg-black/30 px-3 py-2 text-[11px] text-amber-200/80 select-all">node scripts/bud-bridge.js</pre>
+            <p className="text-[11px] text-amber-200/50">Once running, the "bridge live" badge appears in the header and these buttons work from budsatwork.com.</p>
           </div>
         )}
 

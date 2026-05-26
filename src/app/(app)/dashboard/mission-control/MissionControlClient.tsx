@@ -36,6 +36,7 @@ import { GraphifyTab } from './_components/GraphifyTab';
 import { ObsidianTab } from './_components/ObsidianTab';
 import { EvidenceTab } from './_components/EvidenceTab';
 import { ImprovementsTab } from './_components/ImprovementsTab';
+import { BridgeStatus } from './_components/BridgeStatus';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
@@ -846,12 +847,15 @@ export function MissionControlClient({
               <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
             </div>
           </div>
-          <button
-            onClick={() => router.refresh()}
-            className="ml-auto rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
-          >
-            Refresh
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <BridgeStatus />
+            <button
+              onClick={() => router.refresh()}
+              className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
+            >
+              Refresh
+            </button>
+          </div>
         </header>
 
         {/* Tabs */}
