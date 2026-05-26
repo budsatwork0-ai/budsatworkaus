@@ -54,13 +54,13 @@ export async function GET(): Promise<NextResponse<ObsidianResponse>> {
 
   // Support explicit env override or fall back to repo-relative vault
   const vaultBase = process.env.OBSIDIAN_VAULT_PATH
-    ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'Architecture')
-    : path.join(CWD, 'Buds At Work', 'Architecture');
+    ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'architecture')
+    : path.join(CWD, 'Buds At Work', 'architecture');
 
   if (!fs.existsSync(vaultBase)) {
     return NextResponse.json({
       available: false,
-      reason: `Architecture vault not found at ${vaultBase}`,
+      reason: `architecture vault not found at ${vaultBase}`,
     });
   }
 
@@ -81,7 +81,7 @@ export async function GET(): Promise<NextResponse<ObsidianResponse>> {
           title,
           section: section.key,
           sectionLabel: section.label,
-          relativePath: path.join('Buds At Work', 'Architecture', section.dir, file),
+          relativePath: path.join('Buds At Work', 'architecture', section.dir, file),
           preview: previewContent(content),
           wordCount: content.split(/\s+/).filter(Boolean).length,
           updatedAt: stat.mtime.toISOString(),
