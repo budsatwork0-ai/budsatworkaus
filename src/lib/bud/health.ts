@@ -470,9 +470,9 @@ function computeDeploymentState(events: GithubEventRow[]): MissionControlDeploym
   const status: MissionControlDeploymentState['status'] =
     latest.event_type === 'deployment_failure' || latest.action === 'failure' || latest.action === 'error'
       ? 'failed'
-      : latest.action === 'pending' || latest.action === 'in_progress'
+      : latest.action === 'pending' || latest.action === 'in_progress' || latest.action === 'created'
         ? 'deploying'
-        : ageMs > 14 * 24 * 3600_000
+        : latest.action !== 'success' || ageMs > 7 * 24 * 3600_000
           ? 'stale'
           : 'healthy';
 

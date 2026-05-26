@@ -41,7 +41,7 @@ export async function GET(): Promise<NextResponse<DevOsResponse | { error: strin
         .order('created_at', { ascending: false })
         .limit(30),
       supabase
-        .from('convention_learnings')
+        .from('bud_convention_learnings')
         .select('id', { count: 'exact', head: true }),
     ]);
 

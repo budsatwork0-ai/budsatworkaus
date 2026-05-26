@@ -32,6 +32,9 @@ import type { BudThought } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewV2 } from './_components/OverviewV2';
 import { BudTerminal } from './_components/BudTerminal';
+import { GraphifyTab } from './_components/GraphifyTab';
+import { ObsidianTab } from './_components/ObsidianTab';
+import { EvidenceTab } from './_components/EvidenceTab';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
@@ -134,9 +137,12 @@ type Props = {
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'dev-os', label: 'Dev OS' },
-  { key: 'terminal', label: 'Terminal' },
+  { key: 'overview',  label: 'Overview' },
+  { key: 'dev-os',    label: 'Dev OS' },
+  { key: 'terminal',  label: 'Terminal' },
+  { key: 'graphify',  label: 'Graphify' },
+  { key: 'memory',    label: 'Memory' },
+  { key: 'evidence',  label: 'Evidence' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -472,8 +478,116 @@ function DevOsTab({ devOs }: { devOs: DevOsResponse }) {
             ))}
           </div>
         </Card>
+
+        <CaptureLearningCard />
       </div>
     </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*                           CAPTURE LEARNING CARD                            */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function CaptureLearningCard() {
+  const [title, setTitle] = useState('');
+  const [summary, setSummary] = useState('');
+  const [files, setFiles] = useState('');
+  const [patterns, setPatterns] = useState('');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !summary.trim()) return;
+    setStatus('saving');
+    setErrorMsg('');
+    try {
+      const res = await fetch('/api/bud/learning', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          summary: summary.trim(),
+          filesChanged: files.split(',').map(s => s.trim()).filter(Boolean),
+          patterns: patterns.split(',').map(s => s.trim()).filter(Boolean),
+        }),
+      });
+      const data = await res.json() as { success: boolean; error?: string };
+      if (data.success) {
+        setStatus('saved');
+        setTitle('');
+        setSummary('');
+        setFiles('');
+        setPatterns('');
+        setTimeout(() => setStatus('idle'), 3000);
+      } else {
+        setStatus('error');
+        setErrorMsg(data.error ?? 'Unknown error');
+      }
+    } catch (e) {
+      setStatus('error');
+      setErrorMsg(String(e));
+    }
+  }
+
+  return (
+    <Card title="Capture session learning" subtitle="Write a learning note to the Obsidian vault and evidence store.">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3 px-5 py-4">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-white/50">Title</label>
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="e.g. Archived stale repair tasks to fix false critical state"
+            required
+            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-white/20"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-white/50">Summary — what changed and why</label>
+          <textarea
+            value={summary}
+            onChange={e => setSummary(e.target.value)}
+            placeholder="What changed, why it was needed, what the outcome was."
+            required
+            rows={3}
+            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-white/20"
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-white/50">Files changed (comma-separated)</label>
+            <input
+              value={files}
+              onChange={e => setFiles(e.target.value)}
+              placeholder="src/lib/bud/health.ts, migrations/073..."
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-white/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-white/50">Reusable patterns (comma-separated)</label>
+            <input
+              value={patterns}
+              onChange={e => setPatterns(e.target.value)}
+              placeholder="archive stale rows before resetting lobby state..."
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-white/20"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="submit"
+            disabled={status === 'saving' || !title.trim() || !summary.trim()}
+            className="rounded-lg border border-teal-400/30 bg-teal-500/[0.10] px-4 py-2 text-sm font-medium text-teal-300 transition hover:bg-teal-500/[0.18] disabled:opacity-40"
+          >
+            {status === 'saving' ? 'Saving…' : 'Save to vault'}
+          </button>
+          {status === 'saved' && <span className="text-sm text-emerald-400">Saved to Obsidian + evidence store</span>}
+          {status === 'error' && <span className="text-sm text-red-400">{errorMsg}</span>}
+        </div>
+      </form>
+    </Card>
   );
 }
 
@@ -782,6 +896,12 @@ export function MissionControlClient({
           {tab === 'dev-os' && <DevOsTab devOs={devOs} />}
 
           {tab === 'terminal' && <BudTerminal />}
+
+          {tab === 'graphify' && <GraphifyTab />}
+
+          {tab === 'memory' && <ObsidianTab />}
+
+          {tab === 'evidence' && <EvidenceTab />}
         </div>
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">

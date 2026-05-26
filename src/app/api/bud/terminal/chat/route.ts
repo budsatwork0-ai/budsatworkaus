@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
+import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -249,10 +250,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json() as { messages?: Array<{ role: string; content: string }> };
   const incomingMessages = body.messages ?? [];
 
+  const startedAt = new Date();
+  const lastUserMsg = [...incomingMessages].reverse().find(m => m.role === 'user');
+  const command = (typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : 'chat session').slice(0, 500);
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
+      const collectedOutput: string[] = [];
+      let errorOccurred = false;
+
+      type ShellEvidence = { command: string; display: string; output: string; evidenceType: string; status: string };
+      const shellEvidences: ShellEvidence[] = [];
+
       const send = (data: object) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
@@ -307,6 +318,7 @@ export async function POST(req: NextRequest): Promise<Response> {
           // Send any text content
           for (const block of textBlocks) {
             if (block.text.trim()) {
+              collectedOutput.push(block.text);
               send({ type: 'text', content: block.text });
             }
           }
@@ -320,6 +332,17 @@ export async function POST(req: NextRequest): Promise<Response> {
             const { display, output } = await executeTool(block.name, block.input);
             send({ type: 'tool', name: block.name, id: block.id, input: block.input, display, output });
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: output });
+
+            // Collect shell command evidence
+            if (block.name === 'run_shell') {
+              const cmd = String(block.input.command ?? '');
+              const evidenceType =
+                cmd === 'npm_build'    ? 'build_output' :
+                cmd === 'tsc_check'    ? 'lint_output'  :
+                cmd.startsWith('git_') ? 'git_diff'     : 'terminal_command';
+              const failed = /^Exit [^0]|error TS|ERROR in/.test(output);
+              shellEvidences.push({ command: display, display, output, evidenceType, status: failed ? 'failed' : 'passed' });
+            }
           }
 
           // Append assistant turn + tool results and loop
@@ -330,10 +353,43 @@ export async function POST(req: NextRequest): Promise<Response> {
           ];
         }
       } catch (e) {
+        errorOccurred = true;
         send({ type: 'error', message: String(e) });
       } finally {
         send({ type: 'done' });
         controller.close();
+
+        // Persist session + evidence records (best-effort, non-blocking)
+        try {
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false } },
+          );
+          const finishedAt = new Date().toISOString();
+          await supabase.from('bud_terminal_sessions').insert({
+            user_id: user.id,
+            command,
+            status: errorOccurred ? 'failed' : 'passed',
+            output: collectedOutput.join('\n\n').slice(0, 10_000) || null,
+            exit_code: errorOccurred ? 1 : 0,
+            started_at: startedAt.toISOString(),
+            finished_at: finishedAt,
+          });
+          // Write evidence row for each shell command that ran
+          if (shellEvidences.length > 0) {
+            await supabase.from('bud_evidence').insert(
+              shellEvidences.map(e => ({
+                type: e.evidenceType,
+                source: 'bud_terminal',
+                status: e.status,
+                command: e.command,
+                raw_output: e.output.slice(0, 10_000) || null,
+                created_at: finishedAt,
+              })),
+            );
+          }
+        } catch { /* persistence failure must not affect the response */ }
       }
     },
   });

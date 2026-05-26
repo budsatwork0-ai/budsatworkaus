@@ -192,6 +192,56 @@ export function writeArchitecturalDecision(decision: {
   fs.writeFileSync(file, content, 'utf8');
 }
 
+// ── Session learning ──────────────────────────────────────────────────────────
+
+export function writeLearning(learning: {
+  title: string;
+  summary: string;
+  filesChanged?: string[];
+  testsRun?: string[];
+  patterns?: string[];
+  whatFailed?: string;
+  agent?: string;
+}): string {
+  const dir = categoryDir('03-memory');
+  ensureDir(dir);
+  const slug = learning.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  const file = path.join(dir, `${isoDate()}-${slug}.md`);
+
+  const lines = [
+    '---',
+    `date: ${isoDate()}`,
+    `title: "${learning.title}"`,
+    `author: ${learning.agent ?? 'bud'}`,
+    'category: learning',
+    '---',
+    '',
+    `# ${learning.title}`,
+    '',
+    '## Summary',
+    learning.summary,
+    '',
+  ];
+
+  if (learning.filesChanged?.length) {
+    lines.push('## Files Changed', ...learning.filesChanged.map(f => `- \`${f}\``), '');
+  }
+  if (learning.testsRun?.length) {
+    lines.push('## Tests Run', ...learning.testsRun.map(t => `- ${t}`), '');
+  }
+  if (learning.whatFailed) {
+    lines.push('## What Failed', learning.whatFailed, '');
+  }
+  if (learning.patterns?.length) {
+    lines.push('## Reusable Patterns', ...learning.patterns.map(p => `- ${p}`), '');
+  }
+
+  lines.push(`*Written by Bud at ${new Date().toISOString()}*`);
+
+  fs.writeFileSync(file, lines.join('\n'), 'utf8');
+  return file;
+}
+
 // ── Operational insight ───────────────────────────────────────────────────────
 
 export function writeOperationalInsight(insight: {
