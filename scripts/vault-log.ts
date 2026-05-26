@@ -38,6 +38,18 @@ const VAULT    = process.env.OBSIDIAN_VAULT_PATH ?? path.join(process.cwd(), 'Bu
 const DEV_DIR  = path.join(VAULT, 'Dev');
 const MIN_CHARS = 80; // skip trivial responses shorter than this
 
+// ── Dev OS agent detection ────────────────────────────────────────────────────
+
+const DEV_OS_AGENTS: Array<{ id: string; name: string }> = [
+  { id: 'bud-researcher',    name: 'Bud Researcher'    },
+  { id: 'bud-pricing-guard', name: 'Bud Pricing Guard' },
+  { id: 'bud-architect',     name: 'Bud Architect'     },
+  { id: 'bud-taste',         name: 'Bud Taste'         },
+  { id: 'bud-qa',            name: 'Bud QA'            },
+  { id: 'bud-memory',        name: 'Bud Memory'        },
+  { id: 'bud-factory',       name: 'Bud Factory'       },
+];
+
 // ── ADR signal keywords ───────────────────────────────────────────────────────
 // If the transcript contains these, annotate the log entry with an ADR prompt.
 
@@ -139,6 +151,69 @@ function hasAdrSignal(text: string): boolean {
   return ADR_SIGNALS.some(r => r.test(text));
 }
 
+// ── Dev OS detection ──────────────────────────────────────────────────────────
+
+function detectDevOsAgents(messages: Message[]): string[] {
+  const found = new Set<string>();
+  for (const msg of messages) {
+    const blocks: ContentBlock[] = typeof msg.content === 'string'
+      ? [{ type: 'text', text: msg.content }]
+      : msg.content;
+    for (const block of blocks) {
+      const searchable = block.type === 'text'
+        ? (block as { type: 'text'; text: string }).text
+        : block.type === 'tool_use'
+          ? JSON.stringify((block as { type: 'tool_use'; name: string; input: Record<string, unknown> }).input)
+          : '';
+      for (const agent of DEV_OS_AGENTS) {
+        if (searchable.includes(agent.id) || searchable.includes(agent.name)) {
+          found.add(agent.id);
+        }
+      }
+    }
+  }
+  return [...found];
+}
+
+function detectRiskLevel(messages: Message[]): string | null {
+  for (const msg of [...messages].reverse()) {
+    const text = typeof msg.content === 'string' ? msg.content : textOf(msg.content);
+    const m = text.match(/Risk Level:\s*(LOW|MEDIUM|HIGH)/i);
+    if (m) return m[1].toUpperCase();
+  }
+  return null;
+}
+
+async function logDevOsSession(data: {
+  sessionId: string;
+  agentsUsed: string[];
+  task: string;
+  filesChanged: string[];
+  summary: string;
+  riskLevel: string | null;
+}): Promise<void> {
+  const url  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key || data.agentsUsed.length === 0) return;
+  await fetch(`${url}/rest/v1/dev_os_sessions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
+      'Prefer':        'return=minimal',
+    },
+    body: JSON.stringify({
+      session_id:    data.sessionId,
+      agents_used:   data.agentsUsed,
+      task:          data.task,
+      files_changed: data.filesChanged,
+      summary:       data.summary,
+      risk_level:    data.riskLevel,
+    }),
+  });
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 function isoDate(d = new Date()): string {
@@ -161,7 +236,7 @@ function writeLog(entry: string, dateStr: string): void {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   let raw = '';
   try { raw = fs.readFileSync('/dev/stdin', 'utf-8').trim(); } catch { return; }
 
@@ -186,11 +261,13 @@ function main() {
   if (summary.length < MIN_CHARS) return; // trivial session
 
   const { files, reEdited } = editedFiles(msgs);
-  const adr    = hasAdrSignal(summary) || hasAdrSignal(task);
-  const sid    = (input.session_id ?? '').slice(0, 8);
-  const now    = new Date();
-  const date   = isoDate(now);
-  const time   = hhmm(now);
+  const adr       = hasAdrSignal(summary) || hasAdrSignal(task);
+  const devOsUsed = detectDevOsAgents(msgs);
+  const riskLevel = devOsUsed.includes('bud-researcher') ? detectRiskLevel(msgs) : null;
+  const sid       = (input.session_id ?? '').slice(0, 8);
+  const now       = new Date();
+  const date      = isoDate(now);
+  const time      = hhmm(now);
 
   const lines: string[] = [
     `## [${time}] Session ${sid}`,
@@ -198,6 +275,12 @@ function main() {
     `**Task:** ${task}`,
     '',
   ];
+
+  if (devOsUsed.length) {
+    lines.push(`**Dev OS agents:** ${devOsUsed.join(', ')}`);
+    if (riskLevel) lines.push(`**Risk level:** ${riskLevel}`);
+    lines.push('');
+  }
 
   if (files.length) {
     lines.push('**Files changed:**');
@@ -209,7 +292,6 @@ function main() {
   }
 
   lines.push('**Summary:**');
-  // Wrap summary so it doesn't overflow Obsidian reading pane
   lines.push(summary);
   lines.push('');
 
@@ -234,7 +316,19 @@ function main() {
   lines.push('');
 
   writeLog(lines.join('\n'), date);
+
+  // Log Dev OS agent activity to Supabase (fire-and-forget, non-blocking)
+  await logDevOsSession({
+    sessionId:    input.session_id ?? '',
+    agentsUsed:   devOsUsed,
+    task,
+    filesChanged: files,
+    summary,
+    riskLevel,
+  }).catch(() => { /* never block Claude Code */ });
 }
 
-try { main(); }
-catch { /* Never block Claude Code */ }
+void (async () => {
+  try { await main(); }
+  catch { /* Never block Claude Code */ }
+})();

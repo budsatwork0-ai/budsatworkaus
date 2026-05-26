@@ -16,6 +16,7 @@ import { buildBudInitiatives } from '@/lib/bud/initiatives';
 import { buildThoughtStream } from '@/lib/bud/thought-stream';
 import { BUD_AUTHORITY_COOKIE } from '@/lib/bud/authority';
 import { getCircuitSummary } from '@/lib/agents/resilience';
+import type { DevOsResponse } from '@/app/api/dev-os/route';
 
 const VALID_CEILINGS: BudAuthorityLevel[] = [
   'L0_OBSERVER',
@@ -242,6 +243,30 @@ async function loadData() {
     agentNameById,
   });
   const initiatives = buildBudInitiatives({ commandState, uxEvolution, structuredFailures });
+  let devOs: DevOsResponse = { sessions: [], agentStats: {}, totalSessions: 0, conventionCount: 0 };
+  try {
+    const devOsRes = await supabase
+      .from('dev_os_sessions')
+      .select('id, session_id, agents_used, task, files_changed, summary, risk_level, created_at')
+      .order('created_at', { ascending: false })
+      .limit(30);
+    const conventionRes = await supabase
+      .from('convention_learnings')
+      .select('id', { count: 'exact', head: true });
+    const sessions = (devOsRes.data ?? []) as DevOsResponse['sessions'];
+    const agentStats: DevOsResponse['agentStats'] = {};
+    for (const session of sessions) {
+      for (const agentId of session.agents_used) {
+        if (!agentStats[agentId]) agentStats[agentId] = { runCount: 0, lastRunAt: null };
+        agentStats[agentId].runCount++;
+        if (!agentStats[agentId].lastRunAt || session.created_at > agentStats[agentId].lastRunAt!) {
+          agentStats[agentId].lastRunAt = session.created_at;
+        }
+      }
+    }
+    devOs = { sessions, agentStats, totalSessions: sessions.length, conventionCount: conventionRes.count ?? 0 };
+  } catch { /* dev_os_sessions may not exist yet — degrade gracefully */ }
+
   const [configuredCeiling, circuit] = await Promise.all([
     resolveAuthorityCeiling(),
     getCircuitSummary().catch(() => ({ state: 'closed' as const, resetsAt: null, failureStreak: 0, label: 'API healthy' })),
@@ -300,6 +325,7 @@ async function loadData() {
     actions,
     github: githubData,
     memory,
+    devOs,
     insights: insightsRes.data ?? [],
     agentStatsMap: Object.fromEntries(statsMap),
     supabaseConnected: true,
