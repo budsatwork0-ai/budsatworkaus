@@ -8,7 +8,9 @@ tags: [system, ndis, crew, matching, scoring]
 Worker coordination layer for NDIS participants. Crew members who are NDIS participants get support profiles; admins match them to jobs using a rule-based scoring algorithm.
 
 ## Source files
-- `src/types/ndis.ts` — all NDIS types
+- `src/lib/services-core/ndis-pricing.ts` — **canonical NDIS pricing** (rates, helpers, types). Single source of truth.
+- `src/app/(public)/services/lib/pricing/ndis.ts` — thin shim: `export * from '@/lib/services-core/ndis-pricing'`
+- `src/types/ndis.ts` — all NDIS participant/matching types
 - `src/lib/ndis/matching.ts` — rule-based scoring algorithm (100 pts across 8 criteria)
 - Migration `036_ndis_matching.sql` — 6 new tables
 
@@ -39,6 +41,8 @@ Dashboard → NDIS → Job Matching → `/dashboard/ndis/match/[orderId]`
 - The scoring algorithm is in `src/lib/ndis/matching.ts` and awards up to 100 points across 8 criteria.
 
 ## Related files/components
+- `src/lib/services-core/ndis-pricing.ts` — canonical pricing (Batch 5)
+- `src/app/(public)/services/lib/pricing/ndis.ts` — shim
 - `src/types/ndis.ts`
 - `src/lib/ndis/matching.ts`
 - `src/app/(app)/dashboard/ndis/` — admin UI

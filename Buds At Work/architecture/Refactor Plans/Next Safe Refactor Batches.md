@@ -47,12 +47,14 @@ Fix applied:
 
 ---
 
-## Batch 5 — NDIS pricing separation (MEDIUM RISK)
-**Target:** `src/app/(public)/services/lib/pricing/ndis.ts`  
-**Extract:** Move NDIS rate logic to `src/lib/services-core/ndis/pricing.ts`  
-**Why medium risk:** NDIS rates are legislated — must stay in sync with `engine.ts`. Run both tests together.  
-**Constraint:** Never change NDIS rates without a reference to the current NDIS pricing catalogue. See [[Known Unsafe Areas]].  
-**Verify with:** `graphify path "ndis.ts" "engine.ts"`
+## ~~Batch 5 — NDIS pricing separation~~ ✅ DONE (2026-05-26)
+
+`src/lib/services-core/ndis-pricing.ts` — canonical NDIS pricing module. All rates, helpers, types, and overloaded functions extracted verbatim from the 2024-25 NDIS Price Guide. Zero imports — entirely self-contained.
+`src/app/(public)/services/lib/pricing/ndis.ts` is now a one-line shim: `export * from '@/lib/services-core/ndis-pricing'`.
+
+**3 consumer import sites (`flow.ts`, `useAssistant.ts`, `page.tsx`) — zero import path changes required.**
+
+Risk was assessed as LOW despite the vault saying MEDIUM: graphify path showed no direct connection to `engine.ts`; `ndis.ts` had zero imports. Rates copied verbatim from Price Guide — not modified.
 
 ---
 
