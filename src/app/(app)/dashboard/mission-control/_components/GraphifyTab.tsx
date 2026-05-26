@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { GraphifyResponse } from '@/app/api/bud/graphify/route';
 import { BRIDGE_BASE } from './BridgeStatus';
+import { HelpTip } from './HelpTip';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -148,24 +149,25 @@ export function GraphifyTab() {
               <span className="ml-2 text-white/35">· HEAD is <code className="rounded bg-white/[0.06] px-1 text-xs">{data.currentCommit}</code></span>
             )}
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Chip label={`${data.stats.nodes.toLocaleString()} nodes`} color="emerald" />
-            <Chip label={`${data.stats.edges.toLocaleString()} edges`} color="teal" />
-            <Chip label={`${data.stats.communities} communities`} color="sky" />
-            <Chip label={`${data.stats.extractionPct}% extracted`} color="muted" />
+          <div className="mt-4 flex flex-wrap gap-2 items-center">
+            <Chip label={`${data.stats.nodes.toLocaleString()} files & functions mapped`} color="emerald" />
+            <Chip label={`${data.stats.edges.toLocaleString()} connections`} color="teal" />
+            <Chip label={`${data.stats.communities} feature areas`} color="sky" />
+            <Chip label={`${data.stats.extractionPct}% analysed`} color="muted" />
+            <HelpTip text="Connections = how many times one file uses or depends on another. Feature areas = groups of files that work together (e.g. pricing, auth, dashboard)." wide />
           </div>
         </div>
       </section>
 
       {/* ── God nodes (hotspots) ───────────────────────────────────────────── */}
       {data.godNodes.length > 0 && (
-        <Section title="Dependency hotspots — most connected nodes">
+        <Section title="High-risk files — the most connected parts of the codebase">
           <div className="space-y-1.5">
             {data.godNodes.map((node) => (
               <div key={node.rank} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/[0.03]">
                 <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-white/25">{node.rank}</span>
                 <span className="min-w-0 flex-1 truncate text-sm text-white/80">{node.name}</span>
-                <span className="shrink-0 text-[11px] tabular-nums text-white/35">{node.edges} edges</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-white/35" title={`${node.edges} other files depend on or connect to this one`}>{node.edges} connections</span>
                 <div
                   className="h-1 w-16 shrink-0 rounded-full bg-white/10"
                   title={`${node.edges} edges`}
@@ -214,33 +216,42 @@ export function GraphifyTab() {
 
       {/* ── Extract panel ──────────────────────────────────────────────────── */}
       <Section title="Re-extract knowledge graph">
-        <p className="mb-3 text-[12px] text-white/45">
-          Run from your local machine. <strong className="text-white/70">Quick update</strong> is AST-only (fast, free).{' '}
-          <strong className="text-white/70">Deep extract</strong> uses Claude to add semantic relationships and builds the agent wiki.
+        <p className="mb-3 text-[13px] text-white/55">
+          These buttons re-analyse your codebase and update the knowledge map above.
+          Run from your local machine — start the bridge first if you&apos;re on budsatwork.com.
         </p>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            disabled={extractState === 'running'}
-            onClick={() => void runExtract('update')}
-            className="rounded-lg border border-white/[0.10] bg-white/[0.04] px-3.5 py-2 text-[12px] font-medium text-white/70 hover:bg-white/[0.08] disabled:opacity-40"
-          >
-            Quick update (AST)
-          </button>
-          <button
-            disabled={extractState === 'running'}
-            onClick={() => void runExtract('extract_wiki')}
-            className="rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-3.5 py-2 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/[0.14] disabled:opacity-40"
-          >
-            {extractState === 'running' ? 'Extracting…' : 'Deep extract (Claude + wiki)'}
-          </button>
-          <button
-            disabled={extractState === 'running'}
-            onClick={() => void runExtract('extract_deep')}
-            className="rounded-lg border border-violet-400/25 bg-violet-500/[0.07] px-3.5 py-2 text-[12px] font-medium text-violet-300 hover:bg-violet-500/[0.12] disabled:opacity-40"
-          >
-            Full deep + dedup
-          </button>
+          <span className="inline-flex items-center gap-1">
+            <button
+              disabled={extractState === 'running'}
+              onClick={() => void runExtract('update')}
+              className="rounded-lg border border-white/[0.10] bg-white/[0.04] px-3.5 py-2 text-[12px] font-medium text-white/70 hover:bg-white/[0.08] disabled:opacity-40"
+            >
+              Quick update
+            </button>
+            <HelpTip text="Scans for new files and functions. Fast (under 1 min). Does not use AI — no cost." wide />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <button
+              disabled={extractState === 'running'}
+              onClick={() => void runExtract('extract_wiki')}
+              className="rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-3.5 py-2 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/[0.14] disabled:opacity-40"
+            >
+              {extractState === 'running' ? 'Analysing…' : 'Deep extract'}
+            </button>
+            <HelpTip text="Uses AI to read every file and map out how everything connects. Takes 5–15 mins. Do this after significant code changes." wide />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <button
+              disabled={extractState === 'running'}
+              onClick={() => void runExtract('extract_deep')}
+              className="rounded-lg border border-violet-400/25 bg-violet-500/[0.07] px-3.5 py-2 text-[12px] font-medium text-violet-300 hover:bg-violet-500/[0.12] disabled:opacity-40"
+            >
+              Full deep + clean
+            </button>
+            <HelpTip text="Same as Deep extract, but also removes duplicate entries and maps which files depend on which. Takes 10–20 mins. Use monthly or after a big refactor." wide />
+          </span>
         </div>
 
         {extractState === 'vercel' && (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ImprovementItem, ImprovementsResponse } from '@/app/api/bud/improvements/route';
+import { HelpTip } from './HelpTip';
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -77,13 +78,43 @@ function ImprovementCard({
     dismissed:   null,
   };
 
+  const riskHelp: Record<ImprovementItem['risk_level'], string> = {
+    low:      'Safe to work on. Changing this is unlikely to break anything else.',
+    medium:   'Some risk. Test after making changes to make sure nothing broke.',
+    high:     'Touches a lot of the system. Plan carefully and test thoroughly before going live.',
+    critical: 'Do not change without a proper plan. Affects core functionality — could break orders or payments.',
+  };
+
+  const sourceHelp: Record<ImprovementItem['source'], string> = {
+    vault:    'Found in your Obsidian architecture notes — something you or a developer wrote down as needing attention.',
+    graphify: 'Detected automatically by code analysis — a file that too many other files depend on.',
+    manual:   'Added manually by someone on the team.',
+    agent:    'Found by an AI agent while running a task.',
+  };
+
+  const statusHelp: Record<ImprovementItem['status'], string> = {
+    open:        'Not started yet. Needs someone to look at it.',
+    in_progress: 'Someone is actively working on this.',
+    completed:   'Done and verified. No more action needed.',
+    dismissed:   'Decided not to do this right now.',
+  };
+
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-white/[0.12]">
       <div className="flex flex-wrap items-start gap-2">
         <div className="flex flex-1 flex-wrap items-center gap-2">
-          <Chip label={item.risk_level} style={RISK_STYLES[item.risk_level]} />
-          <Chip label={item.source} style={SOURCE_STYLES[item.source]} />
-          <Chip label={STATUS_LABELS[item.status]} style="bg-white/5 text-white/40 border-white/[0.07]" />
+          <span className="inline-flex items-center">
+            <Chip label={item.risk_level} style={RISK_STYLES[item.risk_level]} />
+            <HelpTip text={riskHelp[item.risk_level]} />
+          </span>
+          <span className="inline-flex items-center">
+            <Chip label={item.source} style={SOURCE_STYLES[item.source]} />
+            <HelpTip text={sourceHelp[item.source]} />
+          </span>
+          <span className="inline-flex items-center">
+            <Chip label={STATUS_LABELS[item.status]} style="bg-white/5 text-white/40 border-white/[0.07]" />
+            <HelpTip text={statusHelp[item.status]} />
+          </span>
         </div>
         <span className="text-[11px] text-white/30">{rel(item.created_at)}</span>
       </div>
@@ -135,20 +166,22 @@ function ImprovementCard({
         {nextStatus[item.status] && (
           <button
             disabled={updating}
+            title={nextStatus[item.status] === 'in_progress' ? 'Someone is starting work on this' : 'Mark this as finished and verified'}
             onClick={() => void handleStatus(nextStatus[item.status]!)}
             className="ml-auto rounded-md border border-sky-400/20 bg-sky-500/[0.08] px-2.5 py-1 text-[11px] font-medium text-sky-400 hover:bg-sky-500/[0.15] disabled:opacity-40"
           >
-            {updating ? '…' : `Mark ${STATUS_LABELS[nextStatus[item.status]!]}`}
+            {updating ? '…' : nextStatus[item.status] === 'in_progress' ? 'Start working on this' : 'Mark as done'}
           </button>
         )}
 
         {item.status === 'open' && (
           <button
             disabled={updating}
+            title="Not worth doing right now — hides it from the open list"
             onClick={() => void handleStatus('dismissed')}
             className="rounded-md border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-[11px] text-white/35 hover:text-white/60 disabled:opacity-40"
           >
-            Dismiss
+            Skip for now
           </button>
         )}
       </div>
@@ -306,16 +339,27 @@ export function ImprovementsTab() {
 
   return (
     <div className="space-y-5">
+      {/* Plain-English intro */}
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <p className="text-[13px] text-white/55">
+          This is a list of things that could be improved in the codebase — found automatically by code analysis, pulled from architecture notes, or added manually.
+          Each item has a <strong className="text-white/70">risk level</strong> (how careful you need to be) and a <strong className="text-white/70">source</strong> (where it was found).
+          Click <em className="text-white/60">Start working on this</em> to track progress, or <em className="text-white/60">Skip for now</em> to hide it.
+        </p>
+      </div>
+
       {/* Totals strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Open',        count: totals.open,        style: 'text-amber-400' },
-          { label: 'In progress', count: totals.in_progress, style: 'text-sky-400' },
-          { label: 'Completed',   count: totals.completed,   style: 'text-emerald-400' },
-          { label: 'Dismissed',   count: totals.dismissed,   style: 'text-white/35' },
-        ].map(({ label, count, style }) => (
+          { label: 'Need attention',   count: totals.open,        style: 'text-amber-400',   tip: 'Things nobody has started working on yet.' },
+          { label: 'Being worked on',  count: totals.in_progress, style: 'text-sky-400',     tip: 'Improvements someone is actively fixing right now.' },
+          { label: 'Done',             count: totals.completed,   style: 'text-emerald-400', tip: 'Finished and verified. Nothing more to do.' },
+          { label: 'Skipped',          count: totals.dismissed,   style: 'text-white/35',    tip: 'Decided not to do these right now. Hidden from the main list.' },
+        ].map(({ label, count, style, tip }) => (
           <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">{label}</p>
+            <p className="flex items-center text-[10px] font-semibold uppercase tracking-wider text-white/35">
+              {label}<HelpTip text={tip} />
+            </p>
             <p className={`mt-0.5 text-2xl font-semibold tabular-nums ${style}`}>{count}</p>
           </div>
         ))}
