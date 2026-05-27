@@ -2,6 +2,8 @@
 
 Local services platform (Logan & South Brisbane): cleaning, windows, yard care, dump runs, car detailing, laundry & sneakers.
 
+> **→ [[Buds OS Dashboard]]** is the canonical operational view. Start there.
+
 ---
 
 ## Admin Command Centre
