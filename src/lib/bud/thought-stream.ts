@@ -158,6 +158,15 @@ export function buildThoughtStream(args: {
   }
 
   thoughts.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  // Deduplicate by narrative — after sorting newest-first, first occurrence is always newest
+  const seen = new Set<string>();
+  const deduped = thoughts.filter(t => {
+    if (seen.has(t.narrative)) return false;
+    seen.add(t.narrative);
+    return true;
+  });
+
   const limit = args.limit ?? 30;
-  return thoughts.slice(0, limit);
+  return deduped.slice(0, limit);
 }
