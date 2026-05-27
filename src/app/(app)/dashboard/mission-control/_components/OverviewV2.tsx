@@ -1,5 +1,7 @@
 'use client';
 
+import { relativeTime } from './_utils';
+
 /**
  * Mission Control — Overview v2
  *
@@ -115,7 +117,6 @@ type Props = {
   onSelect: (item: BudOsQueueItem) => void;
   onApprove: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
-  onDismiss: (item: BudOsQueueItem) => void;
   selectedId: string | null;
   investigatingIds: Set<string>;
 };
@@ -1008,11 +1009,11 @@ function DeploymentTimelineCard({
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last success</p>
-          <p className="mt-1 text-sm text-white/80">{relTime(dep.last_success_at)}</p>
+          <p className="mt-1 text-sm text-white/80">{relativeTime(dep.last_success_at, 'Telemetry unavailable')}</p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last failure</p>
-          <p className="mt-1 text-sm text-white/80">{relTime(dep.last_failure_at)}</p>
+          <p className="mt-1 text-sm text-white/80">{relativeTime(dep.last_failure_at, 'Telemetry unavailable')}</p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Rollback readiness</p>
@@ -1032,7 +1033,7 @@ function DeploymentTimelineCard({
               <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-sky-400" />
               <span className="min-w-0 flex-1">
                 <span className="text-white/85">{e.narrative}</span>
-                <span className="ml-2 text-white/35">{relTime(e.created_at)}</span>
+                <span className="ml-2 text-white/35">{relativeTime(e.created_at)}</span>
               </span>
             </li>
           ))}
@@ -1043,15 +1044,6 @@ function DeploymentTimelineCard({
       )}
     </section>
   );
-}
-
-function relTime(iso: string | null): string {
-  if (!iso) return 'Telemetry unavailable';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return 'just now';
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
-  return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */

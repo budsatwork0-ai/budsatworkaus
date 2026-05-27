@@ -89,7 +89,7 @@ export function EvidenceTab() {
   if (!data || !data.available) {
     return (
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-8 text-center">
-        <p className="text-sm font-medium text-white/60">No evidence evidence available.</p>
+        <p className="text-sm font-medium text-white/60">No evidence available.</p>
         <p className="mt-1 text-xs text-white/35">
           {(!data || !data.available) ? ((data as { available: false; reason: string } | null)?.reason ?? '') : ''}
         </p>

@@ -129,3 +129,4 @@ FROM public.bud_repair_executions e
 LEFT JOIN public.bud_rollback_events r ON r.execution_id = e.id
 WHERE e.created_at > now() - interval '30 days'
 GROUP BY COALESCE(r.agent_id, e.source_agent);
+

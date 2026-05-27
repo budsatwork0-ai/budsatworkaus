@@ -25,3 +25,4 @@ COMMENT ON COLUMN leads.external_ref IS
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_source_external_ref
   ON leads (source, external_ref)
   WHERE external_ref IS NOT NULL;
+

@@ -258,7 +258,7 @@ export function GraphifyTab() {
           <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] p-3 space-y-1.5">
             <p className="text-[12px] font-medium text-amber-300">Start the local bridge to run from here:</p>
             <pre className="rounded bg-black/30 px-3 py-2 text-[11px] text-amber-200/80 select-all">node scripts/bud-bridge.js</pre>
-            <p className="text-[11px] text-amber-200/50">Once running, the "bridge live" badge appears in the header and these buttons work from budsatwork.com.</p>
+            <p className="text-[11px] text-amber-200/50">Once running, the &ldquo;bridge live&rdquo; badge appears in the header and these buttons work from budsatwork.com.</p>
           </div>
         )}
 

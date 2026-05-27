@@ -30,11 +30,15 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:3000',
 ]);
 
+// Use Gemini if the API key is set, fall back to claude-cli
+const LLM_BACKEND = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY ? 'gemini' : 'claude-cli';
+console.log(`[bridge] LLM backend: ${LLM_BACKEND}`);
+
 // Allowlisted graphify extract modes
 const EXTRACT_MODES = {
-  update:        { args: ['update', '.'],                                                              label: 'graphify update .' },
-  extract_wiki:  { args: ['extract', '.', '--backend', 'claude-cli', '--wiki'],                       label: 'graphify extract . --backend claude-cli --wiki' },
-  extract_deep:  { args: ['extract', '.', '--backend', 'claude-cli', '--wiki', '--directed', '--force', '--dedup-llm'], label: 'graphify extract . --backend claude-cli --wiki --directed --force --dedup-llm' },
+  update:        { args: ['update', '.'],                                                                                         label: 'graphify update .' },
+  extract_wiki:  { args: ['extract', '.', '--backend', LLM_BACKEND, '--wiki'],                                                   label: `graphify extract . --backend ${LLM_BACKEND} --wiki` },
+  extract_deep:  { args: ['extract', '.', '--backend', LLM_BACKEND, '--wiki', '--directed', '--force', '--dedup-llm'],            label: `graphify extract . --backend ${LLM_BACKEND} --wiki --directed --force --dedup-llm` },
 };
 
 // Allowlisted shell commands (read-only, safe)
@@ -92,8 +96,13 @@ async function handleGraphifyExtract(req, res) {
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
+  // Disable Nagle buffering so each SSE frame flushes immediately
+  res.socket?.setNoDelay(true);
+  res.flushHeaders();
 
-  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const send = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
 
   send({ type: 'start', cmd: spec.label });
   console.log(`[bridge] ${spec.label}`);

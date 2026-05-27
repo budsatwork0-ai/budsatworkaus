@@ -47,6 +47,41 @@ function Chip({ label, style }: { label: string; style: string }) {
   );
 }
 
+function CopyFactoryButton({ item }: { item: ImprovementItem }) {
+  const [copied, setCopied] = useState(false);
+
+  function buildPrompt() {
+    const parts = [
+      `Use Bud Factory to implement the following improvement:`,
+      ``,
+      `**Title:** ${item.title}`,
+      `**Issue:** ${item.issue}`,
+      `**Risk level:** ${item.risk_level}`,
+    ];
+    if (item.root_cause) parts.push(`**Root cause:** ${item.root_cause}`);
+    if (item.affected_files.length > 0) parts.push(`**Affected files:** ${item.affected_files.join(', ')}`);
+    if (item.rollback_plan) parts.push(`**Rollback:** ${item.rollback_plan}`);
+    return parts.join('\n');
+  }
+
+  function handleCopy() {
+    void navigator.clipboard.writeText(buildPrompt()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy a ready-to-paste Bud Factory prompt for this improvement"
+      className="rounded-md border border-violet-400/20 bg-violet-500/[0.06] px-2.5 py-1 text-[11px] font-medium text-violet-400 hover:bg-violet-500/[0.12]"
+    >
+      {copied ? '✓ Copied' : 'Copy Factory prompt'}
+    </button>
+  );
+}
+
 function ImprovementCard({
   item,
   onStatusChange,
@@ -155,13 +190,15 @@ function ImprovementCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setExpanded(x => !x)}
           className="text-[11px] text-white/40 hover:text-white/70"
         >
           {expanded ? 'Less' : 'Details'}
         </button>
+
+        <CopyFactoryButton item={item} />
 
         {nextStatus[item.status] && (
           <button
