@@ -1,5 +1,6 @@
 ---
 tags: [system, pricing, quote, calculation]
+aliases: [Pricing Engine]
 ---
 
 # Pricing Engine
