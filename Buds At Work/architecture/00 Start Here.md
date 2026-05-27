@@ -120,6 +120,6 @@ The god nodes (highest connection count) are:
 ---
 
 ## Related
-- [[00-Index/Home|Home]] — vault root index
+- [[00 System Core/Home|Home]] — vault root index
 - [[Automation/Bud Automation Roadmap]] — what's automated and what's next
 - [[Graphify/GRAPH_REPORT]] — full community and god-node breakdown

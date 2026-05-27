@@ -39,7 +39,7 @@ npx tsx scripts/vault-convention.ts
 ```
 
 ### 4. Update Architecture Notes (if applicable)
-If the change introduced a new system (new agent, new database table cluster, new API surface, new shared service), check whether `Buds At Work/Architecture/` has a relevant note to update. If not, create one.
+If the change introduced a new system (new agent, new database table cluster, new API surface, new shared service), check whether `Buds At Work/architecture/` has a relevant note to update. If not, create one.
 
 Architecture note format:
 ```markdown

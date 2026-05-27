@@ -10,4 +10,4 @@ All Architectural Decision Records for Buds At Work.
 
 - [[Admin/Engineering|Engineering]] — architecture decisions live alongside engineering context
 - [[Bud Core Runtime]] — decisions about the runtime layer are recorded here
-- [[00-Index/Home|Home]] — listed under Dev
+- [[00 System Core/Home|Home]] — listed under Dev
