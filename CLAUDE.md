@@ -177,7 +177,7 @@ Stop and confirm before proceeding with any of these:
 1. `graphify query "<question>"` — scoped subgraph, fastest, use first
 2. `graphify-out/wiki/index.md` — broad navigation
 3. `graphify-out/GRAPH_REPORT.md` — architecture overview, use sparingly
-4. `Buds At Work/Architecture/` — Obsidian vault architecture notes
+4. `Buds At Work/01 Architecture/` — Obsidian vault architecture notes
 5. `Buds At Work/Dev/` — recent dev logs
 
 ---

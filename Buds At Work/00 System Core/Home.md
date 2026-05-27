@@ -8,22 +8,22 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 
 ## Admin Command Centre
 
-→ [[Admin/Admin|Admin]] — master index for all 12 operational domains
+→ [[06 Operations/Team Areas/Admin|Admin]] — master index for all 12 operational domains
 
 | Domain | Note |
 |---|---|
-| 💰 Finance | [[Admin/Finance\|Finance]] |
-| ⚙️ Operations | [[Admin/Operations\|Operations]] |
-| 📈 Sales Pipeline | [[Admin/Sales Pipeline\|Sales Pipeline]] |
-| 👥 HR & Crew | [[Admin/HR & Crew\|HR & Crew]] |
-| 🎧 Customer Support | [[Admin/Customer Support\|Customer Support]] |
-| 📊 Data & Analytics | [[Admin/Data & Analytics\|Data & Analytics]] |
-| 🔧 Engineering | [[Admin/Engineering\|Engineering]] |
-| 🗺️ Product Management | [[Admin/Product Management\|Product Management]] |
-| ⚖️ Legal | [[Admin/Legal\|Legal]] |
-| 🎨 Design System | [[Admin/Design System\|Design System]] |
-| 🔍 Enterprise Search | [[Admin/Enterprise Search\|Enterprise Search]] |
-| ✅ Productivity | [[Admin/Productivity\|Productivity]] |
+| 💰 Finance | [[06 Operations/Team Areas/Finance\|Finance]] |
+| ⚙️ Operations | [[06 Operations/Team Areas/Operations\|Operations]] |
+| 📈 Sales Pipeline | [[06 Operations/Team Areas/Sales Pipeline\|Sales Pipeline]] |
+| 👥 HR & Crew | [[06 Operations/Team Areas/HR & Crew\|HR & Crew]] |
+| 🎧 Customer Support | [[06 Operations/Team Areas/Customer Support\|Customer Support]] |
+| 📊 Data & Analytics | [[06 Operations/Team Areas/Data & Analytics\|Data & Analytics]] |
+| 🔧 Engineering | [[06 Operations/Team Areas/Engineering\|Engineering]] |
+| 🗺️ Product Management | [[06 Operations/Team Areas/Product Management\|Product Management]] |
+| ⚖️ Legal | [[06 Operations/Team Areas/Legal\|Legal]] |
+| 🎨 Design System | [[06 Operations/Team Areas/Design System\|Design System]] |
+| 🔍 Enterprise Search | [[06 Operations/Team Areas/Enterprise Search\|Enterprise Search]] |
+| ✅ Productivity | [[06 Operations/Team Areas/Productivity\|Productivity]] |
 
 ---
 
@@ -40,7 +40,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 ## Automation
 - [[Automations Log]] — which automation recipes are currently live
 - [[Checklist Template]] — end-to-end test checklist for payment flow
-- [[Automation/Graph Maintenance|Graph Maintenance]] — scheduled graph health pass (orphan detection, hub strengthening, fragmentation repair)
+- [[05 Automation/Graph Maintenance|Graph Maintenance]] — scheduled graph health pass (orphan detection, hub strengthening, fragmentation repair)
 
 ## Dev
 - [[Bug Tracker]] — quick-capture for bugs found during ops

@@ -18,27 +18,27 @@ If a section grows past one screen of reading, it belongs in its own dedicated n
 
 ## Right now
 
-- **Active branch:** `vault/restructure-batch-0` (carries Batches 0 + 1 of the vault restructure; not yet merged to `main`)
-- **Restructure progress:** 2 of 5 batches complete
+- **Active branch:** `vault/restructure-batch-0` (carries Batches 0–4 of the vault restructure; not yet merged to `main`)
+- **Restructure progress:** 5 of 6 batches complete
   - ✅ Batch 0 — pure cleanup (committed `32e0d79`)
   - ✅ Batch 1 — governance scaffolding (committed `5a2ebcf`)
-  - ⏸️ Batch 2 — Buds OS Dashboard (in flight — this file)
-  - ⏸️ Batch 3 — `99 Archive/` scaffolding (in flight)
-  - ⏳ Batch 4 — architecture rename (medium risk, awaiting review)
-  - ⏳ Batch 5 — Agents migration (gated on code refactor)
-- **Plan source:** [[../architecture/Refactor Plans/Vault Restructure Plan|Vault Restructure Plan]]
+  - ✅ Batch 2 — Buds OS Dashboard (committed `665f060`)
+  - ✅ Batch 3 — `99 Archive/` scaffolding (committed `973ea6e`)
+  - 🟡 Batch 4 — architecture / automation / operations rename (in flight, pending verification + commit)
+  - ⏳ Batch 5 — Agents migration (gated on `VAULT_AGENT_OUTPUT_ROOT` code refactor)
+- **Plan source:** [[../01 Architecture/Refactor Plans/Vault Restructure Plan|Vault Restructure Plan]]
 
 ---
 
 ## Architecture entry points
 
-- [[../architecture/00 Start Here|00 Start Here]] — the vault's architecture tour
-- [[../architecture/Systems/Bud Core Runtime|Bud Core Runtime]] — operational truth engine
-- [[../architecture/Systems/Agent Runtime|Agent Runtime]] — AI agent execution layer
-- [[../architecture/Systems/Pricing Engine|Pricing Engine]] — single source of truth for quote amounts
-- [[../architecture/Systems/Quote Pipeline|Quote Pipeline]] — server-side quote → checkout → webhook
-- [[../architecture/Systems/Mission Control|Mission Control]] — aggregated operational health
-- [[../architecture/Systems/NDIS Matching|NDIS Matching]] — participant matching and scoring
+- [[../01 Architecture/00 Start Here|00 Start Here]] — the vault's architecture tour
+- [[../01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]] — operational truth engine
+- [[../01 Architecture/Systems/Agent Runtime|Agent Runtime]] — AI agent execution layer
+- [[../01 Architecture/Systems/Pricing Engine|Pricing Engine]] — single source of truth for quote amounts
+- [[../01 Architecture/Systems/Quote Pipeline|Quote Pipeline]] — server-side quote → checkout → webhook
+- [[../01 Architecture/Systems/Mission Control|Mission Control]] — aggregated operational health
+- [[../01 Architecture/Systems/NDIS Matching|NDIS Matching]] — participant matching and scoring
 
 ---
 
@@ -46,11 +46,11 @@ If a section grows past one screen of reading, it belongs in its own dedicated n
 
 | Refactor | Status | Note |
 | --- | --- | --- |
-| Vault Restructure | in-flight (Batches 0 + 1 shipped) | [[../architecture/Refactor Plans/Vault Restructure Plan]] |
-| Services Core Extraction | planned | [[../architecture/Refactor Plans/Services Core Extraction]] |
-| Next Safe Refactor Batches | planned | [[../architecture/Refactor Plans/Next Safe Refactor Batches]] |
+| Vault Restructure | in-flight (Batches 0 + 1 shipped) | [[../01 Architecture/Refactor Plans/Vault Restructure Plan]] |
+| Services Core Extraction | planned | [[../01 Architecture/Refactor Plans/Services Core Extraction]] |
+| Next Safe Refactor Batches | planned | [[../01 Architecture/Refactor Plans/Next Safe Refactor Batches]] |
 
-Known unsafe areas to avoid refactoring without explicit approval: [[../architecture/Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]].
+Known unsafe areas to avoid refactoring without explicit approval: [[../01 Architecture/Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]].
 
 ---
 
@@ -68,9 +68,9 @@ Known unsafe areas to avoid refactoring without explicit approval: [[../architec
 
 ## Graph health
 
-- Latest report: [[../architecture/Graphify/GRAPH_REPORT|GRAPH_REPORT]]
-- Live graph viewer: [[../architecture/Graphify/budsatwork-callflow|Call-flow viewer (HTML)]]
-- Maintenance cadence: scheduled via [[../Automation/Bud Automation Roadmap|Bud Automation Roadmap]]
+- Latest report: [[../01 Architecture/Graphify/GRAPH_REPORT|GRAPH_REPORT]]
+- Live graph viewer: [[../01 Architecture/Graphify/budsatwork-callflow|Call-flow viewer (HTML)]]
+- Maintenance cadence: scheduled via [[../05 Automation/Bud Automation Roadmap|Bud Automation Roadmap]]
 - Health agent: [[../Agents/Graph-Health-Agent|Graph-Health-Agent]]
 
 Run `graphify update .` after any code change. Run `graphify query "<question>"` for scoped subgraph lookups instead of raw grep.
@@ -119,12 +119,12 @@ Older logs visible in the `Dev/` folder. Logs older than 90 days move to `99 Arc
 
 Day-to-day execution lives outside this dashboard. Entry points:
 
-- [[../Admin/Admin|Admin command centre]] — all 12 operational domains
-- [[../Processes/Quote Flow|Quote Flow]] — wizard → API → database
-- [[../Processes/Stripe Checkout|Stripe Checkout]] — checkout, webhooks, order lifecycle
-- [[../SOPs/New Booking|New Booking SOP]]
-- [[../SOPs/Refund Process|Refund Process SOP]]
-- [[../SOPs/Failed Payment|Failed Payment SOP]]
+- [[../06 Operations/Team Areas/Admin|Admin command centre]] — all 12 operational domains
+- [[../06 Operations/Processes/Quote Flow|Quote Flow]] — wizard → API → database
+- [[../06 Operations/Processes/Stripe Checkout|Stripe Checkout]] — checkout, webhooks, order lifecycle
+- [[../06 Operations/SOPs/New Booking|New Booking SOP]]
+- [[../06 Operations/SOPs/Refund Process|Refund Process SOP]]
+- [[../06 Operations/SOPs/Failed Payment|Failed Payment SOP]]
 
 ---
 

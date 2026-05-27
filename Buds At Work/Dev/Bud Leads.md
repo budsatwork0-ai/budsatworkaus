@@ -27,5 +27,5 @@ Lead workspace added 2026-05-24. Centralises inbound lead capture from Facebook 
 
 - [[Engineering]] — full env var and file map
 - [[00 System Core/Home|Home]] — listed under Dev
-- [[Processes/Quote Flow|Quote Flow]] — leads that convert enter the quote flow
-- [[Admin/Sales Pipeline|Sales Pipeline]] — lead scoring and follow-up
+- [[06 Operations/Processes/Quote Flow|Quote Flow]] — leads that convert enter the quote flow
+- [[06 Operations/Team Areas/Sales Pipeline|Sales Pipeline]] — lead scoring and follow-up
