@@ -60,6 +60,6 @@ After changes:
 
 ## Related
 - [[../Graphify/Graphify Overview|Graphify Overview]]
-- [[../../architecture/00 Start Here|Architecture Start Here]]
+- [[../../01 Architecture/00 Start Here|Architecture Start Here]]
 - [[../Automations Log]]
 - [[../Bud Automation Roadmap]]

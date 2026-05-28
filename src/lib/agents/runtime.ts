@@ -10,7 +10,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { AGENT_REGISTRY } from './registry';
 import { AgentOutputSchema } from '@/lib/bud/schemas';
-import { handleParseFailure } from '@/lib/bud/orchestrator';
 import type {
   AgentContext,
   AgentDefinition,
@@ -211,7 +210,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   if (agentErr || !agentRow) {
     throw new Error(`Agent ${args.agentId} not found in DB: ${agentErr?.message}`);
   }
-  if (agentRow.status !== 'enabled') {
+  if (!['enabled', 'idle', 'watch'].includes(agentRow.status as string)) {
     throw new Error(`Agent ${args.agentId} is ${agentRow.status}`);
   }
 
@@ -496,6 +495,8 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         model: llmModel,
         cache_read_tokens: cacheReadTokens,
         cache_creation_tokens: cacheCreationTokens,
+        confidence_score: result.confidenceScore ?? null,
+        evidence_payload: result.evidencePayload ?? null,
       })
       .eq('id', runId);
 
@@ -638,6 +639,8 @@ async function dispatchEffect(
     case 'schedule_job':
       return scheduleJobEffect(payload);
     case 'flag_for_review':
+      return flagForReviewEffect(payload);
+    case 'ux_fix_required':
       return flagForReviewEffect(payload);
     case 'update_service_price':
       return updateServicePriceEffect(payload);

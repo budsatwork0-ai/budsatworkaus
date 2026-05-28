@@ -54,7 +54,7 @@ Areas of the codebase where changes have a high risk of breakage or cascading fa
 **Risk:** HIGH  
 **What:** Event handling for `checkout.session.completed`, `payment_intent.succeeded`, `charge.refunded`, `checkout.session.expired`.  
 **Why unsafe:** Webhook events are delivered once. A bug here means lost payment confirmations or emails that never fire.  
-**Rule:** Test with Stripe CLI (`stripe listen --forward-to localhost:3000/api/webhooks/stripe`) before deploying any change. Use the [[Automation/Checklist Template|Checklist Template]] end-to-end flow.
+**Rule:** Test with Stripe CLI (`stripe listen --forward-to localhost:3000/api/webhooks/stripe`) before deploying any change. Use the [[05 Automation/Checklist Template|Checklist Template]] end-to-end flow.
 
 ---
 

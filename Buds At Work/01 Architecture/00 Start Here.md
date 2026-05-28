@@ -14,7 +14,7 @@ This is the entry point for Claude Code and human collaborators navigating the B
 2. **For system relationships** — use `graphify path "<A>" "<B>"` to find the connection between two symbols.
 3. **For deep dives** — use `graphify explain "<concept>"` then cross-reference the matching note in [[Systems/]] or [[Components/]].
 4. **After editing code** — run `graphify update .` (AST-only, no API cost) to keep the graph current.
-5. **For automation/prompt design** — see [[Automation/Claude Code Prompts/]] for reusable graph maintenance and analysis prompts.
+5. **For automation/prompt design** — see [[05 Automation/Claude Code Prompts/]] for reusable graph maintenance and analysis prompts.
 
 ---
 
@@ -25,7 +25,7 @@ This is the entry point for Claude Code and human collaborators navigating the B
 | [[Graphify/Graphify Overview\|Graphify/]] | Graph commands, outputs, GRAPH_REPORT |
 | [[Systems/]] | Runtime, infra, and server-side system notes |
 | [[Components/]] | React components and hooks |
-| [[Refactor Plans/]] | Safe extraction plans and risk assessments |
+| [[../03 Active Refactors/]] | Safe extraction plans and risk assessments |
 | [[Claude Memory/]] | Anti-patterns, conventions, and known failure modes |
 
 ---
@@ -52,10 +52,10 @@ The graph lives at `graphify-out/graph.json`. The human-readable summary is at [
 
 ## How refactors should be staged
 
-All refactors follow the principle in [[Refactor Plans/Services Core Extraction]]: **surgical extractions only, no broad rewrites**.
+All refactors follow the principle in [[../03 Active Refactors/Services Core Extraction]]: **surgical extractions only, no broad rewrites**.
 
-1. Check [[Refactor Plans/Known Unsafe Areas]] — if the target area is listed, read it before touching anything.
-2. Check [[Refactor Plans/Next Safe Refactor Batches]] — pick a batch that is already scoped and risk-assessed.
+1. Check [[../03 Active Refactors/Known Unsafe Areas]] — if the target area is listed, read it before touching anything.
+2. Check [[../03 Active Refactors/Next Safe Refactor Batches]] — pick a batch that is already scoped and risk-assessed.
 3. Run `graphify path "<source>" "<target>"` to understand what you're cutting.
 4. One extraction per PR. No UI rewrites bundled with logic moves.
 5. After the PR lands, run `graphify update .` and verify the path has changed.
@@ -66,10 +66,10 @@ All refactors follow the principle in [[Refactor Plans/Services Core Extraction]
 
 | Output type | Destination |
 |---|---|
-| `graphify query` results used to plan a refactor | paste into the relevant [[Refactor Plans/]] note |
+| `graphify query` results used to plan a refactor | paste into the relevant [[../03 Active Refactors/]] note |
 | `graphify explain` results that reveal new god-node behaviour | add a "Graphify queries" section to the [[Systems/]] or [[Components/]] note |
 | Full `graphify update .` after a large refactor | note the new commit hash in [[Graphify/GRAPH_REPORT]] |
-| Graph health pass results | append to [[Automation/Claude Code Prompts/Graph Maintenance Prompt]] |
+| Graph health pass results | append to [[05 Automation/Claude Code Prompts/Graph Maintenance Prompt]] |
 
 ---
 
@@ -121,5 +121,5 @@ The god nodes (highest connection count) are:
 
 ## Related
 - [[00 System Core/Home|Home]] — vault root index
-- [[Automation/Bud Automation Roadmap]] — what's automated and what's next
+- [[05 Automation/Bud Automation Roadmap]] — what's automated and what's next
 - [[Graphify/GRAPH_REPORT]] — full community and god-node breakdown

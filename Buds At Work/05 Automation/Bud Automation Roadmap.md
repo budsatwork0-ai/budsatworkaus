@@ -28,7 +28,7 @@ Recipes are stored in Supabase `site_settings` key-value table. No code deploy n
 
 ### AI Agents (cron + manual)
 30+ agents across: sales, support, ops, hiring, finance, compliance.  
-See [[../../architecture/Systems/Agent Runtime|Agent Runtime]] for the full list.
+See [[../../01 Architecture/Systems/Agent Runtime|Agent Runtime]] for the full list.
 
 Key scheduled agents:
 - `cash-flow-forecaster` — financial runway projection
@@ -65,6 +65,6 @@ Planned for Era Context integration.
 ## Related
 - [[Automations Log]]
 - [[Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance Prompt]]
-- [[../../architecture/Systems/Agent Runtime|Agent Runtime]]
-- [[../../architecture/Systems/Mission Control|Mission Control]]
-- [[../../architecture/Systems/Email System|Email System]]
+- [[../../01 Architecture/Systems/Agent Runtime|Agent Runtime]]
+- [[../../01 Architecture/Systems/Mission Control|Mission Control]]
+- [[../../01 Architecture/Systems/Email System|Email System]]

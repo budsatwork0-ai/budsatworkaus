@@ -33,7 +33,7 @@ Loaded on demand when Claude needs structural context.
 - `01 Architecture/00 Start Here.md` — entry point for all architecture questions
 - `01 Architecture/Systems/*` — system-level truth (Pricing Engine, Quote Pipeline, Bud Core Runtime, etc.)
 - `01 Architecture/Components/*` — component-level truth (Brand, WizardState, ServicesPageContent, etc.)
-- `01 Architecture/Claude Memory/*.md` — conventions and anti-patterns Claude has captured via `scripts/vault-convention.ts`
+- `00 System Core/Claude Memory/*.md` — conventions and anti-patterns Claude has captured via `scripts/vault-convention.ts`
 
 **Rule:** These notes must carry the Metadata Rules' `source_of_truth` field so Claude can verify them against reality.
 
@@ -72,7 +72,7 @@ Treated as evidence, not truth.
 
 - `00 System Core/Governance/*` — these are the constitution; only humans amend them
 - `01 Architecture/Systems/*` and `Components/*` — system truth requires human ownership
-- `04 Claude Memory/Anti-Patterns.md` and `Convention Rules.md` — captured via tooling, never freely edited
+- `00 System Core/Claude Memory/Anti-Patterns.md` and `Convention Rules.md` — captured via tooling, never freely edited
 - Any file with `status: active` and an owner other than Claude
 - `.env*`, `vercel.json`, Stripe config, Supabase migrations — per codebase constitution
 
@@ -89,7 +89,7 @@ When two memory sources disagree:
 
 - Treat Generated Intelligence (Tier 4) as if it were Architecture Memory (Tier 2)
 - Edit a note's `last_verified` date without having actually verified it
-- Add new entries to `01 Architecture/Claude Memory/Anti-Patterns.md` outside of `scripts/vault-convention.ts`
+- Add new entries to `00 System Core/Claude Memory/Anti-Patterns.md` outside of `scripts/vault-convention.ts`
 - Rename or move files in `Agents/<X>-Agent/<sub>/` paths (they are write targets in shipped code)
 
 ## Related

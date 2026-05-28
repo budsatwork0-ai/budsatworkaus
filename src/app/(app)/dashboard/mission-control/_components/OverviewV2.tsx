@@ -509,9 +509,12 @@ function ActionQueueV2({
             : SEVERITY_WEIGHT[incident.severity];
           return (
             <li key={incident.key}>
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelect(primary)}
-                className={`group flex w-full items-start gap-3 px-5 py-3.5 text-left transition ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(primary); }}
+                className={`group flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left transition ${
                   active ? 'bg-sky-500/[0.04]' : 'hover:bg-white/[0.025]'
                 }`}
               >
@@ -569,7 +572,7 @@ function ActionQueueV2({
                     </button>
                   )}
                 </div>
-              </button>
+              </div>
             </li>
           );
         })}

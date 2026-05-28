@@ -33,7 +33,7 @@ The admin dashboard (`/dashboard`) renders Mission Control data. The [[Agent Run
 - [[Quote Pipeline]]
 - [[createServiceClient]]
 - [[getAuthUser]]
-- [[Automation/Automations Log|Automations Log]]
+- [[05 Automation/Automations Log|Automations Log]]
 
 ## Graphify queries
 ```bash

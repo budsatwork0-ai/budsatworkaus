@@ -26,7 +26,7 @@ If a section grows past one screen of reading, it belongs in its own dedicated n
   - ✅ Batch 3 — `99 Archive/` scaffolding (committed `973ea6e`)
   - 🟡 Batch 4 — architecture / automation / operations rename (in flight, pending verification + commit)
   - ⏳ Batch 5 — Agents migration (gated on `VAULT_AGENT_OUTPUT_ROOT` code refactor)
-- **Plan source:** [[../01 Architecture/Refactor Plans/Vault Restructure Plan|Vault Restructure Plan]]
+- **Plan source:** [[../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]]
 
 ---
 
@@ -46,11 +46,11 @@ If a section grows past one screen of reading, it belongs in its own dedicated n
 
 | Refactor | Status | Note |
 | --- | --- | --- |
-| Vault Restructure | in-flight (Batches 0 + 1 shipped) | [[../01 Architecture/Refactor Plans/Vault Restructure Plan]] |
-| Services Core Extraction | planned | [[../01 Architecture/Refactor Plans/Services Core Extraction]] |
-| Next Safe Refactor Batches | planned | [[../01 Architecture/Refactor Plans/Next Safe Refactor Batches]] |
+| Vault Restructure | in-flight (Batches 0 + 1 shipped) | [[../03 Active Refactors/Vault Restructure Plan]] |
+| Services Core Extraction | planned | [[../03 Active Refactors/Services Core Extraction]] |
+| Next Safe Refactor Batches | planned | [[../03 Active Refactors/Next Safe Refactor Batches]] |
 
-Known unsafe areas to avoid refactoring without explicit approval: [[../01 Architecture/Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]].
+Known unsafe areas to avoid refactoring without explicit approval: [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]].
 
 ---
 

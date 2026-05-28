@@ -4,7 +4,7 @@
 **Status:** Implemented  
 **Scope:** Full NDIS-aware job coordination layer — participant support profiles, rule-based job matching, admin publish workflow, safety flags, and filtered crew Find Jobs page.
 
-**Related:** [[Admin/HR & Crew|HR & Crew]] · [[Admin/Engineering|Engineering]] · [[Admin/Operations|Operations]]
+**Related:** [[06 Operations/Team Areas/HR & Crew|HR & Crew]] · [[06 Operations/Team Areas/Engineering|Engineering]] · [[06 Operations/Team Areas/Operations|Operations]]
 
 ---
 

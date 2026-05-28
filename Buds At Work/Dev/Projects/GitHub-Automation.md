@@ -102,6 +102,6 @@ Dev/
 - [[Bug Tracker]]
 - [[github-historian]]
 - [[/api/webhooks/github]]
-- [[Admin/Engineering|Engineering]] — env vars and deployment infrastructure
+- [[06 Operations/Team Areas/Engineering|Engineering]] — env vars and deployment infrastructure
 - [[Bud Core Runtime]] — runtime layer that indexes captured events
 - [[00 System Core/Home|Home]] — listed under Dev

@@ -75,6 +75,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <LocalBusinessSchema />
         <WebsiteSchema />
+        {/* Lucky Orange session recording & heatmaps */}
+        <script async defer src="https://tools.luckyorange.com/core/lo.js?site-id=a592b727" />
       </head>
       <ConsentAwareGoogleAnalytics gaId={gaId} />
       <body className="min-h-screen flex flex-col bg-white text-slate-900">

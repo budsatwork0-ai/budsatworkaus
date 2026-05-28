@@ -1,14 +1,18 @@
 ---
-status: draft
+status: in-flight
 owner: Jackson
 source_of_truth: this file
 last_verified: 2026-05-27
 risk_level: medium
 depends_on: vault audit (2026-05-27)
 used_by: human review only — do not execute batches without explicit approval
+progress: Batches 0-3 shipped; Batch 4 in flight; Batch 5 gated on code refactor
 ---
 
 # Vault Restructure Plan — Buds OS Migration
+
+> **Status note (2026-05-27):** Batches 0, 1, 2, and 3 are shipped on branch `vault/restructure-batch-0`. Batch 4 — the architecture/automation/operations rename — is being executed now. References to old paths (`architecture/`, `Admin/`, `SOPs/`, `Processes/`, `Automation/`) below describe the *pre-migration* state and are preserved as the historical migration record. The new paths (`01 Architecture/`, `05 Automation/`, `06 Operations/`) are now in place in the vault. Batch 5 remains gated; see the relevant section.
+
 
 A staged migration from the current vault layout to the "Buds OS" structure proposed in the 2026-05-27 audit. **Nothing in this plan executes automatically.** Each batch is independently reviewable and gated on explicit human approval, per the constitution's "surgical changes only" rule.
 
@@ -50,7 +54,7 @@ Pure-deletion candidates with no upstream references:
 Root-level alias redirects (small but pollute root):
 
 - `2026-05-25.md` → `[[Dev/Dev Log 2026-05-25]]` (1-line redirect)
-- `Pricing Engine.md` → `[[architecture/Systems/Pricing Engine]]` (1-line redirect)
+- `Pricing Engine.md` → `[[01 Architecture/Systems/Pricing Engine]]` (1-line redirect)
 
 Empty Dev subdirs:
 

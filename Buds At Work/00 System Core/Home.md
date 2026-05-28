@@ -40,42 +40,28 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 ## Automation
 - [[Automations Log]] — which automation recipes are currently live
 - [[Checklist Template]] — end-to-end test checklist for payment flow
-- [[05 Automation/Graph Maintenance|Graph Maintenance]] — scheduled graph health pass (orphan detection, hub strengthening, fragmentation repair)
+- [[05 Automation/Graph Maintenance|Graph Maintenance]] — scheduled graph health pass
+
+---
 
 ## Dev
+
 - [[Bug Tracker]] — quick-capture for bugs found during ops
-- [[NDIS Participant Matching — May 2026]] — participant support profiles, rule-based job matching, admin publish workflow, safety flags (2026-05-14)
-- [[Services Flow Improvements — April 2026]] — full funnel changes log (Phase 1 & 2)
-- [[Services Flow Improvements — April 2026 Phase 3]] — home page redesign, email re-engagement, step 3 mobile sticky bar (2026-04-15)
-- [[Services Flow Improvements — April 2026 Phase 4]] — rego lookup assistant, commercial preset tiles, window/auto/dump assistant steps (2026-04-17)
-- [[Homepage UI Polish — April 2026]] — header cleanup, CTA colour unification, remove green bg, floating button fix (2026-04-17)
-- [[Services Flow Improvements — April 2026 Phase 5]] — portal tightening, Pay Now button, profile page, Stripe saved cards, subscription change requests (2026-04-18)
-- [[Services Flow Improvements — April 2026 Phase 6]] — rego banner, delivery + transport dump subtypes, auto interior pricing rework (2026-04-20)
-- [[Infrastructure & Integrations — April 2026]] — Sentry, Vercel Cron (24h quote reminders), Google Ads conversions, dashboard forms wired to real APIs (2026-04-20)
-- [[Bud Leads]] — lead workspace, dark theme tokens, Messenger webhook ingest, `lead_conversations` + `lead_follow_ups` tables (2026-05-24)
-- [[Services Page Apple Redesign — April 2026]] — Step 1 redesign, UI refinements, Step 2 price bar fixes (2026-04-17)
-- [[Design System — April 2026]] — CSS design token layer from Claude Design handoff bundle (2026-04-21)
-- [[Admin Dashboard Improvements — April 2026]] — Today's schedule widget, Crew today widget, 8 structural fixes (2026-04-21)
-- [[NDIS Pricing Rewrite & Stripe Hardening — April 2026]] — quarter-hour rounding, full Price Guide rate table, Stripe P0 fixes (2026-04-29)
-- [[Crew Pipeline Fix & Approval Flow — May 2026]] — crew pipeline load fix, admin onboarding approval flow (2026-05-01)
-- [[NDIS Step 2 Visual Redesign — May 2026]] — icon treatment across all selectable tiles and room steppers (2026-05-05)
-- [[Schedule Page & DayScheduler Refactor — May 2026]] — unified toolbar, crew filter strip, timeline card layout, now indicator (2026-05-07)
-- [[Price Optimizer Agent — May 2026]] — market-capacity pricing recommendations landing in the agent approval queue
-- [[GitHub-Automation]] — GitHub → Obsidian automation, captures events as structured notes indexed in Supabase
 - [[ADR-Index]] — all Architectural Decision Records
+- [[Dev/Projects/|→ Dev/Projects/]] — all project change docs (Services Flow, NDIS, Admin, etc.)
 
-## Dev Logs
-- [[Dev/Dev Log 2026-05-18|Dev Log 2026-05-18]]
-- [[Dev/Dev Log 2026-05-19|Dev Log 2026-05-19]]
-- [[Dev/Dev Log 2026-05-20|Dev Log 2026-05-20]]
-- [[Dev/Dev Log 2026-05-21|Dev Log 2026-05-21]]
-- [[Dev/Dev Log 2026-05-22|Dev Log 2026-05-22]]
-- [[Dev/Dev Log 2026-05-23|Dev Log 2026-05-23]]
-- [[Dev/Dev Log 2026-05-24|Dev Log 2026-05-24]]
+**Recent logs:**
+- [[Dev/Dev Log 2026-05-27|Dev Log 2026-05-27]]
+- [[Dev/Dev Log 2026-05-26|Dev Log 2026-05-26]]
 - [[Dev/Dev Log 2026-05-25|Dev Log 2026-05-25]]
+- [[Dev/Dev Log 2026-05-24|Dev Log 2026-05-24]]
+- [[Dev/Dev Log 2026-05-23|Dev Log 2026-05-23]]
 
-## Refactor Plans
-- [[Refactor Plans/Services Core Extraction|Services Core Extraction]] — extract pricing, routing, and estimation logic out of `services/page.tsx` into lib/
+## Active Refactors
+- [[../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — Batches 0–4 shipped; Batch 5 gated on code refactor
+- [[../03 Active Refactors/Services Core Extraction|Services Core Extraction]] — pricing, routing, estimation out of services/page.tsx
+- [[../03 Active Refactors/Next Safe Refactor Batches|Next Safe Refactor Batches]] — pre-scoped, risk-assessed batch queue
+- [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]] — read before touching any of these
 
 ---
 
@@ -86,7 +72,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 - [[ServicesPageContent]] — the public quote wizard
 - [[Mission Control]] — aggregated operational health state
 - [[Graphify]] — live codebase knowledge graph
-- [[Graph-Health-Agent]] — graph connectivity, orphan detection, hub health (scheduled maintenance)
+- [[Graph-Health-Agent]] — graph connectivity, orphan detection, hub health
 - [[Agents/README|Agent Workspaces]] — all agent workspaces, findings, decisions, and issues
 
 ---

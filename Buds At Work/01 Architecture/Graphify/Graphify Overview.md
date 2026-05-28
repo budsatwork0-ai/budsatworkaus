@@ -38,7 +38,7 @@ graphify update .
 ## Maintenance
 
 Run `graphify update .` after any code change (AST-only, no API cost).
-For a full graph health pass — orphan detection, weak cluster repair, hub strengthening — use [[Automation/Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance Prompt]].
+For a full graph health pass — orphan detection, weak cluster repair, hub strengthening — use [[05 Automation/Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance Prompt]].
 
 ## Claude should know
 - The graph is built from commit `e21dbe13` — run `git rev-parse HEAD` to check staleness.

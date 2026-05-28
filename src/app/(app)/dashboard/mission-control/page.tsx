@@ -26,7 +26,7 @@ async function loadData() {
     budActivityRes, budApprovalsRes, budTasksRes,
     changeRequestsRes, repairExecutionsRes, repairStepsRes,
   ] = await Promise.all([
-    supabase.from('agents').select('id, name, status, category, autonomy').order('name'),
+    supabase.from('agents').select('id, name, status, category, autonomy, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
       .select('id, agent_id, status, summary, error, cost_cents, duration_ms, started_at, trigger')
       .order('started_at', { ascending: false }).limit(40),
@@ -69,6 +69,21 @@ async function loadData() {
       .from('memory_documents').select('id, category, title, vault_path, created_at')
       .eq('status', 'active').order('created_at', { ascending: false }).limit(8);
     memory = data ?? [];
+  } catch {}
+
+  // Latest run per agent (confidence score + last run time) — view added in migration 076.
+  // Wrapped in try/catch so the page still loads before the migration is applied.
+  const latestRuns: Record<string, { confidence_score: number | null; finished_at: string | null }> = {};
+  try {
+    const { data: latestRunsData } = await supabase
+      .from('v_agent_latest_run')
+      .select('agent_id, confidence_score, finished_at');
+    for (const row of latestRunsData ?? []) {
+      latestRuns[row.agent_id as string] = {
+        confidence_score: (row.confidence_score as number | null) ?? null,
+        finished_at: (row.finished_at as string | null) ?? null,
+      };
+    }
   } catch {}
 
   const agents = agentsRes.data ?? [];
@@ -165,6 +180,7 @@ async function loadData() {
 
   return {
     agents,
+    latestRuns,
     devOs,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     commandState,

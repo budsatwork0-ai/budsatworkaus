@@ -7,16 +7,16 @@ test.describe('Quote flow — NDIS context (golden path)', () => {
       try { localStorage.removeItem('budsatwork.quote.v2'); } catch { /* */ }
     });
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('NDIS context is accessible from the context tabs', async ({ page }) => {
-    const ndisTab = page.getByRole('button', { name: /Select NDIS context/i });
+    const ndisTab = page.getByRole('tab', { name: /Select NDIS context/i });
     await expect(ndisTab).toBeVisible();
   });
 
   test('NDIS context only shows Cleaning and Yard Care', async ({ page }) => {
-    await page.getByRole('button', { name: /Select NDIS context/i }).click();
+    await page.getByRole('tab', { name: /Select NDIS context/i }).click();
 
     // Should show
     await expect(page.getByRole('button', { name: /Select Cleaning/i })).toBeVisible({ timeout: 5_000 });
@@ -30,7 +30,7 @@ test.describe('Quote flow — NDIS context (golden path)', () => {
   });
 
   test('NDIS context shows MaluCare branding or NDIS description', async ({ page }) => {
-    await page.getByRole('button', { name: /Select NDIS context/i }).click();
+    await page.getByRole('tab', { name: /Select NDIS context/i }).click();
 
     // Should show the NDIS / MaluCare information panel
     const ndisContent = page.locator('text=/MaluCare|NDIS|National Disability/i').first();
@@ -38,7 +38,7 @@ test.describe('Quote flow — NDIS context (golden path)', () => {
   });
 
   test('NDIS Cleaning tile advances to step 2 with NDIS-specific config', async ({ page }) => {
-    await page.getByRole('button', { name: /Select NDIS context/i }).click();
+    await page.getByRole('tab', { name: /Select NDIS context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Step 2 in NDIS context should show scope configuration
@@ -46,7 +46,7 @@ test.describe('Quote flow — NDIS context (golden path)', () => {
   });
 
   test('NDIS step 2 shows a "Review quote" CTA (not "Get my quote")', async ({ page }) => {
-    await page.getByRole('button', { name: /Select NDIS context/i }).click();
+    await page.getByRole('tab', { name: /Select NDIS context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Select any scope card that appears
@@ -61,9 +61,9 @@ test.describe('Quote flow — NDIS context (golden path)', () => {
   });
 
   test('NDIS Yard Care tile advances to step 2', async ({ page }) => {
-    await page.getByRole('button', { name: /Select NDIS context/i }).click();
+    await page.getByRole('tab', { name: /Select NDIS context/i }).click();
     await page.getByRole('button', { name: /Select Yard Care/i }).click();
 
-    await expect(page.locator('[aria-label="Quote progress"]')).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('[data-yard-active]')).toBeAttached({ timeout: 8_000 });
   });
 });

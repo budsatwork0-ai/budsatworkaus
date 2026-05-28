@@ -51,7 +51,7 @@ The execution engine for all AI agents. Wraps every agent run with retries (3×)
 - [[AgentContext]]
 - [[createServiceClient]]
 - [[getAuthUser]]
-- [[Automation/Automations Log|Automations Log]]
+- [[05 Automation/Automations Log|Automations Log]]
 - [[Graphify/Graphify Overview|Graphify]]
 
 ## Graphify queries

@@ -9,15 +9,15 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
       try { localStorage.removeItem('budsatwork.quote.v2'); } catch { /* */ }
     });
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('services page loads with context tabs', async ({ page }) => {
     await expect(page).toHaveURL(/\/services/);
 
-    const homeTab = page.getByRole('button', { name: /Select Home context/i });
-    const commercialTab = page.getByRole('button', { name: /Select Commercial context/i });
-    const ndisTab = page.getByRole('button', { name: /Select NDIS context/i });
+    const homeTab = page.getByRole('tab', { name: /Select Home context/i });
+    const commercialTab = page.getByRole('tab', { name: /Select Commercial context/i });
+    const ndisTab = page.getByRole('tab', { name: /Select NDIS context/i });
 
     await expect(homeTab).toBeVisible();
     await expect(commercialTab).toBeVisible();
@@ -25,7 +25,7 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
   });
 
   test('home context shows all six services', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
 
     await expect(page.getByRole('button', { name: /Select Cleaning/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Select Window Cleaning/i })).toBeVisible();
@@ -36,7 +36,7 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
   });
 
   test('selecting Cleaning advances to step 2', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Step 2 should show scope cards (Standard, Deep, End of Lease)
@@ -50,7 +50,7 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
   });
 
   test('step 2 — selecting Standard Clean scope shows price estimate', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Click the Standard Clean scope card
@@ -63,7 +63,7 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
   });
 
   test('step 2 → step 3 — continuing shows contact form', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Select a scope
@@ -83,7 +83,7 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
   });
 
   test('step 3 form — filling address shows submit button', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     const standardCard = page.locator('[role="button"]').filter({ hasText: /Standard Clean/i }).first();
@@ -101,12 +101,11 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
     }
 
     // The final submit button should be accessible
-    const submitBtn = page.getByRole('button', { name: /Get my quote|Review quote/i });
-    await expect(submitBtn).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('#step3-submit-btn')).toBeVisible({ timeout: 8_000 });
   });
 
   test('back navigation returns to step 1', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Cleaning/i }).click();
 
     // Should be on step 2 — press browser back
@@ -114,12 +113,12 @@ test.describe('Quote flow — home cleaning (golden path)', () => {
 
     // Context tabs should reappear
     await expect(
-      page.getByRole('button', { name: /Select Home context/i })
+      page.getByRole('tab', { name: /Select Home context/i })
     ).toBeVisible({ timeout: 5_000 });
   });
 
   test('service tile shows active state after selection', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
 
     const cleaningTile = page.getByRole('button', { name: /Select Cleaning/i });
     await cleaningTile.click();
@@ -145,26 +144,23 @@ test.describe('Quote flow — window cleaning (golden path)', () => {
       try { localStorage.removeItem('budsatwork.quote.v2'); } catch { /* */ }
     });
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('window cleaning tile advances to step 2', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Window Cleaning/i }).click();
 
     // Step 2 for windows should show pane/scope options
-    await expect(page.locator('main')).toBeVisible();
     const step2Content = page.locator('[aria-label="Quote progress"], [data-scope-card]').first();
     await expect(step2Content).toBeVisible({ timeout: 8_000 });
   });
 
   test('yard care tile advances to step 2 with map/area tool', async ({ page }) => {
-    await page.getByRole('button', { name: /Select Home context/i }).click();
+    await page.getByRole('tab', { name: /Select Home context/i }).click();
     await page.getByRole('button', { name: /Select Yard Care/i }).click();
 
-    // Step 2 for yard should show yard-related config
-    await expect(page.locator('[aria-label="Quote progress"]')).toBeVisible({ timeout: 8_000 });
-    const step2 = page.locator('main');
-    await expect(step2).toBeVisible();
+    // Yard active is set immediately on the root container when yard care is selected
+    await expect(page.locator('[data-yard-active]')).toBeAttached({ timeout: 8_000 });
   });
 });

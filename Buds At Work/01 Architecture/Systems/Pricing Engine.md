@@ -34,7 +34,7 @@ Calculates the final price for each service from the current wizard state. The s
 - [[Route Service]]
 - [[Bud Core Runtime]]
 - [[NDIS Matching]]
-- [[Processes/Quote Flow|Quote Flow]]
+- [[06 Operations/Processes/Quote Flow|Quote Flow]]
 
 ## Graphify queries
 ```bash

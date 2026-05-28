@@ -36,8 +36,8 @@ Transactional email delivery via Resend. Three emails fire automatically across 
 
 ## Related Systems
 - [[Quote Pipeline]]
-- [[Processes/Email Triggers|Email Triggers]]
-- [[Processes/Stripe Checkout|Stripe Checkout]]
+- [[06 Operations/Processes/Email Triggers|Email Triggers]]
+- [[06 Operations/Processes/Stripe Checkout|Stripe Checkout]]
 
 ## Graphify queries
 ```bash

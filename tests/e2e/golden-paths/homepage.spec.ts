@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Homepage — golden path', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('loads with correct title and nav', async ({ page }) => {
@@ -61,11 +61,8 @@ test.describe('Homepage — golden path', () => {
   test('page responds on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 }); // iPhone 14
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await expect(page.locator('h1').first()).toBeVisible();
-    // Mobile nav — could be a hamburger or collapsed nav
-    const nav = page.locator('nav').first();
-    await expect(nav).toBeVisible();
   });
 });

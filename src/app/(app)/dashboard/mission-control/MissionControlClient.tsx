@@ -33,7 +33,7 @@ import { AgentHierarchy } from './_components/AgentHierarchy';
 import { DevOsTab } from './_components/DevOsTab';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
-type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string };
+type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string; last_run_at?: string | null; last_success_at?: string | null };
 
 type RepairExecutionRow = {
   id: string; task_id: string | null; status: string;
@@ -55,6 +55,7 @@ type RepairLogRow = { id: number; execution_id: string; level: string; message: 
 
 type Props = {
   agents?: AgentRow[];
+  latestRuns?: Record<string, { confidence_score: number | null; finished_at: string | null }>;
   budActivity?: BudActivityEvent[];
   commandState: MissionControlHealth;
   budOs: {
@@ -89,6 +90,7 @@ type ActivityEvent = { id: string; event_type: string; narrative: string; actor:
 
 export function MissionControlClient({
   agents = [],
+  latestRuns = {},
   commandState,
   budOs,
   budActivity = [],
@@ -193,23 +195,6 @@ export function MissionControlClient({
       supabase.removeChannel(channel);
     };
   }, [router]);
-
-  async function dismiss(item: BudOsQueueItem) {
-    try {
-      const res = await fetch('/api/bud/actions/dismiss', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ source: item.source, id: item.source_id }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error ?? 'Dismiss failed');
-      actionedIdsRef.current.add(item.id);
-      setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
-      toast.success('Bud dismissed the item');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Dismiss failed');
-    }
-  }
 
   async function approve(item: BudOsQueueItem, notes = '') {
     if (item.approval && item.approval.readiness !== 'ready') {
@@ -339,7 +324,7 @@ export function MissionControlClient({
           )}
 
           {tab === 'overview' && agents.length > 0 && (
-            <AgentHierarchy agents={agents} />
+            <AgentHierarchy agents={agents} latestRuns={latestRuns} />
           )}
 
           {tab === 'dev-os' && <DevOsTab devOs={devOs} />}

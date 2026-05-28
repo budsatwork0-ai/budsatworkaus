@@ -43,8 +43,8 @@ On failure/expiry: → `finalized` (reset for retry)
 - [[getAuthUser]]
 - [[Stripe Integration]]
 - [[Email System]]
-- [[Processes/Quote Flow|Quote Flow]]
-- [[Processes/Stripe Checkout|Stripe Checkout]]
+- [[06 Operations/Processes/Quote Flow|Quote Flow]]
+- [[06 Operations/Processes/Stripe Checkout|Stripe Checkout]]
 
 ## Graphify queries
 ```bash

@@ -50,10 +50,10 @@ Each recipe:
 - [[Checklist Template]]
 - [[Bud Automation Roadmap]]
 - [[Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance Prompt]]
-- [[Processes/Quote Flow|Quote Flow]]
-- [[Processes/Email Triggers|Email Triggers]]
-- [[SOPs/New Booking|New Booking]]
+- [[06 Operations/Processes/Quote Flow|Quote Flow]]
+- [[06 Operations/Processes/Email Triggers|Email Triggers]]
+- [[06 Operations/SOPs/New Booking|New Booking]]
 
 ## Architecture
-- [[../architecture/Systems/Agent Runtime|Agent Runtime]] — the execution engine that runs automation agents
-- [[../architecture/Systems/Mission Control|Mission Control]] — operational state that automation agents read and act on
+- [[../01 Architecture/Systems/Agent Runtime|Agent Runtime]] — the execution engine that runs automation agents
+- [[../01 Architecture/Systems/Mission Control|Mission Control]] — operational state that automation agents read and act on

@@ -22,8 +22,8 @@ Step 2 is rendered via an IIFE pattern `{S.step === 2 && (() => { ... })()}` —
 - At 5,500+ lines this is the highest-risk file in the codebase. Any refactor here must be surgical.
 - The IIFE in Step 2 is intentional — do not "clean it up" by converting to a component without understanding the prop-drilling implications.
 - Static data constants (`COMM_FEATURES`, `COMM_STANDARDS`, `COMM_PRESETS`) live at module scope above `ServicesPageContent` — move them to the runtime layer, not to a new component.
-- See [[Refactor Plans/Services Core Extraction]] for the staged extraction plan.
-- See [[Refactor Plans/Known Unsafe Areas]] for areas to avoid touching.
+- See [[../03 Active Refactors/Services Core Extraction]] for the staged extraction plan.
+- See [[../03 Active Refactors/Known Unsafe Areas]] for areas to avoid touching.
 
 ## Related files/components
 - `src/app/(public)/services/page.tsx`
@@ -36,8 +36,8 @@ Step 2 is rendered via an IIFE pattern `{S.step === 2 && (() => { ... })()}` —
 - [[Quote Pipeline]]
 - [[Bud Core Runtime]]
 - [[Brand]]
-- [[Processes/Quote Flow|Quote Flow]]
-- [[Refactor Plans/Services Core Extraction|Services Core Extraction]]
+- [[06 Operations/Processes/Quote Flow|Quote Flow]]
+- [[../03 Active Refactors/Services Core Extraction|Services Core Extraction]]
 
 ## Graphify queries
 ```bash

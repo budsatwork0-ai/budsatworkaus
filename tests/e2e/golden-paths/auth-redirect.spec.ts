@@ -20,14 +20,15 @@ const PUBLIC_ROUTES = [
 test.describe('Auth redirect — protected routes', () => {
   for (const route of PROTECTED_ROUTES) {
     test(`${route.name} (${route.path}) redirects unauthenticated users`, async ({ page }) => {
-      const response = await page.goto(route.path, { waitUntil: 'networkidle' });
+      const response = await page.goto(route.path, { waitUntil: 'load' });
 
       // Either a redirect happened to an auth page, or we landed on an auth wall
       const url = page.url();
       const isAuthPage =
         url.includes('sign-in') ||
         url.includes('login') ||
-        url.includes('accounts.') || // Clerk hosted auth
+        url.includes('/account') || // Supabase auth redirect
+        url.includes('accounts.') ||
         url.includes('clerk.');
 
       const isProtectedPage = url.includes(route.path);
@@ -55,7 +56,7 @@ test.describe('Public routes — no auth required', () => {
   for (const route of PUBLIC_ROUTES) {
     test(`${route.name} (${route.path}) loads without auth`, async ({ page }) => {
       await page.goto(route.path);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('load');
 
       // Must NOT redirect to sign-in
       const url = page.url();

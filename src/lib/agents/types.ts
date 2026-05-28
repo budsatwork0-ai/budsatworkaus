@@ -11,7 +11,7 @@ export type AgentCategory =
   | 'compliance';
 
 export type AgentAutonomy = 'auto' | 'review' | 'manual';
-export type AgentStatus = 'enabled' | 'paused' | 'disabled';
+export type AgentStatus = 'enabled' | 'paused' | 'disabled' | 'planned' | 'idle' | 'watch';
 
 export type AgentRunStatus =
   | 'running'
@@ -111,4 +111,8 @@ export interface ProposedAction {
 export interface AgentRunResult {
   summary: string;
   output?: Record<string, unknown>;
+  /** Agent's confidence in its own output (0–1). Written to agent_runs.confidence_score. */
+  confidenceScore?: number;
+  /** Structured proof of work — written to agent_runs.evidence_payload. */
+  evidencePayload?: Record<string, unknown>;
 }

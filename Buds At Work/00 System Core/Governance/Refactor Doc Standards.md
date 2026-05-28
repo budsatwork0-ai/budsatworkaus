@@ -4,12 +4,12 @@ owner: Jackson
 source_of_truth: this file
 risk_level: medium
 last_verified: 2026-05-27
-formalises: the existing pattern in 01 Architecture/Refactor Plans/
+formalises: the existing pattern in 03 Active Refactors/
 ---
 
 # Refactor Doc Standards
 
-How to write a refactor plan that's safe to execute. Formalises the pattern already used in `01 Architecture/Refactor Plans/Services Core Extraction.md`, `Known Unsafe Areas.md`, and `Next Safe Refactor Batches.md`.
+How to write a refactor plan that's safe to execute. Formalises the pattern already used in `03 Active Refactors/Services Core Extraction.md`, `Known Unsafe Areas.md`, and `Next Safe Refactor Batches.md`.
 
 A refactor plan that doesn't follow this structure is treated as a draft and should not be executed against production code.
 
@@ -110,7 +110,7 @@ Use the second person sparingly. The reader is usually Jackson or a future Claud
 
 ## Worked example
 
-`01 Architecture/Refactor Plans/Vault Restructure Plan.md` (created 2026-05-27) follows this structure. Reference it when in doubt.
+`03 Active Refactors/Vault Restructure Plan.md` (created 2026-05-27) follows this structure. Reference it when in doubt.
 
 ## Anti-patterns
 
@@ -124,5 +124,5 @@ Use the second person sparingly. The reader is usually Jackson or a future Claud
 
 - [[Vault Constitution]]
 - [[Metadata Rules]]
-- [[../../01 Architecture/Refactor Plans/Services Core Extraction|Services Core Extraction]] — reference example
-- [[../../01 Architecture/Refactor Plans/Vault Restructure Plan|Vault Restructure Plan]] — this batch is from there
+- [[../../03 Active Refactors/Services Core Extraction|Services Core Extraction]] — reference example
+- [[../../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — this batch is from there

@@ -23,7 +23,7 @@ Treat every change to vault structure as a code change.
 ## What this vault must protect
 
 1. **Production runtime paths.** `Agents/<X>-Agent/<sub>/` and `Dev/{ADR-*,Journal,ADR-Drafts,Conventions}/` are write targets in shipped code. Renaming any of them without a coordinated code refactor causes silent data loss.
-2. **Claude's memory order.** `CLAUDE.md` (codebase) and `01 Architecture/Claude Memory/*.md` are loaded by Claude on every session. Breaking these breaks the AI's working knowledge of the project.
+2. **Claude's memory order.** `CLAUDE.md` (codebase) and `00 System Core/Claude Memory/*.md` are loaded by Claude on every session. Breaking these breaks the AI's working knowledge of the project.
 3. **Architecture truth.** The `01 Architecture/` folder is the canonical source of truth for systems, components, and refactor plans. It supersedes any conflicting note elsewhere.
 4. **Pricing integrity.** Documented pricing rules, formulas, and helpers in the vault must match the code in `src/`. Drift between them is a business risk.
 
@@ -81,4 +81,4 @@ The constitution changes only by explicit human decision, recorded as a ADR in `
 - [[Generated Output Rules]]
 - [[Archive Policy]]
 - [[Refactor Doc Standards]]
-- [[../../01 Architecture/Refactor Plans/Vault Restructure Plan|Vault Restructure Plan]]
+- [[../../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]]

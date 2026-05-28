@@ -26,7 +26,7 @@ A note moves to the archive when **any** of these is true:
 - Anything in `00 System Core/Governance/` — these are evergreen rules
 - Anything in `01 Architecture/Systems/` that documents a still-shipped system
 - ADRs in `Dev/ADR-*.md` — they are historical truth and stay where they are
-- Anti-Patterns and Convention Rules in `01 Architecture/Claude Memory/` — Claude reads these every session
+- Anti-Patterns and Convention Rules in `00 System Core/Claude Memory/` — Claude reads these every session
 - Refactor plans in `03 Active Refactors/` while their target is in flight (move to `Refactor Plans/Completed/` when shipped, not to archive)
 
 ## Archive structure

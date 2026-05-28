@@ -54,7 +54,7 @@ Dashboard → NDIS → Job Matching → `/dashboard/ndis/match/[orderId]`
 - [[Agent Runtime]] — `ndis-compliance` and `ndis-plan-matcher` agents
 - [[Mission Control]]
 - [[createServiceClient]]
-- [[Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]]
+- [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]]
 
 ## Graphify queries
 ```bash

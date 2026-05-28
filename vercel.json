@@ -55,6 +55,46 @@
     {
       "path": "/api/cron/pipeline",
       "schedule": "0 1,7,13,19 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=quote-triage",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=customer-reply",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=lead-scorer",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=reviews",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=scheduling",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=reconciliation",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=whs-safety-reminder",
+      "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=cash-flow-forecaster",
+      "schedule": "30 5 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=lapsed-win-back",
+      "schedule": "0 10 * * 2"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=seo-meta",
+      "schedule": "0 4 * * 0"
     }
   ]
 }

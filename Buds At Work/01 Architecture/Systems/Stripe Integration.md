@@ -25,7 +25,7 @@ Handles all payment sessions and webhook events. Stripe is the single payment pr
 | `charge.refunded` | Payment → `refunded`, order → `cancelled` |
 
 ## Claude should know
-- Webhook events are delivered once — a bug here means lost payment confirmations. See [[Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]].
+- Webhook events are delivered once — a bug here means lost payment confirmations. See [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]].
 - Always test with Stripe CLI: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
 - Use test card `4242 4242 4242 4242` for success, `4000 0000 0000 0002` for decline.
 - The `STRIPE_WEBHOOK_SECRET` in `.env.local` must match what the Stripe CLI gives you — they differ from the dashboard secret.
@@ -37,9 +37,9 @@ Handles all payment sessions and webhook events. Stripe is the single payment pr
 ## Related Systems
 - [[Quote Pipeline]]
 - [[Email System]]
-- [[Processes/Stripe Checkout|Stripe Checkout]]
-- [[Automation/Checklist Template|Checklist Template]]
-- [[Refactor Plans/Known Unsafe Areas|Known Unsafe Areas]]
+- [[06 Operations/Processes/Stripe Checkout|Stripe Checkout]]
+- [[05 Automation/Checklist Template|Checklist Template]]
+- [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]]
 
 ## Graphify queries
 ```bash

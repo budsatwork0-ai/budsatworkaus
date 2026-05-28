@@ -33,7 +33,7 @@ Every step component reads from and dispatches to `WizardState`. The [[Pricing E
 - [[useRouteResult]]
 - [[Quote Pipeline]]
 - [[Bud Core Runtime]]
-- [[Processes/Quote Flow|Quote Flow]]
+- [[06 Operations/Processes/Quote Flow|Quote Flow]]
 
 ## Graphify queries
 ```bash
