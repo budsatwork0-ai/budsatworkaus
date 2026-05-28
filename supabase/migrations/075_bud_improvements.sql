@@ -25,5 +25,6 @@ create index if not exists bud_improvements_created_idx on public.bud_improvemen
 
 alter table public.bud_improvements enable row level security;
 
+drop policy if exists "admin_service_bud_improvements" on public.bud_improvements;
 create policy "admin_service_bud_improvements" on public.bud_improvements
   for all using (auth.jwt() ->> 'role' in ('admin', 'owner', 'service_role'));

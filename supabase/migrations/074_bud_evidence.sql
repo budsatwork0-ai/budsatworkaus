@@ -41,6 +41,7 @@ create index if not exists bud_evidence_task_idx    on public.bud_evidence (task
 
 alter table public.bud_evidence enable row level security;
 
+drop policy if exists "admin_service_bud_evidence" on public.bud_evidence;
 create policy "admin_service_bud_evidence" on public.bud_evidence
   for all using (auth.jwt() ->> 'role' in ('admin', 'owner', 'service_role'));
 
