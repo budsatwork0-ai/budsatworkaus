@@ -54,6 +54,7 @@ create index if not exists github_events_deploy_failures
 -- RLS: service role only
 alter table github_events enable row level security;
 
+drop policy if exists "service role full access" on github_events;
 create policy "service role full access"
   on github_events
   as permissive for all

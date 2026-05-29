@@ -115,6 +115,7 @@ create index if not exists memory_read_log_agent_idx
 alter table public.memory_documents enable row level security;
 alter table public.memory_read_log   enable row level security;
 
+drop policy if exists "Admins read memory_documents" on public.memory_documents;
 create policy "Admins read memory_documents"
   on public.memory_documents for select
   using (
@@ -125,6 +126,7 @@ create policy "Admins read memory_documents"
     )
   );
 
+drop policy if exists "Admins read memory_read_log" on public.memory_read_log;
 create policy "Admins read memory_read_log"
   on public.memory_read_log for select
   using (

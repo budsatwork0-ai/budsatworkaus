@@ -154,30 +154,37 @@ alter table public.bud_approval_queue  enable row level security;
 alter table public.bud_change_requests enable row level security;
 alter table public.bud_audit_logs      enable row level security;
 
+drop policy if exists "admin_all_bud_lobby_states" on public.bud_lobby_states;
 create policy "admin_all_bud_lobby_states"
   on public.bud_lobby_states for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_insights" on public.bud_insights;
 create policy "admin_all_bud_insights"
   on public.bud_insights for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_tasks" on public.bud_tasks;
 create policy "admin_all_bud_tasks"
   on public.bud_tasks for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_activity_feed" on public.bud_activity_feed;
 create policy "admin_all_bud_activity_feed"
   on public.bud_activity_feed for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_approval_queue" on public.bud_approval_queue;
 create policy "admin_all_bud_approval_queue"
   on public.bud_approval_queue for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_change_requests" on public.bud_change_requests;
 create policy "admin_all_bud_change_requests"
   on public.bud_change_requests for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));
 
+drop policy if exists "admin_all_bud_audit_logs" on public.bud_audit_logs;
 create policy "admin_all_bud_audit_logs"
   on public.bud_audit_logs for all
   using (auth.jwt() ->> 'role' in ('admin','owner','service_role'));

@@ -31,6 +31,7 @@ create index if not exists foreman_lobby_states_generated_at_idx
 
 alter table public.foreman_lobby_states enable row level security;
 
+drop policy if exists "Admins read foreman lobby states" on public.foreman_lobby_states;
 create policy "Admins read foreman lobby states"
   on public.foreman_lobby_states
   for select
@@ -67,6 +68,7 @@ create index if not exists foreman_insights_severity_idx
 
 alter table public.foreman_insights enable row level security;
 
+drop policy if exists "Admins read foreman insights" on public.foreman_insights;
 create policy "Admins read foreman insights"
   on public.foreman_insights
   for select

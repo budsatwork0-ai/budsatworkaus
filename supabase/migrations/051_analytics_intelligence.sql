@@ -122,24 +122,30 @@ alter table analytics_findings enable row level security;
 alter table analytics_funnels  enable row level security;
 
 -- Agent runtime (service_role) gets full access
+drop policy if exists "service role full access" on analytics_reports;
 create policy "service role full access" on analytics_reports
   as permissive for all to service_role using (true) with check (true);
 
+drop policy if exists "service role full access" on analytics_findings;
 create policy "service role full access" on analytics_findings
   as permissive for all to service_role using (true) with check (true);
 
+drop policy if exists "service role full access" on analytics_funnels;
 create policy "service role full access" on analytics_funnels
   as permissive for all to service_role using (true) with check (true);
 
 -- Admin users can read (for dashboard display)
+drop policy if exists "admin read" on analytics_reports;
 create policy "admin read" on analytics_reports
   as permissive for select to authenticated
   using (auth.jwt() ->> 'role' = 'admin');
 
+drop policy if exists "admin read" on analytics_findings;
 create policy "admin read" on analytics_findings
   as permissive for select to authenticated
   using (auth.jwt() ->> 'role' = 'admin');
 
+drop policy if exists "admin read" on analytics_funnels;
 create policy "admin read" on analytics_funnels
   as permissive for select to authenticated
   using (auth.jwt() ->> 'role' = 'admin');

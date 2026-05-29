@@ -21,10 +21,12 @@ alter table bud_convention_learnings enable row level security;
 
 -- Service role can write (from the API route / scripts).
 -- Anon can read (dashboard).
+drop policy if exists "anon read conventions" on bud_convention_learnings;
 create policy "anon read conventions"
   on bud_convention_learnings for select
   using (true);
 
+drop policy if exists "service write conventions" on bud_convention_learnings;
 create policy "service write conventions"
   on bud_convention_learnings for insert
   with check (true);

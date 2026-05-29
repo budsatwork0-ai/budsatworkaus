@@ -61,6 +61,7 @@ create index if not exists memory_edges_any_node_idx
 
 alter table public.memory_edges enable row level security;
 
+drop policy if exists "Admins read memory_edges" on public.memory_edges;
 create policy "Admins read memory_edges"
   on public.memory_edges for select
   using (
@@ -105,6 +106,7 @@ create index if not exists memory_graph_extractions_keywords_idx
 
 alter table public.memory_graph_extractions enable row level security;
 
+drop policy if exists "Admins read memory_graph_extractions" on public.memory_graph_extractions;
 create policy "Admins read memory_graph_extractions"
   on public.memory_graph_extractions for select
   using (
@@ -131,6 +133,7 @@ create table if not exists public.memory_contradiction_log (
 
 alter table public.memory_contradiction_log enable row level security;
 
+drop policy if exists "Admins read memory_contradiction_log" on public.memory_contradiction_log;
 create policy "Admins read memory_contradiction_log"
   on public.memory_contradiction_log for select
   using (

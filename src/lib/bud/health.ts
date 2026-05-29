@@ -467,8 +467,12 @@ function computeDeploymentState(events: GithubEventRow[]): MissionControlDeploym
   }
 
   const ageMs = Date.now() - new Date(latest.created_at).getTime();
+  // PR preview failures are noise — only non-Preview environments can mark the surface as 'failed'.
+  const isProductionFailure =
+    (latest.metadata as Record<string, unknown>)?.environment !== 'Preview' &&
+    (latest.event_type === 'deployment_failure' || latest.action === 'failure' || latest.action === 'error');
   const status: MissionControlDeploymentState['status'] =
-    latest.event_type === 'deployment_failure' || latest.action === 'failure' || latest.action === 'error'
+    isProductionFailure
       ? 'failed'
       : latest.action === 'pending' || latest.action === 'in_progress' || latest.action === 'created'
         ? 'deploying'

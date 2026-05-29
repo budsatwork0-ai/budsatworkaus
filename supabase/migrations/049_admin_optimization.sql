@@ -82,6 +82,7 @@ create trigger admin_opt_findings_updated_at
 -- RLS: service role only (agent writes; admin dashboard reads via service role)
 alter table admin_optimization_findings enable row level security;
 
+drop policy if exists "service role full access" on admin_optimization_findings;
 create policy "service role full access"
   on admin_optimization_findings
   as permissive for all

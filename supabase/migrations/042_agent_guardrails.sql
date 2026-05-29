@@ -28,6 +28,7 @@ create index if not exists agent_guardrail_events_policy_id_idx
 alter table public.agent_guardrail_events enable row level security;
 
 -- Admin-only read; service role bypasses RLS for inserts.
+drop policy if exists "Admins read guardrail events" on public.agent_guardrail_events;
 create policy "Admins read guardrail events"
   on public.agent_guardrail_events
   for select

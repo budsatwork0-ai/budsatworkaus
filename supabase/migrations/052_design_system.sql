@@ -91,16 +91,20 @@ create index if not exists design_violations_created   on design_violations (cre
 alter table design_audits     enable row level security;
 alter table design_violations enable row level security;
 
+drop policy if exists "service role full access" on design_audits;
 create policy "service role full access" on design_audits
   as permissive for all to service_role using (true) with check (true);
 
+drop policy if exists "service role full access" on design_violations;
 create policy "service role full access" on design_violations
   as permissive for all to service_role using (true) with check (true);
 
+drop policy if exists "admin read" on design_audits;
 create policy "admin read" on design_audits
   as permissive for select to authenticated
   using (auth.jwt() ->> 'role' = 'admin');
 
+drop policy if exists "admin read" on design_violations;
 create policy "admin read" on design_violations
   as permissive for select to authenticated
   using (auth.jwt() ->> 'role' = 'admin');
