@@ -12,7 +12,7 @@ export const QuoteTriagePayloadSchema = z.object({
     })
   ).min(1),
   notes: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type QuoteTriagePayload = z.infer<typeof QuoteTriagePayloadSchema>;
@@ -31,7 +31,7 @@ export const CustomerReplyPayloadSchema = z.object({
       url: z.string().url(),
     })
   ).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type CustomerReplyPayload = z.infer<typeof CustomerReplyPayloadSchema>;
