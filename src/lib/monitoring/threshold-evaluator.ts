@@ -1,62 +1,49 @@
-import { dispatchAlert, type AgentAlert } from './alerting-config';
+import { dispatchSlackAlert } from './alerting-config';
 
-export interface ErrorRecord {
-  agentId: string;
-  occurredAt: Date;
+const WINDOW_MS = 60 * 60 * 1000; // 60 minutes
+const AGENT_ERROR_THRESHOLD = parseInt(process.env.AGENT_ERROR_THRESHOLD ?? '5', 10);
+
+interface FailureEvent {
+  agentName: string;
+  timestamp: number;
+  error: string;
 }
 
-export interface ThresholdConfig {
-  /** Errors per rolling window before an alert fires. Default: 5. */
-  maxErrorsPerWindow?: number;
-  /** Rolling window in minutes. Default: 60. */
-  windowMinutes?: number;
+// In-memory rolling window store (per process; suitable for single-instance or edge functions)
+const failureStore = new Map<string, number[]>();
+
+export function recordAgentFailure(event: { agentName: string; timestamp: Date; error: string }): void {
+  const now = event.timestamp.getTime();
+  const key = event.agentName;
+
+  if (!failureStore.has(key)) {
+    failureStore.set(key, []);
+  }
+
+  const timestamps = failureStore.get(key)!;
+  // Prune events outside the rolling window
+  const pruned = timestamps.filter((t) => now - t <= WINDOW_MS);
+  pruned.push(now);
+  failureStore.set(key, pruned);
+
+  if (pruned.length >= AGENT_ERROR_THRESHOLD) {
+    // Fire-and-forget alert
+    dispatchSlackAlert({
+      agentName: event.agentName,
+      errorCount: pruned.length,
+      windowMinutes: 60,
+      timestamp: event.timestamp.toISOString(),
+      message: `Last error: ${event.error}`,
+    }).catch((err) => console.error('[threshold-evaluator] Alert dispatch error:', err));
+
+    // Reset to avoid flooding on every subsequent failure
+    failureStore.set(key, []);
+  }
 }
 
-/**
- * Evaluates per-agent error counts within a rolling time window and dispatches
- * an alert for any agent that breaches the configured threshold.
- *
- * @param records   Flat list of error records from the monitoring store.
- * @param config    Optional threshold overrides.
- * @returns         The set of agentIds that triggered alerts.
- */
-export async function evaluateThresholds(
-  records: ErrorRecord[],
-  config: ThresholdConfig = {},
-): Promise<Set<string>> {
-  const maxErrors = config.maxErrorsPerWindow ?? 5;
-  const windowMinutes = config.windowMinutes ?? 60;
-  const windowMs = windowMinutes * 60 * 1000;
+/** Returns the current rolling error count for an agent (used by health-check-runner). */
+export function getAgentErrorCount(agentName: string): number {
   const now = Date.now();
-  const cutoff = now - windowMs;
-
-  // Count errors per agent within the rolling window
-  const countByAgent = new Map<string, number>();
-  for (const record of records) {
-    if (record.occurredAt.getTime() >= cutoff) {
-      countByAgent.set(record.agentId, (countByAgent.get(record.agentId) ?? 0) + 1);
-    }
-  }
-
-  const alerted = new Set<string>();
-  const firedAt = new Date(now).toISOString();
-
-  const dispatches: Promise<void>[] = [];
-
-  for (const [agentId, errorCount] of countByAgent.entries()) {
-    if (errorCount >= maxErrors) {
-      const alert: AgentAlert = {
-        agentId,
-        errorCount,
-        windowMinutes,
-        threshold: maxErrors,
-        firedAt,
-      };
-      alerted.add(agentId);
-      dispatches.push(dispatchAlert(alert));
-    }
-  }
-
-  await Promise.all(dispatches);
-  return alerted;
+  const timestamps = failureStore.get(agentName) ?? [];
+  return timestamps.filter((t) => now - t <= WINDOW_MS).length;
 }
