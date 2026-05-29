@@ -1,30 +1,50 @@
 'use client';
 
 import { useState } from 'react';
+import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { ObsidianTab } from './ObsidianTab';
 import { EvidenceTab } from './EvidenceTab';
+import { GraphifyTab } from './GraphifyTab';
+import { ImprovementsTab } from './ImprovementsTab';
+import { DevOsTab } from './DevOsTab';
 
-type Section = 'notes' | 'evidence';
+/**
+ * Knowledge hub — consolidates every reference / intelligence surface behind
+ * one top-level tab so the console nav stays at three operational tabs
+ * (Overview · Terminal · Knowledge).
+ *
+ * Sections:
+ *   notes        — Obsidian architecture vault
+ *   evidence     — terminal output / deploy / QA evidence log
+ *   graphify     — knowledge-graph architecture report
+ *   improvements — tracked improvement backlog
+ *   dev-os       — development agent layer + session history
+ */
+
+type Section = 'notes' | 'evidence' | 'graphify' | 'improvements' | 'dev-os';
 
 const SECTIONS: { key: Section; label: string; sub: string }[] = [
-  { key: 'notes',    label: 'Architecture notes', sub: 'Obsidian vault — systems, components, refactor plans' },
-  { key: 'evidence', label: 'Evidence log',        sub: 'Terminal output, deployment records, QA results' },
+  { key: 'notes',        label: 'Architecture notes', sub: 'Obsidian vault — systems, components, refactor plans' },
+  { key: 'evidence',     label: 'Evidence log',        sub: 'Terminal output, deployment records, QA results' },
+  { key: 'graphify',     label: 'Graphify',            sub: 'Knowledge-graph map of the codebase' },
+  { key: 'improvements', label: 'Improvements',        sub: 'Tracked backlog of fixes and refactors' },
+  { key: 'dev-os',       label: 'Dev OS',              sub: 'Development agent layer + session history' },
 ];
 
-export function KnowledgeTab() {
+export function KnowledgeTab({ devOs }: { devOs: DevOsResponse }) {
   const [section, setSection] = useState<Section>('notes');
 
   return (
     <div className="space-y-4">
       {/* Section switcher */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {SECTIONS.map(({ key, label, sub }) => {
           const active = section === key;
           return (
             <button
               key={key}
               onClick={() => setSection(key)}
-              className={`flex-1 rounded-xl border px-4 py-3 text-left transition ${
+              className={`rounded-xl border px-4 py-3 text-left transition ${
                 active
                   ? 'border-white/20 bg-white/[0.06]'
                   : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'
@@ -37,9 +57,12 @@ export function KnowledgeTab() {
         })}
       </div>
 
-      {/* Content — each tab manages its own fetch */}
-      {section === 'notes'    && <ObsidianTab />}
-      {section === 'evidence' && <EvidenceTab />}
+      {/* Content — each section manages its own fetch */}
+      {section === 'notes'        && <ObsidianTab />}
+      {section === 'evidence'     && <EvidenceTab />}
+      {section === 'graphify'     && <GraphifyTab />}
+      {section === 'improvements' && <ImprovementsTab />}
+      {section === 'dev-os'       && <DevOsTab devOs={devOs} />}
     </div>
   );
 }

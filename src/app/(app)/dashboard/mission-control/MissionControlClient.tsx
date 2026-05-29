@@ -22,12 +22,9 @@ import type { BudThought } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewCore } from './_components/OverviewCore';
 import { BudTerminal } from './_components/BudTerminal';
-import { GraphifyTab } from './_components/GraphifyTab';
 import { KnowledgeTab } from './_components/KnowledgeTab';
-import { ImprovementsTab } from './_components/ImprovementsTab';
 import { BridgeStatus } from './_components/BridgeStatus';
 import { AgentHierarchy } from './_components/AgentHierarchy';
-import { DevOsTab } from './_components/DevOsTab';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string; last_run_at?: string | null; last_success_at?: string | null };
@@ -69,12 +66,9 @@ type Props = {
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
 
 const TABS = [
-  { key: 'overview',     label: 'Overview' },
-  { key: 'dev-os',       label: 'Dev OS' },
-  { key: 'terminal',     label: 'Terminal' },
-  { key: 'graphify',     label: 'Graphify' },
-  { key: 'knowledge',    label: 'Knowledge' },
-  { key: 'improvements', label: 'Improvements' },
+  { key: 'overview',  label: 'Overview' },
+  { key: 'terminal',  label: 'Terminal' },
+  { key: 'knowledge', label: 'Knowledge' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -283,15 +277,9 @@ export function MissionControlClient({
             <AgentHierarchy agents={agents} latestRuns={latestRuns} />
           )}
 
-          {tab === 'dev-os' && <DevOsTab devOs={devOs} />}
-
           {tab === 'terminal' && <BudTerminal />}
 
-          {tab === 'graphify' && <GraphifyTab />}
-
-          {tab === 'knowledge' && <KnowledgeTab />}
-
-          {tab === 'improvements' && <ImprovementsTab />}
+          {tab === 'knowledge' && <KnowledgeTab devOs={devOs} />}
         </div>
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
