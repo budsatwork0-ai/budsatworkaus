@@ -372,7 +372,7 @@ export function DevOsTab({ devOs }: { devOs: DevOsResponse }) {
                 <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-white/35">{agent.role}</p>
                 <p className="mt-1.5 text-xs leading-relaxed text-white/65">{agent.trigger}</p>
                 {stat?.lastRunAt && (
-                  <p className="mt-2 text-[10px] text-white/35">last run {relativeTime(stat.lastRunAt)}</p>
+                  <p suppressHydrationWarning className="mt-2 text-[10px] text-white/35">last run {relativeTime(stat.lastRunAt)}</p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-1">
                   {agent.requiredFor.map((r) => (
@@ -419,7 +419,7 @@ export function DevOsTab({ devOs }: { devOs: DevOsResponse }) {
                       {session.risk_level}
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] text-white/35">{relativeTime(session.created_at)}</span>
+                  <span suppressHydrationWarning className="ml-auto text-[10px] text-white/35">{relativeTime(session.created_at)}</span>
                 </div>
                 {session.task && (
                   <p className="mt-1.5 text-sm text-white/80 line-clamp-1">{session.task}</p>
