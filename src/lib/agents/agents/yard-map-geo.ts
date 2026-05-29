@@ -23,7 +23,11 @@ Complexity heuristic:
   moderate — 1-2 obstacles or some edging
   complex  — slopes, tight access, 3+ obstacles, or pool surrounds`;
 
-const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
+// Matches the repo-wide convention (services-core/constants.ts, SuburbHeatmap,
+// YardZonesPreview, etc. all read NEXT_PUBLIC_GOOGLE_MAPS_API_KEY). Falls back
+// to the non-public name in case it's set that way in some environments.
+const GOOGLE_KEY =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
 export const yardMapGeoAgent: AgentDefinition = {
   id: 'yard-map-geo',
@@ -32,6 +36,23 @@ export const yardMapGeoAgent: AgentDefinition = {
   category: 'ops',
   autonomy: 'auto',
   async run(ctx: AgentContext) {
+    // Gate on the Maps key. Without it we cannot fetch real satellite imagery,
+    // and feeding the vision model a placeholder URL produces garbage estimates
+    // that would silently corrupt yard pricing. Skip + flag instead.
+    if (!GOOGLE_KEY) {
+      ctx.log('yard-map-geo skipped: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY not configured');
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        preview: 'Yard geo analysis disabled — NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set',
+        payload: { reason: 'missing_google_maps_api_key' },
+        requiresApproval: true,
+      });
+      return {
+        summary: 'Skipped — NEXT_PUBLIC_GOOGLE_MAPS_API_KEY not set. No yard quotes analysed (avoided placeholder imagery).',
+        output: { processed: 0, skipped: true, reason: 'missing_google_maps_api_key' },
+      };
+    }
+
     const targetId = ctx.input?.quote_id as string | undefined;
 
     const q = ctx.supabase
@@ -47,7 +68,7 @@ export const yardMapGeoAgent: AgentDefinition = {
       const address = [quote.address, quote.suburb, quote.postcode, 'Australia'].filter(Boolean).join(', ');
       if (!address) continue;
 
-      const imageUrl = staticMapUrl(address);
+      const imageUrl = staticMapUrl(address, GOOGLE_KEY);
       const raw = await callVision(imageUrl, SYSTEM);
 
       let parsed: { lawn_sqm: number; complexity: 'simple' | 'moderate' | 'complex'; edges_metres: number; obstacles: string[]; notes: string };
@@ -73,18 +94,14 @@ export const yardMapGeoAgent: AgentDefinition = {
   },
 };
 
-function staticMapUrl(address: string): string {
-  if (!GOOGLE_KEY) {
-    // Fixture URL — keeps the agent runnable without a Maps key.
-    return `https://placeholder.budsatwork.com/satellite?addr=${encodeURIComponent(address)}`;
-  }
+function staticMapUrl(address: string, key: string): string {
   const params = new URLSearchParams({
     center: address,
     zoom: '20',
     size: '640x640',
     maptype: 'satellite',
     scale: '2',
-    key: GOOGLE_KEY,
+    key,
   });
   return `https://maps.googleapis.com/maps/api/staticmap?${params}`;
 }

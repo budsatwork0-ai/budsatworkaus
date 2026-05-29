@@ -66,7 +66,7 @@ export const schedulingAgent: AgentDefinition = {
     if (!jobs?.length) return { summary: 'No unassigned jobs for tomorrow.' };
     if (!crew?.length) return { summary: 'No crew available tomorrow — flagging.' };
 
-    // Fetch weather (cheap stub — replace with your provider).
+    // Fetch the real Brisbane-metro forecast (Open-Meteo, no API key).
     const weather = await fetchBrisbaneForecast(yyyyMmDd);
 
     const prompt = `Date: ${yyyyMmDd}
@@ -100,8 +100,46 @@ Produce assignments JSON.`;
   },
 };
 
-async function fetchBrisbaneForecast(date: string): Promise<{ rain_probability: number; high_c: number; low_c: number }> {
-  // Plug into BOM or OpenWeather here. Returning a stub keeps the agent runnable in dev.
-  void date;
-  return { rain_probability: 0.2, high_c: 26, low_c: 17 };
+/**
+ * Real Brisbane-metro daily forecast via Open-Meteo (keyless, free).
+ * `rain_probability` is returned as a 0–1 fraction to match the contract the
+ * scheduling prompt expects (>= 0.60 reschedules yard/window work).
+ * Falls back to a conservative dry-day estimate if the API is unreachable so
+ * the agent stays runnable rather than failing the whole run sheet.
+ */
+async function fetchBrisbaneForecast(
+  date: string,
+): Promise<{ rain_probability: number; high_c: number; low_c: number; source: string }> {
+  // Brisbane metro (covers Logan & South Brisbane service areas).
+  const lat = -27.47;
+  const lon = 153.03;
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min` +
+    `&timezone=Australia%2FBrisbane&start_date=${date}&end_date=${date}`;
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error(`open-meteo ${res.status}`);
+    const json = (await res.json()) as {
+      daily?: {
+        precipitation_probability_max?: (number | null)[];
+        temperature_2m_max?: (number | null)[];
+        temperature_2m_min?: (number | null)[];
+      };
+    };
+    const pop = json.daily?.precipitation_probability_max?.[0];
+    const high = json.daily?.temperature_2m_max?.[0];
+    const low = json.daily?.temperature_2m_min?.[0];
+    if (pop == null || high == null || low == null) throw new Error('open-meteo: missing daily fields');
+    return {
+      rain_probability: Math.max(0, Math.min(1, pop / 100)),
+      high_c: Math.round(high),
+      low_c: Math.round(low),
+      source: 'open-meteo',
+    };
+  } catch {
+    // Network/parse failure — conservative fallback keeps the run sheet flowing.
+    return { rain_probability: 0.2, high_c: 26, low_c: 17, source: 'fallback-estimate' };
+  }
 }
