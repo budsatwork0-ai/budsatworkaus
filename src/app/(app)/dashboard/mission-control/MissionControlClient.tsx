@@ -9,21 +9,18 @@
  *   Terminal  - Bud chat terminal
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import type { BudActivityEvent } from '@/lib/bud/types';
 import type { MissionControlHealth } from '@/lib/bud/health';
-import {
-  buildRepairWorkspace,
-  type BudOsQueueItem,
-} from '@/lib/bud/os-view-model';
+import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
 import type { UxEvolutionRecommendation } from '@/lib/bud/ux-evolution-engine';
 import type { StructuredFailure } from '@/lib/bud/structured-failure';
 import type { BudThought } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
-import { OverviewV2 } from './_components/OverviewV2';
+import { OverviewCore } from './_components/OverviewCore';
 import { BudTerminal } from './_components/BudTerminal';
 import { GraphifyTab } from './_components/GraphifyTab';
 import { KnowledgeTab } from './_components/KnowledgeTab';
@@ -51,7 +48,6 @@ type RepairStepRow = {
   id: string; execution_id: string; state: string;
   status: string; summary: string; started_at: string;
 };
-type RepairLogRow = { id: number; execution_id: string; level: string; message: string; created_at: string };
 
 type Props = {
   agents?: AgentRow[];
@@ -111,14 +107,6 @@ export function MissionControlClient({
   const [investigatingIds, setInvestigatingIds] = useState<Set<string>>(new Set());
   const actionedIdsRef = useRef<Set<string>>(new Set());
 
-  const [lazyRepairData, setLazyRepairData] = useState<{
-    logs: RepairLogRow[];
-    steps: RepairStepRow[];
-    rollbackEvents: Array<{ id: string; execution_id: string | null; agent_id: string | null; trigger: string; created_at: string }>;
-  } | null>(null);
-
-  const selected = queue.find((item) => item.id === selectedId) ?? queue[0] ?? null;
-
   const incomingQueueKey = budOs.actionQueue.map((i) => i.id).join(',');
   useEffect(() => {
     const filtered = budOs.actionQueue.filter((i) => !actionedIdsRef.current.has(i.id));
@@ -128,34 +116,6 @@ export function MissionControlClient({
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingQueueKey]);
-
-  useEffect(() => {
-    const taskId = selected?.task_id ?? (selected?.source === 'bud_task' ? selected?.source_id : null);
-    const execution = taskId
-      ? budOs.repairExecutions.find((e) => e.task_id === taskId)
-      : null;
-    if (!execution) { setLazyRepairData(null); return; }
-    void fetch(`/api/bud/repairs/logs?execution_id=${execution.id}`)
-      .then((r) => r.json())
-      .then((d) => setLazyRepairData(d))
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id, budOs.repairExecutions]);
-
-  const workspace = useMemo(
-    () =>
-      buildRepairWorkspace({
-        selectedItem: selected,
-        commandState,
-        executions: budOs.repairExecutions,
-        steps: lazyRepairData?.steps ?? budOs.repairSteps,
-        logs: lazyRepairData?.logs ?? [],
-        activity: budActivity,
-        rollbackEvents: lazyRepairData?.rollbackEvents ?? [],
-        changeRequests: budOs.changeRequests,
-      }),
-    [selected, commandState, budOs.repairExecutions, budOs.repairSteps, lazyRepairData, budActivity, budOs.changeRequests],
-  );
 
   useEffect(() => {
     const interval = setInterval(() => router.refresh(), 30_000);
@@ -307,15 +267,11 @@ export function MissionControlClient({
         {/* Tab content */}
         <div className="space-y-4">
           {tab === 'overview' && (
-            <OverviewV2
+            <OverviewCore
               commandState={commandState}
               queue={queue}
-              workspace={workspace}
-              failures={budOs.structuredFailures}
-              thoughts={budOs.thoughtStream}
               activity={liveActivity}
-              uxEvolution={budOs.uxEvolution}
-              selectedId={selected?.id ?? null}
+              selectedId={selectedId}
               investigatingIds={investigatingIds}
               onSelect={(item) => setSelectedId(item.id)}
               onApprove={(item) => void approve(item)}

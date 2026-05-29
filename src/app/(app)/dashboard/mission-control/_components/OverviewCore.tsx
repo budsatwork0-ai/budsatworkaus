@@ -1,0 +1,436 @@
+'use client';
+
+/**
+ * Mission Control — Overview (Core)
+ *
+ * Stripped-down operator cockpit. Renders ONLY panels backed by real data and
+ * working actions — no synthesized narrative ("AI theatre"):
+ *
+ *   1. Platform state      — deriveGlobalTruth(commandState) from real health telemetry
+ *   2. Vitals             — live counts straight off MissionControlHealth
+ *   3. Ask Bud            — real /api/bud/command (creates tasks + approvals)
+ *   4. Needs a decision   — real action queue with working Approve / Investigate
+ *   5. Live activity      — real bud_activity_feed events
+ *   6. Deployment         — real deployment telemetry
+ *
+ * Intentionally does NOT use: thought-stream, initiatives, ux-evolution, or the
+ * derived overview-v2 narrative builders (cockpit prose, operational risk,
+ * forecasts, customer impact, systems map, confidence, etc.).
+ */
+
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { relativeTime } from './_utils';
+import type { MissionControlHealth } from '@/lib/bud/health';
+import type { BudActivityEvent } from '@/lib/bud/types';
+import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
+import { deriveGlobalTruth, type GlobalTruthState } from '@/lib/bud/overview-v2';
+
+/* ── tokens ──────────────────────────────────────────────────────────────── */
+
+const TRUTH_TONE: Record<GlobalTruthState, { ring: string; text: string; dot: string; barBg: string; bar: string }> = {
+  healthy: { ring: 'ring-emerald-400/30', text: 'text-emerald-300', dot: 'bg-emerald-400', barBg: 'bg-emerald-500/15', bar: 'bg-emerald-400' },
+  degraded: { ring: 'ring-amber-400/30', text: 'text-amber-300', dot: 'bg-amber-400', barBg: 'bg-amber-500/15', bar: 'bg-amber-400' },
+  approval: { ring: 'ring-yellow-300/30', text: 'text-yellow-200', dot: 'bg-yellow-300', barBg: 'bg-yellow-300/15', bar: 'bg-yellow-300' },
+  recovering: { ring: 'ring-sky-400/30', text: 'text-sky-300', dot: 'bg-sky-400', barBg: 'bg-sky-500/15', bar: 'bg-sky-400' },
+  blocked: { ring: 'ring-red-400/40', text: 'text-red-300', dot: 'bg-red-400', barBg: 'bg-red-500/15', bar: 'bg-red-400' },
+};
+
+const SEVERITY_TONE: Record<BudOsQueueItem['severity'], { label: string; tone: string }> = {
+  critical: { label: 'Critical', tone: 'border-red-400/50 text-red-300 bg-red-500/[0.06]' },
+  high: { label: 'Major', tone: 'border-orange-400/40 text-orange-300 bg-orange-500/[0.06]' },
+  medium: { label: 'Medium', tone: 'border-amber-400/30 text-amber-300 bg-amber-500/[0.06]' },
+  low: { label: 'Observation', tone: 'border-white/15 text-white/55 bg-white/[0.02]' },
+};
+
+/* ── props ───────────────────────────────────────────────────────────────── */
+
+type Props = {
+  commandState: MissionControlHealth;
+  queue: BudOsQueueItem[];
+  activity: BudActivityEvent[];
+  selectedId: string | null;
+  investigatingIds: Set<string>;
+  onSelect: (item: BudOsQueueItem) => void;
+  onApprove: (item: BudOsQueueItem) => void;
+  onInvestigate: (item: BudOsQueueItem) => void;
+};
+
+/* ── component ───────────────────────────────────────────────────────────── */
+
+export function OverviewCore({
+  commandState,
+  queue,
+  activity,
+  selectedId,
+  investigatingIds,
+  onSelect,
+  onApprove,
+  onInvestigate,
+}: Props) {
+  const truth = deriveGlobalTruth(commandState);
+
+  return (
+    <div className="space-y-5">
+      <StateAndAsk truth={truth} commandState={commandState} />
+      <Vitals commandState={commandState} />
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <ActionQueue
+          queue={queue}
+          selectedId={selectedId}
+          investigatingIds={investigatingIds}
+          onSelect={onSelect}
+          onApprove={onApprove}
+          onInvestigate={onInvestigate}
+        />
+        <ActivityFeed activity={activity} />
+      </div>
+      <Deployment commandState={commandState} activity={activity} />
+    </div>
+  );
+}
+
+/* ── 1. platform state + Ask Bud ─────────────────────────────────────────── */
+
+function StateAndAsk({
+  truth,
+  commandState,
+}: {
+  truth: ReturnType<typeof deriveGlobalTruth>;
+  commandState: MissionControlHealth;
+}) {
+  const tone = TRUTH_TONE[truth.state];
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [response, setResponse] = useState<string | null>(null);
+
+  async function ask() {
+    const text = draft.trim();
+    if (!text) return;
+    setBusy(true);
+    setResponse(null);
+    try {
+      const res = await fetch('/api/bud/command', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ command: text }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? 'Bud could not answer');
+      setResponse(body?.bud_response?.message ?? 'Bud accepted the request.');
+      setDraft('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bud could not answer');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={`relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-6 ring-1 ${tone.ring}`}>
+      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        {/* state */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${tone.dot}`} />
+            <span className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${tone.text}`}>{truth.headline}</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-white">{commandState.summary}</h2>
+            <p className="mt-1 text-xs uppercase tracking-wider text-white/40">Operating mode: {commandState.operating_mode.replace(/_/g, ' ')}</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Platform health</span>
+              <span className="text-sm font-semibold tabular-nums text-white">{truth.index}</span>
+            </div>
+            <div className={`mt-2 h-1.5 w-full overflow-hidden rounded-full ${tone.barBg}`}>
+              <div className={`h-full ${tone.bar}`} style={{ width: `${truth.index}%` }} />
+            </div>
+            <p className="mt-2 text-xs text-white/45">{truth.detail}</p>
+          </div>
+        </div>
+        {/* ask bud */}
+        <div className="flex flex-col gap-3">
+          <label htmlFor="core-ask" className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
+            Ask Bud — creates a real task you can approve below
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="core-ask"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void ask(); }}
+              placeholder="e.g. Investigate the stripe-dispute-manager failures"
+              className="h-12 flex-1 rounded-lg border border-white/[0.08] bg-black/30 px-4 text-[15px] text-white outline-none placeholder:text-white/30 focus:border-sky-400/40"
+            />
+            <button
+              onClick={() => void ask()}
+              disabled={busy || !draft.trim()}
+              className="h-12 rounded-lg bg-white px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? 'Working…' : 'Ask'}
+            </button>
+          </div>
+          {response && (
+            <p className="rounded-lg border border-white/[0.08] bg-black/25 p-3 text-xs leading-relaxed text-white/75">{response}</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 2. vitals ───────────────────────────────────────────────────────────── */
+
+function Vitals({ commandState }: { commandState: MissionControlHealth }) {
+  const attention = commandState.agents_needing_attention.length;
+  const openTasks = commandState.repair_sessions.length;
+  const cells: Array<{ label: string; value: string; sub?: string; tone?: string }> = [
+    {
+      label: 'Agents',
+      value: String(commandState.agents.length),
+      sub: attention > 0 ? `${attention} need attention` : 'all healthy',
+      tone: attention > 0 ? 'text-amber-300' : 'text-emerald-300',
+    },
+    {
+      label: 'Failed runs',
+      value: String(commandState.counts.failed_runs),
+      sub: 'recent window',
+      tone: commandState.counts.failed_runs > 0 ? 'text-red-300' : 'text-emerald-300',
+    },
+    {
+      label: 'Pending approvals',
+      value: String(commandState.approvals.total_pending),
+      sub: `${commandState.approvals.pending_bud_approvals} Bud · ${commandState.approvals.pending_agent_actions} agent`,
+      tone: commandState.approvals.total_pending > 0 ? 'text-yellow-200' : 'text-white/70',
+    },
+    {
+      label: 'Open tasks',
+      value: String(openTasks),
+      sub: 'in the work queue',
+      tone: 'text-white/80',
+    },
+    {
+      label: 'Deployment',
+      value: commandState.deployment.status,
+      sub: commandState.deployment.connected ? 'telemetry live' : 'not connected',
+      tone:
+        commandState.deployment.status === 'failed' ? 'text-red-300'
+        : commandState.deployment.status === 'healthy' ? 'text-emerald-300'
+        : commandState.deployment.status === 'deploying' ? 'text-sky-300'
+        : 'text-amber-300',
+    },
+    {
+      label: 'Memory',
+      value: String(commandState.memory.recent_count),
+      sub: commandState.memory.connected ? 'records synced' : 'not synced',
+      tone: commandState.memory.connected ? 'text-white/80' : 'text-white/45',
+    },
+  ];
+
+  return (
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{c.label}</p>
+          <p className={`mt-1 text-xl font-semibold tabular-nums capitalize ${c.tone ?? 'text-white'}`}>{c.value}</p>
+          {c.sub && <p className="mt-0.5 text-[11px] text-white/40">{c.sub}</p>}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ── 3. action queue ─────────────────────────────────────────────────────── */
+
+function ActionQueue({
+  queue,
+  selectedId,
+  investigatingIds,
+  onSelect,
+  onApprove,
+  onInvestigate,
+}: {
+  queue: BudOsQueueItem[];
+  selectedId: string | null;
+  investigatingIds: Set<string>;
+  onSelect: (item: BudOsQueueItem) => void;
+  onApprove: (item: BudOsQueueItem) => void;
+  onInvestigate: (item: BudOsQueueItem) => void;
+}) {
+  const items = queue.slice(0, 10);
+  return (
+    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+      <header className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Needs a decision</h3>
+          <p className="mt-0.5 text-xs text-white/40">Real tasks, approvals and failures. Ranked by severity.</p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-white/65">
+          {queue.length} open
+        </span>
+      </header>
+      <ul className="divide-y divide-white/[0.05]">
+        {items.length === 0 && (
+          <li className="px-5 py-8 text-center text-sm text-white/45">No action items. Bud is on watch.</li>
+        )}
+        {items.map((item) => {
+          const active = item.id === selectedId;
+          const investigating = investigatingIds.has(item.id);
+          const weight = SEVERITY_TONE[item.severity];
+          const notReady = item.approval ? item.approval.readiness !== 'ready' : false;
+          return (
+            <li key={item.id}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(item)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(item); }}
+                className={`group flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left transition ${
+                  active ? 'bg-sky-500/[0.04]' : 'hover:bg-white/[0.025]'
+                }`}
+              >
+                <span className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${weight.tone}`}>
+                  {weight.label}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">{item.title}</p>
+                  <p className="mt-1 line-clamp-1 text-xs text-white/55">{item.detail}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+                    {item.agent_name && <span>{item.agent_name}</span>}
+                    {item.agent_name && <span>·</span>}
+                    <span>{item.status}</span>
+                    {item.approval && (
+                      <>
+                        <span>·</span>
+                        <span className={notReady ? 'text-amber-300/80' : 'text-emerald-300/80'}>
+                          {item.approval.readiness_summary}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  {item.approval ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (notReady) {
+                          toast.error(`Not ready: ${item.approval!.readiness_summary}`);
+                          return;
+                        }
+                        onApprove(item);
+                      }}
+                      disabled={notReady}
+                      className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Approve
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onInvestigate(item); }}
+                      disabled={investigating}
+                      className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
+                    >
+                      {investigating ? 'Working…' : 'Investigate'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/* ── 4. live activity ────────────────────────────────────────────────────── */
+
+function ActivityFeed({ activity }: { activity: BudActivityEvent[] }) {
+  const items = activity.slice(0, 12);
+  return (
+    <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+      <header>
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Live activity</h3>
+        <p className="mt-0.5 text-xs text-white/40">Real events from the activity feed.</p>
+      </header>
+      <ul className="mt-3 space-y-2.5">
+        {items.length === 0 && (
+          <li className="text-xs text-white/40">No activity recorded yet.</li>
+        )}
+        {items.map((e) => (
+          <li key={e.id} className="flex items-start gap-3 text-sm">
+            <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+            <div className="min-w-0 flex-1">
+              <p className="leading-snug text-white/80">{e.narrative}</p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/35">
+                {e.actor ? `${e.actor} · ` : ''}<span suppressHydrationWarning>{relativeTime(e.created_at)}</span>
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* ── 5. deployment ───────────────────────────────────────────────────────── */
+
+function Deployment({
+  commandState,
+  activity,
+}: {
+  commandState: MissionControlHealth;
+  activity: BudActivityEvent[];
+}) {
+  const dep = commandState.deployment;
+  const recent = activity.filter((e) => e.event_type === 'deployment').slice(0, 4);
+  const stateTone =
+    dep.status === 'failed' ? 'border-red-400/40 bg-red-500/[0.06] text-red-300'
+    : dep.status === 'deploying' ? 'border-sky-400/30 bg-sky-500/[0.06] text-sky-300'
+    : dep.status === 'stale' ? 'border-amber-400/30 bg-amber-500/[0.06] text-amber-300'
+    : dep.status === 'healthy' ? 'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300'
+    : 'border-white/10 bg-white/[0.02] text-white/55';
+
+  return (
+    <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+      <header className="flex items-center justify-between">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Deployment</h3>
+          <p className="mt-0.5 text-xs text-white/40">Latest deploy telemetry.</p>
+        </div>
+        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${stateTone}`}>
+          {dep.status}
+        </span>
+      </header>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last success</p>
+          <p suppressHydrationWarning className="mt-1 text-sm text-white/80">{relativeTime(dep.last_success_at, 'Telemetry unavailable')}</p>
+        </div>
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last failure</p>
+          <p suppressHydrationWarning className="mt-1 text-sm text-white/80">{relativeTime(dep.last_failure_at, 'Telemetry unavailable')}</p>
+        </div>
+      </div>
+      {recent.length > 0 && (
+        <ul className="mt-3 space-y-1.5 text-xs">
+          {recent.map((e) => (
+            <li key={e.id} className="flex items-start gap-2 text-white/70">
+              <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-sky-400" />
+              <span className="min-w-0 flex-1">
+                <span className="text-white/85">{e.narrative}</span>
+                <span suppressHydrationWarning className="ml-2 text-white/35">{relativeTime(e.created_at)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {dep.summary && (
+        <p className="mt-3 rounded-lg border border-white/[0.06] bg-black/20 p-3 text-xs text-white/65">{dep.summary}</p>
+      )}
+    </section>
+  );
+}
