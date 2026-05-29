@@ -1012,11 +1012,11 @@ function DeploymentTimelineCard({
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last success</p>
-          <p className="mt-1 text-sm text-white/80">{relativeTime(dep.last_success_at, 'Telemetry unavailable')}</p>
+          <p suppressHydrationWarning className="mt-1 text-sm text-white/80">{relativeTime(dep.last_success_at, 'Telemetry unavailable')}</p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Last failure</p>
-          <p className="mt-1 text-sm text-white/80">{relativeTime(dep.last_failure_at, 'Telemetry unavailable')}</p>
+          <p suppressHydrationWarning className="mt-1 text-sm text-white/80">{relativeTime(dep.last_failure_at, 'Telemetry unavailable')}</p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Rollback readiness</p>
@@ -1036,7 +1036,7 @@ function DeploymentTimelineCard({
               <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-sky-400" />
               <span className="min-w-0 flex-1">
                 <span className="text-white/85">{e.narrative}</span>
-                <span className="ml-2 text-white/35">{relativeTime(e.created_at)}</span>
+                <span suppressHydrationWarning className="ml-2 text-white/35">{relativeTime(e.created_at)}</span>
               </span>
             </li>
           ))}
