@@ -344,10 +344,10 @@ export const adminOptimizationAgent: AgentDefinition = {
         .order('created_at', { ascending: false })
         .limit(100),
 
-      // Job scheduling gaps
+      // Job scheduling gaps (jobs == orders in the live schema)
       ctx.supabase
-        .from('jobs')
-        .select('id, status, service, suburb, scheduled_for, crew_member_id, created_at')
+        .from('orders')
+        .select('id, status, service_type, assigned_crew_id, created_at')
         .gte('created_at', fourteenDaysAgo)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -371,7 +371,7 @@ export const adminOptimizationAgent: AgentDefinition = {
       // Order completion
       ctx.supabase
         .from('orders')
-        .select('id, status, service, created_at')
+        .select('id, status, service_type, created_at')
         .gte('created_at', fourteenDaysAgo)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -394,8 +394,8 @@ export const adminOptimizationAgent: AgentDefinition = {
     const jobSchedulingStats = {
       total: jobs.length,
       by_status: countBy(jobs, 'status'),
-      unassigned: jobs.filter((j) => !j.crew_member_id).length,
-      by_service: countBy(jobs, 'service'),
+      unassigned: jobs.filter((j) => !j.assigned_crew_id).length,
+      by_service: countBy(jobs, 'service_type'),
     };
 
     const agentHealthStats = {

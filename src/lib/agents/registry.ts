@@ -76,6 +76,12 @@ import { browserAgent } from './agents/browser-agent';
 // Bud Observer — continuous monitoring + improvement signal generation
 import { budObserverAgent } from './agents/bud-observer';
 
+// Marketing Studio pod — premium content team (Stanley Henry + The Attention Seeker)
+import { stanleyHenryAgent } from './agents/stanley-henry';
+import { attentionSeekerAgent } from './agents/attention-seeker';
+import { fieldProducerAgent } from './agents/field-producer';
+import { scoreboardKeeperAgent } from './agents/scoreboard-keeper';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -118,6 +124,10 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [efficiencyArchitectAgent.id]:     efficiencyArchitectAgent,
   [browserAgent.id]:                 browserAgent,
   [budObserverAgent.id]:             budObserverAgent,
+  [stanleyHenryAgent.id]:            stanleyHenryAgent,
+  [attentionSeekerAgent.id]:         attentionSeekerAgent,
+  [fieldProducerAgent.id]:           fieldProducerAgent,
+  [scoreboardKeeperAgent.id]:        scoreboardKeeperAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

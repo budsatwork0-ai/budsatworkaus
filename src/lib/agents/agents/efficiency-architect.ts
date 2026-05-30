@@ -182,8 +182,8 @@ export const efficiencyArchitectAgent: AgentDefinition = {
         .limit(100),
 
       ctx.supabase
-        .from('jobs')
-        .select('id, status, service, crew_member_id, created_at')
+        .from('orders')
+        .select('id, status, assigned_crew_id, created_at')
         .gte('created_at', since7d)
         .limit(200),
 
@@ -298,9 +298,9 @@ export const efficiencyArchitectAgent: AgentDefinition = {
     const untriagedQuotes = (quotes as Array<{ agent_triaged_at: string | null }>)
       .filter((q) => !q.agent_triaged_at).length;
 
-    // Unassigned jobs
-    const unassignedJobs = (jobs as Array<{ crew_member_id: string | null }>)
-      .filter((j) => !j.crew_member_id).length;
+    // Unassigned jobs (jobs == orders in the live schema)
+    const unassignedJobs = (jobs as Array<{ assigned_crew_id: string | null }>)
+      .filter((j) => !j.assigned_crew_id).length;
 
     // Task cycle time
     const completedTasks = (tasks as Array<{ status: string; created_at: string; updated_at: string }>)
