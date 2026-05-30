@@ -1,37 +1,33 @@
 export interface AgentAlert {
-  agentId: string;
+  agentName: string;
   errorCount: number;
   windowMinutes: number;
-  threshold: number;
-  firedAt: string; // ISO timestamp
+  timestamp: string;
 }
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_ALERT_WEBHOOK_URL ?? '';
-
-export async function dispatchAlert(alert: AgentAlert): Promise<void> {
-  if (!SLACK_WEBHOOK_URL) {
-    console.warn('[alerting] SLACK_ALERT_WEBHOOK_URL not configured — skipping alert dispatch');
+export async function dispatchSlackAlert(alert: AgentAlert): Promise<void> {
+  const webhookUrl = process.env.ALERT_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn('[alerting] ALERT_WEBHOOK_URL not set — skipping Slack alert', alert);
     return;
   }
 
   const text =
-    `:rotating_light: *Agent health alert*\n` +
-    `Agent *${alert.agentId}* exceeded error threshold: ` +
-    `${alert.errorCount} errors in the last ${alert.windowMinutes} min ` +
-    `(threshold: ${alert.threshold}).\n` +
-    `Fired at: ${alert.firedAt}`;
+    `:rotating_light: *Agent Error-Rate Alert*\n` +
+    `Agent: \`${alert.agentName}\`\n` +
+    `Errors: ${alert.errorCount} in the last ${alert.windowMinutes} minutes\n` +
+    `Time: ${alert.timestamp}`;
 
   try {
-    const res = await fetch(SLACK_WEBHOOK_URL, {
+    const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     });
-
     if (!res.ok) {
-      console.error(`[alerting] Slack webhook returned ${res.status}: ${await res.text()}`);
+      console.error('[alerting] Slack webhook returned', res.status, await res.text());
     }
   } catch (err) {
-    console.error('[alerting] Failed to dispatch alert:', err);
+    console.error('[alerting] Failed to dispatch Slack alert', err);
   }
 }
