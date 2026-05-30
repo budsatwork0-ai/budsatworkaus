@@ -1,32 +1,21 @@
-##
-## ci.yml
-##
-## TypeScript type-check on every bud/* branch push.
-## The Bud improvement and repair pipelines poll GitHub Actions for a CI result
-## after pushing a patch. Without this workflow those polls return `no_ci`.
-##
-
 name: CI
 
 on:
   push:
-    branches:
-      - 'bud/**'
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    branches: ['**']
+  pull_request:
+    branches: ['**']
 
 jobs:
-  typecheck:
-    name: TypeScript type-check
+  # ── Unit & type checks ────────────────────────────────────────────────────
+  test:
+    name: Unit tests & type-check
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -36,3 +25,34 @@ jobs:
 
       - name: Type-check
         run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test -- --testPathIgnorePatterns=integration
+
+  # ── Integration smoke tests (required pre-deploy) ─────────────────────────
+  integration-smoke:
+    name: Integration smoke — live LLM config
+    runs-on: ubuntu-latest
+    # Only run on pushes/PRs that target main (pre-deploy gate)
+    if: |
+      github.ref == 'refs/heads/main' ||
+      github.base_ref == 'main'
+    needs: test
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Integration smoke tests
+        run: npm test -- --testPathPattern=smoke\.integration\.test
