@@ -32,10 +32,13 @@ export const quoteTriageAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'review',
   async run(ctx: AgentContext) {
+    // Schema note: the live `quotes` table uses `service_address` + `service_type`
+    // (there is no `suburb`/`service` column), and new requests land as
+    // status='submitted' (there is no 'new' status).
     const { data: pending, error } = await ctx.supabase
       .from('quotes')
-      .select('id, customer_email, customer_name, suburb, service, notes, created_at')
-      .eq('status', 'new')
+      .select('id, customer_email, customer_name, service_address, service_type, notes, created_at')
+      .eq('status', 'submitted')
       .is('agent_triaged_at', null)
       .order('created_at', { ascending: true })
       .limit(10);
@@ -54,8 +57,8 @@ export const quoteTriageAgent: AgentDefinition = {
     for (const q of pending) {
       const prompt = `Quote request:
 - Customer: ${q.customer_name ?? '(unknown)'}
-- Suburb: ${q.suburb ?? '(unknown)'}
-- Service hint: ${q.service ?? '(none)'}
+- Address: ${q.service_address ?? '(unknown)'}
+- Service hint: ${q.service_type ?? '(none)'}
 - Notes: ${q.notes ?? '(none)'}
 Return triage JSON.`;
       const raw = await ctx.llm(prompt, { system: SYSTEM });
@@ -86,7 +89,7 @@ Return triage JSON.`;
         target_table: 'quotes',
         target_id: q.id,
         requiresApproval: !autoEligible,
-        preview: `Quote ${parsed.service} for ${q.customer_name} in ${q.suburb} — AUD $${parsed.estimated_aud}`,
+        preview: `Quote ${parsed.service} for ${q.customer_name} at ${q.service_address ?? 'unknown address'} — AUD $${parsed.estimated_aud}`,
         payload: {
           to: q.customer_email,
           subject: `Your quote from Buds At Work`,

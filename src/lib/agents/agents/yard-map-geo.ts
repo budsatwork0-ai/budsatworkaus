@@ -55,18 +55,20 @@ export const yardMapGeoAgent: AgentDefinition = {
 
     const targetId = ctx.input?.quote_id as string | undefined;
 
+    // Live schema: quotes stores the full address in `service_address` and the
+    // service in `service_type` (no address/suburb/postcode/service columns).
     const q = ctx.supabase
       .from('quotes')
-      .select('id, address, suburb, postcode, service, yard_sqm')
+      .select('id, service_address, service_type, yard_sqm')
       .is('yard_sqm', null);
-    const { data: quotes } = targetId ? await q.eq('id', targetId) : await q.eq('service', 'yard').limit(15);
+    const { data: quotes } = targetId ? await q.eq('id', targetId) : await q.eq('service_type', 'yard').limit(15);
 
     if (!quotes?.length) return { summary: 'No yard quotes awaiting geo analysis.' };
 
     let processed = 0;
     for (const quote of quotes) {
-      const address = [quote.address, quote.suburb, quote.postcode, 'Australia'].filter(Boolean).join(', ');
-      if (!address) continue;
+      const address = [quote.service_address, 'Australia'].filter(Boolean).join(', ');
+      if (!quote.service_address) continue;
 
       const imageUrl = staticMapUrl(address, GOOGLE_KEY);
       const raw = await callVision(imageUrl, SYSTEM);

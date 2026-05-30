@@ -49,18 +49,19 @@ export const whsSafetyReminderAgent: AgentDefinition = {
 
       if (!remindAt.includes(daysOut)) continue;
 
+      // Live schema: crew live in `employees` (name field is `full_name`).
       const { data: member } = await ctx.supabase
-        .from('crew_members').select('name, phone, email').eq('id', r.crew_member_id).single();
+        .from('employees').select('full_name, phone, email').eq('id', r.crew_member_id).single();
       if (!member) continue;
 
       await ctx.proposeAction({
         action_type: 'send_sms',
         target_table: 'whs_records',
         target_id: r.id,
-        preview: `${r.record_type} expiry reminder → ${member.name} (${daysOut}d)`,
+        preview: `${r.record_type} expiry reminder → ${member.full_name} (${daysOut}d)`,
         payload: {
           to: member.phone,
-          body: `Hey ${member.name.split(' ')[0]}, your ${r.record_type.replace('_', ' ')} expires in ${daysOut} day${daysOut === 1 ? '' : 's'} (${r.expires_at}). Can you sort the renewal? Cheers, Buds.`,
+          body: `Hey ${member.full_name.split(' ')[0]}, your ${r.record_type.replace('_', ' ')} expires in ${daysOut} day${daysOut === 1 ? '' : 's'} (${r.expires_at}). Can you sort the renewal? Cheers, Buds.`,
         },
         requiresApproval: false,
       });

@@ -769,13 +769,24 @@ async function createQuoteEffect(payload: Record<string, unknown>): Promise<void
 }
 
 async function scheduleJobEffect(payload: Record<string, unknown>): Promise<void> {
-  const p = payload as { job_id: string; crew_member_id: string; start_time?: string };
-  if (!p.job_id || !p.crew_member_id) throw new Error('schedule_job: missing job_id/crew_member_id');
+  // A "job" is an `orders` row. Assigning crew mirrors the admin DayScheduler:
+  // set assigned_crew_id + scheduled_date/time and move status to 'scheduled'.
+  const p = payload as {
+    order_id: string;
+    crew_id: string;
+    scheduled_date?: string;
+    scheduled_time?: string;
+  };
+  if (!p.order_id || !p.crew_id) throw new Error('schedule_job: missing order_id/crew_id');
 
   const supabase = adminClient();
-  const update: Record<string, unknown> = { crew_member_id: p.crew_member_id };
-  if (p.start_time) update.scheduled_for = p.start_time;
-  const { error } = await supabase.from('jobs').update(update).eq('id', p.job_id);
+  const update: Record<string, unknown> = {
+    assigned_crew_id: p.crew_id,
+    status: 'scheduled',
+  };
+  if (p.scheduled_date) update.scheduled_date = p.scheduled_date;
+  if (p.scheduled_time) update.scheduled_time = p.scheduled_time;
+  const { error } = await supabase.from('orders').update(update).eq('id', p.order_id);
   if (error) throw new Error(`schedule_job: ${error.message}`);
 }
 
