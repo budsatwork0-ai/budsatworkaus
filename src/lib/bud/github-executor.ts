@@ -179,6 +179,48 @@ export async function pollWorkflowUntilComplete(
   return { result: lastResult, timedOut: lastResult !== null };
 }
 
+/**
+ * Fetch the log of the failed job in a workflow run, trimmed to the lines that
+ * matter (TypeScript / build errors) so it can be fed back to the model for a
+ * corrective patch. Returns null if logs are unavailable or GitHub is not configured.
+ */
+export async function getWorkflowRunFailureLog(
+  runId: number,
+  maxChars = 4000,
+): Promise<string | null> {
+  if (!OWNER || !REPO) return null;
+  const octokit = client();
+  try {
+    const jobsRes = await octokit.actions.listJobsForWorkflowRun({
+      owner: OWNER,
+      repo: REPO,
+      run_id: runId,
+    });
+    const failedJob =
+      jobsRes.data.jobs.find((j) => j.conclusion === 'failure') ?? jobsRes.data.jobs[0];
+    if (!failedJob) return null;
+
+    const logRes = await octokit.actions.downloadJobLogsForWorkflowRun({
+      owner: OWNER,
+      repo: REPO,
+      job_id: failedJob.id,
+    });
+    const raw =
+      typeof logRes.data === 'string'
+        ? logRes.data
+        : Buffer.from(logRes.data as ArrayBuffer).toString('utf8');
+
+    // Prefer the lines that look like real compiler / build errors.
+    const errorLines = raw
+      .split('\n')
+      .filter((l) => /error TS\d|error:|Error:|ELIFECYCLE|npm error|failed/i.test(l));
+    const picked = (errorLines.length > 0 ? errorLines : raw.split('\n').slice(-80)).join('\n');
+    return picked.slice(-maxChars);
+  } catch {
+    return null;
+  }
+}
+
 export async function getIssueStatus(number: number): Promise<'open' | 'closed'> {
   const octokit = client();
   const res = await octokit.issues.get({ owner: OWNER, repo: REPO, issue_number: number });
