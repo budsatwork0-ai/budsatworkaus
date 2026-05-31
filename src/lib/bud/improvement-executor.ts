@@ -35,6 +35,7 @@ import {
 } from './github-executor';
 import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
+import { preflightPatches } from './preflight';
 import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
@@ -51,6 +52,10 @@ const CI_TIMEOUT_MS = 30_000;
 // able to land in a single patch set, otherwise interdependent pieces get split
 // across branches that can never compile alone. Keep this small but > 3.
 const SURGICAL_FILE_LIMIT = 5;
+// Pre-flight gate. Phase 0 runs in SHADOW mode: it computes and logs findings but
+// never blocks, auto-fixes, or regenerates — so we can measure precision against
+// real CI results before enforcing. Set BUD_OS_PREFLIGHT_ENABLED=false to silence.
+const PREFLIGHT_ENABLED = process.env.BUD_OS_PREFLIGHT_ENABLED !== 'false';
 
 /**
  * Repo-specific toolchain guidance the patch model must obey. The version-specific
@@ -628,6 +633,23 @@ Return ONLY valid JSON:
     await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
     await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'no_patches' };
+  }
+
+  // ── PRE-FLIGHT (shadow mode) ─────────────────────────────────────────────────
+  // Phase 0: compute findings and record them, but do NOT block, auto-fix, or
+  // regenerate. Lets us measure precision against real CI before enforcing.
+  // Fail-open: any error here must never affect the run.
+  if (PREFLIGHT_ENABLED) {
+    try {
+      const pf = preflightPatches(patches);
+      if (pf.findings.length > 0) {
+        await log(supabase, executionId, patchStep, pf.ok ? 'info' : 'warn',
+          `Pre-flight (shadow): ${pf.findings.length} finding(s), ${pf.autofixedCount} auto-fixable, ${pf.ok ? 'no blocks' : 'WOULD BLOCK'}.`,
+          { preflight_shadow: true, would_block: !pf.ok, findings: pf.findings });
+      }
+    } catch (pfErr) {
+      await log(supabase, executionId, patchStep, 'warn', `Pre-flight (shadow) errored non-fatally: ${pfErr}`);
+    }
   }
 
   // Create branch and write patches.
