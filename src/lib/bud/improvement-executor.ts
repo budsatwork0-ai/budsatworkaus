@@ -16,6 +16,8 @@
  *   - Confidence: ≥ 0.82
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createBranch,
@@ -26,6 +28,7 @@ import {
   writeFileToBranch,
   deleteBranch,
   pollWorkflowUntilComplete,
+  getWorkflowRunFailureLog,
   mergePR,
   enableAutoMerge,
   listOpenPRsByLabel,
@@ -44,6 +47,52 @@ const IMPROVEMENT_MODEL = 'claude-sonnet-4-6';
 const AUTO_MERGE_AUTONOMY_THRESHOLD = 4;
 const AUTO_MERGE_CONFIDENCE_THRESHOLD = 0.82;
 const CI_TIMEOUT_MS = 30_000;
+// A cohesive feature (e.g. a new module + its call-site wiring + its test) must be
+// able to land in a single patch set, otherwise interdependent pieces get split
+// across branches that can never compile alone. Keep this small but > 3.
+const SURGICAL_FILE_LIMIT = 5;
+
+/**
+ * Repo-specific toolchain guidance the patch model must obey. The version-specific
+ * lines are derived from the installed package.json so they never go stale on a
+ * dependency bump; if the read fails we fall back to the versions known at writing.
+ */
+function buildToolchainNotes(): string {
+  let zodMajor = 4;
+  let nextMajor = 15;
+  let reactMajor = 19;
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const major = (v: string | undefined, fallback: number): number => {
+      const n = v ? parseInt(v.replace(/[^0-9]/, ''), 10) : NaN;
+      return Number.isFinite(n) ? n : fallback;
+    };
+    zodMajor = major(deps.zod, zodMajor);
+    nextMajor = major(deps.next, nextMajor);
+    reactMajor = major(deps.react, reactMajor);
+  } catch {
+    /* fall back to defaults below */
+  }
+
+  const zodLine =
+    zodMajor >= 4
+      ? '- Zod v' + zodMajor + ': `z.record(...)` requires TWO arguments — `z.record(z.string(), z.unknown())`. The single-argument form `z.record(z.unknown())` is the Zod v3 API and FAILS to compile.'
+      : '- Zod v' + zodMajor + ': `z.record(valueSchema)` takes a single argument.';
+
+  return [
+    "TOOLCHAIN — the repo's installed versions. Generated code MUST match these or CI fails:",
+    zodLine,
+    '- Next.js ' + nextMajor + ' / React ' + reactMajor + ', TypeScript strict, `moduleResolution: "bundler"`.',
+    '- Path alias `@/*` maps to `src/*`. Server Supabase client: `createServiceClient()` (synchronous) from `@/lib/supabase/server` — `createClient` is NOT exported.',
+    '- Vitest test files live under `tests/` (that directory is EXCLUDED from the typecheck). Do NOT place `*.test.ts` files under `src/` — they get type-checked and break CI.',
+  ].join('\n');
+}
+
+const TOOLCHAIN_NOTES = buildToolchainNotes();
 
 export type ImprovementSignalRow = {
   id: string;
@@ -147,6 +196,47 @@ function signalRiskScore(severity: string): number {
   if (severity === 'high') return 50;
   if (severity === 'medium') return 30;
   return 15;
+}
+
+type Patch = { file: string; content: string; reason: string };
+
+/**
+ * Ask the improvement model for a JSON patch set. Used for both the initial
+ * generation and the corrective retry after a CI failure. Never throws.
+ */
+async function callClaudeForPatches(
+  prompt: string,
+): Promise<{ patches: Patch[]; note: string }> {
+  let patches: Patch[] = [];
+  let note = '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: IMPROVEMENT_MODEL,
+        max_tokens: 10000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { content: Array<{ type: string; text?: string }> };
+      const rawText = json.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+      const match = rawText.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]) as { patches?: Patch[]; note?: string };
+        patches = parsed.patches ?? [];
+        note = parsed.note ?? '';
+      }
+    }
+  } catch {
+    /* non-fatal — caller treats empty patches as "no change" */
+  }
+  return { patches, note };
 }
 
 // ── File identification ────────────────────────────────────────────────────────
@@ -257,6 +347,25 @@ async function searchImprovementHistory(
 
   return learnings
     .map((l) => `[${(l.outcome as string).toUpperCase()}] ${l.improvement_pattern} (area: ${l.affected_area ?? '—'})`)
+    .join('\n');
+}
+
+/**
+ * Recent failed attempts across ALL signal types. A CI failure on one kind of
+ * signal (e.g. a Zod-v4 mistake on a quote-triage branch) should warn every
+ * future run, not just the same signal type — so this is intentionally not
+ * filtered by signal_type. Returns '' when there is nothing to warn about.
+ */
+async function searchRecentFailures(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase
+    .from('bud_improvement_learnings')
+    .select('signal_type, improvement_pattern, affected_area, outcome, created_at')
+    .in('outcome', ['blocked', 'rolled_back'])
+    .order('created_at', { ascending: false })
+    .limit(8);
+  if (!data || data.length === 0) return '';
+  return data
+    .map((l) => `- [${l.signal_type}/${l.affected_area ?? '—'}] ${(l.improvement_pattern as string).slice(0, 220)}`)
     .join('\n');
 }
 
@@ -438,6 +547,13 @@ Then return the plan as JSON: { "approach": "...", "confidence": 0.0-1.0, "estim
     ? `\nBUILD ERROR (must fix exactly this):\n${(typedSignal.description ?? '').slice(0, 1200)}\n\nKNOWN EXPORTS in src/lib/supabase/server.ts: createServiceClient(), createServiceClientSafe()\n(createClient is NOT exported — use createServiceClient() instead, it is synchronous)\n`
     : '';
 
+  // Failures from prior runs of ANY signal type — surfaced so the model does not
+  // repeat a mistake (e.g. a Zod-v4 arg error) that already cost a CI run.
+  const recentFailures = await searchRecentFailures(supabase);
+  const recentFailuresBlock = recentFailures
+    ? `\nRECENT FAILURES — DO NOT REPEAT THESE MISTAKES (across all signal types):\n${recentFailures}\n`
+    : '';
+
   const patchPrompt = `You are Bud, an autonomous code improvement agent for a TypeScript/Next.js 15/Supabase codebase.
 
 IMPROVEMENT TO IMPLEMENT:
@@ -449,13 +565,20 @@ ${fileContextParts.length > 0 ? `CURRENT CODE (from branch ${sourceBranchForRead
 
 HISTORICAL PATTERNS:
 ${historyContext}
-
+${recentFailuresBlock}
 CONSTRAINTS — CRITICAL:
-- Touch at most 3 files. Return empty patches if more are needed.
+- Touch at most ${SURGICAL_FILE_LIMIT} files. Return empty patches if more are needed.
 - Make the SMALLEST possible change that delivers the improvement.
 - Do NOT refactor, rename, or reorganise anything beyond scope.
 - Preserve all existing functionality.
 - TypeScript must remain strict — no \`any\` casts unless already present.
+- The change MUST type-check on its own. CI runs \`tsc --noEmit\` over the WHOLE repo.
+  If your change references a module, symbol, type, or test helper that is not already
+  present in the provided context, you MUST create it within THIS SAME patch set — never
+  reference something that would only exist on another branch. Ship interdependent files
+  together (e.g. a new module + the code that calls it + its test).
+
+${TOOLCHAIN_NOTES}
 
 DESIGN SYSTEM (taste gate enforces these — violations cause the PR to open as a draft):
 - \`glass\` and \`glassSoft\` from \`@/app/ui/theme\` are plain STRINGS (Tailwind class lists).
@@ -475,39 +598,15 @@ Return ONLY valid JSON:
   "note": "optional explanation — required if patches is empty"
 }`;
 
-  let patches: Array<{ file: string; content: string; reason: string }> = [];
-  let patchNote = '';
-
-  try {
-    const patchRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: IMPROVEMENT_MODEL,
-        max_tokens: 10000,
-        messages: [{ role: 'user', content: patchPrompt }],
-      }),
-    });
-    if (patchRes.ok) {
-      const json = await patchRes.json() as { content: Array<{ type: string; text?: string }> };
-      const rawText = json.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
-      const match = rawText.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]) as { patches?: typeof patches; note?: string };
-        patches = parsed.patches ?? [];
-        patchNote = parsed.note ?? '';
-      }
-    }
-  } catch (llmErr) {
-    await log(supabase, executionId, patchStep, 'warn', `Patch generation failed: ${llmErr}`);
+  const generated = await callClaudeForPatches(patchPrompt);
+  const patches: Patch[] = generated.patches;
+  const patchNote = generated.note;
+  if (patches.length === 0 && !patchNote) {
+    await log(supabase, executionId, patchStep, 'warn', 'Patch generation returned no patches.');
   }
 
-  if (patches.length > 3) {
-    const note = `Surgical limit exceeded: ${patches.length} files proposed. Max is 3.`;
+  if (patches.length > SURGICAL_FILE_LIMIT) {
+    const note = `Surgical limit exceeded: ${patches.length} files proposed. Max is ${SURGICAL_FILE_LIMIT}.`;
     await finishStep(supabase, patchStep, 'blocked', { note, files: patches.map((p) => p.file) });
     await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
     await writeLearning(supabase, executionId, typedSignal, 'blocked',
@@ -607,7 +706,7 @@ Return ONLY valid JSON:
     'Polling GitHub Actions for CI result on improvement branch.');
   await updateExecution(supabase, executionId, { verification_status: 'running' });
 
-  const { result: workflowResult, timedOut } = await pollWorkflowUntilComplete(
+  let { result: workflowResult, timedOut } = await pollWorkflowUntilComplete(
     branchName, CI_TIMEOUT_MS, pushTimestamp,
   );
 
@@ -617,9 +716,77 @@ Return ONLY valid JSON:
     ciWorkflowRunId = String(workflowResult.runId);
   }
 
-  const ciFailure = workflowResult?.conclusion === 'failure'
-    || workflowResult?.conclusion === 'cancelled'
-    || workflowResult?.conclusion === 'timed_out';
+  const isCiFailure = (r: typeof workflowResult): boolean =>
+    r?.conclusion === 'failure' || r?.conclusion === 'cancelled' || r?.conclusion === 'timed_out';
+
+  let ciFailure = isCiFailure(workflowResult);
+  // Captured on first failure so the rollback can store WHAT broke, not just "CI failed".
+  let ciFailureLog: string | null = null;
+
+  // ── CORRECTIVE RETRY ───────────────────────────────────────────────────────────
+  // Before rolling the branch back, feed the actual CI failure log to the model for
+  // ONE corrective patch on the same branch. Most failures are mechanical (a Zod-v4
+  // arg, a missing import) that a single targeted fix resolves — far cheaper than
+  // discarding the whole attempt.
+  if (ciFailure && !timedOut && workflowResult) {
+    await log(supabase, executionId, validateStep, 'warn',
+      `CI ${workflowResult.conclusion}; attempting one corrective patch before rollback.`);
+    const ciLog = await getWorkflowRunFailureLog(workflowResult.runId).catch(() => null);
+    ciFailureLog = ciLog;
+
+    const currentParts: string[] = [];
+    for (const fp of appliedFiles.slice(0, SURGICAL_FILE_LIMIT)) {
+      try {
+        const f = await getFileContent(fp, branchName);
+        if (f) currentParts.push(`=== FILE: ${fp} (current on ${branchName}) ===\n${f.content.slice(0, 8000)}`);
+      } catch { /* non-fatal */ }
+    }
+
+    const correctivePrompt = `${patchPrompt}
+
+YOUR PREVIOUS PATCH FAILED CI (\`tsc --noEmit\` over the whole repo).
+CI FAILURE LOG (fix exactly these errors):
+${(ciLog ?? 'Log unavailable — re-check the constraints above, especially the Zod v4 and self-contained rules.').slice(0, 3000)}
+
+CURRENT FILE CONTENTS ON BRANCH ${branchName}:
+${currentParts.join('\n\n') || 'unavailable'}
+
+Return corrected patches in the SAME JSON format. Fix ONLY what the errors require.
+If a referenced module/symbol is missing, create it within this patch set.`;
+
+    const retry = await callClaudeForPatches(correctivePrompt);
+    if (retry.patches.length > 0 && retry.patches.length <= SURGICAL_FILE_LIMIT) {
+      const retryTimestamp = new Date().toISOString();
+      for (const patch of retry.patches) {
+        try {
+          const existing = await getFileContent(patch.file, branchName);
+          await writeFileToBranch(
+            patch.file,
+            patch.content,
+            `improve(${typedSignal.signal_type}): CI fix — ${patch.reason.slice(0, 60)}`,
+            branchName,
+            existing?.sha,
+          );
+          if (!appliedFiles.includes(patch.file)) appliedFiles.push(patch.file);
+        } catch (writeErr) {
+          await log(supabase, executionId, validateStep, 'warn', `Retry write failed for ${patch.file}: ${writeErr}`);
+        }
+      }
+      const repoll = await pollWorkflowUntilComplete(branchName, CI_TIMEOUT_MS, retryTimestamp);
+      if (repoll.result) {
+        workflowResult = repoll.result;
+        timedOut = repoll.timedOut;
+        ciConclusion = workflowResult.conclusion ?? 'in_progress';
+        ciRunUrl = workflowResult.url;
+        ciWorkflowRunId = String(workflowResult.runId);
+      } else if (repoll.timedOut) {
+        timedOut = true;
+      }
+      ciFailure = isCiFailure(workflowResult);
+      await log(supabase, executionId, validateStep, ciFailure ? 'warn' : 'info',
+        ciFailure ? 'Corrective patch still failed CI — rolling back.' : 'Corrective patch passed CI.');
+    }
+  }
 
   if (ciFailure) {
     await finishStep(supabase, validateStep, 'failed', { conclusion: workflowResult!.conclusion, url: ciRunUrl });
@@ -644,7 +811,8 @@ Return ONLY valid JSON:
     } catch { /* GitHub may not be configured */ }
     await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
     await writeLearning(supabase, executionId, typedSignal, 'blocked',
-      `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back`);
+      `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back.`
+      + (ciFailureLog ? ` Errors: ${ciFailureLog.replace(/\s+/g, ' ').slice(0, 300)}` : ''));
     await supabase.from('bud_improvement_signals').update({ status: 'rejected' }).eq('id', typedSignal.id);
     return { executionId, status: 'failed' };
   }
