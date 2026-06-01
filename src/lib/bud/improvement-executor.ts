@@ -36,6 +36,7 @@ import {
 import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
 import { preflightPatches } from './preflight';
+import { sensitiveFilesIn } from './sensitive-paths';
 import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
@@ -56,6 +57,10 @@ const SURGICAL_FILE_LIMIT = 5;
 // never blocks, auto-fixes, or regenerates — so we can measure precision against
 // real CI results before enforcing. Set BUD_OS_PREFLIGHT_ENABLED=false to silence.
 const PREFLIGHT_ENABLED = process.env.BUD_OS_PREFLIGHT_ENABLED !== 'false';
+// Total corrective model regenerations allowed per signal, shared across the CI
+// retry (and, in Phase 1, the pre-flight retry). Bounds model + CI cost on a stuck
+// signal — once exhausted, the run rolls back instead of regenerating again.
+const MAX_REGENERATIONS_PER_SIGNAL = 1;
 
 /**
  * Repo-specific toolchain guidance the patch model must obey. The version-specific
@@ -744,13 +749,16 @@ Return ONLY valid JSON:
   let ciFailure = isCiFailure(workflowResult);
   // Captured on first failure so the rollback can store WHAT broke, not just "CI failed".
   let ciFailureLog: string | null = null;
+  // Shared regeneration budget for this signal (see MAX_REGENERATIONS_PER_SIGNAL).
+  let regenerationsUsed = 0;
 
   // ── CORRECTIVE RETRY ───────────────────────────────────────────────────────────
   // Before rolling the branch back, feed the actual CI failure log to the model for
-  // ONE corrective patch on the same branch. Most failures are mechanical (a Zod-v4
-  // arg, a missing import) that a single targeted fix resolves — far cheaper than
-  // discarding the whole attempt.
-  if (ciFailure && !timedOut && workflowResult) {
+  // a corrective patch on the same branch, within the regeneration budget. Most
+  // failures are mechanical (a Zod-v4 arg, a missing import) that a single targeted
+  // fix resolves — far cheaper than discarding the whole attempt.
+  if (ciFailure && !timedOut && workflowResult && regenerationsUsed < MAX_REGENERATIONS_PER_SIGNAL) {
+    regenerationsUsed++;
     await log(supabase, executionId, validateStep, 'warn',
       `CI ${workflowResult.conclusion}; attempting one corrective patch before rollback.`);
     const ciLog = await getWorkflowRunFailureLog(workflowResult.runId).catch(() => null);
@@ -970,6 +978,22 @@ If a referenced module/symbol is missing, create it within this patch set.`;
 
   if (debateResult.verdict === 'human_review') openAsDraft = true;
 
+  // ── HUMAN-APPROVAL GUARD ────────────────────────────────────────────────────────
+  // CLAUDE.md: pricing formula, Stripe/payments, and auth/session changes require
+  // explicit human approval before reaching production. Such patches must NEVER
+  // auto-merge — force the PR to a draft and record why. Bias toward over-flagging.
+  const sensitiveHits = sensitiveFilesIn(appliedFiles);
+  let sensitiveReason: string | null = null;
+  if (sensitiveHits.length > 0) {
+    openAsDraft = true;
+    const categories = Array.from(new Set(sensitiveHits.map((h) => h.category))).join(', ');
+    sensitiveReason = `human approval required (${categories}): ${sensitiveHits.map((h) => h.file).join(', ')}`;
+    await log(supabase, executionId, null, 'warn',
+      `Auto-merge blocked — ${sensitiveReason}`, { sensitive_files: sensitiveHits });
+    await emitStage(supabase, pipelineRunId, 'reject', 'passed',
+      { human_review_required: true, categories, files: sensitiveHits.map((h) => h.file) });
+  }
+
   // ── PR ────────────────────────────────────────────────────────────────────────
   await emitStage(supabase, pipelineRunId, 'deploy', 'active', { draft: openAsDraft });
   let prUrl: string | null = null;
@@ -1007,6 +1031,13 @@ If a referenced module/symbol is missing, create it within this patch set.`;
     const prBody = [
       `Closes ${issueUrl}`,
       '',
+      ...(sensitiveHits.length > 0 ? [
+        `> ⛔ **Human approval required — auto-merge disabled.** This patch touches `
+        + `${Array.from(new Set(sensitiveHits.map((h) => h.category))).join(', ')}-sensitive files `
+        + `(${sensitiveHits.map((h) => '`' + h.file + '`').join(', ')}). Per the Bud OS constitution, `
+        + `a human must review and merge.`,
+        '',
+      ] : []),
       '## Improvement Summary',
       `**Signal:** ${typedSignal.signal_type} — ${typedSignal.title}`,
       `**Approach:** ${approach}`,
@@ -1032,6 +1063,7 @@ If a referenced module/symbol is missing, create it within this patch set.`;
     ].filter(Boolean).join('\n');
 
     const draftTags = [
+      sensitiveHits.length > 0 ? '[HumanReview]' : '',
       tasteResult && !tasteResult.pass ? '[Taste]' : '',
       browserResult && browserResult.failed > 0 ? '[Browser]' : '',
     ].filter(Boolean).join('');
@@ -1055,9 +1087,11 @@ If a referenced module/symbol is missing, create it within this patch set.`;
   // Fires only when: autonomy ≥ 4, confidence ≥ 0.82, CI pass, taste pass,
   // browser pass (or no UI), and PR was opened as ready (not draft).
   let autoMerged = false;
-  let autoMergeBlockedReason: string | null = null;
+  let autoMergeBlockedReason: string | null = sensitiveReason;
 
-  if (prNumber && !openAsDraft) {
+  // Hard guard: pricing/payments/auth patches can never auto-merge, regardless of
+  // how the draft flag was reached above.
+  if (prNumber && !openAsDraft && sensitiveHits.length === 0) {
     const autonomyLevel = getDefaultAutonomyLevel();
     const ciOk = !ciConclusion || ciConclusion === 'success' || ciConclusion === 'no_ci';
     const tasteOk = !tasteResult || tasteResult.pass;

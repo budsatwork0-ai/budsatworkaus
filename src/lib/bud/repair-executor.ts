@@ -17,6 +17,7 @@ import {
 import { readNote } from './obsidian-memory';
 import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
+import { sensitiveFilesIn } from './sensitive-paths';
 import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
 import { writeLearningEmbedding, searchSimilarLearnings } from './embedding';
 
@@ -751,6 +752,16 @@ Return ONLY valid JSON:
   let ciWorkflowRunId: string | null = null;
   let openAsDraft = false;
   let tasteResult: VisualScore | null = null;
+
+  // CLAUDE.md: pricing/payments/auth changes require human approval. Repair PRs are
+  // never auto-merged, but force a draft + flag so a reviewer treats them carefully.
+  const sensitiveHits = sensitiveFilesIn(appliedFiles);
+  if (sensitiveHits.length > 0) {
+    openAsDraft = true;
+    await log(supabase, executionId, null, 'warn',
+      `Repair touches human-approval files (${Array.from(new Set(sensitiveHits.map((h) => h.category))).join(', ')}): `
+      + sensitiveHits.map((h) => h.file).join(', '), { sensitive_files: sensitiveHits });
+  }
 
   if (appliedFiles.length > 0) {
     const validateStep = await startStep(supabase, executionId, 'validating',
