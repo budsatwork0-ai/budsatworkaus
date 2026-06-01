@@ -80,6 +80,19 @@ Always use `@/` path alias for cross-directory imports. Relative paths (`../../`
 
 ---
 
+## Pricing / payments / auth require human approval
+
+Pricing formulas, Stripe/payments, and auth/session changes must be reviewed and
+merged by a human — never auto-merged by the autonomous pipeline, regardless of
+confidence or passing CI/taste/browser gates.
+
+The human-review-required path set is defined once in `src/lib/bud/sensitive-paths.ts`
+and enforced by `improvement-executor.ts` (forces draft + blocks auto-merge + tags
+`[HumanReview]`). When adding new pricing/payments/auth surface area, extend that
+classifier so the guard keeps covering it.
+
+---
+
 ## Related Systems
 - [[Anti-Patterns]]
 - [[../Components/Brand|Brand]]

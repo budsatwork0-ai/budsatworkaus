@@ -45,17 +45,17 @@ export default function SideNavItem({
         className={`group flex items-center rounded-2xl border transition-all ${
           nested ? 'gap-2.5 px-3 py-2 ml-2' : 'gap-3 px-3 py-2.5'
         } ${showLabel ? '' : 'justify-center px-0 py-2.5'} ${
-          active ? 'shadow-sm' : 'hover:bg-white/75 hover:shadow-sm'
+          active ? 'shadow-[0_6px_18px_rgba(28,124,84,.28)]' : 'hover:bg-white/75 hover:shadow-sm'
         }`}
         style={{
-          borderColor: active ? 'rgba(28,124,84,.10)' : 'transparent',
-          background: active ? brand.accentSoft : 'transparent',
+          borderColor: active ? brand.accent : 'transparent',
+          background: active ? brand.accent : 'transparent',
         }}
       >
         <motion.span
           className={`grid place-items-center rounded-[10px] shrink-0 ${nested ? 'h-6 w-6' : 'h-7 w-7'}`}
           style={{
-            background: active ? brand.primary : 'rgba(15,61,46,.08)',
+            background: active ? 'rgba(255,255,255,.22)' : 'rgba(15,61,46,.08)',
             color: active ? '#fff' : brand.primary,
           }}
           layout
@@ -65,7 +65,7 @@ export default function SideNavItem({
         {showLabel && (
           <span
             className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
-            style={{ color: active ? brand.primary : brand.muted }}
+            style={{ color: active ? '#fff' : brand.muted }}
           >
             {label}
           </span>

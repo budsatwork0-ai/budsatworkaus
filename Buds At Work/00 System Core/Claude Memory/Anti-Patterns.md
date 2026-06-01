@@ -88,6 +88,56 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 
 ---
 
+## Zod v3 API on a Zod v4 repo
+
+This repo runs **Zod v4** (`zod: ^4.x`). Generated/edited code must use the v4 API.
+
+```ts
+// CORRECT — Zod v4 requires a key schema
+z.record(z.string(), z.unknown())
+
+// WRONG — Zod v3 single-argument form; fails tsc with
+// "TS2554: Expected 2-3 arguments, but got 1"
+z.record(z.unknown())
+```
+
+**Why:** This caused every autonomous `bud/**` branch to fail the CI typecheck (the
+only thing `.github/workflows/ci.yml` runs), so every improvement was rolled back.
+The improvement pipeline's patch prompt now derives version rules from the installed
+`package.json` (`buildToolchainNotes`), and the pre-flight gate (`src/lib/bud/preflight.ts`,
+rule A1) auto-fixes the single-arg form. **General rule:** agent-generated code must
+match the repo's *installed* major versions, not the model's default assumptions.
+
+---
+
+## Test files placed under `src/`
+
+```
+// CORRECT — excluded from the typecheck (tsconfig `exclude: ["tests/**/*"]`)
+tests/lib/foo.test.ts
+
+// WRONG — gets type-checked by `tsc --noEmit` and usually breaks CI
+src/lib/agents/agents/foo.test.ts
+```
+
+**Why:** `tsconfig.json` only excludes `tests/**/*`. A `*.test.ts` under `src/` is
+compiled with the project and its `vitest` imports/globals fail the CI typecheck.
+Enforced by pre-flight rule A3.
+
+---
+
+## Auto-merging pricing / payments / auth changes
+
+The autonomous improvement pipeline must **never auto-merge** a patch that touches
+pricing, Stripe/payments, or auth/session files — even when CI, taste, and browser
+gates all pass. Those changes require human approval (see [[Convention Rules]]).
+
+**Why:** A patch can type-check, pass taste, and still silently change a pricing
+formula. The guard lives in `src/lib/bud/sensitive-paths.ts` (single source of truth)
+and forces such PRs to a draft with a `[HumanReview]` tag in `improvement-executor.ts`.
+
+---
+
 ## Related Systems
 - [[../Components/Brand|Brand]]
 - [[../Systems/Bud Core Runtime|Bud Core Runtime]]

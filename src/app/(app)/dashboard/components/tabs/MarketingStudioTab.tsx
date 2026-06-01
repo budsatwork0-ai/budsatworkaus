@@ -106,7 +106,7 @@ function Sparkline({ values }: { values: number[] }) {
     return `${x},${y}`;
   }).join(' ');
   return (
-    <svg width={w} height={h} className="overflow-visible opacity-50">
+    <svg width={w} height={h} className="opacity-50">
       <polyline points={pts} fill="none" stroke={brand.accent} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
@@ -362,8 +362,8 @@ export default function MarketingStudioTab() {
               )}
             </div>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-900">{loading ? '—' : k.value}</p>
-            <div className="mt-3 flex items-end justify-between gap-2">
-              <span className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            <div className="mt-3 flex items-end justify-between gap-2 overflow-hidden">
+              <span className="inline-flex min-w-0 shrink rounded-full px-2.5 py-1 text-[11px] font-semibold"
                 style={{ background: k.up ? brand.accentSoft : '#FEE2E2', color: k.up ? brand.accent : '#B91C1C' }}>
                 {k.pill}
               </span>
@@ -373,7 +373,7 @@ export default function MarketingStudioTab() {
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
         {/* LEFT */}
         <div className="grid gap-5">
           {/* Capture brief */}

@@ -16,6 +16,8 @@
  *   - Confidence: ≥ 0.82
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createBranch,
@@ -33,6 +35,8 @@ import {
 } from './github-executor';
 import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
+import { preflightPatches } from './preflight';
+import { sensitiveFilesIn } from './sensitive-paths';
 import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
@@ -49,6 +53,56 @@ const CI_TIMEOUT_MS = 30_000;
 // able to land in a single patch set, otherwise interdependent pieces get split
 // across branches that can never compile alone. Keep this small but > 3.
 const SURGICAL_FILE_LIMIT = 5;
+// Pre-flight gate. Phase 0 runs in SHADOW mode: it computes and logs findings but
+// never blocks, auto-fixes, or regenerates — so we can measure precision against
+// real CI results before enforcing. Set BUD_OS_PREFLIGHT_ENABLED=false to silence.
+const PREFLIGHT_ENABLED = process.env.BUD_OS_PREFLIGHT_ENABLED !== 'false';
+// Total corrective model regenerations allowed per signal, shared across the CI
+// retry (and, in Phase 1, the pre-flight retry). Bounds model + CI cost on a stuck
+// signal — once exhausted, the run rolls back instead of regenerating again.
+const MAX_REGENERATIONS_PER_SIGNAL = 1;
+
+/**
+ * Repo-specific toolchain guidance the patch model must obey. The version-specific
+ * lines are derived from the installed package.json so they never go stale on a
+ * dependency bump; if the read fails we fall back to the versions known at writing.
+ */
+function buildToolchainNotes(): string {
+  let zodMajor = 4;
+  let nextMajor = 15;
+  let reactMajor = 19;
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const major = (v: string | undefined, fallback: number): number => {
+      const n = v ? parseInt(v.replace(/[^0-9]/, ''), 10) : NaN;
+      return Number.isFinite(n) ? n : fallback;
+    };
+    zodMajor = major(deps.zod, zodMajor);
+    nextMajor = major(deps.next, nextMajor);
+    reactMajor = major(deps.react, reactMajor);
+  } catch {
+    /* fall back to defaults below */
+  }
+
+  const zodLine =
+    zodMajor >= 4
+      ? '- Zod v' + zodMajor + ': `z.record(...)` requires TWO arguments — `z.record(z.string(), z.unknown())`. The single-argument form `z.record(z.unknown())` is the Zod v3 API and FAILS to compile.'
+      : '- Zod v' + zodMajor + ': `z.record(valueSchema)` takes a single argument.';
+
+  return [
+    "TOOLCHAIN — the repo's installed versions. Generated code MUST match these or CI fails:",
+    zodLine,
+    '- Next.js ' + nextMajor + ' / React ' + reactMajor + ', TypeScript strict, `moduleResolution: "bundler"`.',
+    '- Path alias `@/*` maps to `src/*`. Server Supabase client: `createServiceClient()` (synchronous) from `@/lib/supabase/server` — `createClient` is NOT exported.',
+    '- Vitest test files live under `tests/` (that directory is EXCLUDED from the typecheck). Do NOT place `*.test.ts` files under `src/` — they get type-checked and break CI.',
+  ].join('\n');
+}
+
+const TOOLCHAIN_NOTES = buildToolchainNotes();
 
 export type ImprovementSignalRow = {
   id: string;
@@ -306,6 +360,25 @@ async function searchImprovementHistory(
     .join('\n');
 }
 
+/**
+ * Recent failed attempts across ALL signal types. A CI failure on one kind of
+ * signal (e.g. a Zod-v4 mistake on a quote-triage branch) should warn every
+ * future run, not just the same signal type — so this is intentionally not
+ * filtered by signal_type. Returns '' when there is nothing to warn about.
+ */
+async function searchRecentFailures(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase
+    .from('bud_improvement_learnings')
+    .select('signal_type, improvement_pattern, affected_area, outcome, created_at')
+    .in('outcome', ['blocked', 'rolled_back'])
+    .order('created_at', { ascending: false })
+    .limit(8);
+  if (!data || data.length === 0) return '';
+  return data
+    .map((l) => `- [${l.signal_type}/${l.affected_area ?? '—'}] ${(l.improvement_pattern as string).slice(0, 220)}`)
+    .join('\n');
+}
+
 // ── Main pipeline ──────────────────────────────────────────────────────────────
 
 export async function executeImprovementPipeline(
@@ -484,6 +557,13 @@ Then return the plan as JSON: { "approach": "...", "confidence": 0.0-1.0, "estim
     ? `\nBUILD ERROR (must fix exactly this):\n${(typedSignal.description ?? '').slice(0, 1200)}\n\nKNOWN EXPORTS in src/lib/supabase/server.ts: createServiceClient(), createServiceClientSafe()\n(createClient is NOT exported — use createServiceClient() instead, it is synchronous)\n`
     : '';
 
+  // Failures from prior runs of ANY signal type — surfaced so the model does not
+  // repeat a mistake (e.g. a Zod-v4 arg error) that already cost a CI run.
+  const recentFailures = await searchRecentFailures(supabase);
+  const recentFailuresBlock = recentFailures
+    ? `\nRECENT FAILURES — DO NOT REPEAT THESE MISTAKES (across all signal types):\n${recentFailures}\n`
+    : '';
+
   const patchPrompt = `You are Bud, an autonomous code improvement agent for a TypeScript/Next.js 15/Supabase codebase.
 
 IMPROVEMENT TO IMPLEMENT:
@@ -495,7 +575,7 @@ ${fileContextParts.length > 0 ? `CURRENT CODE (from branch ${sourceBranchForRead
 
 HISTORICAL PATTERNS:
 ${historyContext}
-
+${recentFailuresBlock}
 CONSTRAINTS — CRITICAL:
 - Touch at most ${SURGICAL_FILE_LIMIT} files. Return empty patches if more are needed.
 - Make the SMALLEST possible change that delivers the improvement.
@@ -508,14 +588,7 @@ CONSTRAINTS — CRITICAL:
   reference something that would only exist on another branch. Ship interdependent files
   together (e.g. a new module + the code that calls it + its test).
 
-TOOLCHAIN — the repo's installed versions. Generated code MUST match these or CI fails:
-- Zod v4: \`z.record(...)\` requires TWO arguments — \`z.record(z.string(), z.unknown())\`.
-  The single-argument form \`z.record(z.unknown())\` is the Zod v3 API and FAILS to compile.
-- Next.js 15 / React 19, TypeScript strict, \`moduleResolution: "bundler"\`.
-- Path alias \`@/*\` maps to \`src/*\`. Server Supabase client: \`createServiceClient()\`
-  (synchronous) from \`@/lib/supabase/server\` — \`createClient\` is NOT exported.
-- Vitest test files live under \`tests/\` (that directory is EXCLUDED from the typecheck).
-  Do NOT place \`*.test.ts\` files under \`src/\` — they get type-checked and break CI.
+${TOOLCHAIN_NOTES}
 
 DESIGN SYSTEM (taste gate enforces these — violations cause the PR to open as a draft):
 - \`glass\` and \`glassSoft\` from \`@/app/ui/theme\` are plain STRINGS (Tailwind class lists).
@@ -565,6 +638,23 @@ Return ONLY valid JSON:
     await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
     await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'no_patches' };
+  }
+
+  // ── PRE-FLIGHT (shadow mode) ─────────────────────────────────────────────────
+  // Phase 0: compute findings and record them, but do NOT block, auto-fix, or
+  // regenerate. Lets us measure precision against real CI before enforcing.
+  // Fail-open: any error here must never affect the run.
+  if (PREFLIGHT_ENABLED) {
+    try {
+      const pf = preflightPatches(patches);
+      if (pf.findings.length > 0) {
+        await log(supabase, executionId, patchStep, pf.ok ? 'info' : 'warn',
+          `Pre-flight (shadow): ${pf.findings.length} finding(s), ${pf.autofixedCount} auto-fixable, ${pf.ok ? 'no blocks' : 'WOULD BLOCK'}.`,
+          { preflight_shadow: true, would_block: !pf.ok, findings: pf.findings });
+      }
+    } catch (pfErr) {
+      await log(supabase, executionId, patchStep, 'warn', `Pre-flight (shadow) errored non-fatally: ${pfErr}`);
+    }
   }
 
   // Create branch and write patches.
@@ -657,16 +747,22 @@ Return ONLY valid JSON:
     r?.conclusion === 'failure' || r?.conclusion === 'cancelled' || r?.conclusion === 'timed_out';
 
   let ciFailure = isCiFailure(workflowResult);
+  // Captured on first failure so the rollback can store WHAT broke, not just "CI failed".
+  let ciFailureLog: string | null = null;
+  // Shared regeneration budget for this signal (see MAX_REGENERATIONS_PER_SIGNAL).
+  let regenerationsUsed = 0;
 
   // ── CORRECTIVE RETRY ───────────────────────────────────────────────────────────
   // Before rolling the branch back, feed the actual CI failure log to the model for
-  // ONE corrective patch on the same branch. Most failures are mechanical (a Zod-v4
-  // arg, a missing import) that a single targeted fix resolves — far cheaper than
-  // discarding the whole attempt.
-  if (ciFailure && !timedOut && workflowResult) {
+  // a corrective patch on the same branch, within the regeneration budget. Most
+  // failures are mechanical (a Zod-v4 arg, a missing import) that a single targeted
+  // fix resolves — far cheaper than discarding the whole attempt.
+  if (ciFailure && !timedOut && workflowResult && regenerationsUsed < MAX_REGENERATIONS_PER_SIGNAL) {
+    regenerationsUsed++;
     await log(supabase, executionId, validateStep, 'warn',
       `CI ${workflowResult.conclusion}; attempting one corrective patch before rollback.`);
     const ciLog = await getWorkflowRunFailureLog(workflowResult.runId).catch(() => null);
+    ciFailureLog = ciLog;
 
     const currentParts: string[] = [];
     for (const fp of appliedFiles.slice(0, SURGICAL_FILE_LIMIT)) {
@@ -745,7 +841,8 @@ If a referenced module/symbol is missing, create it within this patch set.`;
     } catch { /* GitHub may not be configured */ }
     await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
     await writeLearning(supabase, executionId, typedSignal, 'blocked',
-      `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back`);
+      `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back.`
+      + (ciFailureLog ? ` Errors: ${ciFailureLog.replace(/\s+/g, ' ').slice(0, 300)}` : ''));
     await supabase.from('bud_improvement_signals').update({ status: 'rejected' }).eq('id', typedSignal.id);
     return { executionId, status: 'failed' };
   }
@@ -881,6 +978,22 @@ If a referenced module/symbol is missing, create it within this patch set.`;
 
   if (debateResult.verdict === 'human_review') openAsDraft = true;
 
+  // ── HUMAN-APPROVAL GUARD ────────────────────────────────────────────────────────
+  // CLAUDE.md: pricing formula, Stripe/payments, and auth/session changes require
+  // explicit human approval before reaching production. Such patches must NEVER
+  // auto-merge — force the PR to a draft and record why. Bias toward over-flagging.
+  const sensitiveHits = sensitiveFilesIn(appliedFiles);
+  let sensitiveReason: string | null = null;
+  if (sensitiveHits.length > 0) {
+    openAsDraft = true;
+    const categories = Array.from(new Set(sensitiveHits.map((h) => h.category))).join(', ');
+    sensitiveReason = `human approval required (${categories}): ${sensitiveHits.map((h) => h.file).join(', ')}`;
+    await log(supabase, executionId, null, 'warn',
+      `Auto-merge blocked — ${sensitiveReason}`, { sensitive_files: sensitiveHits });
+    await emitStage(supabase, pipelineRunId, 'reject', 'passed',
+      { human_review_required: true, categories, files: sensitiveHits.map((h) => h.file) });
+  }
+
   // ── PR ────────────────────────────────────────────────────────────────────────
   await emitStage(supabase, pipelineRunId, 'deploy', 'active', { draft: openAsDraft });
   let prUrl: string | null = null;
@@ -918,6 +1031,13 @@ If a referenced module/symbol is missing, create it within this patch set.`;
     const prBody = [
       `Closes ${issueUrl}`,
       '',
+      ...(sensitiveHits.length > 0 ? [
+        `> ⛔ **Human approval required — auto-merge disabled.** This patch touches `
+        + `${Array.from(new Set(sensitiveHits.map((h) => h.category))).join(', ')}-sensitive files `
+        + `(${sensitiveHits.map((h) => '`' + h.file + '`').join(', ')}). Per the Bud OS constitution, `
+        + `a human must review and merge.`,
+        '',
+      ] : []),
       '## Improvement Summary',
       `**Signal:** ${typedSignal.signal_type} — ${typedSignal.title}`,
       `**Approach:** ${approach}`,
@@ -943,6 +1063,7 @@ If a referenced module/symbol is missing, create it within this patch set.`;
     ].filter(Boolean).join('\n');
 
     const draftTags = [
+      sensitiveHits.length > 0 ? '[HumanReview]' : '',
       tasteResult && !tasteResult.pass ? '[Taste]' : '',
       browserResult && browserResult.failed > 0 ? '[Browser]' : '',
     ].filter(Boolean).join('');
@@ -966,9 +1087,11 @@ If a referenced module/symbol is missing, create it within this patch set.`;
   // Fires only when: autonomy ≥ 4, confidence ≥ 0.82, CI pass, taste pass,
   // browser pass (or no UI), and PR was opened as ready (not draft).
   let autoMerged = false;
-  let autoMergeBlockedReason: string | null = null;
+  let autoMergeBlockedReason: string | null = sensitiveReason;
 
-  if (prNumber && !openAsDraft) {
+  // Hard guard: pricing/payments/auth patches can never auto-merge, regardless of
+  // how the draft flag was reached above.
+  if (prNumber && !openAsDraft && sensitiveHits.length === 0) {
     const autonomyLevel = getDefaultAutonomyLevel();
     const ciOk = !ciConclusion || ciConclusion === 'success' || ciConclusion === 'no_ci';
     const tasteOk = !tasteResult || tasteResult.pass;
