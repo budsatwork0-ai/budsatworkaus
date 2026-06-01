@@ -93,6 +93,7 @@ function toneStyles(tone: AttentionTone) {
 export default function DashboardHome() {
   const {
     metrics,
+    moneyFlow,
     jobs,
     recentActivity,
     alertsFeed,
@@ -577,51 +578,10 @@ export default function DashboardHome() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.05 }}
       >
-        <DashboardHero metrics={metrics} recentActivity={recentActivity} crew={crew} />
+        <ErrorBoundary label="overview">
+          <DashboardHero metrics={metrics} moneyFlow={moneyFlow} recentActivity={recentActivity} />
+        </ErrorBoundary>
       </motion.div>
-
-      <div className="lg:hidden">
-        <div className="flex gap-1 rounded-2xl border border-black/5 bg-white p-1">
-          {([
-            { key: 'priority', label: 'Priority' },
-            { key: 'performance', label: 'Performance' },
-          ] as const).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => { setMobileGroup(item.key); localStorage.setItem('dashboard_mobile_group', item.key); }}
-              className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition"
-              style={mobileGroup === item.key ? { background: brand.primary, color: '#fff' } : { color: brand.muted }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-5">
-        {orderedSections.map((sectionKey, i) => {
-          const node = sections[sectionKey];
-          if (node === null) return null;
-          return (
-            <motion.div
-              key={sectionKey}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.07 }}
-              className={
-                SECTION_GROUPS[mobileGroup].includes(sectionKey)
-                  ? 'block'
-                  : 'hidden lg:block'
-              }
-            >
-              <ErrorBoundary label={sectionKey}>
-                {node}
-              </ErrorBoundary>
-            </motion.div>
-          );
-        })}
-      </div>
     </div>
   );
 }
