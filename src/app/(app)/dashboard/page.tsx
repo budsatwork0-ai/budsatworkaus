@@ -7,6 +7,7 @@ import { brand } from '@/app/ui/theme';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useDashboardData } from './hooks/useDashboardData';
 import { ErrorMessage, RefreshIcon } from './components/shared';
+import { DashboardHero } from './components/DashboardHero';
 import { ErrorBoundary } from './_components/ErrorBoundary';
 import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
 import { jobStatusLabels, normalizeQuoteStatus, type DashboardAlert, type DashboardCrewMember, type DashboardQuote, type JobRecord } from '@/types/dashboard';
@@ -570,6 +571,14 @@ export default function DashboardHome() {
         </div>
 
       </motion.section>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.05 }}
+      >
+        <DashboardHero metrics={metrics} recentActivity={recentActivity} crew={crew} />
+      </motion.div>
 
       <div className="lg:hidden">
         <div className="flex gap-1 rounded-2xl border border-black/5 bg-white p-1">
