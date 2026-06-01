@@ -25,6 +25,7 @@ import { BudTerminal } from './_components/BudTerminal';
 import { KnowledgeTab } from './_components/KnowledgeTab';
 import { BridgeStatus } from './_components/BridgeStatus';
 import { AgentHierarchy } from './_components/AgentHierarchy';
+import { DesignSystemTab } from './_components/DesignSystemTab';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string; last_run_at?: string | null; last_success_at?: string | null };
@@ -69,6 +70,7 @@ const TABS = [
   { key: 'overview',  label: 'Overview' },
   { key: 'terminal',  label: 'Terminal' },
   { key: 'knowledge', label: 'Knowledge' },
+  { key: 'design',    label: 'Design System' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -280,6 +282,8 @@ export function MissionControlClient({
           {tab === 'terminal' && <BudTerminal />}
 
           {tab === 'knowledge' && <KnowledgeTab devOs={devOs} />}
+
+          {tab === 'design' && <DesignSystemTab />}
         </div>
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">

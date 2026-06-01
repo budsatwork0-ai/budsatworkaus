@@ -252,10 +252,30 @@ async function callClaudeForPatches(
 // ── File identification ────────────────────────────────────────────────────────
 // Ask Claude to identify the most likely files to read based on the signal.
 
+/** Keep only the paths that actually exist on `main` (drops hallucinated/net-new paths). */
+async function filterExistingFiles(paths: string[]): Promise<string[]> {
+  const checks = await Promise.all(
+    paths.map(async (p) => {
+      try {
+        return (await getFileContent(p, 'main')) ? p : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return checks.filter((p): p is string => p !== null);
+}
+
 async function identifyTargetFiles(signal: ImprovementSignalRow): Promise<string[]> {
-  // Honour explicit reference_files first
+  // Honour explicit reference_files first — but only the paths that actually
+  // exist on main. Signals are often filed with a hallucinated layout (e.g.
+  // src/agents/<id>/handler.ts instead of src/lib/agents/agents/<id>.ts), and
+  // feeding non-existent paths to the patcher yields empty context and a false
+  // "no changes needed". Drop unresolved paths and fall through to the resolver.
   if (signal.reference_files && signal.reference_files.length > 0) {
-    return signal.reference_files.slice(0, 5);
+    const validated = await filterExistingFiles(signal.reference_files.slice(0, 5));
+    if (validated.length > 0) return validated;
+    // none of the referenced paths resolve — continue to the resolver below
   }
 
   if (!ANTHROPIC_API_KEY) return [];
@@ -551,6 +571,21 @@ Then return the plan as JSON: { "approach": "...", "confidence": 0.0-1.0, "estim
         if (file) fileContextParts.push(`=== FILE: ${fp} (from ${existingBranchForFix}) ===\n${file.content.slice(0, 8000)}`);
       } catch { /* non-fatal */ }
     }
+  }
+
+  // Guard: if no target file could be read, the patcher has nothing to ground on
+  // and will return a false "no changes needed". Block honestly so the signal is
+  // actionable (paths need fixing) rather than silently marked a no-op.
+  if (fileContextParts.length === 0) {
+    const reason = `Target files could not be located in the repository (${targetFiles.join(', ') || 'none identified'}). Skipping patch generation to avoid a false no-op — the signal's reference_files likely point at paths that do not exist on main.`;
+    await log(supabase, executionId, patchStep, 'warn', reason);
+    await finishStep(supabase, patchStep, 'blocked', { note: reason, targetFiles });
+    await updateExecution(supabase, executionId, { status: 'blocked', diff_summary: reason, finished_at: new Date().toISOString() });
+    await writeLearning(supabase, executionId, typedSignal, 'blocked', reason);
+    await emitStage(supabase, pipelineRunId, 'generate', 'rejected', { reason });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+    return { executionId, status: 'blocked', blockedReason: 'no_file_context' };
   }
 
   const buildErrorContext = isVercelBuildFix
