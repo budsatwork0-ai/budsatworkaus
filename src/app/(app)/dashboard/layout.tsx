@@ -25,22 +25,25 @@ type NavBadgeKey =
   | 'applicants';
 
 type NavLinkItem = {
-  kind: 'link';
   href: string;
   label: string;
   icon: React.ReactNode;
   badgeKey?: NavBadgeKey;
+};
+
+type NavGroup = {
+  id: string;
+  label: string;
   adminOnly?: boolean;
+  items: NavLinkItem[];
 };
 
 const BADGE_HREFS: Partial<Record<NavBadgeKey, string>> = {
   schedule: '/dashboard/schedule?view=list&scheduleState=unscheduled',
   quotes: '/dashboard/quotes?workspace=review',
   invoices: '/dashboard/invoices?tab=invoices&status=Overdue',
-  applicants: '/dashboard/crew?tab=onboarding&filter=awaiting_approval',
+  applicants: '/dashboard/applicants?filter=awaiting_approval',
 };
-
-type NavEntry = NavLinkItem;
 
 const dashboardIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
 const scheduleIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
@@ -54,6 +57,21 @@ const ndisIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" str
 const agentsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="3" /><path d="M5 21a7 7 0 0114 0" /><circle cx="5" cy="6" r="2" /><circle cx="19" cy="6" r="2" /></svg>;
 const lobbyIcon  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /><circle cx="7" cy="15" r="1" /><circle cx="12" cy="15" r="1" /><circle cx="17" cy="15" r="1" /></svg>;
 const missionIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="8" /><line x1="12" y1="16" x2="12" y2="22" /><line x1="2" y1="12" x2="8" y2="12" /><line x1="16" y1="12" x2="22" y2="12" /></svg>;
+const alertsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>;
+const leadsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z" /></svg>;
+const marketingIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 11-5.8-1.6" /></svg>;
+const reportsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+const visitorsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
+const jobsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>;
+const pipelinesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="14" rx="1" /><rect x="15" y="3" width="6" height="9" rx="1" /></svg>;
+const paymentsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>;
+const subscriptionsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 014-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 01-4 4H3" /></svg>;
+const expensesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12V7H5a2 2 0 010-4h14v4" /><path d="M3 5v14a2 2 0 002 2h16v-5" /><path d="M18 12a2 2 0 000 4h4v-4z" /></svg>;
+const applicantsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>;
+const feedbackIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>;
+const automationsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
+const auditIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 106 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>;
+const ndisMatchIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1" /><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" /></svg>;
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -70,39 +88,76 @@ const PAGE_TITLES: Record<string, string> = {
 
 
 type NavListProps = {
-  entries: NavEntry[];
+  groups: NavGroup[];
   isAdmin: boolean;
   navBadges: Record<NavBadgeKey, number>;
+  collapsed: Set<string>;
+  onToggleGroup: (id: string) => void;
 };
 
-const ExpandedNav = memo(function ExpandedNav({ entries, isAdmin, navBadges }: NavListProps) {
+const ExpandedNav = memo(function ExpandedNav({ groups, isAdmin, navBadges, collapsed, onToggleGroup }: NavListProps) {
   return (
     <>
-      {entries.map((entry) => {
-        if (entry.adminOnly && !isAdmin) return null;
-        const badge = entry.badgeKey ? navBadges[entry.badgeKey] : null;
-        const badgeHref = entry.badgeKey ? BADGE_HREFS[entry.badgeKey] : undefined;
+      {groups.map((group) => {
+        if (group.adminOnly && !isAdmin) return null;
+        const isCollapsed = collapsed.has(group.id);
         return (
-          <SideNavItem
-            key={entry.href}
-            href={entry.href}
-            label={entry.label}
-            icon={entry.icon}
-            badge={badge}
-            badgeHref={badgeHref}
-          />
+          <div key={group.id} className="space-y-0.5">
+            <button
+              type="button"
+              onClick={() => onToggleGroup(group.id)}
+              className="flex w-full items-center gap-2 px-2.5 pt-3 pb-1 text-[10.5px] font-bold uppercase tracking-[0.08em]"
+              style={{ color: brand.muted }}
+            >
+              <span className="truncate text-left">{group.label}</span>
+              {group.adminOnly && (
+                <span
+                  className="rounded-full px-1.5 py-px text-[8.5px] font-semibold tracking-normal"
+                  style={{ background: brand.surface, color: brand.muted }}
+                >
+                  admin
+                </span>
+              )}
+              <svg
+                className={`ml-auto shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {!isCollapsed && (
+              <div className="space-y-0.5">
+                {group.items.map((entry) => (
+                  <SideNavItem
+                    key={entry.href}
+                    href={entry.href}
+                    label={entry.label}
+                    icon={entry.icon}
+                    badge={entry.badgeKey ? navBadges[entry.badgeKey] : null}
+                    badgeHref={entry.badgeKey ? BADGE_HREFS[entry.badgeKey] : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         );
       })}
     </>
   );
 });
 
-const CompactNav = memo(function CompactNav({ entries, isAdmin, navBadges }: NavListProps) {
+const CompactNav = memo(function CompactNav({ groups, isAdmin, navBadges }: NavListProps) {
   return (
     <>
-      {entries.map((entry) => {
-        if (entry.adminOnly && !isAdmin) return null;
-        return (
+      {groups
+        .filter((group) => !(group.adminOnly && !isAdmin))
+        .flatMap((group) => group.items)
+        .map((entry) => (
           <SideNavItem
             key={entry.href}
             href={entry.href}
@@ -111,8 +166,7 @@ const CompactNav = memo(function CompactNav({ entries, isAdmin, navBadges }: Nav
             badge={entry.badgeKey ? navBadges[entry.badgeKey] : null}
             showLabel={false}
           />
-        );
-      })}
+        ))}
     </>
   );
 });
@@ -139,18 +193,59 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     applicants: 0,
   });
 
-  const navEntries: NavEntry[] = useMemo(() => [
-    { kind: 'link', href: '/dashboard',           label: 'Dashboard', icon: dashboardIcon, badgeKey: 'dashboard' },
-    { kind: 'link', href: '/dashboard/schedule',  label: 'Schedule',  icon: scheduleIcon,  badgeKey: 'schedule'  },
-    { kind: 'link', href: '/dashboard/quotes',    label: 'Quotes',    icon: quotesIcon,    badgeKey: 'quotes'    },
-    { kind: 'link', href: '/dashboard/customers', label: 'Customers', icon: customersIcon                        },
-    { kind: 'link', href: '/dashboard/invoices',  label: 'Money',     icon: moneyIcon,     badgeKey: 'invoices'  },
-    { kind: 'link', href: '/dashboard/crew',      label: 'Crew',      icon: crewIcon,      badgeKey: 'applicants'},
-    { kind: 'link', href: '/dashboard/insights',  label: 'Insights',  icon: insightsIcon,                        },
-    { kind: 'link', href: '/dashboard/mission-control', label: 'Bud OS', icon: missionIcon, adminOnly: true },
-    { kind: 'link', href: '/dashboard/agents',    label: 'Agents',    icon: agentsIcon,    adminOnly: true       },
-    { kind: 'link', href: '/dashboard/ndis',      label: 'NDIS',      icon: ndisIcon,      adminOnly: true       },
-    { kind: 'link', href: '/dashboard/settings',  label: 'Settings',  icon: settingsIcon,  adminOnly: true       },
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const navGroups: NavGroup[] = useMemo(() => [
+    { id: 'overview', label: 'Overview', items: [
+      { href: '/dashboard',            label: 'Dashboard', icon: dashboardIcon, badgeKey: 'dashboard' },
+      { href: '/dashboard/alerts',     label: 'Alerts',    icon: alertsIcon },
+    ] },
+    { id: 'growth', label: 'Growth & marketing', items: [
+      { href: '/dashboard/insights',                  label: 'Insights',         icon: insightsIcon },
+      { href: '/dashboard/insights?tab=leads',        label: 'Bud Leads',        icon: leadsIcon },
+      { href: '/dashboard/insights?tab=marketing',    label: 'Marketing Studio', icon: marketingIcon },
+      { href: '/dashboard/reports',                   label: 'Reports',          icon: reportsIcon },
+      { href: '/dashboard/insights?tab=visitors',     label: 'Visitors',         icon: visitorsIcon },
+    ] },
+    { id: 'work', label: 'Work', items: [
+      { href: '/dashboard/schedule',  label: 'Schedule',     icon: scheduleIcon,  badgeKey: 'schedule' },
+      { href: '/dashboard/orders',    label: 'Jobs & orders', icon: jobsIcon },
+      { href: '/dashboard/quotes',    label: 'Quotes',       icon: quotesIcon,    badgeKey: 'quotes' },
+      { href: '/dashboard/pipelines', label: 'Pipelines',    icon: pipelinesIcon },
+    ] },
+    { id: 'money', label: 'Money', items: [
+      { href: '/dashboard/invoices',      label: 'Invoices',      icon: moneyIcon,          badgeKey: 'invoices' },
+      { href: '/dashboard/payments',      label: 'Payments',      icon: paymentsIcon },
+      { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: subscriptionsIcon },
+      { href: '/dashboard/expenses',      label: 'Expenses',      icon: expensesIcon },
+    ] },
+    { id: 'people', label: 'People', items: [
+      { href: '/dashboard/customers',  label: 'Customers',  icon: customersIcon },
+      { href: '/dashboard/crew',       label: 'Crew',       icon: crewIcon },
+      { href: '/dashboard/applicants', label: 'Applicants', icon: applicantsIcon, badgeKey: 'applicants' },
+      { href: '/dashboard/feedback',   label: 'Feedback',   icon: feedbackIcon },
+    ] },
+    { id: 'ndis', label: 'NDIS', adminOnly: true, items: [
+      { href: '/dashboard/ndis',       label: 'Organisations', icon: ndisIcon },
+      { href: '/dashboard/ndis/match', label: 'Plan matching', icon: ndisMatchIcon },
+    ] },
+    { id: 'automation', label: 'Automation', adminOnly: true, items: [
+      { href: '/dashboard/mission-control', label: 'Bud OS',       icon: missionIcon },
+      { href: '/dashboard/agents',          label: 'Agents',       icon: agentsIcon },
+      { href: '/dashboard/automations',     label: 'Automations',  icon: automationsIcon },
+      { href: '/dashboard/audit-log',       label: 'Audit log',    icon: auditIcon },
+    ] },
+    { id: 'settings', label: 'Settings', adminOnly: true, items: [
+      { href: '/dashboard/settings', label: 'Settings', icon: settingsIcon },
+    ] },
   ], []);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -228,8 +323,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="space-y-2">
           {sidebarOpen
-            ? <ExpandedNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
-            : <CompactNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
+            ? <ExpandedNav groups={navGroups} isAdmin={isAdmin} navBadges={navBadges} collapsed={collapsedGroups} onToggleGroup={toggleGroup} />
+            : <CompactNav groups={navGroups} isAdmin={isAdmin} navBadges={navBadges} collapsed={collapsedGroups} onToggleGroup={toggleGroup} />
           }
         </div>
 
@@ -296,7 +391,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
 
               <div className="space-y-2">
-                <ExpandedNav entries={navEntries} isAdmin={isAdmin} navBadges={navBadges} />
+                <ExpandedNav groups={navGroups} isAdmin={isAdmin} navBadges={navBadges} collapsed={collapsedGroups} onToggleGroup={toggleGroup} />
               </div>
 
               <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
