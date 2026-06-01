@@ -7,6 +7,7 @@ import { brand } from '@/app/ui/theme';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useDashboardData } from './hooks/useDashboardData';
 import { ErrorMessage, RefreshIcon } from './components/shared';
+import { DashboardHero } from './components/DashboardHero';
 import { ErrorBoundary } from './_components/ErrorBoundary';
 import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
 import { jobStatusLabels, normalizeQuoteStatus, type DashboardAlert, type DashboardCrewMember, type DashboardQuote, type JobRecord } from '@/types/dashboard';
@@ -92,6 +93,7 @@ function toneStyles(tone: AttentionTone) {
 export default function DashboardHome() {
   const {
     metrics,
+    moneyFlow,
     jobs,
     recentActivity,
     alertsFeed,
@@ -299,7 +301,7 @@ export default function DashboardHome() {
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.85fr)]">
-          <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white/90">
+          <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white">
             <div className="border-b border-slate-100 bg-[#f1f7f3] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Today's schedule</p>
             </div>
@@ -388,7 +390,7 @@ export default function DashboardHome() {
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {quotePipeline.map((stage) => (
-              <Link key={stage.key} href={stage.href} className="rounded-[20px] border border-black/5 bg-white/90 p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,61,46,0.08)]">
+              <Link key={stage.key} href={stage.href} className="rounded-[20px] border border-black/5 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,61,46,0.08)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{stage.label}</p>
                 <div className="mt-3 relative h-28 overflow-hidden rounded-[18px] border border-black/5 bg-[#f1f7f3]">
                   <div
@@ -462,7 +464,7 @@ export default function DashboardHome() {
       >
         <div className="space-y-2">
           {recentActivity.slice(0, 6).map((item) => (
-            <div key={item.id} className="rounded-[20px] border border-black/5 bg-white/90 px-4 py-3">
+            <div key={item.id} className="rounded-[20px] border border-black/5 bg-white px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{item.title}</p>
@@ -498,26 +500,26 @@ export default function DashboardHome() {
   if (isLoading) {
     return (
       <div className="grid gap-5 w-full px-3 sm:px-4 md:px-8 xl:px-10 pb-14">
-        <div className="rounded-[28px] border border-black/5 bg-white/75 px-4 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.07)] backdrop-blur sm:px-6 animate-pulse">
+        <div className="rounded-[28px] border border-black/5 bg-white px-4 py-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] sm:px-6 animate-pulse">
           <div className="h-8 w-56 bg-slate-200 rounded-xl mb-4" />
           <div className="flex gap-2">
             <div className="h-8 w-28 bg-slate-100 rounded-full" />
             <div className="h-8 w-28 bg-slate-100 rounded-full" />
           </div>
         </div>
-        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+        <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] space-y-4">
           <div className="h-5 w-20 bg-slate-200 rounded animate-pulse" />
           <SummaryCardsSkeleton />
         </div>
-        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+        <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] space-y-4">
           <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
           <TableSkeleton rows={4} />
         </div>
-        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+        <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] space-y-4">
           <div className="h-5 w-24 bg-slate-200 rounded animate-pulse" />
           <PanelSkeleton rows={3} />
         </div>
-        <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur space-y-4">
+        <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] space-y-4">
           <div className="h-5 w-28 bg-slate-200 rounded animate-pulse" />
           <ActivitySkeleton items={4} />
         </div>
@@ -528,7 +530,7 @@ export default function DashboardHome() {
   return (
     <div className="grid gap-5 w-full px-3 sm:px-4 md:px-8 xl:px-10 pb-14">
       <motion.section
-        className="grid gap-4 rounded-[28px] border border-black/5 bg-white/75 px-4 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.07)] backdrop-blur sm:px-6"
+        className="grid gap-4 rounded-[28px] border border-black/5 bg-white px-4 py-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] sm:px-6"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
@@ -571,48 +573,15 @@ export default function DashboardHome() {
 
       </motion.section>
 
-      <div className="lg:hidden">
-        <div className="flex gap-1 rounded-2xl border border-black/5 bg-white/80 p-1">
-          {([
-            { key: 'priority', label: 'Priority' },
-            { key: 'performance', label: 'Performance' },
-          ] as const).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => { setMobileGroup(item.key); localStorage.setItem('dashboard_mobile_group', item.key); }}
-              className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition"
-              style={mobileGroup === item.key ? { background: brand.primary, color: '#fff' } : { color: brand.muted }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-5">
-        {orderedSections.map((sectionKey, i) => {
-          const node = sections[sectionKey];
-          if (node === null) return null;
-          return (
-            <motion.div
-              key={sectionKey}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.07 }}
-              className={
-                SECTION_GROUPS[mobileGroup].includes(sectionKey)
-                  ? 'block'
-                  : 'hidden lg:block'
-              }
-            >
-              <ErrorBoundary label={sectionKey}>
-                {node}
-              </ErrorBoundary>
-            </motion.div>
-          );
-        })}
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.05 }}
+      >
+        <ErrorBoundary label="overview">
+          <DashboardHero metrics={metrics} moneyFlow={moneyFlow} recentActivity={recentActivity} />
+        </ErrorBoundary>
+      </motion.div>
     </div>
   );
 }
@@ -640,7 +609,7 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] backdrop-blur">
+    <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)]">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: brand.primary }}>{title}</h2>
@@ -671,7 +640,7 @@ function MetricCard({
   const tone: AttentionTone = delta > 0 ? 'emerald' : delta < 0 ? 'red' : 'blue';
   const colors = toneStyles(tone);
   return (
-    <div className="rounded-[24px] border border-black/5 bg-white/90 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+    <div className="rounded-[24px] border border-black/5 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-900">{value}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -686,7 +655,7 @@ function MetricCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[20px] border border-black/5 bg-white/90 px-4 py-3">
+    <div className="rounded-[20px] border border-black/5 bg-white px-4 py-3">
       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-slate-900">{value}</p>
     </div>
@@ -695,7 +664,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] border border-black/5 bg-white/90 p-4">
+    <div className="rounded-[22px] border border-black/5 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       <div className="mt-3 space-y-2">{children}</div>
     </div>
@@ -722,7 +691,7 @@ function EmptyPanel({ message }: { message: string }) {
 function HeaderChip({ label, tone }: { label: string; tone: AttentionTone }) {
   const colors = toneStyles(tone);
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700">
+    <span className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
       <span className="h-2 w-2 rounded-full" style={{ background: colors.fg }} />
       {label}
     </span>
@@ -732,7 +701,7 @@ function HeaderChip({ label, tone }: { label: string; tone: AttentionTone }) {
 function AlertRow({ alert }: { alert: DashboardAlert }) {
   const tone = alert.severity === 'critical' ? toneStyles('red') : alert.severity === 'warning' ? toneStyles('amber') : toneStyles('blue');
   return (
-    <Link href={alert.href || '/dashboard/alerts'} className="flex items-start gap-3 rounded-[20px] border border-black/5 bg-white/88 px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+    <Link href={alert.href || '/dashboard/alerts'} className="flex items-start gap-3 rounded-[20px] border border-black/5 bg-white px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
       <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold" style={{ background: tone.bg, color: tone.fg }}>
         !
       </span>
@@ -758,7 +727,7 @@ const ACTION_BADGE_LABELS: Record<AttentionTone, string> = {
 function ActionCard({ action }: { action: NextBestAction }) {
   const colors = toneStyles(action.tone);
   return (
-    <Link href={action.href} className="rounded-[20px] border border-black/5 bg-white/90 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,61,46,0.08)]">
+    <Link href={action.href} className="rounded-[20px] border border-black/5 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,61,46,0.08)]">
       <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: colors.bg, color: colors.fg }}>
         {ACTION_BADGE_LABELS[action.tone]}
       </span>
@@ -777,7 +746,7 @@ function CrewCard({ member }: { member: DashboardCrewMember }) {
     'bg-slate-100 text-slate-700';
 
   return (
-    <Link href={member.awaitingApproval ? '/dashboard/crew?tab=onboarding&filter=awaiting_approval' : '/dashboard/crew?tab=applicants&group=crew'} className="flex items-start gap-3 rounded-[20px] border border-black/5 bg-white/90 px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+    <Link href={member.awaitingApproval ? '/dashboard/crew?tab=onboarding&filter=awaiting_approval' : '/dashboard/crew?tab=applicants&group=crew'} className="flex items-start gap-3 rounded-[20px] border border-black/5 bg-white px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
       <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: member.status === 'active' ? brand.primary : '#64748b' }}>
         {getInitials(member.full_name)}
       </span>

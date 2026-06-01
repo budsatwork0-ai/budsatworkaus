@@ -56,15 +56,15 @@ export const SummaryCard = ({
   onClick?: () => void;
 }) => (
   <div
-    className="rounded-2xl border border-black/5 bg-white/90 px-3 sm:px-4 py-3 text-sm text-slate-700 shadow-[0_10px_28px_rgba(15,23,42,0.08)] overflow-hidden cursor-pointer hover:shadow-lg hover:border-black/10 transition-all"
+    className="rounded-[22px] border border-black/5 bg-white px-4 sm:px-5 py-4 text-sm text-slate-700 shadow-[0_8px_26px_rgba(2,6,23,0.05)] overflow-hidden cursor-pointer hover:shadow-[0_12px_32px_rgba(2,6,23,0.08)] hover:border-black/10 transition-all"
     onClick={onClick}
   >
     <div className="text-[10px] sm:text-[11px] uppercase tracking-wide text-slate-500 truncate">{label}</div>
     {isLoading ? (
-      <div className="h-8 w-24 mt-1 bg-slate-100 rounded animate-pulse" />
+      <div className="h-9 w-28 mt-1.5 bg-slate-100 rounded animate-pulse" />
     ) : (
-      <div className="flex items-baseline gap-2 mt-1">
-        <div className="text-xl sm:text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="flex items-baseline gap-2 mt-1.5">
+        <div className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: brand.primary }}>{value}</div>
         {change && (
           <div
             className={`flex items-center gap-0.5 text-xs font-medium ${
@@ -104,7 +104,7 @@ export const Panel = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <section className={`rounded-2xl border border-black/5 bg-white/90 px-4 py-4 shadow-[0_8px_30px_rgba(2,6,23,0.08)] ${className}`}>
+  <section className={`rounded-[22px] border border-black/5 bg-white px-5 py-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] ${className}`}>
     <div className="flex items-start gap-3">
       <div className="min-w-0">
         <h3 className="text-sm font-semibold" style={{ color: brand.primary }}>
@@ -120,9 +120,9 @@ export const Panel = ({
 
 // Stat Row
 export const StatRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex items-center justify-between rounded-xl border border-black/5 bg-white/80 px-3 py-2 text-sm">
+  <div className="flex items-center justify-between rounded-xl border border-black/5 bg-white px-3.5 py-2.5 text-sm">
     <span className="text-xs text-slate-500">{label}</span>
-    <span className="font-semibold text-slate-900">{value}</span>
+    <span className="font-semibold" style={{ color: brand.primary }}>{value}</span>
   </div>
 );
 

@@ -169,3 +169,45 @@ export const tempTone: Record<'HOT' | 'WARM' | 'COLD' | 'LOST', {
   COLD: { text: '#9FC6FF', bg: 'rgba(79,165,255,0.10)', ring: 'rgba(79,165,255,0.30)', glow: 'none' },
   LOST: { text: '#9FB4A8', bg: 'rgba(255,255,255,0.04)', ring: 'rgba(255,255,255,0.10)', glow: 'none' },
 };
+
+// -----------------------------------------------------------------------------
+// Core 2.0 design system — single source of truth for the admin workspace look.
+// Calm, white, rounded, friendly. Colour used lightly; semantic colours only
+// carry meaning, never decoration. See: Buds At Work/00 System Core/Design System/
+// Core 2.0 Design System.md
+// -----------------------------------------------------------------------------
+export const core2 = {
+  color: {
+    primary: '#0F3D2E',        // deep Buds green — headings, primary buttons, big numbers
+    accent: '#1C7C54',         // muted action green — active states, deltas, highlights
+    accentSoft: '#E3F1EA',     // soft green fill — pills, hovers
+    secondary: '#C8932B',      // warm mustard/gold — used sparingly for emphasis
+    secondarySoft: '#F6EBD2',  // soft gold fill
+    bg: '#FAF7F0',             // soft cream / off-white page background
+    surface: '#FFFFFF',        // white card surface
+    border: 'rgba(15,61,46,0.08)',
+    text: '#16201B',           // near-black main text
+    textSecondary: '#5C6B62',  // medium grey
+    textMuted: '#8A978F',      // soft grey (meta, placeholders)
+    success: '#1C7C54',
+    warning: '#B8860B',
+    error: '#D9534F',
+    info: '#5B7A8C',           // blue-grey
+  },
+  // Radii scale: chips/inputs → buttons/rows → cards → feature panels.
+  radius: { sm: '10px', md: '14px', lg: '20px', xl: '26px' },
+  // Very soft elevation only — no harsh dark shadows.
+  shadow: {
+    card: '0 8px 26px rgba(2,6,23,0.05)',
+    hover: '0 12px 32px rgba(2,6,23,0.08)',
+    modal: '0 24px 60px rgba(2,6,23,0.18)',
+  },
+  // Type scale (px / weight / line-height). Sentence case, never all caps.
+  type: {
+    pageTitle:      { size: '30px', weight: 600, leading: '1.2' },
+    sectionHeading: { size: '20px', weight: 600, leading: '1.3' },
+    cardTitle:      { size: '16px', weight: 600, leading: '1.35' },
+    body:           { size: '15px', weight: 400, leading: '1.55' },
+    meta:           { size: '12.5px', weight: 400, leading: '1.5' },
+  },
+} as const;
