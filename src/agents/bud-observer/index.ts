@@ -34,14 +34,15 @@ export async function handleBudObserver(
     );
     return {
       outcome: 'unable_to_analyse',
-      reason: `Snapshot schema validation failed: ${parsed.error.issues.map(i => i.message).join('; ')}`,
+      reason: `Snapshot schema validation failed: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
     };
   }
 
   const snapshot = parsed.data;
 
   try {
-    const supabase = createServiceClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createServiceClient() as any;
 
     // Record the observation so downstream agents can consume it.
     const { error } = await supabase.from('bud_observations').insert({
@@ -55,7 +56,7 @@ export async function handleBudObserver(
       console.error('[bud-observer] DB insert failed', { error, quote_id: snapshot.quote_id });
       return {
         outcome: 'unable_to_analyse',
-        reason: `DB error: ${error.message}`,
+        reason: `DB error: ${(error as { message: string }).message}`,
       };
     }
 
