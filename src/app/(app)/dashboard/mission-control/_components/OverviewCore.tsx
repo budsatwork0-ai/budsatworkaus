@@ -263,10 +263,13 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
       chipTone: 'border-white/20 text-white/55',
     };
   }
+
+  const summary = approval.readiness_summary?.trim() || '';
+
   if (approval.readiness === 'blocked') {
     return {
       label: 'Do not approve',
-      reason: 'Something is blocking this change. Investigate and resolve the blocker before approving.',
+      reason: summary || 'Something is blocking this change. Investigate and resolve the blocker before approving.',
       containerTone: 'border-red-400/30 bg-red-500/[0.05]',
       chipTone: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
     };
@@ -274,7 +277,7 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
   if (approval.readiness === 'awaiting_diff') {
     return {
       label: 'Hold — no diff',
-      reason: 'This is marked high-risk but there is no code diff or linked PR to review. Do not approve until you can see exactly what will change.',
+      reason: summary || 'High-risk change with no code diff or linked PR. Do not approve until the exact changes are visible.',
       containerTone: 'border-amber-400/25 bg-amber-500/[0.04]',
       chipTone: 'border-amber-400/40 bg-amber-500/[0.08] text-amber-300',
     };
@@ -282,7 +285,7 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
   if (approval.linked_pr) {
     return {
       label: 'Review PR first',
-      reason: `There is a linked pull request with the actual code diff. Read it before approving — the PR is the source of truth for what will land in production.`,
+      reason: summary || 'There is a linked pull request with the actual code diff. Read it before approving — the PR is the source of truth for what will land in production.',
       containerTone: 'border-sky-400/25 bg-sky-500/[0.04]',
       chipTone: 'border-sky-400/40 bg-sky-500/[0.08] text-sky-300',
     };
@@ -290,7 +293,7 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
   if (approval.risk_level === 'high' || approval.risk_level === 'critical') {
     return {
       label: 'Needs review',
-      reason: 'High-risk change. Read the proposed steps above carefully. If the change is not specific and concrete, reject and ask for a PR first.',
+      reason: summary || 'High-risk change. Read the proposed steps above carefully. If the change is not specific and concrete, reject and ask for a PR first.',
       containerTone: 'border-orange-400/25 bg-orange-500/[0.04]',
       chipTone: 'border-orange-400/40 bg-orange-500/[0.08] text-orange-300',
     };
@@ -298,14 +301,14 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
   if (approval.readiness === 'ready' && (approval.risk_level === 'low' || approval.risk_level === 'medium')) {
     return {
       label: 'Safe to approve',
-      reason: 'Low blast radius, fully drafted, and gated. Review the steps above, then approve if they look correct.',
+      reason: summary || 'Low blast radius, fully drafted, and gated. Review the steps above, then approve if they look correct.',
       containerTone: 'border-emerald-400/25 bg-emerald-500/[0.04]',
       chipTone: 'border-emerald-400/40 bg-emerald-500/[0.08] text-emerald-300',
     };
   }
   return {
     label: 'Needs review',
-    reason: 'Read the proposed change above before deciding. Approve only if the steps are specific and you understand the impact.',
+    reason: summary || 'Read the proposed change above before deciding. Approve only if the steps are specific and you understand the impact.',
     containerTone: 'border-white/10 bg-white/[0.02]',
     chipTone: 'border-white/20 text-white/55',
   };
@@ -396,7 +399,7 @@ function ActionQueue({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (notReady) { toast.error(`Not ready: ${approval.readiness_summary}`); return; }
+                        if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — expand for details.'); return; }
                         onApprove(item);
                       }}
                       disabled={notReady}
@@ -474,7 +477,7 @@ function ActionQueue({
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
-                          if (notReady) { toast.error(`Not ready: ${approval.readiness_summary}`); return; }
+                          if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — see the verdict above.'); return; }
                           onApprove(item);
                         }}
                         disabled={notReady}
