@@ -1,6 +1,6 @@
 'use client';
 
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 interface EmptyStateProps {
   icon?: React.ReactNode;
@@ -30,7 +30,7 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
         <button
           onClick={action.onClick}
           className="px-4 py-2 text-sm rounded-lg text-white"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           {action.label}
         </button>

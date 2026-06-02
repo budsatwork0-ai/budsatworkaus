@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type { ServiceType, Context } from '@/types/orders';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { SubscriptionFrequency, CreateSubscriptionInput } from '@/types/subscriptions';
@@ -301,7 +301,7 @@ export default function CreateSubscriptionModal({ isOpen, onClose, onSuccess }: 
                   type="submit"
                   disabled={isSubmitting}
                   className="px-4 py-2 text-sm rounded-lg text-white disabled:opacity-50"
-                  style={{ background: brand.primary }}
+                  style={{ background: dashboardTheme.color.primary }}
                 >
                   {isSubmitting ? 'Creating...' : 'Create Subscription'}
                 </button>

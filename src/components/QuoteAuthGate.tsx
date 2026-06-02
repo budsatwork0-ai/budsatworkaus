@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Turnstile } from '@marsidev/react-turnstile';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface Props {
@@ -66,7 +66,7 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
   return (
     <div className={`rounded-2xl bg-white ring-1 ring-black/6 px-4 pt-3 pb-4 ${className}`}>
 
-      <p className="text-[14.5px] font-semibold leading-snug" style={{ color: brand.text }}>
+      <p className="text-[14.5px] font-semibold leading-snug" style={{ color: publicTheme.color.text }}>
         Track your quote anytime
       </p>
       <p className="mt-0.5 text-[11.5px] leading-snug text-slate-400">
@@ -91,7 +91,7 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
         onClick={() => onGuestContinue?.(turnstileToken)}
         disabled={guestBlocked}
         className="mt-3 w-full py-2.5 rounded-xl text-[13.5px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{ background: brand.primary }}
+        style={{ background: publicTheme.color.primary }}
       >
         {guestBlocked ? 'Verifying…' : 'Submit as guest'}
       </button>
@@ -138,7 +138,7 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
             type="submit"
             disabled={loading || !prefillEmail}
             className="w-full py-2 rounded-xl text-[13px] font-semibold text-white transition-all hover:opacity-95 active:scale-[0.99] disabled:opacity-50"
-            style={{ background: brand.primary }}
+            style={{ background: publicTheme.color.primary }}
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>

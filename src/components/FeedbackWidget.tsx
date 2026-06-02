@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import FeedbackModal from '@/app/(public)/get-involved/FeedbackModal';
 
-// Removed CTA_GREEN — using brand.primary for a more refined look
+// Removed CTA_GREEN — using dashboardTheme.color.primary for a more refined look
 
 // ─── Analytics helper ──────────────────────────────────────────────────────────
 function fireEvent(name: string, params?: Record<string, string>) {
@@ -167,13 +167,13 @@ export function FeedbackWidget() {
             onClick={handleCTAClick}
             className="inline-flex items-center justify-center gap-1.5 font-semibold text-white hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity"
             style={{
-              background: brand.accent,
+              background: dashboardTheme.color.accent,
               height: '42px',
               padding: '0 16px',
               fontSize: '13px',
               borderRadius: '999px',
               letterSpacing: '0.01em',
-              outlineColor: brand.accent,
+              outlineColor: dashboardTheme.color.accent,
             }}
           >
             <ArrowRightIcon />
@@ -197,7 +197,7 @@ export function FeedbackWidget() {
             onClick={handleCTAClick}
             className="flex items-center justify-center gap-2 w-full font-semibold text-white hover:opacity-90 active:opacity-80"
             style={{
-              background: brand.accent,
+              background: dashboardTheme.color.accent,
               height: '52px',
               fontSize: '15px',
             }}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface SoftLockModalProps {
@@ -61,7 +61,7 @@ export function SoftLockModal({ user, onUnlock, onSignOut }: SoftLockModalProps)
             className="h-11 w-11 rounded-xl flex items-center justify-center mb-4"
             style={{ background: 'rgba(15,61,46,0.08)' }}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.primary} strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
@@ -95,7 +95,7 @@ export function SoftLockModal({ user, onUnlock, onSignOut }: SoftLockModalProps)
               type="submit"
               disabled={loading || !password}
               className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
-              style={{ background: brand.primary }}
+              style={{ background: dashboardTheme.color.primary }}
             >
               {loading ? 'Verifying…' : 'Unlock'}
             </button>

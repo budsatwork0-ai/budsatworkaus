@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type { ServiceType, Context, Frequency, CreateOrderInput } from '@/types/orders';
 import { SERVICE_TYPE_LABELS, FREQUENCY_LABELS } from '@/types/orders';
 
@@ -123,7 +123,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                     value={formData.customer_name}
                     onChange={(e) => handleChange('customer_name', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1"
-                    style={{ '--tw-ring-color': brand.primary } as React.CSSProperties}
+                    style={{ '--tw-ring-color': dashboardTheme.color.primary } as React.CSSProperties}
                     placeholder="Enter customer name"
                     required
                   />
@@ -281,7 +281,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }: CreateO
                   type="submit"
                   disabled={isSubmitting}
                   className="px-4 py-2 text-sm rounded-lg text-white disabled:opacity-50"
-                  style={{ background: brand.primary }}
+                  style={{ background: dashboardTheme.color.primary }}
                 >
                   {isSubmitting ? 'Creating...' : 'Create Order'}
                 </button>

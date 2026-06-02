@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface AccountButtonProps {
@@ -138,21 +138,21 @@ export function AccountButton({ onSignIn, inline }: AccountButtonProps) {
           <>
             <div
               className="h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-              style={{ background: brand.primary }}
+              style={{ background: dashboardTheme.color.primary }}
             >
               {initials}
             </div>
-            <span className="text-xs font-medium" style={{ color: brand.text }}>
+            <span className="text-xs font-medium" style={{ color: dashboardTheme.color.text }}>
               {firstName || 'Account'}
             </span>
           </>
         ) : (
           <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: brand.primary }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: dashboardTheme.color.primary }}>
               <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
-            <span className="text-xs font-semibold" style={{ color: brand.primary }}>Sign in</span>
+            <span className="text-xs font-semibold" style={{ color: dashboardTheme.color.primary }}>Sign in</span>
           </>
         )}
       </button>
@@ -170,7 +170,7 @@ export function AccountButton({ onSignIn, inline }: AccountButtonProps) {
             <div className="py-1">
               {/* Profile header */}
               <div className="px-4 py-3 border-b border-black/6">
-                <p className="text-[13px] font-semibold leading-tight" style={{ color: brand.text }}>
+                <p className="text-[13px] font-semibold leading-tight" style={{ color: dashboardTheme.color.text }}>
                   {fullName || firstName || 'My account'}
                 </p>
                 <p className="text-[11.5px] text-slate-400 mt-0.5 truncate">{user.email}</p>
@@ -188,7 +188,7 @@ export function AccountButton({ onSignIn, inline }: AccountButtonProps) {
                     href={href}
                     onClick={() => setOpen(false)}
                     className="flex items-center px-4 py-2.5 text-[13px] font-medium transition-colors hover:bg-black/4"
-                    style={{ color: brand.text }}
+                    style={{ color: dashboardTheme.color.text }}
                   >
                     {label}
                   </Link>
@@ -208,7 +208,7 @@ export function AccountButton({ onSignIn, inline }: AccountButtonProps) {
           ) : (
             /* ── Sign-in dropdown ── */
             <div className="px-5 pt-5 pb-4">
-              <p className="text-[15px] font-semibold leading-tight" style={{ color: brand.text }}>
+              <p className="text-[15px] font-semibold leading-tight" style={{ color: dashboardTheme.color.text }}>
                 Sign in to Buds at Work
               </p>
               <p className="mt-1 text-[12.5px] leading-snug text-slate-500">
@@ -258,7 +258,7 @@ export function AccountButton({ onSignIn, inline }: AccountButtonProps) {
                     type="submit"
                     disabled={loading}
                     className="w-full py-2 rounded-xl text-[13px] font-semibold text-white transition-all hover:opacity-95 active:scale-[0.99] disabled:opacity-50"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     {loading ? 'Signing in…' : 'Sign in'}
                   </button>

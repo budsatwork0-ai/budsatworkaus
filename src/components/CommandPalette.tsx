@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 interface CommandItem {
   id: string;
@@ -252,7 +252,7 @@ export default function CommandPalette({
                 className="flex-1 outline-none text-sm placeholder:text-slate-400 bg-transparent"
               />
               {searching && (
-                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: dashboardTheme.color.primary, borderTopColor: 'transparent' }} />
               )}
               <kbd className="px-2 py-1 text-[10px] font-medium text-slate-400 bg-slate-100 rounded">ESC</kbd>
             </div>
@@ -285,7 +285,7 @@ export default function CommandPalette({
                           >
                             <div
                               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-                              style={{ background: globalIdx === selectedIndex ? brand.primary : '#f1f5f9', color: globalIdx === selectedIndex ? 'white' : brand.primary }}
+                              style={{ background: globalIdx === selectedIndex ? dashboardTheme.color.primary : '#f1f5f9', color: globalIdx === selectedIndex ? 'white' : dashboardTheme.color.primary }}
                             >
                               {item.icon}
                             </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 interface SessionWarningModalProps {
   onStaySignedIn: () => void;
@@ -36,7 +36,7 @@ export function SessionWarningModal({ onStaySignedIn }: SessionWarningModalProps
             className="h-1 transition-all duration-1000"
             style={{
               width: `${(seconds / COUNTDOWN_S) * 100}%`,
-              background: seconds > 20 ? brand.primary : '#ef4444',
+              background: seconds > 20 ? dashboardTheme.color.primary : '#ef4444',
             }}
           />
         </div>
@@ -47,7 +47,7 @@ export function SessionWarningModal({ onStaySignedIn }: SessionWarningModalProps
             className="h-11 w-11 rounded-xl flex items-center justify-center mb-4"
             style={{ background: 'rgba(15,61,46,0.08)' }}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={brand.primary} strokeWidth="2">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.primary} strokeWidth="2">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 6v6l4 2" />
             </svg>
@@ -58,7 +58,7 @@ export function SessionWarningModal({ onStaySignedIn }: SessionWarningModalProps
           </h2>
           <p className="text-sm text-slate-500 mb-5">
             Your session will lock in{' '}
-            <span className="font-semibold" style={{ color: seconds <= 20 ? '#ef4444' : brand.primary }}>
+            <span className="font-semibold" style={{ color: seconds <= 20 ? '#ef4444' : dashboardTheme.color.primary }}>
               {seconds}s
             </span>{' '}
             due to inactivity. Your progress is saved.
@@ -67,7 +67,7 @@ export function SessionWarningModal({ onStaySignedIn }: SessionWarningModalProps
           <button
             onClick={onStaySignedIn}
             className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             Stay signed in
           </button>
