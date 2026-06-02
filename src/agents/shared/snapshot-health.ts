@@ -4,7 +4,7 @@
  * preventing false-green snapshots from masking real pipeline failures.
  */
 
-import type { DegradedSignalEntry } from './degraded-signal';
+import type { DegradedSignalEntry } from '@/agents/shared/degraded-signal';
 
 export interface SnapshotHealthInput {
   ux_proposals: unknown[];
