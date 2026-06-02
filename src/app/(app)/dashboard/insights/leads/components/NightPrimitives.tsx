@@ -10,7 +10,8 @@
 
 import { motion } from 'framer-motion';
 import { ReactNode } from 'react';
-import { cx, night, nightChip, nightDivider, nightPanel, tempTone } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
+import { cx } from '@/app/ui/theme';
 import type { LeadSource, LeadTemperature } from '../lib/types';
 
 // ---- Panel --------------------------------------------------------------
@@ -32,14 +33,14 @@ export function NightPanel({
 }) {
   const padCls = pad === 'sm' ? 'p-4' : pad === 'lg' ? 'p-7' : 'p-5';
   return (
-    <section className={cx(nightPanel, padCls, className)}>
+    <section className={cx(dashboardTheme.night!.panel, padCls, className)}>
       {(title || right) && (
         <header className="mb-4 flex items-start justify-between gap-3">
           <div>
             {title ? <h3 className="text-sm font-semibold tracking-tight text-white">{title}</h3> : null}
-            {subtitle ? <p className="mt-0.5 text-xs leading-5 text-[color:var(--night-muted)]" style={{ color: night.muted }}>{subtitle}</p> : null}
+            {subtitle ? <p className="mt-0.5 text-xs leading-5 text-[color:var(--night-muted)]" style={{ color: dashboardTheme.night!.color.muted }}>{subtitle}</p> : null}
           </div>
-          {right ? <div className="text-[11px] font-medium text-[color:var(--night-muted)]" style={{ color: night.muted }}>{right}</div> : null}
+          {right ? <div className="text-[11px] font-medium text-[color:var(--night-muted)]" style={{ color: dashboardTheme.night!.color.muted }}>{right}</div> : null}
         </header>
       )}
       {children}
@@ -50,7 +51,7 @@ export function NightPanel({
 // ---- Divider ------------------------------------------------------------
 
 export function NightDivider({ className = '' }: { className?: string }) {
-  return <div className={cx(nightDivider, className)} />;
+  return <div className={cx(dashboardTheme.night!.divider, className)} />;
 }
 
 // ---- Chip ---------------------------------------------------------------
@@ -65,7 +66,7 @@ export function NightChip({
   className?: string;
 }) {
   if (tone === 'neutral') {
-    return <span className={cx(nightChip, className)}>{children}</span>;
+    return <span className={cx(dashboardTheme.night!.chip, className)}>{children}</span>;
   }
 
   if (tone === 'accent') {
@@ -84,7 +85,7 @@ export function NightChip({
   }
 
   const upper = tone.toUpperCase() as LeadTemperature;
-  const t = tempTone[upper];
+  const t = dashboardTheme.night!.tempTone[upper];
   return (
     <span
       className={cx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold', className)}
@@ -106,7 +107,7 @@ export function TemperatureBadge({
   pulse?: boolean;
   size?: 'sm' | 'md';
 }) {
-  const t = tempTone[temperature];
+  const t = dashboardTheme.night!.tempTone[temperature];
   const dim = size === 'sm' ? 'h-2 w-2' : 'h-2.5 w-2.5';
   const textCls = size === 'sm' ? 'text-[10px]' : 'text-[11px]';
   return (
@@ -166,9 +167,9 @@ export function SourceTag({ source, className = '' }: { source: LeadSource; clas
         'inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium',
         className
       )}
-      style={{ color: night.muted }}
+      style={{ color: dashboardTheme.night!.color.muted }}
     >
-      <span aria-hidden style={{ color: night.accent }}>{SOURCE_GLYPH[source]}</span>
+      <span aria-hidden style={{ color: dashboardTheme.night!.color.accent }}>{SOURCE_GLYPH[source]}</span>
       {SOURCE_LABEL[source]}
     </span>
   );
@@ -190,13 +191,13 @@ export function NightStat({
   size?: 'sm' | 'md' | 'lg';
 }) {
   const toneColor =
-    tone === 'accent' ? '#7CE0B0' : tone === 'warning' ? '#FFD089' : tone === 'critical' ? '#FF8A78' : night.text;
+    tone === 'accent' ? '#7CE0B0' : tone === 'warning' ? '#FFD089' : tone === 'critical' ? '#FF8A78' : dashboardTheme.night!.color.text;
   const valueSize = size === 'lg' ? 'text-3xl' : size === 'sm' ? 'text-base' : 'text-2xl';
   return (
     <div>
-      <p className="text-[10px] font-medium uppercase tracking-[0.18em]" style={{ color: night.subtle }}>{label}</p>
+      <p className="text-[10px] font-medium uppercase tracking-[0.18em]" style={{ color: dashboardTheme.night!.color.subtle }}>{label}</p>
       <p className={cx('mt-2 font-semibold tracking-tight', valueSize)} style={{ color: toneColor }}>{value}</p>
-      {hint ? <p className="mt-1 text-[11px]" style={{ color: night.muted }}>{hint}</p> : null}
+      {hint ? <p className="mt-1 text-[11px]" style={{ color: dashboardTheme.night!.color.muted }}>{hint}</p> : null}
     </div>
   );
 }
@@ -215,11 +216,11 @@ export function NightEmpty({
   return (
     <div
       className="flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-10 text-center"
-      style={{ borderColor: night.border, background: 'rgba(255,255,255,0.015)' }}
+      style={{ borderColor: dashboardTheme.night!.color.border, background: 'rgba(255,255,255,0.015)' }}
     >
-      {icon ? <div className="mb-3" style={{ color: night.subtle }}>{icon}</div> : null}
-      <p className="text-sm font-semibold" style={{ color: night.text }}>{title}</p>
-      {detail ? <p className="mt-1.5 max-w-sm text-xs leading-5" style={{ color: night.muted }}>{detail}</p> : null}
+      {icon ? <div className="mb-3" style={{ color: dashboardTheme.night!.color.subtle }}>{icon}</div> : null}
+      <p className="text-sm font-semibold" style={{ color: dashboardTheme.night!.color.text }}>{title}</p>
+      {detail ? <p className="mt-1.5 max-w-sm text-xs leading-5" style={{ color: dashboardTheme.night!.color.muted }}>{detail}</p> : null}
     </div>
   );
 }
@@ -227,7 +228,7 @@ export function NightEmpty({
 // ---- Pulse dot (for HOT rows) -------------------------------------------
 
 export function PulseDot({ tone = 'hot' as 'hot' | 'warm' }: { tone?: 'hot' | 'warm' }) {
-  const color = tone === 'hot' ? night.hot : night.warm;
+  const color = tone === 'hot' ? dashboardTheme.night!.color.hot : dashboardTheme.night!.color.warm;
   return (
     <span className="relative inline-flex h-2 w-2">
       <motion.span

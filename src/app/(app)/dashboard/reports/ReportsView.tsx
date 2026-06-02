@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { exportCsv, formatCurrency, type CsvColumn } from '@/lib/dashboard/utils';
 import type { DashboardData, DashboardMetrics } from '@/types/dashboard';
 
@@ -15,7 +15,7 @@ const TREND_ICON: Record<string, { symbol: string; color: string }> = {
 
 function Skeleton() {
   return (
-    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: brand.border, background: brand.card }}>
+    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
       <div className="h-4 w-32 bg-slate-200 rounded mb-3" />
       <div className="space-y-2">
         {[1, 2, 3].map(i => (
@@ -42,21 +42,21 @@ function ReportCard({
   onExport?: () => void;
 }) {
   return (
-    <div className={`${glass} rounded-2xl p-4`} style={{ borderColor: brand.border, background: brand.card }}>
+    <div className={`${glass} rounded-2xl p-4`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="font-semibold" style={{ color: brand.text }}>{title}</div>
-          <div className="text-xs" style={{ color: brand.muted }}>{description}</div>
+          <div className="font-semibold" style={{ color: dashboardTheme.color.text }}>{title}</div>
+          <div className="text-xs" style={{ color: dashboardTheme.color.muted }}>{description}</div>
         </div>
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">{period}</span>
       </div>
 
       <div className="space-y-2">
         {metrics.map(m => (
-          <div key={m.label} className="flex items-center justify-between rounded-lg border p-2" style={{ borderColor: brand.border, background: '#fff' }}>
-            <span className="text-sm" style={{ color: brand.muted }}>{m.label}</span>
+          <div key={m.label} className="flex items-center justify-between rounded-lg border p-2" style={{ borderColor: dashboardTheme.color.border, background: '#fff' }}>
+            <span className="text-sm" style={{ color: dashboardTheme.color.muted }}>{m.label}</span>
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold" style={{ color: brand.text }}>{m.value}</span>
+              <span className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{m.value}</span>
               {m.trend && (
                 <span className="text-xs font-medium" style={{ color: TREND_ICON[m.trend].color }}>
                   {TREND_ICON[m.trend].symbol}
@@ -71,7 +71,7 @@ function ReportCard({
         <button
           onClick={onExport}
           className="mt-3 w-full text-xs py-2 rounded-lg border transition hover:bg-white"
-          style={{ borderColor: brand.border, color: brand.primary }}
+          style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
         >
           Export CSV
         </button>
@@ -181,10 +181,10 @@ export function ReportsView({ metrics: providedMetrics, crewCount: providedCrewC
   ];
 
   return (
-    <div className={embedded ? 'space-y-4' : 'min-h-screen'} style={embedded ? undefined : { background: brand.bg }}>
+    <div className={embedded ? 'space-y-4' : 'min-h-screen'} style={embedded ? undefined : { background: dashboardTheme.color.bg }}>
       <div className="mb-6">
-        <h1 className={embedded ? 'text-xl md:text-2xl font-bold' : 'text-2xl md:text-3xl font-bold'} style={{ color: brand.primary }}>Reports</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>
+        <h1 className={embedded ? 'text-xl md:text-2xl font-bold' : 'text-2xl md:text-3xl font-bold'} style={{ color: dashboardTheme.color.primary }}>Reports</h1>
+        <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
           Performance, revenue, and compliance snapshots.
         </p>
       </div>

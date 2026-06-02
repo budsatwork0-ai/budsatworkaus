@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode, useCallback } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import {
   statusStyles,
   jobStatusLabels,
@@ -64,7 +64,7 @@ export const SummaryCard = ({
       <div className="h-9 w-28 mt-1.5 bg-slate-100 rounded animate-pulse" />
     ) : (
       <div className="flex items-baseline gap-2 mt-1.5">
-        <div className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: brand.primary }}>{value}</div>
+        <div className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>{value}</div>
         {change && (
           <div
             className={`flex items-center gap-0.5 text-xs font-medium ${
@@ -82,7 +82,7 @@ export const SummaryCard = ({
       <button
         type="button"
         className="mt-2 sm:mt-3 text-[11px] sm:text-xs font-semibold hover:text-slate-900 underline decoration-slate-200"
-        style={{ color: brand.primary }}
+        style={{ color: dashboardTheme.color.primary }}
       >
         View {viewLabel} →
       </button>
@@ -107,7 +107,7 @@ export const Panel = ({
   <section className={`rounded-[22px] border border-black/5 bg-white px-5 py-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)] ${className}`}>
     <div className="flex items-start gap-3">
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold" style={{ color: brand.primary }}>
+        <h3 className="text-sm font-semibold" style={{ color: dashboardTheme.color.primary }}>
           {title}
         </h3>
         {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
@@ -122,7 +122,7 @@ export const Panel = ({
 export const StatRow = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-center justify-between rounded-xl border border-black/5 bg-white px-3.5 py-2.5 text-sm">
     <span className="text-xs text-slate-500">{label}</span>
-    <span className="font-semibold" style={{ color: brand.primary }}>{value}</span>
+    <span className="font-semibold" style={{ color: dashboardTheme.color.primary }}>{value}</span>
   </div>
 );
 
@@ -219,7 +219,7 @@ export const Pagination = ({
                   ? 'text-white'
                   : 'text-slate-600 bg-white border border-slate-200 hover:bg-slate-50'
               }`}
-              style={p === currentPage ? { background: brand.primary } : undefined}
+              style={p === currentPage ? { background: dashboardTheme.color.primary } : undefined}
             >
               {p}
             </button>

@@ -18,7 +18,8 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { cx, night, nightSurface } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
+import { cx } from '@/app/ui/theme';
 import { useDashboardData } from '../../hooks/useDashboardData';
 import { LiveLeadsFeed } from './components/LiveLeadsFeed';
 import { NeedsAttentionPanel } from './components/NeedsAttentionPanel';
@@ -76,8 +77,8 @@ export default function BudLeadsWorkspace() {
 
   return (
     <div
-      className={cx(nightSurface, 'rounded-[28px] border overflow-hidden')}
-      style={{ borderColor: night.border, background: night.bg }}
+      className={cx(dashboardTheme.night!.surface, 'rounded-[28px] border overflow-hidden')}
+      style={{ borderColor: dashboardTheme.night!.color.border, background: dashboardTheme.night!.color.bg }}
     >
       {/* Top bar */}
       <header className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-6">
@@ -86,15 +87,15 @@ export default function BudLeadsWorkspace() {
             <PulseDot tone={hotCount > 0 ? 'hot' : 'warm'} />
             <p
               className="text-[10px] font-semibold uppercase tracking-[0.24em]"
-              style={{ color: night.accent }}
+              style={{ color: dashboardTheme.night!.color.accent }}
             >
               Bud Leads · Mission Control
             </p>
           </div>
-          <h2 className="mt-1.5 text-2xl font-semibold tracking-tight" style={{ color: night.text }}>
+          <h2 className="mt-1.5 text-2xl font-semibold tracking-tight" style={{ color: dashboardTheme.night!.color.text }}>
             Every lead. Every signal. Every action.
           </h2>
-          <p className="mt-1 max-w-2xl text-sm" style={{ color: night.muted }}>
+          <p className="mt-1 max-w-2xl text-sm" style={{ color: dashboardTheme.night!.color.muted }}>
             Hot leads pulse. Cold ones surface for follow-up. The funnel and response panels show exactly where the next booked job is hiding.
           </p>
         </div>
@@ -109,7 +110,7 @@ export default function BudLeadsWorkspace() {
       </header>
 
       {/* Subtle divider — ties header to grid below without a hard line */}
-      <div className="mx-5 sm:mx-7" style={{ borderTop: `1px solid ${night.border}` }} />
+      <div className="mx-5 sm:mx-7" style={{ borderTop: `1px solid ${dashboardTheme.night!.color.border}` }} />
 
       {/* Body grid */}
       <div className="grid gap-5 p-5 sm:p-7">
@@ -181,10 +182,10 @@ function HeaderKpi({
   wide?: boolean;
 }) {
   const color =
-    tone === 'hot' ? night.hot
-    : tone === 'warm' ? night.warm
+    tone === 'hot' ? dashboardTheme.night!.color.hot
+    : tone === 'warm' ? dashboardTheme.night!.color.warm
     : tone === 'accent' ? '#7CE0B0'
-    : night.text;
+    : dashboardTheme.night!.color.text;
 
   return (
     <div
@@ -194,11 +195,11 @@ function HeaderKpi({
       )}
       style={{
         background: 'rgba(255,255,255,0.025)',
-        borderColor: pulse ? 'rgba(255,90,69,0.35)' : night.border,
-        boxShadow: pulse ? `0 0 24px ${night.hot}33` : undefined,
+        borderColor: pulse ? 'rgba(255,90,69,0.35)' : dashboardTheme.night!.color.border,
+        boxShadow: pulse ? `0 0 24px ${dashboardTheme.night!.color.hot}33` : undefined,
       }}
     >
-      <p className="text-[10px] uppercase tracking-[0.18em]" style={{ color: night.subtle }}>{label}</p>
+      <p className="text-[10px] uppercase tracking-[0.18em]" style={{ color: dashboardTheme.night!.color.subtle }}>{label}</p>
       <p className="mt-1.5 text-xl font-semibold tabular-nums" style={{ color }}>{value}</p>
     </div>
   );
@@ -224,7 +225,7 @@ function SkeletonBlock({ height }: { height: number }) {
   return (
     <div
       className="overflow-hidden rounded-2xl border"
-      style={{ height, borderColor: night.border, background: 'rgba(255,255,255,0.02)' }}
+      style={{ height, borderColor: dashboardTheme.night!.color.border, background: 'rgba(255,255,255,0.02)' }}
     >
       <motion.div
         initial={{ x: '-100%' }}
@@ -232,7 +233,7 @@ function SkeletonBlock({ height }: { height: number }) {
         transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
         className="h-full w-1/2"
         style={{
-          background: `linear-gradient(90deg, transparent, ${night.border}, transparent)`,
+          background: `linear-gradient(90deg, transparent, ${dashboardTheme.night!.color.border}, transparent)`,
         }}
       />
     </div>

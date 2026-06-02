@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { WorkbenchHeader, WorkbenchQueue, WorkbenchStatGrid, WorkbenchTabs } from '../components/Workbench';
 import { useTabbedNav } from '../hooks/useTabbedNav';
 
@@ -212,7 +212,7 @@ function CustomerPageContent() {
           <button
             onClick={() => setCreateOpen(true)}
             className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             + Add Customer
           </button>
@@ -230,7 +230,7 @@ function CustomerPageContent() {
       <section className={`${glass} p-5`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold" style={{ color: brand.primary }}>
+            <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.primary }}>
               {viewCopy[view].title}
             </h2>
             <p className="mt-1 text-sm text-slate-500">{viewCopy[view].description}</p>
@@ -245,7 +245,7 @@ function CustomerPageContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border px-4 py-2.5 text-sm text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none"
-              style={{ borderColor: brand.border }}
+              style={{ borderColor: dashboardTheme.color.border }}
             />
           </div>
         </div>
@@ -259,7 +259,7 @@ function CustomerPageContent() {
           <div className="mt-5 space-y-2">{[1, 2, 3, 4, 5].map((n) => <div key={n} className="h-14 rounded-xl bg-white/50 animate-pulse" />)}</div>
         ) : visibleCustomers.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-black/10 bg-white/60 p-8 text-center">
-            <p className="text-sm" style={{ color: brand.muted }}>No customers match this view right now.</p>
+            <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>No customers match this view right now.</p>
           </div>
         ) : (
           <>
@@ -268,8 +268,8 @@ function CustomerPageContent() {
                 <div key={customer.id} className={`${glass} p-4`} onClick={() => setSelected(customer)}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-sm" style={{ color: brand.text }}>{customer.full_name}</p>
-                      <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{customer.email || customer.phone || 'No contact'}</p>
+                      <p className="font-semibold text-sm" style={{ color: dashboardTheme.color.text }}>{customer.full_name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>{customer.email || customer.phone || 'No contact'}</p>
                     </div>
                     {(!customer.email && !customer.phone) || !customer.default_address ? (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
@@ -277,7 +277,7 @@ function CustomerPageContent() {
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-[11px] mt-2" style={{ color: brand.muted }}>{customer.region || 'No region set'}</p>
+                  <p className="text-[11px] mt-2" style={{ color: dashboardTheme.color.muted }}>{customer.region || 'No region set'}</p>
                 </div>
               ))}
             </div>
@@ -377,7 +377,7 @@ function CustomerPageContent() {
                     value={form.full_name}
                     onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                     className="w-full rounded-xl border px-4 py-2 text-sm"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                     placeholder="John Smith"
                   />
                 </div>
@@ -389,7 +389,7 @@ function CustomerPageContent() {
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       className="w-full rounded-xl border px-4 py-2 text-sm"
-                      style={{ borderColor: brand.border }}
+                      style={{ borderColor: dashboardTheme.color.border }}
                       placeholder="john@email.com"
                     />
                   </div>
@@ -400,7 +400,7 @@ function CustomerPageContent() {
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       className="w-full rounded-xl border px-4 py-2 text-sm"
-                      style={{ borderColor: brand.border }}
+                      style={{ borderColor: dashboardTheme.color.border }}
                       placeholder="0412 345 678"
                     />
                   </div>
@@ -412,7 +412,7 @@ function CustomerPageContent() {
                     value={form.region}
                     onChange={(e) => setForm({ ...form, region: e.target.value })}
                     className="w-full rounded-xl border px-4 py-2 text-sm"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                     placeholder="Logan, Brisbane South"
                   />
                 </div>
@@ -423,7 +423,7 @@ function CustomerPageContent() {
                     value={form.default_address}
                     onChange={(e) => setForm({ ...form, default_address: e.target.value })}
                     className="w-full rounded-xl border px-4 py-2 text-sm"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                     placeholder="123 Main Street, Logan QLD 4114"
                   />
                 </div>
@@ -439,7 +439,7 @@ function CustomerPageContent() {
                   onClick={handleCreate}
                   disabled={creating}
                   className="flex-1 px-4 py-2 text-sm rounded-lg text-white disabled:opacity-50"
-                  style={{ background: brand.primary }}
+                  style={{ background: dashboardTheme.color.primary }}
                 >
                   {creating ? 'Creating...' : 'Create Customer'}
                 </button>

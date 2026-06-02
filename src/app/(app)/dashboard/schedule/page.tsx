@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { useDashboardData } from '../hooks/useDashboardData';
 import JobsTab from '../components/tabs/JobsTab';
 import DayScheduler from '../components/DayScheduler';
@@ -199,12 +199,12 @@ function SchedulePageContent() {
       {/* ── Unified toolbar ── */}
       <div
         className="flex items-center gap-2 px-3 py-2 rounded-xl"
-        style={{ background: 'white', border: `1px solid ${brand.border}` }}
+        style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }}
       >
         {/* View toggle */}
         <div
           className="inline-flex p-0.5 rounded-lg gap-0.5"
-          style={{ background: brand.surfaceAlt, border: `1px solid ${brand.border}` }}
+          style={{ background: dashboardTheme.color.surfaceAlt, border: `1px solid ${dashboardTheme.color.border}` }}
         >
           {([
             ['day', 'Day', <DayIcon key="d" />],
@@ -218,8 +218,8 @@ function SchedulePageContent() {
                 onClick={() => setViewNav(key as View)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
                 style={active
-                  ? { background: brand.primary, color: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
-                  : { color: brand.muted }
+                  ? { background: dashboardTheme.color.primary, color: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+                  : { color: dashboardTheme.color.muted }
                 }
               >
                 {icon}{label}
@@ -229,7 +229,7 @@ function SchedulePageContent() {
         </div>
 
         {/* Divider */}
-        <div className="w-px h-4 rounded-full" style={{ background: brand.border }} />
+        <div className="w-px h-4 rounded-full" style={{ background: dashboardTheme.color.border }} />
 
         {/* Day navigation */}
         {view === 'day' && (
@@ -237,13 +237,13 @@ function SchedulePageContent() {
             <button
               onClick={prevDay}
               className="w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-black/5"
-              style={{ color: brand.muted }}
+              style={{ color: dashboardTheme.color.muted }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
 
             <label className="flex items-center gap-1.5 cursor-pointer group px-2 py-1 rounded-md hover:bg-black/5 transition-colors select-none">
-              <span className="text-sm font-semibold" style={{ color: brand.text }}>{dayLabel}</span>
+              <span className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{dayLabel}</span>
               <svg className="opacity-25 group-hover:opacity-50 transition-opacity shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
@@ -253,7 +253,7 @@ function SchedulePageContent() {
             <button
               onClick={nextDay}
               className="w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-black/5"
-              style={{ color: brand.muted }}
+              style={{ color: dashboardTheme.color.muted }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
@@ -262,7 +262,7 @@ function SchedulePageContent() {
               <button
                 onClick={() => handleDateChange(today)}
                 className="ml-1 px-2.5 py-1 rounded-md text-[11px] font-semibold"
-                style={{ background: brand.primary, color: 'white' }}
+                style={{ background: dashboardTheme.color.primary, color: 'white' }}
               >
                 Today
               </button>
@@ -276,15 +276,15 @@ function SchedulePageContent() {
             <button
               onClick={() => setWeekOffset((w) => w - 1)}
               className="w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-black/5"
-              style={{ color: brand.muted }}
+              style={{ color: dashboardTheme.color.muted }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <span className="text-sm font-semibold px-2" style={{ color: brand.text }}>{weekLabel}</span>
+            <span className="text-sm font-semibold px-2" style={{ color: dashboardTheme.color.text }}>{weekLabel}</span>
             <button
               onClick={() => setWeekOffset((w) => w + 1)}
               className="w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-black/5"
-              style={{ color: brand.muted }}
+              style={{ color: dashboardTheme.color.muted }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
@@ -292,7 +292,7 @@ function SchedulePageContent() {
               <button
                 onClick={() => setWeekOffset(0)}
                 className="ml-1 px-2.5 py-1 rounded-md text-[11px] font-semibold"
-                style={{ background: brand.primary, color: 'white' }}
+                style={{ background: dashboardTheme.color.primary, color: 'white' }}
               >
                 Today
               </button>
@@ -334,7 +334,7 @@ function SchedulePageContent() {
             {weekLoading ? (
               <div className="grid grid-cols-7 gap-1.5">
                 {DAYS.map((d) => (
-                  <div key={d} className="h-48 rounded-xl animate-pulse" style={{ background: brand.surfaceAlt }} />
+                  <div key={d} className="h-48 rounded-xl animate-pulse" style={{ background: dashboardTheme.color.surfaceAlt }} />
                 ))}
               </div>
             ) : (
@@ -348,8 +348,8 @@ function SchedulePageContent() {
                       key={dateStr}
                       className="rounded-xl p-2.5 min-h-[180px] cursor-pointer transition-shadow hover:shadow-sm group"
                       style={isToday
-                        ? { background: 'white', border: `2px solid ${brand.primary}` }
-                        : { background: 'white', border: `1px solid ${brand.border}` }
+                        ? { background: 'white', border: `2px solid ${dashboardTheme.color.primary}` }
+                        : { background: 'white', border: `1px solid ${dashboardTheme.color.border}` }
                       }
                       onClick={() => { handleDateChange(dateStr); }}
                     >
@@ -357,15 +357,15 @@ function SchedulePageContent() {
                       <div className="flex items-center justify-between mb-2">
                         <span
                           className="text-[10px] font-bold uppercase tracking-wider"
-                          style={{ color: isToday ? brand.primary : brand.muted }}
+                          style={{ color: isToday ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
                         >
                           {DAYS[i]}
                         </span>
                         <span
                           className="text-xs font-bold tabular-nums w-5 h-5 flex items-center justify-center rounded-full"
                           style={isToday
-                            ? { background: brand.primary, color: 'white' }
-                            : { color: brand.text }
+                            ? { background: dashboardTheme.color.primary, color: 'white' }
+                            : { color: dashboardTheme.color.text }
                           }
                         >
                           {wDate.getDate()}
@@ -392,20 +392,20 @@ function SchedulePageContent() {
                               className="flex items-center gap-1.5 py-0.5 px-1 rounded-md hover:bg-black/5 transition-colors"
                             >
                               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
-                              <p className="text-[10px] truncate leading-snug flex-1" style={{ color: brand.text }}>
+                              <p className="text-[10px] truncate leading-snug flex-1" style={{ color: dashboardTheme.color.text }}>
                                 {order.customer_name}
                               </p>
                               {timeLabel && (
-                                <span className="text-[9px] tabular-nums shrink-0" style={{ color: brand.muted }}>{timeLabel}</span>
+                                <span className="text-[9px] tabular-nums shrink-0" style={{ color: dashboardTheme.color.muted }}>{timeLabel}</span>
                               )}
                             </Link>
                           );
                         })}
                         {dayOrders.length > 5 && (
-                          <p className="text-[10px] px-1" style={{ color: brand.muted }}>+{dayOrders.length - 5} more</p>
+                          <p className="text-[10px] px-1" style={{ color: dashboardTheme.color.muted }}>+{dayOrders.length - 5} more</p>
                         )}
                         {dayOrders.length === 0 && (
-                          <p className="text-[10px] text-center py-5" style={{ color: `${brand.muted}50` }}>—</p>
+                          <p className="text-[10px] text-center py-5" style={{ color: `${dashboardTheme.color.muted}50` }}>—</p>
                         )}
                       </div>
                     </div>
@@ -418,15 +418,15 @@ function SchedulePageContent() {
           {/* Queue panel */}
           <div
             className="w-56 shrink-0 rounded-xl overflow-hidden"
-            style={{ border: `1px solid ${brand.border}`, background: 'white' }}
+            style={{ border: `1px solid ${dashboardTheme.color.border}`, background: 'white' }}
           >
             <div
               className="px-3.5 py-2.5 border-b flex items-center justify-between"
-              style={{ borderColor: brand.border, background: brand.surfaceAlt }}
+              style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surfaceAlt }}
             >
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brand.muted }}>Queue</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: dashboardTheme.color.muted }}>Queue</span>
               {unscheduled.length > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${dashboardTheme.color.primary}15`, color: dashboardTheme.color.primary }}>
                   {unscheduled.length}
                 </span>
               )}
@@ -434,10 +434,10 @@ function SchedulePageContent() {
 
             {unscheduled.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: brand.surfaceAlt }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: dashboardTheme.color.surfaceAlt }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.muted} strokeWidth="1.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
-                <p className="text-xs font-medium" style={{ color: brand.muted }}>All caught up</p>
+                <p className="text-xs font-medium" style={{ color: dashboardTheme.color.muted }}>All caught up</p>
               </div>
             ) : (
               <div className="p-2 space-y-1.5 max-h-96 overflow-y-auto">
@@ -448,16 +448,16 @@ function SchedulePageContent() {
                     <div
                       key={job.id}
                       className="rounded-lg px-2.5 py-2"
-                      style={{ background: brand.bg, border: `1px solid ${brand.border}` }}
+                      style={{ background: dashboardTheme.color.bg, border: `1px solid ${dashboardTheme.color.border}` }}
                     >
                       <div className="flex items-start justify-between gap-1 mb-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-0.5" style={{ background: color }} />
                           <span className="text-[9px] font-bold uppercase tracking-wide truncate" style={{ color }}>{job.service}</span>
                         </div>
-                        <span className="text-[11px] font-semibold shrink-0 tabular-nums" style={{ color: brand.text }}>${job.amount.toFixed(0)}</span>
+                        <span className="text-[11px] font-semibold shrink-0 tabular-nums" style={{ color: dashboardTheme.color.text }}>${job.amount.toFixed(0)}</span>
                       </div>
-                      <p className="text-xs font-medium truncate" style={{ color: brand.text }}>{job.customer}</p>
+                      <p className="text-xs font-medium truncate" style={{ color: dashboardTheme.color.text }}>{job.customer}</p>
                       <div className="mt-2 flex gap-1.5">
                         <button
                           className="text-[10px] font-medium px-1.5 py-0.5 rounded border"
@@ -469,7 +469,7 @@ function SchedulePageContent() {
                         </button>
                         <button
                           className="text-[10px] font-medium px-1.5 py-0.5 rounded border"
-                          style={{ color: brand.primary, borderColor: brand.border, background: 'white' }}
+                          style={{ color: dashboardTheme.color.primary, borderColor: dashboardTheme.color.border, background: 'white' }}
                           onClick={() => handleDateChange(today)}
                         >
                           Schedule
@@ -490,10 +490,10 @@ function SchedulePageContent() {
 function ScheduleSkeleton() {
   return (
     <div className="flex flex-col gap-4 animate-pulse">
-      <div className="h-11 rounded-xl" style={{ background: 'white', border: `1px solid ${brand.border}` }} />
+      <div className="h-11 rounded-xl" style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }} />
       <div className="flex gap-3">
-        <div className="flex-1 h-[480px] rounded-xl" style={{ background: 'white', border: `1px solid ${brand.border}` }} />
-        <div className="w-56 h-[480px] rounded-xl" style={{ background: 'white', border: `1px solid ${brand.border}` }} />
+        <div className="flex-1 h-[480px] rounded-xl" style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }} />
+        <div className="w-56 h-[480px] rounded-xl" style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }} />
       </div>
     </div>
   );

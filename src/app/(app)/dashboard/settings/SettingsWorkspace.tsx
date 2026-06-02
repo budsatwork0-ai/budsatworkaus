@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import AuditLogPage from '../audit-log/page';
 import FeedbackPage from '../feedback/page';
 import { WorkbenchHeader, WorkbenchQueue, WorkbenchStatGrid, WorkbenchTabs } from '../components/Workbench';
@@ -392,7 +392,7 @@ function ToggleSwitch({
       >
         <span
           className={`h-5 w-5 rounded-full transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
-          style={{ background: checked ? brand.primary : '#94A3B8' }}
+          style={{ background: checked ? dashboardTheme.color.primary : '#94A3B8' }}
         />
       </button>
     </label>
@@ -413,11 +413,11 @@ function SettingsCard({
   return (
     <section className="rounded-2xl border border-black/5 bg-white/90 p-6 shadow-sm">
       <div className="mb-6 flex items-start gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${dashboardTheme.color.primary}15`, color: dashboardTheme.color.primary }}>
           {icon}
         </div>
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: brand.text }}>{title}</h2>
+          <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.text }}>{title}</h2>
           <p className="text-sm text-slate-600">{description}</p>
         </div>
       </div>
@@ -495,7 +495,7 @@ function SaveBar({
           onClick={onSave}
           disabled={!dirty || saving}
           className="rounded-full px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           {saving ? 'Saving...' : saveLabel}
         </button>
@@ -1015,7 +1015,7 @@ export default function SettingsWorkspace() {
                       {accountProfile.avatarUrl ? (
                         <img src={accountProfile.avatarUrl} alt={accountProfile.fullName || 'Profile'} className="h-24 w-24 rounded-full border border-slate-200 object-cover" />
                       ) : (
-                        <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-semibold" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+                        <div className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-semibold" style={{ background: `${dashboardTheme.color.primary}15`, color: dashboardTheme.color.primary }}>
                           {(accountProfile.fullName || accountProfile.email || 'U').charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -1139,7 +1139,7 @@ export default function SettingsWorkspace() {
                     onClick={() => void handleChangeEmail()}
                     disabled={!security.newEmail.trim() || security.busy === 'email'}
                     className="rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     {security.busy === 'email' ? 'Requesting...' : 'Change Email'}
                   </button>
@@ -1175,7 +1175,7 @@ export default function SettingsWorkspace() {
                       onClick={() => void handleChangePassword()}
                       disabled={!security.newPassword || passwordMismatch || security.busy === 'password'}
                       className="rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                      style={{ background: brand.primary }}
+                      style={{ background: dashboardTheme.color.primary }}
                     >
                       {security.busy === 'password' ? 'Updating...' : 'Change Password'}
                     </button>
@@ -1858,7 +1858,7 @@ export default function SettingsWorkspace() {
                   type="button"
                   onClick={() => navigate(location.group, panel.key)}
                   className="w-full rounded-xl px-4 py-3 text-left transition"
-                  style={active ? { background: brand.primary, color: '#fff' } : { background: '#fff', color: brand.muted }}
+                  style={active ? { background: dashboardTheme.color.primary, color: '#fff' } : { background: '#fff', color: dashboardTheme.color.muted }}
                 >
                   <div className="text-sm font-semibold">{panel.label}</div>
                   <div className={`mt-1 text-xs ${active ? 'text-white/80' : 'text-slate-500'}`}>{panel.description}</div>

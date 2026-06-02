@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency } from '@/lib/dashboard/utils';
 import { Panel, ArrowUpIcon, ArrowDownIcon } from '../shared';
 
@@ -43,7 +43,7 @@ type VisitorEvent = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACTIVE_THRESHOLD_MS = 5 * 60 * 1000;
-const BRAND = brand.primary as string;
+const BRAND = dashboardTheme.color.primary as string;
 const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316'];
 
 // Conversion funnel pages (order matters — top of funnel first)

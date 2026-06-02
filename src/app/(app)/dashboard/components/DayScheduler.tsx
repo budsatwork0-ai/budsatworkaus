@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 // ── Hour range ──────────────────────────────────────────────────────────────
 // Change DAY_START / DAY_END (24-hour integers) to extend the visible day.
@@ -328,9 +328,9 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
       {!crewLoading && crew.length >= 2 && (
         <div
           className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
-          style={{ background: 'white', border: `1px solid ${brand.border}` }}
+          style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }}
         >
-          <span className="text-[10px] font-bold uppercase tracking-widest shrink-0" style={{ color: brand.muted }}>
+          <span className="text-[10px] font-bold uppercase tracking-widest shrink-0" style={{ color: dashboardTheme.color.muted }}>
             Crew
           </span>
           <div className="flex items-center gap-1.5 flex-wrap flex-1">
@@ -347,13 +347,13 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                   title={hidden ? `Show ${member.full_name}` : `Hide ${member.full_name}`}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all select-none"
                   style={hidden
-                    ? { background: 'transparent', border: `1px solid ${brand.border}`, color: brand.muted, opacity: 0.45 }
-                    : { background: brand.surfaceAlt, border: `1px solid ${brand.border}`, color: brand.text }
+                    ? { background: 'transparent', border: `1px solid ${dashboardTheme.color.border}`, color: dashboardTheme.color.muted, opacity: 0.45 }
+                    : { background: dashboardTheme.color.surfaceAlt, border: `1px solid ${dashboardTheme.color.border}`, color: dashboardTheme.color.text }
                   }
                 >
                   <div
                     className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                    style={{ background: hidden ? '#94a3b8' : offToday ? '#94a3b8' : brand.primary }}
+                    style={{ background: hidden ? '#94a3b8' : offToday ? '#94a3b8' : dashboardTheme.color.primary }}
                   >
                     {member.full_name.charAt(0)}
                   </div>
@@ -369,7 +369,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
             <button
               onClick={() => setHiddenCrewIds(new Set())}
               className="shrink-0 text-[11px] font-semibold transition-opacity hover:opacity-70"
-              style={{ color: brand.primary }}
+              style={{ color: dashboardTheme.color.primary }}
             >
               Show all
             </button>
@@ -381,19 +381,19 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
       {/* ── Timeline card ── */}
       <div
         className="flex-1 min-w-0 rounded-xl overflow-hidden"
-        style={{ border: `1px solid ${brand.border}`, background: 'white' }}
+        style={{ border: `1px solid ${dashboardTheme.color.border}`, background: 'white' }}
       >
         {/* Placement instruction strip */}
         {selectedJob && (
           <div
             className="flex items-center gap-2.5 px-4 py-2 border-b text-xs font-medium"
             style={{
-              borderColor: SERVICE_COLORS[selectedJob.service_type] || brand.primary,
-              background: `${SERVICE_COLORS[selectedJob.service_type] || brand.primary}08`,
-              color: SERVICE_COLORS[selectedJob.service_type] || brand.primary,
+              borderColor: SERVICE_COLORS[selectedJob.service_type] || dashboardTheme.color.primary,
+              background: `${SERVICE_COLORS[selectedJob.service_type] || dashboardTheme.color.primary}08`,
+              color: SERVICE_COLORS[selectedJob.service_type] || dashboardTheme.color.primary,
             }}
           >
-            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: SERVICE_COLORS[selectedJob.service_type] || brand.primary }} />
+            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: SERVICE_COLORS[selectedJob.service_type] || dashboardTheme.color.primary }} />
             <span className="font-semibold">{selectedJob.customer_name}</span>
             <span className="opacity-60">·</span>
             <span>{SERVICE_LABELS[selectedJob.service_type] || selectedJob.service_type}</span>
@@ -408,17 +408,17 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center h-64 text-sm" style={{ color: brand.muted }}>
+          <div className="flex items-center justify-center h-64 text-sm" style={{ color: dashboardTheme.color.muted }}>
             <svg className="animate-spin mr-2 opacity-40" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 11-6-8.485"/></svg>
             Loading schedule…
           </div>
         ) : crew.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 gap-2 text-center px-8">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-1" style={{ background: brand.surfaceAlt }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-1" style={{ background: dashboardTheme.color.surfaceAlt }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.muted} strokeWidth="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </div>
-            <p className="text-sm font-semibold" style={{ color: brand.text }}>No active crew</p>
-            <p className="text-xs" style={{ color: brand.muted }}>Add crew members in the Crew section to start scheduling.</p>
+            <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>No active crew</p>
+            <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>Add crew members in the Crew section to start scheduling.</p>
           </div>
         ) : (
           /* Timeline grid.
@@ -441,16 +441,16 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
               <div
                 className="sticky left-0 z-10 border-r"
                 style={{
-                  borderColor: brand.border,
+                  borderColor: dashboardTheme.color.border,
                   minWidth: 72,
                   background: 'white',
                 }}
               >
                 <div
                   className="h-12 border-b flex items-end pb-2.5 px-3"
-                  style={{ borderColor: brand.border, background: brand.surfaceAlt }}
+                  style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surfaceAlt }}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brand.muted }}>Time</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: dashboardTheme.color.muted }}>Time</span>
                 </div>
                 {/* overflow-hidden keeps labels from bleeding into the header above */}
                 <div className="relative overflow-hidden" style={{ height: TIMELINE_HEIGHT }}>
@@ -465,7 +465,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                         className="absolute left-0 right-0 flex items-start justify-end pr-3"
                         style={{ top }}
                       >
-                        <span className="text-[11px] tabular-nums font-medium leading-none" style={{ color: brand.muted }}>{label}</span>
+                        <span className="text-[11px] tabular-nums font-medium leading-none" style={{ color: dashboardTheme.color.muted }}>{label}</span>
                       </div>
                     );
                   })}
@@ -488,25 +488,25 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                 // Concise status for the header
                 const headerStatus = (() => {
                   if (wholeColumnUnavail) return { text: 'Unavailable today', color: '#b45309' };
-                  if (avail) return { text: formatAvailRange(avail), color: brand.muted };
+                  if (avail) return { text: formatAvailRange(avail), color: dashboardTheme.color.muted };
                   return null;
                 })();
 
                 return (
-                  <div key={member.id} className="flex flex-col border-r last:border-r-0" style={{ flex: '1 0 200px', borderColor: brand.border }}>
+                  <div key={member.id} className="flex flex-col border-r last:border-r-0" style={{ flex: '1 0 200px', borderColor: dashboardTheme.color.border }}>
                     {/* Column header */}
                     <div
                       className="h-12 border-b flex items-center px-3 gap-2.5"
-                      style={{ borderColor: brand.border, background: brand.surfaceAlt }}
+                      style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surfaceAlt }}
                     >
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                        style={{ background: wholeColumnUnavail ? '#94a3b8' : brand.primary }}
+                        style={{ background: wholeColumnUnavail ? '#94a3b8' : dashboardTheme.color.primary }}
                       >
                         {member.full_name.charAt(0)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="text-xs font-semibold truncate block leading-tight" style={{ color: brand.text }}>{member.full_name}</span>
+                        <span className="text-xs font-semibold truncate block leading-tight" style={{ color: dashboardTheme.color.text }}>{member.full_name}</span>
                         {headerStatus && (
                           <span className="text-[10px] leading-tight" style={{ color: headerStatus.color }}>{headerStatus.text}</span>
                         )}
@@ -515,8 +515,8 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                         <span
                           className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
                           style={memberOrders.length > 0
-                            ? { background: `${brand.primary}15`, color: brand.primary }
-                            : { background: 'rgba(0,0,0,0.04)', color: brand.muted }
+                            ? { background: `${dashboardTheme.color.primary}15`, color: dashboardTheme.color.primary }
+                            : { background: 'rgba(0,0,0,0.04)', color: dashboardTheme.color.muted }
                           }
                         >
                           {memberOrders.length}
@@ -531,7 +531,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                       style={{
                         height: TIMELINE_HEIGHT,
                         cursor: isClickable ? 'crosshair' : 'default',
-                        background: isClickable ? `${brand.primary}05` : `${brand.bg}90`,
+                        background: isClickable ? `${dashboardTheme.color.primary}05` : `${dashboardTheme.color.bg}90`,
                       }}
                       onClick={(e) => handleColumnClick(e, member)}
                     >
@@ -540,7 +540,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                         <div
                           key={min}
                           className="absolute left-0 right-0 border-t"
-                          style={{ top: minutesToPx(min), borderColor: `${brand.border}90` }}
+                          style={{ top: minutesToPx(min), borderColor: `${dashboardTheme.color.border}90` }}
                         />
                       ))}
 
@@ -549,7 +549,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                         <div
                           key={i}
                           className="absolute left-0 right-0 border-t border-dashed"
-                          style={{ top: minutesToPx((DAY_START + i) * 60 + 30), borderColor: `${brand.border}50` }}
+                          style={{ top: minutesToPx((DAY_START + i) * 60 + 30), borderColor: `${dashboardTheme.color.border}50` }}
                         />
                       ))}
 
@@ -572,8 +572,8 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                           style={{
                             top: minutesToPx(avail.startMin),
                             height: minutesToPx(avail.endMin) - minutesToPx(avail.startMin),
-                            borderColor: `${brand.primary}35`,
-                            background: `${brand.primary}04`,
+                            borderColor: `${dashboardTheme.color.primary}35`,
+                            background: `${dashboardTheme.color.primary}04`,
                           }}
                         />
                       )}
@@ -629,11 +629,11 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                                     {SERVICE_LABELS[order.service_type] || order.service_type}
                                   </p>
                                   {height > 38 && (
-                                    <p className="text-[10px] truncate leading-tight" style={{ color: brand.text }}>{order.customer_name}</p>
+                                    <p className="text-[10px] truncate leading-tight" style={{ color: dashboardTheme.color.text }}>{order.customer_name}</p>
                                   )}
                                 </div>
                                 {height > 54 && (
-                                  <p className="text-[9px] tabular-nums" style={{ color: brand.muted }}>
+                                  <p className="text-[9px] tabular-nums" style={{ color: dashboardTheme.color.muted }}>
                                     {formatDisplayTime(order.scheduled_time)} · {duration}m
                                   </p>
                                 )}
@@ -683,10 +683,10 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
       <div
         className="w-64 shrink-0 flex flex-col rounded-r-xl overflow-hidden"
         style={{
-          borderTop: `1px solid ${brand.border}`,
-          borderRight: `1px solid ${brand.border}`,
-          borderBottom: `1px solid ${brand.border}`,
-          borderLeft: `1px solid ${brand.border}`,
+          borderTop: `1px solid ${dashboardTheme.color.border}`,
+          borderRight: `1px solid ${dashboardTheme.color.border}`,
+          borderBottom: `1px solid ${dashboardTheme.color.border}`,
+          borderLeft: `1px solid ${dashboardTheme.color.border}`,
           marginLeft: 8,
           background: 'white',
           // Match timeline height
@@ -696,25 +696,25 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
         {/* Queue header */}
         <div
           className="px-3.5 py-2.5 border-b flex items-center justify-between shrink-0"
-          style={{ borderColor: brand.border, background: brand.surfaceAlt }}
+          style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surfaceAlt }}
         >
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: brand.muted }}>Queue</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: dashboardTheme.color.muted }}>Queue</span>
             {unscheduled.length > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${dashboardTheme.color.primary}15`, color: dashboardTheme.color.primary }}>
                 {unscheduled.length}
               </span>
             )}
           </div>
           {selectedJob && (
-            <span className="text-[10px] font-medium" style={{ color: brand.muted }}>click a column →</span>
+            <span className="text-[10px] font-medium" style={{ color: dashboardTheme.color.muted }}>click a column →</span>
           )}
         </div>
 
         {/* Queue instruction */}
         {!selectedJob && unscheduled.length > 0 && (
-          <div className="px-3.5 py-2 border-b" style={{ borderColor: brand.border }}>
-            <p className="text-[10px]" style={{ color: brand.muted }}>Select a job, then click a crew slot to schedule it.</p>
+          <div className="px-3.5 py-2 border-b" style={{ borderColor: dashboardTheme.color.border }}>
+            <p className="text-[10px]" style={{ color: dashboardTheme.color.muted }}>Select a job, then click a crew slot to schedule it.</p>
           </div>
         )}
 
@@ -723,16 +723,16 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
           {ordersLoading ? (
             <div className="p-3 space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: brand.surfaceAlt }} />
+                <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: dashboardTheme.color.surfaceAlt }} />
               ))}
             </div>
           ) : unscheduled.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-2 px-4 text-center">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: brand.surfaceAlt }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: dashboardTheme.color.surfaceAlt }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.muted} strokeWidth="1.5"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
-              <p className="text-xs font-medium" style={{ color: brand.muted }}>All caught up</p>
-              <p className="text-[10px]" style={{ color: `${brand.muted}80` }}>No unscheduled jobs</p>
+              <p className="text-xs font-medium" style={{ color: dashboardTheme.color.muted }}>All caught up</p>
+              <p className="text-[10px]" style={{ color: `${dashboardTheme.color.muted}80` }}>No unscheduled jobs</p>
             </div>
           ) : (
             <div className="p-2 space-y-1.5">
@@ -748,7 +748,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                     className="w-full text-left rounded-lg px-2.5 py-2 transition-all"
                     style={isSelected
                       ? { background: `${color}12`, border: `1.5px solid ${color}55` }
-                      : { background: brand.bg, border: `1px solid ${brand.border}` }
+                      : { background: dashboardTheme.color.bg, border: `1px solid ${dashboardTheme.color.border}` }
                     }
                   >
                     <div className="flex items-start justify-between gap-1.5 mb-1">
@@ -758,12 +758,12 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                           {SERVICE_LABELS[job.service_type] || job.service_type}
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold shrink-0 tabular-nums" style={{ color: brand.text }}>
+                      <span className="text-[11px] font-semibold shrink-0 tabular-nums" style={{ color: dashboardTheme.color.text }}>
                         ${job.final_price.toFixed(0)}
                       </span>
                     </div>
-                    <p className="text-xs font-medium truncate leading-tight" style={{ color: brand.text }}>{job.customer_name}</p>
-                    <p className="text-[10px] mt-0.5" style={{ color: brand.muted }}>~{durationH}h est.</p>
+                    <p className="text-xs font-medium truncate leading-tight" style={{ color: dashboardTheme.color.text }}>{job.customer_name}</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: dashboardTheme.color.muted }}>~{durationH}h est.</p>
                     {isSelected && (
                       <p className="text-[10px] mt-1.5 font-semibold" style={{ color }}>
                         ↑ Click a crew column to place
@@ -782,18 +782,18 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.3)' }}>
           <div
             className="w-full max-w-sm rounded-2xl bg-white p-6"
-            style={{ border: `1px solid ${brand.border}`, boxShadow: '0 20px 60px rgba(2,6,23,0.16)' }}
+            style={{ border: `1px solid ${dashboardTheme.color.border}`, boxShadow: '0 20px 60px rgba(2,6,23,0.16)' }}
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-sm font-semibold" style={{ color: brand.text }}>
+                <h3 className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>
                   {modal.mode === 'assign' ? 'Assign Job' : 'Edit Assignment'}
                 </h3>
-                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                   {modal.order.customer_name} · {SERVICE_LABELS[modal.order.service_type] || modal.order.service_type}
                 </p>
               </div>
-              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors" style={{ color: brand.muted }}>
+              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors" style={{ color: dashboardTheme.color.muted }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -801,14 +801,14 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
             <div className="space-y-3 mb-5">
               {/* Crew */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: brand.muted }}>Crew Member</label>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium" style={{ borderColor: brand.border, color: brand.text }}>
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: brand.primary }}>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: dashboardTheme.color.muted }}>Crew Member</label>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium" style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}>
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: dashboardTheme.color.primary }}>
                     {modal.crewName.charAt(0)}
                   </div>
                   <span>{modal.crewName}</span>
                   {modal.crewAvail && (
-                    <span className="ml-auto text-[10px]" style={{ color: brand.muted }}>
+                    <span className="ml-auto text-[10px]" style={{ color: dashboardTheme.color.muted }}>
                       {formatAvailRange(modal.crewAvail)}
                     </span>
                   )}
@@ -823,19 +823,19 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
 
               {/* Date */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: brand.muted }}>Date</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: dashboardTheme.color.muted }}>Date</label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => onDateChange(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border text-xs outline-none"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                 />
               </div>
 
               {/* Time */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: brand.muted }}>Start Time</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: dashboardTheme.color.muted }}>Start Time</label>
                 <input
                   type="time"
                   min={modal.crewAvail ? minutesToTime(modal.crewAvail.startMin) : '07:00'}
@@ -844,13 +844,13 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                   value={modal.time}
                   onChange={(e) => setModal((m) => m ? { ...m, time: e.target.value } : null)}
                   className="w-full px-3 py-2 rounded-lg border text-xs outline-none"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                 />
               </div>
 
               {/* Duration */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: brand.muted }}>Duration (minutes)</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: dashboardTheme.color.muted }}>Duration (minutes)</label>
                 <input
                   type="number"
                   min={30}
@@ -859,9 +859,9 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                   value={modal.duration}
                   onChange={(e) => setModal((m) => m ? { ...m, duration: parseInt(e.target.value) || 120 } : null)}
                   className="w-full px-3 py-2 rounded-lg border text-xs outline-none"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                 />
-                <p className="text-[10px] mt-1" style={{ color: brand.muted }}>
+                <p className="text-[10px] mt-1" style={{ color: dashboardTheme.color.muted }}>
                   Ends {formatDisplayTime(minutesToTime(timeToMinutes(modal.time) + modal.duration))}
                   {' · '}Next slot free at {formatDisplayTime(minutesToTime(timeToMinutes(modal.time) + modal.duration + TRAVEL_MIN))}
                 </p>
@@ -909,7 +909,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                 type="button"
                 onClick={() => setModal(null)}
                 className="flex-1 py-2 rounded-xl border text-xs font-semibold transition-colors hover:bg-slate-50"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -924,7 +924,7 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                   crewId: modal.crewId,
                 })}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: (isAvailViolation || isConflict) ? '#9ca3af' : brand.primary }}
+                style={{ background: (isAvailViolation || isConflict) ? '#9ca3af' : dashboardTheme.color.primary }}
               >
                 {isMutating === modal.order.id ? 'Saving…' : 'Confirm'}
               </button>

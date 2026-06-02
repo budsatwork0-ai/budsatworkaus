@@ -15,7 +15,7 @@
 // -----------------------------------------------------------------------------
 
 import { motion } from 'framer-motion';
-import { night } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { NightPanel, NightChip, NightEmpty } from './NightPrimitives';
 import type { FunnelSnapshot } from '../lib/types';
 
@@ -77,26 +77,26 @@ export function LeadFunnel({
                     className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold"
                     style={{
                       background: 'rgba(255,255,255,0.04)',
-                      color: night.muted,
-                      border: `1px solid ${night.border}`,
+                      color: dashboardTheme.night!.color.muted,
+                      border: `1px solid ${dashboardTheme.night!.color.border}`,
                     }}
                   >
                     {idx + 1}
                   </span>
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: night.text }}>{stage.label}</p>
-                    <p className="text-[11px]" style={{ color: night.subtle }}>{STAGE_HINTS[stage.stage]}</p>
+                    <p className="text-sm font-semibold" style={{ color: dashboardTheme.night!.color.text }}>{stage.label}</p>
+                    <p className="text-[11px]" style={{ color: dashboardTheme.night!.color.subtle }}>{STAGE_HINTS[stage.stage]}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-base font-semibold tabular-nums" style={{ color: night.text }}>
+                  <p className="text-base font-semibold tabular-nums" style={{ color: dashboardTheme.night!.color.text }}>
                     {stage.count > 0 ? stage.count.toLocaleString() : '—'}
                   </p>
                   {showConv ? (
                     <p
                       className="text-[11px] font-semibold"
                       style={{
-                        color: stage.isBiggestDropOff ? night.hot : night.muted,
+                        color: stage.isBiggestDropOff ? dashboardTheme.night!.color.hot : dashboardTheme.night!.color.muted,
                       }}
                     >
                       {Math.round(stage.conversionFromPrev * 100)}% kept
@@ -120,9 +120,9 @@ export function LeadFunnel({
                   className="h-full rounded-full"
                   style={{
                     background: stage.isBiggestDropOff
-                      ? `linear-gradient(90deg, ${night.warm}, ${night.hot})`
-                      : `linear-gradient(90deg, ${night.accent}, ${night.cold})`,
-                    boxShadow: stage.isBiggestDropOff ? `0 0 24px ${night.hot}66` : `0 0 18px ${night.accent}44`,
+                      ? `linear-gradient(90deg, ${dashboardTheme.night!.color.warm}, ${dashboardTheme.night!.color.hot})`
+                      : `linear-gradient(90deg, ${dashboardTheme.night!.color.accent}, ${dashboardTheme.night!.color.cold})`,
+                    boxShadow: stage.isBiggestDropOff ? `0 0 24px ${dashboardTheme.night!.color.hot}66` : `0 0 18px ${dashboardTheme.night!.color.accent}44`,
                   }}
                 />
               </div>
@@ -141,8 +141,8 @@ export function LeadFunnel({
             color: '#FFD6CD',
           }}
         >
-          <span className="font-semibold" style={{ color: night.hot }}>{Math.round(biggestLeak.dropOff * 100)}%</span> of leads
-          are dropping off at <span className="font-semibold" style={{ color: night.text }}>{biggestLeak.label}</span>.
+          <span className="font-semibold" style={{ color: dashboardTheme.night!.color.hot }}>{Math.round(biggestLeak.dropOff * 100)}%</span> of leads
+          are dropping off at <span className="font-semibold" style={{ color: dashboardTheme.night!.color.text }}>{biggestLeak.label}</span>.
           {' '}
           {leakRecommendation(biggestLeak.stage)}
         </div>

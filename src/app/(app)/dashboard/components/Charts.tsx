@@ -15,10 +15,10 @@ import {
   Bar,
   Legend,
 } from 'recharts';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency } from '@/lib/dashboard/utils';
 
-const COLORS = [brand.primary, '#10B981', '#6366F1', '#F59E0B', '#EF4444', '#8B5CF6'];
+const COLORS = [dashboardTheme.color.primary, '#10B981', '#6366F1', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 type RevenueDataPoint = {
   month: string;
@@ -72,9 +72,9 @@ export function RevenueLineChart({ data }: { data: RevenueDataPoint[] }) {
         <Line
           type="monotone"
           dataKey="revenue"
-          stroke={brand.primary}
+          stroke={dashboardTheme.color.primary}
           strokeWidth={2}
-          dot={{ fill: brand.primary, strokeWidth: 2, r: 4 }}
+          dot={{ fill: dashboardTheme.color.primary, strokeWidth: 2, r: 4 }}
           activeDot={{ r: 6 }}
           name="Revenue"
         />
@@ -165,7 +165,7 @@ export function ExpensesBarChart({ data }: { data: ExpenseDataPoint[] }) {
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           }}
         />
-        <Bar dataKey="amount" fill={brand.primary} radius={[0, 4, 4, 0]} />
+        <Bar dataKey="amount" fill={dashboardTheme.color.primary} radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

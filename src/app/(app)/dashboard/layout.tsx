@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Toaster } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import SideNavItem from './_components/SideNavItem';
 import { NotificationCenter } from './_components/NotificationCenter';
 import CommandPalette from '@/components/CommandPalette';
@@ -107,13 +107,13 @@ const ExpandedNav = memo(function ExpandedNav({ groups, isAdmin, navBadges, coll
               type="button"
               onClick={() => onToggleGroup(group.id)}
               className="flex w-full items-center gap-2 px-2.5 pt-3 pb-1 text-[10.5px] font-bold uppercase tracking-[0.08em]"
-              style={{ color: brand.muted }}
+              style={{ color: dashboardTheme.color.muted }}
             >
               <span className="truncate text-left">{group.label}</span>
               {group.adminOnly && (
                 <span
                   className="rounded-full px-1.5 py-px text-[8.5px] font-semibold tracking-normal"
-                  style={{ background: brand.surface, color: brand.muted }}
+                  style={{ background: dashboardTheme.color.surface, color: dashboardTheme.color.muted }}
                 >
                   admin
                 </span>
@@ -282,10 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div
       className="min-h-screen flex"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, #dff3ea 0%, transparent 60%), radial-gradient(900px 500px at 120% 10%, #e8efe7 0%, transparent 50%), #f6f8f7',
-      }}
+      style={{ background: dashboardTheme.pageBg }}
     >
       <Toaster position="top-right" />
 
@@ -296,8 +293,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         style={{
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
-          background: 'rgba(255,255,255,.74)',
-          borderRight: '1px solid rgba(215,231,221,.92)',
+          background: dashboardTheme.nav.bg,
+          borderRight: `1px solid ${dashboardTheme.nav.border}`,
         }}
       >
         <div
@@ -307,13 +304,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <motion.div
             layout
             className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-semibold"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             B
           </motion.div>
           {sidebarOpen && (
             <motion.div layout className="leading-tight">
-              <div className="font-semibold" style={{ color: brand.primary }}>
+              <div className="font-semibold" style={{ color: dashboardTheme.color.primary }}>
                 Buds At Work
               </div>
               <div className="text-[11px] text-slate-500">Operations Console</div>
@@ -330,7 +327,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: brand.primary }}>
+            <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: dashboardTheme.color.primary }}>
               {userInitials}
             </div>
             {sidebarOpen ? (
@@ -363,17 +360,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               style={{
                 backdropFilter: 'blur(16px)',
                 WebkitBackdropFilter: 'blur(16px)',
-                background: 'rgba(255,255,255,.95)',
-                borderRight: '1px solid rgba(0,0,0,.06)',
+                background: dashboardTheme.nav.bg,
+                borderRight: `1px solid ${dashboardTheme.nav.border}`,
               }}
             >
               <div className="flex items-center justify-between px-2 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-semibold" style={{ background: brand.primary }}>
+                  <div className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-semibold" style={{ background: dashboardTheme.color.primary }}>
                     B
                   </div>
                   <div className="leading-tight">
-                    <div className="font-semibold" style={{ color: brand.primary }}>
+                    <div className="font-semibold" style={{ color: dashboardTheme.color.primary }}>
                       Buds At Work
                     </div>
                     <div className="text-[11px] text-slate-500">Operations Console</div>
@@ -396,7 +393,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               <div className="mt-auto rounded-2xl border border-black/5 bg-[rgba(234,246,238,0.92)] px-3 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: brand.primary }}>
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ background: dashboardTheme.color.primary }}>
                     {userInitials}
                   </div>
                   <div className="min-w-0">
@@ -427,7 +424,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </svg>
             </button>
 
-            <h1 className="text-sm sm:text-base md:text-lg font-semibold truncate" style={{ color: brand.primary }}>
+            <h1 className="text-sm sm:text-base md:text-lg font-semibold truncate" style={{ color: dashboardTheme.color.primary }}>
               {currentTitle}
             </h1>
 
@@ -496,7 +493,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <motion.div whileHover={{ scale: 1.05 }}>
                 <details className="group">
                   <summary className="list-none cursor-pointer">
-                    <div className="h-8 w-8 rounded-full border border-black/10 flex items-center justify-center text-[10px] font-semibold text-white" style={{ background: brand.primary }}>
+                    <div className="h-8 w-8 rounded-full border border-black/10 flex items-center justify-center text-[10px] font-semibold text-white" style={{ background: dashboardTheme.color.primary }}>
                       {userInitials}
                     </div>
                   </summary>

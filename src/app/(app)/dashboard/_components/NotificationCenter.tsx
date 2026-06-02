@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type { AdminAlert } from '@/lib/admin-alerts';
 import { readCache } from '../hooks/useDashboardData';
 
@@ -140,7 +140,7 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
               className="fixed right-3 top-[76px] w-[calc(100vw-24px)] sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 rounded-2xl border border-black/10 bg-white shadow-xl overflow-hidden z-50"
             >
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <p className="text-sm font-semibold" style={{ color: brand.text }}>Notifications</p>
+                <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>Notifications</p>
                 <div className="flex items-center gap-3">
                   {dismissedCount > 0 && (
                     <button
@@ -204,7 +204,7 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-sm font-medium" style={{ color: brand.text }}>{n.title}</p>
+                              <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>{n.title}</p>
                               <p className="text-xs text-slate-500">{n.message}</p>
                             </div>
                             <button
@@ -220,7 +220,7 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
                               href={n.href}
                               onClick={() => setOpen(false)}
                               className="mt-1 inline-block text-[11px] font-medium"
-                              style={{ color: brand.primary }}
+                              style={{ color: dashboardTheme.color.primary }}
                             >
                               Open
                             </a>

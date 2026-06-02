@@ -15,7 +15,7 @@
 // dramatically higher for sub-1h replies, the panel says so plainly.
 // -----------------------------------------------------------------------------
 
-import { night } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { NightPanel, NightStat, NightChip, NightEmpty, SourceTag } from './NightPrimitives';
 import type { ResponseMetrics } from '../lib/types';
 
@@ -86,24 +86,24 @@ export function ResponsePerformance({ metrics }: { metrics: ResponseMetrics }) {
       {/* Conversion-by-speed callout */}
       <div
         className="mt-5 grid gap-4 rounded-xl border px-4 py-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center"
-        style={{ background: 'rgba(255,255,255,0.025)', borderColor: night.border }}
+        style={{ background: 'rgba(255,255,255,0.025)', borderColor: dashboardTheme.night!.color.border }}
       >
         <SpeedBucket label="Replied < 1h" rate={metrics.fastResponseConversion} tone="accent" />
         <div className="hidden sm:block">
-          <p className="text-center text-[10px] uppercase tracking-[0.18em]" style={{ color: night.subtle }}>vs</p>
+          <p className="text-center text-[10px] uppercase tracking-[0.18em]" style={{ color: dashboardTheme.night!.color.subtle }}>vs</p>
         </div>
         <SpeedBucket label="Replied > 6h" rate={metrics.slowResponseConversion} tone="warning" rightAlign />
       </div>
 
       {liftPct !== 0 && Number.isFinite(liftMultiplier) ? (
-        <p className="mt-3 text-[12px] leading-5" style={{ color: night.muted }}>
+        <p className="mt-3 text-[12px] leading-5" style={{ color: dashboardTheme.night!.color.muted }}>
           {liftPct > 0 ? (
             <>
               Replying within the hour wins{' '}
               <span className="font-semibold" style={{ color: '#7CE0B0' }}>+{liftPct} points</span> of conversion
               {liftMultiplier >= 1.5 ? (
                 <>
-                  {' '}— a <span className="font-semibold" style={{ color: night.text }}>{liftMultiplier.toFixed(1)}×</span> uplift over slow replies.
+                  {' '}— a <span className="font-semibold" style={{ color: dashboardTheme.night!.color.text }}>{liftMultiplier.toFixed(1)}×</span> uplift over slow replies.
                 </>
               ) : '.'}
             </>
@@ -118,18 +118,18 @@ export function ResponsePerformance({ metrics }: { metrics: ResponseMetrics }) {
       {/* Channel table */}
       {metrics.channelBreakdown.length > 0 ? (
         <div className="mt-6">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: night.subtle }}>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.18em]" style={{ color: dashboardTheme.night!.color.subtle }}>
             By channel
           </p>
-          <div className="overflow-hidden rounded-xl border" style={{ borderColor: night.border }}>
+          <div className="overflow-hidden rounded-xl border" style={{ borderColor: dashboardTheme.night!.color.border }}>
             <table className="w-full text-[12px]">
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.025)' }}>
-                  <th className="px-3 py-2 text-left font-medium" style={{ color: night.subtle }}>Channel</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: night.subtle }}>Avg reply</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: night.subtle }}>Leads</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: night.subtle }}>Booked</th>
-                  <th className="px-3 py-2 text-right font-medium" style={{ color: night.subtle }}>Rate</th>
+                  <th className="px-3 py-2 text-left font-medium" style={{ color: dashboardTheme.night!.color.subtle }}>Channel</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: dashboardTheme.night!.color.subtle }}>Avg reply</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: dashboardTheme.night!.color.subtle }}>Leads</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: dashboardTheme.night!.color.subtle }}>Booked</th>
+                  <th className="px-3 py-2 text-right font-medium" style={{ color: dashboardTheme.night!.color.subtle }}>Rate</th>
                 </tr>
               </thead>
               <tbody>
@@ -137,18 +137,18 @@ export function ResponsePerformance({ metrics }: { metrics: ResponseMetrics }) {
                   <tr
                     key={row.source}
                     style={{
-                      borderTop: idx === 0 ? 'none' : `1px solid ${night.divider}`,
+                      borderTop: idx === 0 ? 'none' : `1px solid ${dashboardTheme.night!.color.divider}`,
                     }}
                   >
                     <td className="px-3 py-2">
                       <SourceTag source={row.source} />
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: night.text }}>
-                      {row.avgHours !== null ? formatHours(row.avgHours) : <span style={{ color: night.subtle }}>—</span>}
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: dashboardTheme.night!.color.text }}>
+                      {row.avgHours !== null ? formatHours(row.avgHours) : <span style={{ color: dashboardTheme.night!.color.subtle }}>—</span>}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: night.muted }}>{row.leads}</td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: night.muted }}>{row.booked}</td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: row.bookedRate >= 0.4 ? '#7CE0B0' : night.text }}>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: dashboardTheme.night!.color.muted }}>{row.leads}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: dashboardTheme.night!.color.muted }}>{row.booked}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: row.bookedRate >= 0.4 ? '#7CE0B0' : dashboardTheme.night!.color.text }}>
                       {Math.round(row.bookedRate * 100)}%
                     </td>
                   </tr>
@@ -176,9 +176,9 @@ function SpeedBucket({
   const color = tone === 'accent' ? '#7CE0B0' : '#FFD089';
   return (
     <div className={rightAlign ? 'sm:text-right' : ''}>
-      <p className="text-[10px] uppercase tracking-[0.18em]" style={{ color: night.subtle }}>{label}</p>
+      <p className="text-[10px] uppercase tracking-[0.18em]" style={{ color: dashboardTheme.night!.color.subtle }}>{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums" style={{ color }}>
-        {Math.round(rate * 100)}<span className="text-sm font-medium" style={{ color: night.muted }}>% booked</span>
+        {Math.round(rate * 100)}<span className="text-sm font-medium" style={{ color: dashboardTheme.night!.color.muted }}>% booked</span>
       </p>
     </div>
   );

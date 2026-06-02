@@ -1,6 +1,6 @@
 'use client';
 
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency, formatRelativeTime } from '@/lib/dashboard/utils';
 import type { ActivityItem } from '@/types/dashboard';
 
@@ -37,7 +37,7 @@ const typeIcons: Record<ActivityItem['type'], React.ReactNode> = {
 const typeColors: Record<ActivityItem['type'], string> = {
   payment: '#10B981',
   booking: '#6366F1',
-  invoice: brand.primary,
+  invoice: dashboardTheme.color.primary,
   expense: '#EF4444',
   job_completed: '#10B981',
 };
@@ -97,7 +97,7 @@ export default function ActivityFeed({ activities }: { activities: ActivityItem[
                     className="text-sm font-semibold"
                     style={{
                       color:
-                        activity.type === 'expense' ? '#EF4444' : activity.type === 'payment' || activity.type === 'job_completed' ? '#10B981' : brand.text,
+                        activity.type === 'expense' ? '#EF4444' : activity.type === 'payment' || activity.type === 'job_completed' ? '#10B981' : dashboardTheme.color.text,
                     }}
                   >
                     {activity.type === 'expense' ? '-' : ''}

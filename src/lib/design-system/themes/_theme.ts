@@ -111,6 +111,40 @@ export interface ThemeNav {
   inactiveText: string;
 }
 
+export interface ThemeNightColor {
+  bg: string; panel: string; panelAlt: string;
+  border: string; divider: string;
+  text: string; muted: string; subtle: string; accent: string;
+  hot: string; warm: string; cold: string; lost: string;
+}
+
+export interface ThemeTempTone {
+  text: string; bg: string; ring: string; glow: string;
+}
+
+/**
+ * Optional dark-canvas night palette — dashboard-only (insights/leads tab).
+ * Not present on crew or public themes.
+ * Color values live in `night.color.*`; Tailwind class strings live flat
+ * on `night.*` (e.g. `night.panel`, `night.chip`).
+ */
+export interface ThemeNight {
+  color: ThemeNightColor;
+  /** Tailwind class string — page-level dark surface */
+  surface: string;
+  /** Tailwind class string — raised night card */
+  card: string;
+  /** Tailwind class string — standard night panel */
+  panel: string;
+  /** Tailwind class string — alt tinted night panel */
+  panelAlt: string;
+  /** Tailwind class string — night chip / badge */
+  chip: string;
+  /** Tailwind class string — 1px row divider on dark */
+  divider: string;
+  tempTone: Record<'HOT' | 'WARM' | 'COLD' | 'LOST', ThemeTempTone>;
+}
+
 export interface Theme {
   /** Human-readable context label shown in the Design System viewer. */
   name: string;
@@ -138,4 +172,6 @@ export interface Theme {
   type: ThemeType;
   radius: ThemeRadius;
   shadow: ThemeShadow;
+  /** Dark cinematic palette — only defined on dashboardTheme */
+  night?: ThemeNight;
 }

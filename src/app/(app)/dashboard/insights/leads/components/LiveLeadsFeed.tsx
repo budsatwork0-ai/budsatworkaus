@@ -14,7 +14,8 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cx, night, tempTone } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
+import { cx } from '@/app/ui/theme';
 import {
   NightPanel,
   NightChip,
@@ -77,14 +78,14 @@ export function LiveLeadsFeed({ leads }: { leads: Lead[] }) {
           >
             <motion.span
               className="absolute inset-0 rounded-full"
-              style={{ background: hotCount > 0 ? night.hot : night.accent }}
+              style={{ background: hotCount > 0 ? dashboardTheme.night!.color.hot : dashboardTheme.night!.color.accent }}
               initial={{ opacity: 0.5, scale: 1 }}
               animate={{ opacity: 0, scale: 2.6 }}
               transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
             />
             <span
               className="inline-block h-2 w-2 rounded-full"
-              style={{ background: hotCount > 0 ? night.hot : night.accent }}
+              style={{ background: hotCount > 0 ? dashboardTheme.night!.color.hot : dashboardTheme.night!.color.accent }}
             />
           </span>
           {visible.length} of {leads.length} leads
@@ -107,7 +108,7 @@ export function LiveLeadsFeed({ leads }: { leads: Lead[] }) {
             {t} · {tempCounts[t]}
           </FilterPill>
         ))}
-        <div className="mx-1 h-4 w-px" style={{ background: night.border }} aria-hidden />
+        <div className="mx-1 h-4 w-px" style={{ background: dashboardTheme.night!.color.border }} aria-hidden />
         <FilterPill active={sourceFilter === 'all'} onClick={() => setSourceFilter('all')}>
           Any source
         </FilterPill>
@@ -151,7 +152,7 @@ export function LiveLeadsFeed({ leads }: { leads: Lead[] }) {
 }
 
 function LeadRow({ lead }: { lead: Lead }) {
-  const tone = tempTone[lead.temperature];
+  const tone = dashboardTheme.night!.tempTone[lead.temperature];
   const isHot = lead.isHotPulse;
   return (
     <Link
@@ -171,11 +172,11 @@ function LeadRow({ lead }: { lead: Lead }) {
       {/* Main */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-semibold" style={{ color: night.text }}>
+          <span className="truncate text-sm font-semibold" style={{ color: dashboardTheme.night!.color.text }}>
             {lead.serviceLabel}
           </span>
-          <span className="text-[11px]" style={{ color: night.subtle }}>·</span>
-          <span className="truncate text-[13px]" style={{ color: night.muted }}>
+          <span className="text-[11px]" style={{ color: dashboardTheme.night!.color.subtle }}>·</span>
+          <span className="truncate text-[13px]" style={{ color: dashboardTheme.night!.color.muted }}>
             {lead.suburb || 'Suburb unknown'}
           </span>
           {lead.attentionReason ? (
@@ -184,7 +185,7 @@ function LeadRow({ lead }: { lead: Lead }) {
             </NightChip>
           ) : null}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-[11px]" style={{ color: night.subtle }}>
+        <div className="mt-1 flex items-center gap-2 text-[11px]" style={{ color: dashboardTheme.night!.color.subtle }}>
           <span className="truncate">{lead.customerName}</span>
           <span aria-hidden>·</span>
           <SourceTag source={lead.source} />
@@ -196,16 +197,16 @@ function LeadRow({ lead }: { lead: Lead }) {
       {/* Right cluster — value + age */}
       <div className="flex flex-shrink-0 items-center gap-4 text-right">
         <div>
-          <p className="text-sm font-semibold tabular-nums" style={{ color: night.text }}>
+          <p className="text-sm font-semibold tabular-nums" style={{ color: dashboardTheme.night!.color.text }}>
             {formatLeadMoney(lead.value)}
           </p>
-          <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: night.subtle }}>
+          <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: dashboardTheme.night!.color.subtle }}>
             {formatLeadAge(lead.ageHours)} ago
           </p>
         </div>
         <span
           className="text-[11px] opacity-0 transition group-hover:opacity-100"
-          style={{ color: night.accent }}
+          style={{ color: dashboardTheme.night!.color.accent }}
         >
           Open →
         </span>
@@ -215,7 +216,7 @@ function LeadRow({ lead }: { lead: Lead }) {
       <span
         aria-hidden
         className="pointer-events-none absolute inset-x-3 -bottom-px h-px"
-        style={{ background: night.divider }}
+        style={{ background: dashboardTheme.night!.color.divider }}
       />
     </Link>
   );
@@ -233,7 +234,7 @@ function FilterPill({
   children: React.ReactNode;
 }) {
   if (tone) {
-    const t = tempTone[tone.toUpperCase() as LeadTemperature];
+    const t = dashboardTheme.night!.tempTone[tone.toUpperCase() as LeadTemperature];
     return (
       <button
         type="button"
@@ -261,7 +262,7 @@ function FilterPill({
       )}
       style={{
         background: active ? 'rgba(28,124,84,0.18)' : 'transparent',
-        color: active ? '#7CE0B0' : night.muted,
+        color: active ? '#7CE0B0' : dashboardTheme.night!.color.muted,
         borderColor: active ? 'rgba(28,124,84,0.4)' : 'rgba(255,255,255,0.08)',
       }}
     >

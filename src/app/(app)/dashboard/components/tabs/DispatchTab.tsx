@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency } from '@/lib/dashboard/utils';
 import { SERVICE_LABELS } from '@/types/dashboard';
 
@@ -126,7 +126,7 @@ export default function DispatchTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold" style={{ color: brand.primary }}>
+          <h2 className="text-base font-semibold" style={{ color: dashboardTheme.color.primary }}>
             Dispatch Queue
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -195,7 +195,7 @@ export default function DispatchTab() {
                       ? 'border-[color:var(--accent)] bg-emerald-50 shadow-sm'
                       : 'border-slate-200 bg-white/80 hover:border-slate-300',
                   ].join(' ')}
-                  style={{ '--accent': brand.primary } as React.CSSProperties}
+                  style={{ '--accent': dashboardTheme.color.primary } as React.CSSProperties}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -211,7 +211,7 @@ export default function DispatchTab() {
                       </div>
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      <div className="text-sm font-bold" style={{ color: brand.primary }}>
+                      <div className="text-sm font-bold" style={{ color: dashboardTheme.color.primary }}>
                         {formatCurrency(order.final_price)}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
@@ -317,7 +317,7 @@ export default function DispatchTab() {
                   disabled={form.employeeIds.length === 0 || isSubmitting}
                   onClick={handleAssign}
                   className="w-full py-3 rounded-2xl text-sm font-semibold text-white transition-opacity disabled:opacity-50"
-                  style={{ background: brand.primary }}
+                  style={{ background: dashboardTheme.color.primary }}
                 >
                   {isSubmitting
                     ? 'Assigning…'

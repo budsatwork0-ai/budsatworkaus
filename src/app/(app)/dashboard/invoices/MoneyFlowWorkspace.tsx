@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { exportCsv, formatCurrency, formatDate, formatRelativeTime, type CsvColumn } from '@/lib/dashboard/utils';
 import type {
@@ -71,10 +71,10 @@ const PAY_PERIOD_OPTIONS: Array<{ key: PayPeriodKey; label: string }> = [
 ];
 
 const MONEY_CHART_COLORS = {
-  revenue: brand.primary,
+  revenue: dashboardTheme.color.primary,
   expenses: '#C96D34',
   labour: '#7AA387',
-  net: brand.accent,
+  net: dashboardTheme.color.accent,
 };
 
 const PAY_HISTORY_KEY = 'money-flow-pay-history-v1';
@@ -323,7 +323,7 @@ function SectionCard({
     >
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold" style={{ color: brand.primary }}>
+          <h2 className="text-sm font-semibold" style={{ color: dashboardTheme.color.primary }}>
             {title}
           </h2>
           {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
@@ -415,7 +415,7 @@ function BreakdownList({ items, empty }: { items: MoneyBreakdownItem[]; empty: s
             <div className="font-semibold text-slate-900">{formatCurrency(item.amount)}</div>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full" style={{ width: `${Math.max(item.share, 4)}%`, background: brand.accent }} />
+            <div className="h-full rounded-full" style={{ width: `${Math.max(item.share, 4)}%`, background: dashboardTheme.color.accent }} />
           </div>
         </div>
       ))}
@@ -438,7 +438,7 @@ function AlertsStack({ alerts }: { alerts: MoneyActionAlert[] }) {
               <div className="mt-1 text-sm text-slate-600">{alert.message}</div>
             </div>
             {alert.href ? (
-              <Link href={alert.href} className="ml-auto text-xs font-semibold" style={{ color: brand.primary }}>
+              <Link href={alert.href} className="ml-auto text-xs font-semibold" style={{ color: dashboardTheme.color.primary }}>
                 {alert.actionLabel || 'Open'} →
               </Link>
             ) : null}
@@ -636,7 +636,7 @@ function WorkerCard({
           onClick={onMarkPaid}
           disabled={worker.displayPayStatus === 'Paid' || worker.approvedPay <= 0}
           className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           Mark Paid
         </button>
@@ -888,7 +888,7 @@ export default function MoneyFlowWorkspace() {
               type="button"
               onClick={handleRunPayroll}
               className="rounded-full px-4 py-2 text-sm font-semibold text-white"
-              style={{ background: brand.primary }}
+              style={{ background: dashboardTheme.color.primary }}
             >
               Run Payroll
             </button>
@@ -916,7 +916,7 @@ export default function MoneyFlowWorkspace() {
             type="button"
             onClick={() => handleTabChange(item.key)}
             className="rounded-xl px-4 py-2 text-sm font-semibold transition-colors"
-            style={tab === item.key ? { background: brand.primary, color: '#fff' } : { color: brand.muted }}
+            style={tab === item.key ? { background: dashboardTheme.color.primary, color: '#fff' } : { color: dashboardTheme.color.muted }}
           >
             {item.label}
           </button>
@@ -936,7 +936,7 @@ export default function MoneyFlowWorkspace() {
                     type="button"
                     onClick={() => setRange(option.key)}
                     className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                    style={range === option.key ? { background: brand.primary, color: '#fff' } : { background: '#F8FAFC', color: '#475569' }}
+                    style={range === option.key ? { background: dashboardTheme.color.primary, color: '#fff' } : { background: '#F8FAFC', color: '#475569' }}
                   >
                     {option.label}
                   </button>
@@ -1132,7 +1132,7 @@ export default function MoneyFlowWorkspace() {
                   type="button"
                   onClick={() => setPayPeriod(option.key)}
                   className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                  style={payPeriod === option.key ? { background: brand.primary, color: '#fff' } : { color: '#475569' }}
+                  style={payPeriod === option.key ? { background: dashboardTheme.color.primary, color: '#fff' } : { color: '#475569' }}
                 >
                   {option.label}
                 </button>
@@ -1143,7 +1143,7 @@ export default function MoneyFlowWorkspace() {
                 type="button"
                 onClick={() => setGroupMode('worker')}
                 className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                style={groupMode === 'worker' ? { background: brand.primary, color: '#fff' } : { color: '#475569' }}
+                style={groupMode === 'worker' ? { background: dashboardTheme.color.primary, color: '#fff' } : { color: '#475569' }}
               >
                 Group by worker
               </button>
@@ -1151,7 +1151,7 @@ export default function MoneyFlowWorkspace() {
                 type="button"
                 onClick={() => setGroupMode('role')}
                 className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                style={groupMode === 'role' ? { background: brand.primary, color: '#fff' } : { color: '#475569' }}
+                style={groupMode === 'role' ? { background: dashboardTheme.color.primary, color: '#fff' } : { color: '#475569' }}
               >
                 Group by role
               </button>
@@ -1161,7 +1161,7 @@ export default function MoneyFlowWorkspace() {
                 type="button"
                 onClick={() => markWorkersPaid(selectedWorkers)}
                 className="rounded-full px-4 py-2 text-sm font-semibold text-white"
-                style={{ background: brand.primary }}
+                style={{ background: dashboardTheme.color.primary }}
               >
                 Mark Paid
               </button>
@@ -1261,7 +1261,7 @@ export default function MoneyFlowWorkspace() {
                 type="button"
                 onClick={() => setTransactionFilter(option)}
                 className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                style={transactionFilter === option ? { background: brand.primary, color: '#fff' } : { background: 'rgba(255,255,255,0.88)', color: '#475569' }}
+                style={transactionFilter === option ? { background: dashboardTheme.color.primary, color: '#fff' } : { background: 'rgba(255,255,255,0.88)', color: '#475569' }}
               >
                 {option === 'all' ? 'All transactions' : option.charAt(0).toUpperCase() + option.slice(1)}
               </button>
@@ -1294,7 +1294,7 @@ export default function MoneyFlowWorkspace() {
                       <span>Status: {entry.status}</span>
                       {entry.reference ? <span>Reference: {entry.reference}</span> : null}
                       {entry.href ? (
-                        <Link href={entry.href} className="font-semibold" style={{ color: brand.primary }}>
+                        <Link href={entry.href} className="font-semibold" style={{ color: dashboardTheme.color.primary }}>
                           Open source →
                         </Link>
                       ) : null}

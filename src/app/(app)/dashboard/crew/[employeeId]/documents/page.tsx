@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { use } from 'react';
-import { brand, glass } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import {
   DOC_TYPE_LABELS,
   REQUIRED_DOCS,
@@ -100,17 +100,17 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
 
   if (!doc) {
     return (
-      <div className="rounded-2xl border border-dashed p-5 flex items-center gap-3" style={{ borderColor: brand.border }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: brand.surface }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.75">
+      <div className="rounded-2xl border border-dashed p-5 flex items-center gap-3" style={{ borderColor: dashboardTheme.color.border }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: dashboardTheme.color.surface }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={dashboardTheme.color.muted} strokeWidth="1.75">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </div>
         <div>
-          <p className="text-sm font-semibold" style={{ color: brand.text }}>{label}</p>
-          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Not submitted</p>
+          <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{label}</p>
+          <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>Not submitted</p>
         </div>
         <span className="ml-auto rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#F1F5F9', color: '#94A3B8' }}>Missing</span>
       </div>
@@ -121,7 +121,7 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
   const isLegacy = Boolean(!doc.storage_path && doc.file_url);
 
   return (
-    <div className={`${glass} rounded-2xl p-5 space-y-4`}>
+    <div className={`${dashboardTheme.glass} rounded-2xl p-5 space-y-4`}>
       {/* File header */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: sc.bg }}>
@@ -131,18 +131,18 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold" style={{ color: brand.text }}>{label}</p>
+          <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{label}</p>
           {hasFile ? (
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              {doc.file_name && <span className="text-xs truncate" style={{ color: brand.muted }}>{doc.file_name}</span>}
-              {doc.file_size && <span className="text-xs" style={{ color: brand.muted }}>· {formatBytes(doc.file_size)}</span>}
-              <span className="text-xs" style={{ color: brand.muted }}>
+              {doc.file_name && <span className="text-xs truncate" style={{ color: dashboardTheme.color.muted }}>{doc.file_name}</span>}
+              {doc.file_size && <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>· {formatBytes(doc.file_size)}</span>}
+              <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                 · Uploaded {new Date(doc.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
               {isLegacy && <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: '#FEF3C7', color: '#92400E' }}>Legacy Drive link</span>}
             </div>
           ) : (
-            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>No file uploaded</p>
+            <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>No file uploaded</p>
           )}
         </div>
         {hasFile && (
@@ -151,7 +151,7 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
             target="_blank"
             rel="noreferrer"
             className="shrink-0 text-sm font-semibold px-3 py-1.5 rounded-xl"
-            style={{ background: brand.primary, color: '#fff' }}
+            style={{ background: dashboardTheme.color.primary, color: '#fff' }}
           >
             View
           </a>
@@ -161,12 +161,12 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
       {/* Status + expiry row */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: brand.muted }}>Status</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: dashboardTheme.color.muted }}>Status</label>
           <select
             value={localStatus}
             onChange={(e) => { setLocalStatus(e.target.value as DocStatus); setDirty(true); }}
             className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-            style={{ borderColor: brand.border, background: '#fff', color: brand.text }}
+            style={{ borderColor: dashboardTheme.color.border, background: '#fff', color: dashboardTheme.color.text }}
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -174,33 +174,33 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: brand.muted }}>Expiry date</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: dashboardTheme.color.muted }}>Expiry date</label>
           <input
             type="date"
             value={localExpiry}
             onChange={(e) => { setLocalExpiry(e.target.value); setDirty(true); }}
             className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-            style={{ borderColor: brand.border, background: '#fff', color: brand.text }}
+            style={{ borderColor: dashboardTheme.color.border, background: '#fff', color: dashboardTheme.color.text }}
           />
         </div>
       </div>
 
       {/* Notes */}
       <div>
-        <label className="block text-xs font-medium mb-1.5" style={{ color: brand.muted }}>Notes</label>
+        <label className="block text-xs font-medium mb-1.5" style={{ color: dashboardTheme.color.muted }}>Notes</label>
         <textarea
           value={localNotes}
           onChange={(e) => { setLocalNotes(e.target.value); setDirty(true); }}
           rows={2}
           placeholder="Add a review note…"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none"
-          style={{ borderColor: brand.border, background: '#fff', color: brand.text }}
+          style={{ borderColor: dashboardTheme.color.border, background: '#fff', color: dashboardTheme.color.text }}
         />
       </div>
 
       {/* Reviewed by */}
       {doc.reviewed_by && (
-        <p className="text-xs" style={{ color: brand.muted }}>
+        <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>
           Reviewed by {doc.reviewed_by}
           {doc.reviewed_at ? ` on ${new Date(doc.reviewed_at).toLocaleDateString('en-AU')}` : ''}
         </p>
@@ -224,7 +224,7 @@ function DocReviewCard({ docType, doc, saving, onSave }: DocReviewCardProps) {
             })
           }
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity hover:opacity-90"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
@@ -322,25 +322,25 @@ export default function AdminEmployeeDocumentsPage({
   return (
     <div className="space-y-8 max-w-2xl mx-auto pb-16">
       <div className="flex items-center gap-2">
-        <Link href="/dashboard/crew" className="text-sm flex items-center gap-1" style={{ color: brand.muted }}>
+        <Link href="/dashboard/crew" className="text-sm flex items-center gap-1" style={{ color: dashboardTheme.color.muted }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
           Crew
         </Link>
-        <span style={{ color: brand.border }}>·</span>
+        <span style={{ color: dashboardTheme.color.border }}>·</span>
         {loading ? (
           <div className="h-4 w-32 rounded bg-slate-200 animate-pulse" />
         ) : (
-          <span className="text-sm font-medium" style={{ color: brand.text }}>{employee?.full_name}</span>
+          <span className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>{employee?.full_name}</span>
         )}
       </div>
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: brand.text }}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: dashboardTheme.color.text }}>
           {loading ? 'Documents' : `${employee?.full_name ?? 'Employee'}'s Documents`}
         </h1>
         {employee?.email && (
-          <p className="text-sm mt-0.5" style={{ color: brand.muted }}>{employee.email}</p>
+          <p className="text-sm mt-0.5" style={{ color: dashboardTheme.color.muted }}>{employee.email}</p>
         )}
       </div>
 
@@ -407,14 +407,14 @@ export default function AdminEmployeeDocumentsPage({
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className={`${glass} rounded-2xl h-24 animate-pulse`} style={{ opacity: 0.5 }} />
+            <div key={i} className={`${dashboardTheme.glass} rounded-2xl h-24 animate-pulse`} style={{ opacity: 0.5 }} />
           ))}
         </div>
       ) : (
         <>
           {/* Compliance checks */}
           <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: dashboardTheme.color.muted }}>
               Compliance checks
             </h2>
             {requiredTypes.map((dt) => (
@@ -430,7 +430,7 @@ export default function AdminEmployeeDocumentsPage({
 
           {/* Supporting documents */}
           <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: dashboardTheme.color.muted }}>
               Supporting documents
             </h2>
             {OPTIONAL_DOCS.map((dt) => (
@@ -446,11 +446,11 @@ export default function AdminEmployeeDocumentsPage({
 
           {/* Payroll & sensitive details */}
           <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: dashboardTheme.color.muted }}>
               Employment & payroll details
             </h2>
             {payroll ? (
-              <div className={`${glass} rounded-2xl p-5`}>
+              <div className={`${dashboardTheme.glass} rounded-2xl p-5`}>
                 <div className="grid sm:grid-cols-2 gap-x-8 gap-y-4">
                   <AdminField label="Employment type" value={payroll.employment_type ? EMPLOYMENT_TYPE_LABELS[payroll.employment_type as EmploymentType] : null} />
                   <AdminField label="Right to work" value={payroll.right_to_work_type ? RIGHT_TO_WORK_LABELS[payroll.right_to_work_type as RightToWorkType] : null} />
@@ -480,14 +480,14 @@ export default function AdminEmployeeDocumentsPage({
                 </div>
 
                 {payroll.updated_at && (
-                  <p className="mt-4 text-xs" style={{ color: brand.muted }}>
+                  <p className="mt-4 text-xs" style={{ color: dashboardTheme.color.muted }}>
                     Last updated {new Date(payroll.updated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed px-5 py-4" style={{ borderColor: brand.border }}>
-                <p className="text-sm" style={{ color: brand.muted }}>No payroll details submitted yet.</p>
+              <div className="rounded-2xl border border-dashed px-5 py-4" style={{ borderColor: dashboardTheme.color.border }}>
+                <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>No payroll details submitted yet.</p>
               </div>
             )}
           </div>
@@ -505,24 +505,24 @@ function AdminField({ label, value, sensitive = false }: { label: string; value:
 
   return (
     <div>
-      <p className="text-xs font-medium" style={{ color: brand.muted }}>{label}</p>
+      <p className="text-xs font-medium" style={{ color: dashboardTheme.color.muted }}>{label}</p>
       {isEmpty ? (
         <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>—</p>
       ) : sensitive ? (
         <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-sm font-mono" style={{ color: brand.text }}>
+          <p className="text-sm font-mono" style={{ color: dashboardTheme.color.text }}>
             {revealed ? value : '●●● ●●● ●●●'}
           </p>
           <button
             onClick={() => setRevealed((r) => !r)}
             className="text-xs font-medium"
-            style={{ color: brand.accent }}
+            style={{ color: dashboardTheme.color.accent }}
           >
             {revealed ? 'Hide' : 'Show'}
           </button>
         </div>
       ) : (
-        <p className="text-sm mt-0.5 font-medium" style={{ color: brand.text }}>{value}</p>
+        <p className="text-sm mt-0.5 font-medium" style={{ color: dashboardTheme.color.text }}>{value}</p>
       )}
     </div>
   );

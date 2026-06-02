@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { brand, glass } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import {
   SUPPORT_MODE_LABELS,
   PHYSICAL_INTENSITY_LABELS,
@@ -101,11 +101,11 @@ function MatchReasonRow({ reason }: { reason: MatchReason }) {
       <span className={reason.passed ? 'text-emerald-600' : 'text-slate-400'}>
         {reason.passed ? '✓' : '✗'}
       </span>
-      <span style={{ color: reason.passed ? '#065F46' : brand.muted }}>{reason.label}</span>
+      <span style={{ color: reason.passed ? '#065F46' : dashboardTheme.color.muted }}>{reason.label}</span>
       {reason.note && (
-        <span className="text-[11px]" style={{ color: brand.muted }}>— {reason.note}</span>
+        <span className="text-[11px]" style={{ color: dashboardTheme.color.muted }}>— {reason.note}</span>
       )}
-      <span className="ml-auto font-medium" style={{ color: brand.muted }}>
+      <span className="ml-auto font-medium" style={{ color: dashboardTheme.color.muted }}>
         {reason.points}/{reason.max_points}
       </span>
     </div>
@@ -254,7 +254,7 @@ export default function MatchParticipantsPage() {
   if (loadingReqs) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: dashboardTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -265,7 +265,7 @@ export default function MatchParticipantsPage() {
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"
-        style={{ color: brand.muted }}
+        style={{ color: dashboardTheme.color.muted }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
         Back to NDIS
@@ -273,29 +273,29 @@ export default function MatchParticipantsPage() {
 
       {/* Job summary */}
       {order && (
-        <div className={`${glass} rounded-2xl p-5`}>
+        <div className={`${dashboardTheme.glass} rounded-2xl p-5`}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span
                   className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                  style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                  style={{ background: 'rgba(15,61,46,0.1)', color: dashboardTheme.color.primary }}
                 >
                   {serviceLabel}
                 </span>
-                <span className="text-xs capitalize" style={{ color: brand.muted }}>{order.context}</span>
+                <span className="text-xs capitalize" style={{ color: dashboardTheme.color.muted }}>{order.context}</span>
               </div>
-              <h1 className="text-lg font-bold" style={{ color: brand.text }}>{order.customer_name}</h1>
+              <h1 className="text-lg font-bold" style={{ color: dashboardTheme.color.text }}>{order.customer_name}</h1>
               {order.scheduled_date && (
-                <p className="text-sm mt-1" style={{ color: brand.muted }}>
+                <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
                   {new Date(order.scheduled_date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                   {order.scheduled_time && ` at ${order.scheduled_time}`}
                 </p>
               )}
             </div>
             <div className="text-right shrink-0">
-              <p className="text-xl font-bold" style={{ color: brand.primary }}>${order.final_price.toFixed(2)}</p>
-              <p className="text-xs mt-1" style={{ color: brand.muted }}>
+              <p className="text-xl font-bold" style={{ color: dashboardTheme.color.primary }}>${order.final_price.toFixed(2)}</p>
+              <p className="text-xs mt-1" style={{ color: dashboardTheme.color.muted }}>
                 ~{Math.round(order.estimated_duration_minutes / 60 * 10) / 10}h est.
               </p>
             </div>
@@ -304,31 +304,31 @@ export default function MatchParticipantsPage() {
       )}
 
       {/* Job requirements editor */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="text-base font-semibold mb-4" style={{ color: brand.text }}>Job Support Requirements</h2>
+      <div className={`${dashboardTheme.glass} rounded-2xl p-5`}>
+        <h2 className="text-base font-semibold mb-4" style={{ color: dashboardTheme.color.text }}>Job Support Requirements</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Duration */}
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Estimated duration (minutes)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Estimated duration (minutes)</label>
             <input
               type="number"
               min={15}
               value={requirements.estimated_duration_minutes ?? ''}
               onChange={(e) => setRequirements((r) => ({ ...r, estimated_duration_minutes: Number(e.target.value) || null }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
               placeholder={order ? String(order.estimated_duration_minutes) : ''}
             />
           </div>
 
           {/* Physical intensity */}
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Physical intensity</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Physical intensity</label>
             <select
               value={requirements.physical_intensity ?? 'medium'}
               onChange={(e) => setRequirements((r) => ({ ...r, physical_intensity: e.target.value as JobRequirements['physical_intensity'] }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
             >
               {Object.entries(PHYSICAL_INTENSITY_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -338,12 +338,12 @@ export default function MatchParticipantsPage() {
 
           {/* Support mode required */}
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Required support mode</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Required support mode</label>
             <select
               value={requirements.required_support_mode ?? 'any'}
               onChange={(e) => setRequirements((r) => ({ ...r, required_support_mode: e.target.value as JobRequirements['required_support_mode'] }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
             >
               {Object.entries(REQUIRED_SUPPORT_MODE_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -354,49 +354,49 @@ export default function MatchParticipantsPage() {
           {/* Start / End time */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Start time</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Start time</label>
               <input
                 type="time"
                 value={requirements.start_time ?? ''}
                 onChange={(e) => setRequirements((r) => ({ ...r, start_time: e.target.value || null }))}
                 className="w-full rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>End time</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>End time</label>
               <input
                 type="time"
                 value={requirements.end_time ?? ''}
                 onChange={(e) => setRequirements((r) => ({ ...r, end_time: e.target.value || null }))}
                 className="w-full rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
               />
             </div>
           </div>
 
           {/* Location suburb */}
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Location (suburb)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Location (suburb)</label>
             <input
               type="text"
               value={requirements.location_suburb ?? ''}
               onChange={(e) => setRequirements((r) => ({ ...r, location_suburb: e.target.value || null }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
               placeholder="e.g. South Brisbane"
             />
           </div>
 
           {/* Risk notes */}
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Risk notes (admin only)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Risk notes (admin only)</label>
             <input
               type="text"
               value={requirements.risk_notes ?? ''}
               onChange={(e) => setRequirements((r) => ({ ...r, risk_notes: e.target.value || null }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
               placeholder="Any hazards or access notes"
             />
           </div>
@@ -409,7 +409,7 @@ export default function MatchParticipantsPage() {
               { key: 'can_split_shift', label: 'Shift can be split' },
               { key: 'requires_team', label: 'Requires team' },
             ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: brand.text }}>
+              <label key={key} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: dashboardTheme.color.text }}>
                 <input
                   type="checkbox"
                   checked={!!requirements[key as keyof typeof requirements]}
@@ -427,7 +427,7 @@ export default function MatchParticipantsPage() {
             onClick={handleSaveAndMatch}
             disabled={savingReqs}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             {savingReqs ? (
               <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -441,7 +441,7 @@ export default function MatchParticipantsPage() {
               onClick={computeMatches}
               disabled={loadingMatches}
               className="px-4 py-2 rounded-xl text-sm font-medium border transition-colors hover:bg-slate-50 disabled:opacity-50"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
             >
               Refresh matches
             </button>
@@ -453,7 +453,7 @@ export default function MatchParticipantsPage() {
       {loadingMatches ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+            <div key={i} className={`${dashboardTheme.glass} rounded-2xl p-5 animate-pulse`}>
               <div className="flex gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-slate-200" />
                 <div className="flex-1 space-y-2">
@@ -467,11 +467,11 @@ export default function MatchParticipantsPage() {
       ) : matches.length > 0 ? (
         <>
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold" style={{ color: brand.text }}>
-              Participant matches <span className="text-sm font-normal" style={{ color: brand.muted }}>({matches.length} checked)</span>
+            <h2 className="text-base font-semibold" style={{ color: dashboardTheme.color.text }}>
+              Participant matches <span className="text-sm font-normal" style={{ color: dashboardTheme.color.muted }}>({matches.length} checked)</span>
             </h2>
             {selected.size > 0 && (
-              <span className="text-sm font-medium" style={{ color: brand.primary }}>
+              <span className="text-sm font-medium" style={{ color: dashboardTheme.color.primary }}>
                 {selected.size} selected
               </span>
             )}
@@ -490,9 +490,9 @@ export default function MatchParticipantsPage() {
               return (
                 <div
                   key={m.employee_id}
-                  className={`${glass} rounded-2xl p-5 transition-all`}
+                  className={`${dashboardTheme.glass} rounded-2xl p-5 transition-all`}
                   style={{
-                    outline: isSelected ? `2px solid ${brand.primary}` : 'none',
+                    outline: isSelected ? `2px solid ${dashboardTheme.color.primary}` : 'none',
                     outlineOffset: 2,
                   }}
                 >
@@ -513,7 +513,7 @@ export default function MatchParticipantsPage() {
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold" style={{ color: brand.text }}>
+                        <span className="font-semibold" style={{ color: dashboardTheme.color.text }}>
                           {m.employee.full_name}
                         </span>
                         <span
@@ -540,24 +540,24 @@ export default function MatchParticipantsPage() {
                       </div>
 
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs" style={{ color: brand.muted }}>{m.employee.email}</span>
+                        <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>{m.employee.email}</span>
                         {m.employee.suburb && (
-                          <span className="text-xs" style={{ color: brand.muted }}>· {m.employee.suburb}</span>
+                          <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>· {m.employee.suburb}</span>
                         )}
                       </div>
 
                       {/* Support profile summary */}
                       {m.support_profile && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: dashboardTheme.color.surfaceAlt, color: dashboardTheme.color.muted }}>
                             {SUPPORT_MODE_LABELS[m.support_profile.support_mode]}
                           </span>
                           {m.support_profile.support_window_start && (
-                            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: dashboardTheme.color.surfaceAlt, color: dashboardTheme.color.muted }}>
                               {m.support_profile.support_window_start}–{m.support_profile.support_window_end}
                             </span>
                           )}
-                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: dashboardTheme.color.surfaceAlt, color: dashboardTheme.color.muted }}>
                             max {m.support_profile.max_shift_duration_minutes} min
                           </span>
                         </div>
@@ -576,7 +576,7 @@ export default function MatchParticipantsPage() {
                     <button
                       onClick={() => setExpandedMatch(isExpanded ? null : m.employee_id)}
                       className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
-                      style={{ color: brand.muted }}
+                      style={{ color: dashboardTheme.color.muted }}
                       title={isExpanded ? 'Hide breakdown' : 'Show breakdown'}
                     >
                       <svg
@@ -590,9 +590,9 @@ export default function MatchParticipantsPage() {
 
                   {/* Expanded breakdown */}
                   {isExpanded && m.reasons.length > 0 && (
-                    <div className="mt-4 pt-4 border-t" style={{ borderColor: brand.border }}>
-                      <p className="text-xs font-semibold mb-2" style={{ color: brand.muted }}>Score breakdown</p>
-                      <div className="divide-y" style={{ borderColor: brand.border }}>
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: dashboardTheme.color.border }}>
+                      <p className="text-xs font-semibold mb-2" style={{ color: dashboardTheme.color.muted }}>Score breakdown</p>
+                      <div className="divide-y" style={{ borderColor: dashboardTheme.color.border }}>
                         {m.reasons.map((r, i) => <MatchReasonRow key={i} reason={r} />)}
                       </div>
                       {m.support_profile?.supervision_notes && (
@@ -616,9 +616,9 @@ export default function MatchParticipantsPage() {
 
           {/* Override note (shown when blockers present in selection) */}
           {showOverride && hasBlockerSelected && (
-            <div className={`${glass} rounded-2xl p-5`} style={{ border: '2px solid rgba(239,68,68,0.3)' }}>
+            <div className={`${dashboardTheme.glass} rounded-2xl p-5`} style={{ border: '2px solid rgba(239,68,68,0.3)' }}>
               <p className="text-sm font-semibold text-red-700 mb-1">Override required</p>
-              <p className="text-xs mb-3" style={{ color: brand.muted }}>
+              <p className="text-xs mb-3" style={{ color: dashboardTheme.color.muted }}>
                 One or more selected participants has a safety blocker. Provide a documented reason to override and proceed.
               </p>
               <textarea
@@ -627,7 +627,7 @@ export default function MatchParticipantsPage() {
                 rows={3}
                 placeholder="Explain why it is safe to proceed despite the safety flag..."
                 className="w-full rounded-xl border px-3 py-2 text-sm resize-none"
-                style={{ borderColor: 'rgba(239,68,68,0.4)', color: brand.text }}
+                style={{ borderColor: 'rgba(239,68,68,0.4)', color: dashboardTheme.color.text }}
               />
             </div>
           )}
@@ -635,7 +635,7 @@ export default function MatchParticipantsPage() {
           {/* Publish bar */}
           <div
             className="sticky bottom-4 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xl"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             <div>
               <p className="text-sm font-semibold text-white">

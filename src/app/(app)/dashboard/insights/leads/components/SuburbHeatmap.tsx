@@ -20,7 +20,7 @@
 
 import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { night } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { NightPanel, NightChip, NightEmpty, NightDivider } from './NightPrimitives';
 import { loadGoogleMapsOnce } from '@/map/yardMapLoader';
 import { formatLeadMoney } from '../lib/leadAdapter';
@@ -58,7 +58,7 @@ export function SuburbHeatmap({ suburbs }: { suburbs: SuburbInsight[] }) {
       subtitle="Where leads are coming from, and where they're heating up."
       right={
         GOOGLE_KEY ? (
-          <div className="inline-flex rounded-full border p-0.5" style={{ borderColor: night.border, background: 'rgba(255,255,255,0.02)' }}>
+          <div className="inline-flex rounded-full border p-0.5" style={{ borderColor: dashboardTheme.night!.color.border, background: 'rgba(255,255,255,0.02)' }}>
             <ViewToggle active={view === 'list'} onClick={() => setView('list')}>List</ViewToggle>
             <ViewToggle active={view === 'map'} onClick={() => setView('map')}>Map</ViewToggle>
           </div>
@@ -91,11 +91,11 @@ function SuburbList({ suburbs }: { suburbs: SuburbInsight[] }) {
               <div className="flex min-w-0 items-center gap-2">
                 <span
                   className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums"
-                  style={{ background: 'rgba(255,255,255,0.04)', color: night.muted, border: `1px solid ${night.border}` }}
+                  style={{ background: 'rgba(255,255,255,0.04)', color: dashboardTheme.night!.color.muted, border: `1px solid ${dashboardTheme.night!.color.border}` }}
                 >
                   {idx + 1}
                 </span>
-                <span className="truncate text-sm font-semibold" style={{ color: night.text }}>{row.suburb}</span>
+                <span className="truncate text-sm font-semibold" style={{ color: dashboardTheme.night!.color.text }}>{row.suburb}</span>
                 {row.hotLeads > 0 ? (
                   <NightChip tone="hot">{row.hotLeads} hot</NightChip>
                 ) : null}
@@ -104,10 +104,10 @@ function SuburbList({ suburbs }: { suburbs: SuburbInsight[] }) {
                 ) : null}
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold tabular-nums" style={{ color: night.text }}>
+                <p className="text-sm font-semibold tabular-nums" style={{ color: dashboardTheme.night!.color.text }}>
                   {row.activeLeads + row.bookedJobs}
                 </p>
-                <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: night.subtle }}>
+                <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: dashboardTheme.night!.color.subtle }}>
                   {row.revenue > 0 ? formatLeadMoney(row.revenue) : 'leads'}
                 </p>
               </div>
@@ -120,9 +120,9 @@ function SuburbList({ suburbs }: { suburbs: SuburbInsight[] }) {
                 className="h-full rounded-full"
                 style={{
                   background: row.hotLeads > 0
-                    ? `linear-gradient(90deg, ${night.accent}, ${night.hot})`
-                    : `linear-gradient(90deg, ${night.accent}, ${night.cold})`,
-                  boxShadow: row.hotLeads > 0 ? `0 0 12px ${night.hot}55` : `0 0 8px ${night.accent}55`,
+                    ? `linear-gradient(90deg, ${dashboardTheme.night!.color.accent}, ${dashboardTheme.night!.color.hot})`
+                    : `linear-gradient(90deg, ${dashboardTheme.night!.color.accent}, ${dashboardTheme.night!.color.cold})`,
+                  boxShadow: row.hotLeads > 0 ? `0 0 12px ${dashboardTheme.night!.color.hot}55` : `0 0 8px ${dashboardTheme.night!.color.accent}55`,
                 }}
               />
             </div>
@@ -132,7 +132,7 @@ function SuburbList({ suburbs }: { suburbs: SuburbInsight[] }) {
       {suburbs.length > 12 ? (
         <li>
           <NightDivider className="my-2" />
-          <p className="text-center text-[11px]" style={{ color: night.subtle }}>
+          <p className="text-center text-[11px]" style={{ color: dashboardTheme.night!.color.subtle }}>
             + {suburbs.length - 12} more suburbs with active leads
           </p>
         </li>
@@ -189,7 +189,7 @@ function SuburbMap({ suburbs }: { suburbs: SuburbInsight[] }) {
           zoomControl: true,
           gestureHandling: 'cooperative',
           styles: NIGHT_MAP_STYLES,
-          backgroundColor: night.bg,
+          backgroundColor: dashboardTheme.night!.color.bg,
         });
 
         // Geocode each suburb (cached). Append ", Australia" to nudge results
@@ -249,7 +249,7 @@ function SuburbMap({ suburbs }: { suburbs: SuburbInsight[] }) {
               map,
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
-                fillColor: isHot ? night.hot : night.accent,
+                fillColor: isHot ? dashboardTheme.night!.color.hot : dashboardTheme.night!.color.accent,
                 fillOpacity: 0.9,
                 strokeColor: '#fff',
                 strokeWeight: 1.2,
@@ -282,18 +282,18 @@ function SuburbMap({ suburbs }: { suburbs: SuburbInsight[] }) {
       <div
         ref={mapDivRef}
         className="h-[420px] w-full overflow-hidden rounded-2xl border"
-        style={{ borderColor: night.border, background: '#020806' }}
+        style={{ borderColor: dashboardTheme.night!.color.border, background: '#020806' }}
       />
       {status === 'loading' ? (
         <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ background: 'rgba(7,16,12,0.6)' }}>
-          <p className="text-sm" style={{ color: night.muted }}>Loading map and geocoding suburbs…</p>
+          <p className="text-sm" style={{ color: dashboardTheme.night!.color.muted }}>Loading map and geocoding suburbs…</p>
         </div>
       ) : null}
       {status === 'error' ? (
         <div className="absolute inset-0 flex items-center justify-center rounded-2xl px-6 text-center" style={{ background: 'rgba(7,16,12,0.85)' }}>
           <div>
             <p className="text-sm font-semibold" style={{ color: '#FFD089' }}>Map unavailable</p>
-            <p className="mt-1 text-xs" style={{ color: night.muted }}>{errorMessage}</p>
+            <p className="mt-1 text-xs" style={{ color: dashboardTheme.night!.color.muted }}>{errorMessage}</p>
           </div>
         </div>
       ) : null}
@@ -317,7 +317,7 @@ function ViewToggle({
       className="rounded-full px-3 py-1 text-[11px] font-semibold transition"
       style={{
         background: active ? 'rgba(28,124,84,0.18)' : 'transparent',
-        color: active ? '#7CE0B0' : night.muted,
+        color: active ? '#7CE0B0' : dashboardTheme.night!.color.muted,
       }}
     >
       {children}

@@ -16,7 +16,7 @@
  *   Batch 5 (later) — src/components/ shared utilities
  */
 
-export type { Theme, ThemeColor, ThemeType, ThemeTypeStep, ThemeRadius, ThemeShadow, ThemeNav } from './_theme';
+export type { Theme, ThemeColor, ThemeType, ThemeTypeStep, ThemeRadius, ThemeShadow, ThemeNav, ThemeNight, ThemeNightColor, ThemeTempTone } from './_theme';
 export { dashboardTheme } from './dashboard';
 export { crewTheme } from './crew';
 export { publicTheme } from './public';

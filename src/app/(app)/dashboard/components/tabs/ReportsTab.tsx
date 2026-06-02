@@ -1,6 +1,6 @@
 'use client';
 
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { Panel } from '../shared';
 import {
   formatCurrency,
@@ -73,7 +73,7 @@ export default function ReportsTab({ metrics, receivables, payables }: ReportsTa
                   type="button"
                   onClick={report.exportFn}
                   className="text-xs font-semibold text-white px-4 py-2 rounded-lg transition-all hover:shadow-lg"
-                  style={{ background: brand.primary }}
+                  style={{ background: dashboardTheme.color.primary }}
                 >
                   Download
                 </button>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type {
   Order,
   OrderStatus,
@@ -475,7 +475,7 @@ export default function OrdersPage() {
                     type="button"
                     onClick={() => updateOrderStatus(selectedOrder.id, 'confirmed')}
                     className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     Confirm Order
                   </button>
@@ -485,7 +485,7 @@ export default function OrdersPage() {
                     type="button"
                     onClick={() => updateOrderStatus(selectedOrder.id, 'scheduled')}
                     className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     Mark Scheduled
                   </button>
@@ -495,7 +495,7 @@ export default function OrdersPage() {
                     type="button"
                     onClick={() => updateOrderStatus(selectedOrder.id, 'in_progress')}
                     className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     Start Job
                   </button>
@@ -514,7 +514,7 @@ export default function OrdersPage() {
                     type="button"
                     onClick={openAssignModal}
                     className="rounded-lg border px-3 py-2 text-xs font-semibold"
-                    style={{ borderColor: brand.border, color: brand.primary }}
+                    style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
                   >
                     Assign to Crew
                   </button>
@@ -611,7 +611,7 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>
+          <h1 className="text-xl font-semibold" style={{ color: dashboardTheme.color.primary }}>
             Orders
           </h1>
           <p className="text-sm text-slate-500">
@@ -628,7 +628,7 @@ export default function OrdersPage() {
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="px-3 py-2 text-xs rounded-lg text-white"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             + New Order
           </button>
@@ -660,7 +660,7 @@ export default function OrdersPage() {
                   ? 'text-white'
                   : 'bg-transparent text-slate-600 hover:text-slate-900'
               }`}
-              style={activeTab === tab.key ? { background: brand.primary } : undefined}
+              style={activeTab === tab.key ? { background: dashboardTheme.color.primary } : undefined}
             >
               {tab.label}
             </button>
@@ -849,7 +849,7 @@ export default function OrdersPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30" onClick={() => setAssignModalOpen(false)} aria-hidden />
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-4" style={{ color: brand.text }}>
+            <h2 className="text-lg font-semibold mb-4" style={{ color: dashboardTheme.color.text }}>
               Assign to Crew
             </h2>
             {employees.length === 0 ? (
@@ -868,11 +868,11 @@ export default function OrdersPage() {
                     onClick={() => assignToCrew(emp.id)}
                     disabled={assignLoading}
                     className="w-full text-left px-4 py-3 rounded-lg border transition-colors hover:bg-slate-50"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                   >
-                    <p className="text-sm font-medium" style={{ color: brand.text }}>{emp.full_name}</p>
+                    <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>{emp.full_name}</p>
                     {emp.services && emp.services.length > 0 && (
-                      <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                      <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                         {emp.services.map((s) => SERVICE_TYPE_LABELS[s as ServiceType] || s).join(', ')}
                       </p>
                     )}
@@ -883,7 +883,7 @@ export default function OrdersPage() {
             <button
               onClick={() => setAssignModalOpen(false)}
               className="mt-4 w-full py-2 rounded-lg border text-sm"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
             >
               Cancel
             </button>
@@ -898,8 +898,8 @@ export default function OrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: brand.text }}>Send service agreement</h2>
-                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.text }}>Send service agreement</h2>
+                <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                   Sent to <strong>{selectedOrder.customer_email}</strong> via DocuSign. Covers booking details, payment terms, cancellation policy, liability, and filming consent.
                 </p>
               </div>
@@ -907,8 +907,8 @@ export default function OrdersPage() {
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-medium" style={{ color: brand.text }}>Filming consent to include</p>
-              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: brand.border }}>
+              <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Filming consent to include</p>
+              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: dashboardTheme.color.border }}>
                 <input
                   type="checkbox"
                   checked={agreementForm.filmingOps}
@@ -916,13 +916,13 @@ export default function OrdersPage() {
                   className="mt-0.5 h-4 w-4 accent-emerald-700"
                 />
                 <div>
-                  <p className="text-sm font-medium" style={{ color: brand.text }}>Quality control &amp; training</p>
-                  <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Quality control &amp; training</p>
+                  <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                     Internal use only — quality assurance, staff training, record-keeping. Not shared publicly.
                   </p>
                 </div>
               </label>
-              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: brand.border }}>
+              <label className="flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer" style={{ borderColor: dashboardTheme.color.border }}>
                 <input
                   type="checkbox"
                   checked={agreementForm.filmingMarketing}
@@ -930,8 +930,8 @@ export default function OrdersPage() {
                   className="mt-0.5 h-4 w-4 accent-emerald-700"
                 />
                 <div>
-                  <p className="text-sm font-medium" style={{ color: brand.text }}>Marketing &amp; promotional use</p>
-                  <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Marketing &amp; promotional use</p>
+                  <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                     Before/after photos or clips (not identifying the customer personally) for website, social media, or ads.
                   </p>
                 </div>
@@ -947,7 +947,7 @@ export default function OrdersPage() {
               <button
                 onClick={() => setAgreementModal(false)}
                 className="rounded-xl border px-4 py-2 text-sm font-medium"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -971,8 +971,8 @@ export default function OrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: brand.text }}>Request variation sign-off</h2>
-                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.text }}>Request variation sign-off</h2>
+                <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                   Sent to <strong>{selectedOrder.customer_email}</strong> via DocuSign. Gets the customer&apos;s written approval before you carry out additional work.
                 </p>
               </div>
@@ -981,7 +981,7 @@ export default function OrdersPage() {
 
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>
                   Description of additional work <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -990,18 +990,18 @@ export default function OrdersPage() {
                   placeholder="e.g. Customer requested we clean the oven interior and wipe down the laundry room walls in addition to the standard clean."
                   rows={3}
                   className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Original price</label>
-                  <div className="rounded-xl border px-3 py-2 text-sm bg-slate-50" style={{ borderColor: brand.border, color: brand.muted }}>
+                  <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Original price</label>
+                  <div className="rounded-xl border px-3 py-2 text-sm bg-slate-50" style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}>
                     ${Number(selectedOrder.final_price).toFixed(2)}
                   </div>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>
+                  <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>
                     Additional cost ($) <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1012,7 +1012,7 @@ export default function OrdersPage() {
                     onChange={(e) => setVariationForm((p) => ({ ...p, additionalCost: e.target.value }))}
                     placeholder="e.g. 45.00"
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                   />
                 </div>
               </div>
@@ -1022,13 +1022,13 @@ export default function OrdersPage() {
                 </div>
               )}
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Reason / context (optional)</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Reason / context (optional)</label>
                 <input
                   value={variationForm.reason}
                   onChange={(e) => setVariationForm((p) => ({ ...p, reason: e.target.value }))}
                   placeholder="e.g. Customer pointed out the area during the job walkthrough."
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 />
               </div>
             </div>
@@ -1037,7 +1037,7 @@ export default function OrdersPage() {
               <button
                 onClick={() => setVariationModal(false)}
                 className="rounded-xl border px-4 py-2 text-sm font-medium"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>

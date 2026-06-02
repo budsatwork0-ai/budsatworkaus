@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 export type WorkbenchTone = 'emerald' | 'blue' | 'amber' | 'red' | 'slate';
 
@@ -54,7 +54,7 @@ export function WorkbenchHeader({
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: '#10b981' }}>
             {eyebrow}
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em]" style={{ color: brand.primary }}>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em]" style={{ color: dashboardTheme.color.primary }}>
             {title}
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">{description}</p>
@@ -114,7 +114,7 @@ export function WorkbenchTabs<T extends string>({
               type="button"
               onClick={() => onTabChange(tab.key)}
               className="rounded-xl px-4 py-3 text-left transition"
-              style={isActive ? { background: brand.primary, color: '#fff' } : { color: brand.muted }}
+              style={isActive ? { background: dashboardTheme.color.primary, color: '#fff' } : { color: dashboardTheme.color.muted }}
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold">{tab.label}</span>

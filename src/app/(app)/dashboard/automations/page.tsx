@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import {
   DEFAULT_AUTOMATION_CONFIG,
   DEFAULT_AUTOMATION_SETTINGS,
@@ -64,7 +64,7 @@ function SaveBadge({ state }: { state: SaveState }) {
       ? { background: '#ECFDF5', color: '#065F46' }
       : state === 'error'
         ? { background: '#FEF2F2', color: '#991B1B' }
-        : { background: '#F1F5F9', color: brand.muted };
+        : { background: '#F1F5F9', color: dashboardTheme.color.muted };
 
   return (
     <span className="text-xs px-2.5 py-1 rounded-full" style={style}>
@@ -133,10 +133,10 @@ export default function AutomationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ background: brand.bg }}>
+      <div className="min-h-screen" style={{ background: dashboardTheme.color.bg }}>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5].map((item) => (
-            <div key={item} className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: brand.card }}>
+            <div key={item} className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: dashboardTheme.color.card }}>
               <div className="h-5 w-40 rounded bg-slate-200" />
               <div className="mt-3 h-4 w-full rounded bg-slate-100" />
               <div className="mt-2 h-4 w-4/5 rounded bg-slate-100" />
@@ -148,11 +148,11 @@ export default function AutomationsPage() {
   }
 
   return (
-    <div className="min-h-screen space-y-6" style={{ background: brand.bg }}>
+    <div className="min-h-screen space-y-6" style={{ background: dashboardTheme.color.bg }}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Automations</h1>
-          <p className="text-sm md:text-base mt-1" style={{ color: brand.muted }}>
+          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: dashboardTheme.color.primary }}>Automations</h1>
+          <p className="text-sm md:text-base mt-1" style={{ color: dashboardTheme.color.muted }}>
             Turn automations on and off, set the re-engagement discount, and keep dashboard goals editable without code changes.
           </p>
         </div>
@@ -161,11 +161,11 @@ export default function AutomationsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {AUTOMATION_CARDS.map((card) => (
-          <div key={card.key} className={`${glass} rounded-2xl p-4`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: brand.card }}>
+          <div key={card.key} className={`${glass} rounded-2xl p-4`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: dashboardTheme.color.card }}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="font-semibold" style={{ color: brand.primary }}>{card.title}</div>
-                <div className="text-sm mt-0.5" style={{ color: brand.muted }}>{card.desc}</div>
+                <div className="font-semibold" style={{ color: dashboardTheme.color.primary }}>{card.title}</div>
+                <div className="text-sm mt-0.5" style={{ color: dashboardTheme.color.muted }}>{card.desc}</div>
                 {card.caution && (
                   <div className="mt-2 text-xs rounded-lg px-2.5 py-2" style={{ background: '#FFF7ED', color: '#9A3412' }}>
                     {card.caution}
@@ -175,13 +175,13 @@ export default function AutomationsPage() {
               <button
                 onClick={() => toggleAutomation(card.key)}
                 className="w-12 h-7 rounded-full border relative transition flex-shrink-0"
-                style={{ borderColor: brand.border, background: automations[card.key] ? '#E6F6ED' : '#F3F4F6' }}
+                style={{ borderColor: dashboardTheme.color.border, background: automations[card.key] ? '#E6F6ED' : '#F3F4F6' }}
                 aria-pressed={automations[card.key]}
                 aria-label={automations[card.key] ? `Disable ${card.title}` : `Enable ${card.title}`}
               >
                 <span
                   className={`absolute top-1 left-1 h-5 w-5 rounded-full border transition-transform ${automations[card.key] ? 'translate-x-5' : ''}`}
-                  style={{ borderColor: brand.border, background: '#fff' }}
+                  style={{ borderColor: dashboardTheme.color.border, background: '#fff' }}
                 />
               </button>
             </div>
@@ -190,11 +190,11 @@ export default function AutomationsPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className={`${glass} rounded-2xl p-5`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: brand.card }}>
+        <section className={`${glass} rounded-2xl p-5`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: dashboardTheme.color.card }}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold" style={{ color: brand.primary }}>Re-Engagement Offer</h2>
-              <p className="text-sm mt-1" style={{ color: brand.muted }}>
+              <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.primary }}>Re-Engagement Offer</h2>
+              <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
                 This controls the 48-hour quote discount automation.
               </p>
             </div>
@@ -222,17 +222,17 @@ export default function AutomationsPage() {
           <button
             onClick={() => persistSettings({ automationConfig: config }, setConfigState)}
             className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             Save Discount
           </button>
         </section>
 
-        <section className={`${glass} rounded-2xl p-5`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: brand.card }}>
+        <section className={`${glass} rounded-2xl p-5`} style={{ borderColor: 'rgba(0,0,0,0.08)', background: dashboardTheme.color.card }}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold" style={{ color: brand.primary }}>Dashboard Goals</h2>
-              <p className="text-sm mt-1" style={{ color: brand.muted }}>
+              <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.primary }}>Dashboard Goals</h2>
+              <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
                 These feed the overview progress cards and reporting targets.
               </p>
             </div>
@@ -275,7 +275,7 @@ export default function AutomationsPage() {
           <button
             onClick={() => persistSettings({ goals }, setGoalsState)}
             className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             Save Goals
           </button>

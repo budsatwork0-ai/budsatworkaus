@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { debounce } from '@/lib/dashboard/utils';
 
 type SearchResult = {
@@ -32,7 +32,7 @@ function CloseIcon({ className = 'h-4 w-4' }: { className?: string }) {
 
 const typeColors: Record<SearchResult['type'], string> = {
   customer: '#10B981',
-  invoice: brand.primary,
+  invoice: dashboardTheme.color.primary,
   job: '#6366F1',
   bill: '#F59E0B',
 };

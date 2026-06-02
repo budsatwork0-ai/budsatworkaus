@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type { Inductee } from '@/app/api/inductions/route';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
@@ -20,7 +20,7 @@ function completedCount(ind: Inductee) {
 
 function Skeleton() {
   return (
-    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: brand.border, background: brand.card }}>
+    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
       <div className="flex items-center justify-between mb-3">
         <div className="space-y-1">
           <div className="h-4 w-28 bg-slate-200 rounded" />
@@ -90,23 +90,23 @@ export default function InductionsPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: brand.bg }}>
+    <div className="min-h-screen" style={{ background: dashboardTheme.color.bg }}>
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Inductions</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>
+        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: dashboardTheme.color.primary }}>Inductions</h1>
+        <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
           Track onboarding steps, checks, and approvals for new team members.
         </p>
       </div>
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4 mb-6">
         {[
-          { label: 'Active', value: isLoading ? '—' : String(inductees.length), color: brand.primary },
+          { label: 'Active', value: isLoading ? '—' : String(inductees.length), color: dashboardTheme.color.primary },
           { label: 'Completed', value: isLoading ? '—' : String(inductees.filter(i => completedCount(i) === STEPS.length).length), color: '#22c55e' },
           { label: 'In progress', value: isLoading ? '—' : String(inductees.filter(i => completedCount(i) > 0 && completedCount(i) < STEPS.length).length), color: '#f59e0b' },
-          { label: 'Steps each', value: String(STEPS.length), color: brand.muted },
+          { label: 'Steps each', value: String(STEPS.length), color: dashboardTheme.color.muted },
         ].map(s => (
-          <div key={s.label} className={`${glass} rounded-2xl p-3`} style={{ borderColor: brand.border, background: brand.card }}>
-            <div className="text-[11px] uppercase tracking-wide" style={{ color: brand.muted }}>{s.label}</div>
+          <div key={s.label} className={`${glass} rounded-2xl p-3`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: dashboardTheme.color.muted }}>{s.label}</div>
             <div className="text-xl font-semibold" style={{ color: s.color }}>{s.value}</div>
           </div>
         ))}
@@ -115,16 +115,16 @@ export default function InductionsPage() {
       {error && (
         <div className="mb-4 rounded-xl p-4 bg-red-50 border border-red-100 text-sm text-red-700 flex items-center justify-between">
           {error}
-          <button onClick={fetchInductees} className="text-xs underline ml-4" style={{ color: brand.primary }}>Retry</button>
+          <button onClick={fetchInductees} className="text-xs underline ml-4" style={{ color: dashboardTheme.color.primary }}>Retry</button>
         </div>
       )}
 
       {isLoading ? (
         <div className="space-y-4">{[1, 2, 3].map(i => <Skeleton key={i} />)}</div>
       ) : inductees.length === 0 ? (
-        <div className={`${glass} rounded-2xl p-8 text-center`} style={{ borderColor: brand.border, background: brand.card }}>
-          <div className="text-sm font-medium mb-1" style={{ color: brand.text }}>No active inductees</div>
-          <div className="text-xs" style={{ color: brand.muted }}>
+        <div className={`${glass} rounded-2xl p-8 text-center`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
+          <div className="text-sm font-medium mb-1" style={{ color: dashboardTheme.color.text }}>No active inductees</div>
+          <div className="text-xs" style={{ color: dashboardTheme.color.muted }}>
             Applicants in the Verify, Paperwork, or Induct stages will appear here.
           </div>
         </div>
@@ -136,14 +136,14 @@ export default function InductionsPage() {
             const isSaving = saving === ind.id;
 
             return (
-              <div key={ind.id} className={`${glass} rounded-2xl p-4`} style={{ borderColor: brand.border, background: brand.card }}>
+              <div key={ind.id} className={`${glass} rounded-2xl p-4`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div>
-                    <div className="font-semibold flex items-center gap-2" style={{ color: brand.text }}>
+                    <div className="font-semibold flex items-center gap-2" style={{ color: dashboardTheme.color.text }}>
                       {ind.full_name}
                       {isSaving && <span className="text-[10px] text-slate-400">Saving…</span>}
                     </div>
-                    <div className="text-xs" style={{ color: brand.muted }}>
+                    <div className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                       {ind.role} &middot; Started {new Date(ind.created_at).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                   </div>
@@ -151,10 +151,10 @@ export default function InductionsPage() {
                     <div className="w-24 h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, background: pct === 100 ? '#22c55e' : brand.primary }}
+                        style={{ width: `${pct}%`, background: pct === 100 ? '#22c55e' : dashboardTheme.color.primary }}
                       />
                     </div>
-                    <span className="text-xs font-medium" style={{ color: pct === 100 ? '#22c55e' : brand.text }}>
+                    <span className="text-xs font-medium" style={{ color: pct === 100 ? '#22c55e' : dashboardTheme.color.text }}>
                       {done}/{STEPS.length}
                     </span>
                   </div>
@@ -169,11 +169,11 @@ export default function InductionsPage() {
                         onClick={() => toggleStep(ind.id, step.key, checked)}
                         disabled={isSaving}
                         className={`flex items-center gap-3 rounded-lg border p-2.5 text-left transition ${checked ? 'bg-emerald-50/50' : 'bg-white/60 hover:bg-white'} disabled:opacity-60`}
-                        style={{ borderColor: checked ? '#bbf7d0' : brand.border }}
+                        style={{ borderColor: checked ? '#bbf7d0' : dashboardTheme.color.border }}
                       >
                         <div
                           className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${checked ? 'bg-emerald-500 border-emerald-500' : ''}`}
-                          style={checked ? {} : { borderColor: brand.border }}
+                          style={checked ? {} : { borderColor: dashboardTheme.color.border }}
                         >
                           {checked && (
                             <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -182,10 +182,10 @@ export default function InductionsPage() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-medium ${checked ? 'line-through text-slate-400' : ''}`} style={checked ? {} : { color: brand.text }}>
+                          <div className={`text-sm font-medium ${checked ? 'line-through text-slate-400' : ''}`} style={checked ? {} : { color: dashboardTheme.color.text }}>
                             {idx + 1}. {step.label}
                           </div>
-                          <div className="text-[11px]" style={{ color: brand.muted }}>{step.description}</div>
+                          <div className="text-[11px]" style={{ color: dashboardTheme.color.muted }}>{step.description}</div>
                         </div>
                       </button>
                     );

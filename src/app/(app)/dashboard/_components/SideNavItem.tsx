@@ -9,7 +9,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 export default function SideNavItem({
   href,
@@ -48,15 +48,15 @@ export default function SideNavItem({
           active ? 'shadow-[0_6px_18px_rgba(28,124,84,.28)]' : 'hover:bg-white/75 hover:shadow-sm'
         }`}
         style={{
-          borderColor: active ? brand.accent : 'transparent',
-          background: active ? brand.accent : 'transparent',
+          borderColor: active ? dashboardTheme.color.accent : 'transparent',
+          background: active ? dashboardTheme.color.accent : 'transparent',
         }}
       >
         <motion.span
           className={`grid place-items-center rounded-[10px] shrink-0 ${nested ? 'h-6 w-6' : 'h-7 w-7'}`}
           style={{
             background: active ? 'rgba(255,255,255,.22)' : 'rgba(15,61,46,.08)',
-            color: active ? '#fff' : brand.primary,
+            color: active ? '#fff' : dashboardTheme.color.primary,
           }}
           layout
         >
@@ -65,7 +65,7 @@ export default function SideNavItem({
         {showLabel && (
           <span
             className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
-            style={{ color: active ? '#fff' : brand.muted }}
+            style={{ color: active ? '#fff' : dashboardTheme.color.muted }}
           >
             {label}
           </span>

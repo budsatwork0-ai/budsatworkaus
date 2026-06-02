@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { brand, glass } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { ServiceType } from '@/types/orders';
 
@@ -257,8 +257,8 @@ export default function NdisPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: brand.text }}>NDIS</h1>
-          <p className="text-sm mt-0.5" style={{ color: brand.muted }}>
+          <h1 className="text-xl font-bold" style={{ color: dashboardTheme.color.text }}>NDIS</h1>
+          <p className="text-sm mt-0.5" style={{ color: dashboardTheme.color.muted }}>
             Manage NDIS organisations and match jobs to participants
           </p>
         </div>
@@ -266,7 +266,7 @@ export default function NdisPage() {
           <button
             onClick={() => setShowCreateOrg(true)}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             + Add Organisation
           </button>
@@ -285,7 +285,7 @@ export default function NdisPage() {
             className="px-4 py-1.5 rounded-lg text-sm transition-all"
             style={{
               background: tab === key ? 'white' : 'transparent',
-              color: tab === key ? brand.primary : brand.muted,
+              color: tab === key ? dashboardTheme.color.primary : dashboardTheme.color.muted,
               fontWeight: tab === key ? 600 : 400,
               boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
             }}
@@ -299,13 +299,13 @@ export default function NdisPage() {
       {tab === 'job_matching' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm" style={{ color: brand.muted }}>
+            <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>
               Confirmed jobs that can be matched to NDIS participants. Click Match to assign compatible workers.
             </p>
             <button
               onClick={() => void fetchMatchingJobs()}
               className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-slate-50"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
             >
               Refresh
             </button>
@@ -314,16 +314,16 @@ export default function NdisPage() {
           {matchingJobsLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+                <div key={i} className={`${dashboardTheme.glass} rounded-2xl p-5 animate-pulse`}>
                   <div className="h-4 bg-slate-200 rounded w-1/3 mb-2" />
                   <div className="h-3 bg-slate-200 rounded w-1/2" />
                 </div>
               ))}
             </div>
           ) : matchingJobs.length === 0 ? (
-            <div className={`${glass} rounded-2xl p-10 text-center`}>
-              <p className="font-medium" style={{ color: brand.text }}>No jobs awaiting matching</p>
-              <p className="text-sm mt-1" style={{ color: brand.muted }}>
+            <div className={`${dashboardTheme.glass} rounded-2xl p-10 text-center`}>
+              <p className="font-medium" style={{ color: dashboardTheme.color.text }}>No jobs awaiting matching</p>
+              <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
                 Confirmed jobs will appear here once they are ready to be matched to participants.
               </p>
             </div>
@@ -332,17 +332,17 @@ export default function NdisPage() {
               {matchingJobs.map((job) => {
                 const serviceLabel = SERVICE_TYPE_LABELS[job.service_type as ServiceType] || job.service_type;
                 return (
-                  <div key={job.id} className={`${glass} rounded-2xl p-5`}>
+                  <div key={job.id} className={`${dashboardTheme.glass} rounded-2xl p-5`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span
                             className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                            style={{ background: 'rgba(15,61,46,0.1)', color: dashboardTheme.color.primary }}
                           >
                             {serviceLabel}
                           </span>
-                          <span className="text-xs capitalize" style={{ color: brand.muted }}>{job.context}</span>
+                          <span className="text-xs capitalize" style={{ color: dashboardTheme.color.muted }}>{job.context}</span>
                           <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
                             job.requirements?.ndis_matching_enabled
                               ? 'bg-blue-100 text-blue-800'
@@ -356,10 +356,10 @@ export default function NdisPage() {
                             </span>
                           )}
                         </div>
-                        <p className="font-semibold" style={{ color: brand.text }}>{job.customer_name}</p>
+                        <p className="font-semibold" style={{ color: dashboardTheme.color.text }}>{job.customer_name}</p>
                         <div className="flex items-center gap-3 mt-1">
                           {job.scheduled_date && (
-                            <span className="text-xs" style={{ color: brand.muted }}>
+                            <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                               {new Date(job.scheduled_date).toLocaleDateString('en-AU', {
                                 weekday: 'short', day: 'numeric', month: 'short',
                               })}
@@ -367,23 +367,23 @@ export default function NdisPage() {
                             </span>
                           )}
                           {job.requirements?.location_suburb && (
-                            <span className="text-xs" style={{ color: brand.muted }}>
+                            <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                               · {job.requirements.location_suburb}
                             </span>
                           )}
-                          <span className="text-xs" style={{ color: brand.muted }}>
+                          <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                             · ~{Math.round(job.estimated_duration_minutes / 60 * 10) / 10}h
                           </span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
-                        <p className="text-base font-bold" style={{ color: brand.primary }}>
+                        <p className="text-base font-bold" style={{ color: dashboardTheme.color.primary }}>
                           ${job.final_price.toFixed(2)}
                         </p>
                         <Link
                           href={`/dashboard/ndis/match/${job.id}`}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-90"
-                          style={{ background: brand.primary }}
+                          style={{ background: dashboardTheme.color.primary }}
                         >
                           {job.publication_count > 0 ? 'Manage matches' : 'Match participants'}
                         </Link>
@@ -408,17 +408,17 @@ export default function NdisPage() {
           { label: 'Total participants', value: totalParticipants },
           { label: 'Monthly revenue', value: `$${(activeCount * (Number(process.env.NEXT_PUBLIC_NDIS_SUB_PRICE) || 0)).toFixed(0)}` },
         ].map((card) => (
-          <div key={card.label} className={`${glass} p-4`}>
-            <p className="text-xs font-medium mb-1" style={{ color: brand.muted }}>{card.label}</p>
-            <p className="text-2xl font-bold" style={{ color: brand.text }}>{card.value}</p>
+          <div key={card.label} className={`${dashboardTheme.glass} p-4`}>
+            <p className="text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>{card.label}</p>
+            <p className="text-2xl font-bold" style={{ color: dashboardTheme.color.text }}>{card.value}</p>
           </div>
         ))}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
         {/* Org list */}
-        <div className={`${glass} p-4 lg:col-span-2`}>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>
+        <div className={`${dashboardTheme.glass} p-4 lg:col-span-2`}>
+          <h2 className="text-sm font-semibold mb-3" style={{ color: dashboardTheme.color.text }}>
             Organisations ({orgs.length})
           </h2>
           {loading ? (
@@ -426,7 +426,7 @@ export default function NdisPage() {
               {[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-lg bg-slate-100 animate-pulse" />)}
             </div>
           ) : orgs.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: brand.muted }}>
+            <p className="text-sm text-center py-8" style={{ color: dashboardTheme.color.muted }}>
               No organisations yet. Add one above.
             </p>
           ) : (
@@ -438,20 +438,20 @@ export default function NdisPage() {
                   onClick={() => selectOrg(org)}
                   className="w-full text-left rounded-xl border p-3 transition-all"
                   style={selectedOrg?.id === org.id
-                    ? { borderColor: brand.primary, background: `${brand.primary}08` }
-                    : { borderColor: brand.border, background: 'white' }
+                    ? { borderColor: dashboardTheme.color.primary, background: `${dashboardTheme.color.primary}08` }
+                    : { borderColor: dashboardTheme.color.border, background: 'white' }
                   }
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: brand.text }}>{org.name}</p>
-                      <p className="text-[11px] truncate mt-0.5" style={{ color: brand.muted }}>{org.contact_email}</p>
+                      <p className="text-sm font-semibold truncate" style={{ color: dashboardTheme.color.text }}>{org.name}</p>
+                      <p className="text-[11px] truncate mt-0.5" style={{ color: dashboardTheme.color.muted }}>{org.contact_email}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[org.subscription_status]}`}>
                         {STATUS_LABELS[org.subscription_status]}
                       </span>
-                      <span className="text-[10px]" style={{ color: brand.muted }}>
+                      <span className="text-[10px]" style={{ color: dashboardTheme.color.muted }}>
                         {org.participant_count} participant{org.participant_count !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -463,10 +463,10 @@ export default function NdisPage() {
         </div>
 
         {/* Org detail */}
-        <div className={`${glass} p-5 lg:col-span-3`}>
+        <div className={`${dashboardTheme.glass} p-5 lg:col-span-3`}>
           {!selectedOrg ? (
             <div className="flex items-center justify-center h-48">
-              <p className="text-sm" style={{ color: brand.muted }}>Select an organisation to view details</p>
+              <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>Select an organisation to view details</p>
             </div>
           ) : (
             <div className="flex flex-col gap-5">
@@ -474,25 +474,25 @@ export default function NdisPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold" style={{ color: brand.text }}>{selectedOrg.name}</h2>
+                    <h2 className="text-base font-bold" style={{ color: dashboardTheme.color.text }}>{selectedOrg.name}</h2>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedOrg.subscription_status]}`}>
                       {STATUS_LABELS[selectedOrg.subscription_status]}
                     </span>
                   </div>
-                  <p className="text-xs mt-1" style={{ color: brand.muted }}>
+                  <p className="text-xs mt-1" style={{ color: dashboardTheme.color.muted }}>
                     {selectedOrg.contact_name} · {selectedOrg.contact_email}
                     {selectedOrg.contact_phone && ` · ${selectedOrg.contact_phone}`}
                   </p>
                   {selectedOrg.abn && (
-                    <p className="text-xs mt-0.5" style={{ color: brand.muted }}>ABN: {selectedOrg.abn}</p>
+                    <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>ABN: {selectedOrg.abn}</p>
                   )}
                   {selectedOrg.current_period_end && (
-                    <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                    <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>
                       Renews: {formatDate(selectedOrg.current_period_end)}
                     </p>
                   )}
                   {selectedOrg.notes && (
-                    <p className="text-xs mt-1 italic" style={{ color: brand.muted }}>{selectedOrg.notes}</p>
+                    <p className="text-xs mt-1 italic" style={{ color: dashboardTheme.color.muted }}>{selectedOrg.notes}</p>
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -501,7 +501,7 @@ export default function NdisPage() {
                       onClick={() => void startSubscription(selectedOrg)}
                       disabled={saving}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                      style={{ background: brand.primary }}
+                      style={{ background: dashboardTheme.color.primary }}
                     >
                       Start subscription
                     </button>
@@ -532,13 +532,13 @@ export default function NdisPage() {
               {/* Participants section */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold" style={{ color: brand.text }}>
+                  <h3 className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>
                     Participants ({participants.length})
                   </h3>
                   <button
                     onClick={() => setShowAddPart(true)}
                     className="text-xs font-medium px-2.5 py-1 rounded-lg border"
-                    style={{ borderColor: brand.border, color: brand.primary }}
+                    style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
                   >
                     + Add participant
                   </button>
@@ -549,7 +549,7 @@ export default function NdisPage() {
                     {[1, 2].map((i) => <div key={i} className="h-10 rounded-lg bg-slate-100 animate-pulse" />)}
                   </div>
                 ) : participants.length === 0 ? (
-                  <p className="text-xs text-center py-6" style={{ color: brand.muted }}>
+                  <p className="text-xs text-center py-6" style={{ color: dashboardTheme.color.muted }}>
                     No participants added yet.
                   </p>
                 ) : (
@@ -558,16 +558,16 @@ export default function NdisPage() {
                       <thead>
                         <tr>
                           {['Name', 'Email', 'NDIS #', 'Status', 'Joined'].map((h) => (
-                            <th key={h} className="text-left pb-2 font-semibold pr-3" style={{ color: brand.muted }}>{h}</th>
+                            <th key={h} className="text-left pb-2 font-semibold pr-3" style={{ color: dashboardTheme.color.muted }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y" style={{ borderColor: brand.border }}>
+                      <tbody className="divide-y" style={{ borderColor: dashboardTheme.color.border }}>
                         {participants.map((p) => (
                           <tr key={p.id}>
-                            <td className="py-2 pr-3 font-medium" style={{ color: brand.text }}>{p.full_name}</td>
-                            <td className="py-2 pr-3" style={{ color: brand.muted }}>{p.email}</td>
-                            <td className="py-2 pr-3" style={{ color: brand.muted }}>{p.ndis_number || '—'}</td>
+                            <td className="py-2 pr-3 font-medium" style={{ color: dashboardTheme.color.text }}>{p.full_name}</td>
+                            <td className="py-2 pr-3" style={{ color: dashboardTheme.color.muted }}>{p.email}</td>
+                            <td className="py-2 pr-3" style={{ color: dashboardTheme.color.muted }}>{p.ndis_number || '—'}</td>
                             <td className="py-2 pr-3">
                               <span className={`px-1.5 py-0.5 rounded font-medium ${
                                 p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
@@ -575,7 +575,7 @@ export default function NdisPage() {
                                 {p.status}
                               </span>
                             </td>
-                            <td className="py-2" style={{ color: brand.muted }}>
+                            <td className="py-2" style={{ color: dashboardTheme.color.muted }}>
                               {p.joined_at ? formatDate(p.joined_at) : <span className="italic">Pending invite</span>}
                             </td>
                           </tr>
@@ -595,9 +595,9 @@ export default function NdisPage() {
       {/* Create org modal */}
       {showCreateOrg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.35)' }}>
-          <div className={`${glass} w-full max-w-md p-6 rounded-2xl`}>
+          <div className={`${dashboardTheme.glass} w-full max-w-md p-6 rounded-2xl`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold" style={{ color: brand.text }}>Add NDIS Organisation</h3>
+              <h3 className="text-base font-semibold" style={{ color: dashboardTheme.color.text }}>Add NDIS Organisation</h3>
               <button onClick={() => { setShowCreateOrg(false); setOrgForm(EMPTY_ORG); }} className="p-1 rounded-lg hover:bg-slate-100">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -612,25 +612,25 @@ export default function NdisPage() {
                 { key: 'website', label: 'Website', placeholder: 'https://...' },
               ].map(({ key, label, placeholder, type }) => (
                 <div key={key}>
-                  <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>{label}</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>{label}</label>
                   <input
                     type={type || 'text'}
                     value={(orgForm as Record<string, string>)[key]}
                     onChange={(e) => setOrgForm((f) => ({ ...f, [key]: e.target.value }))}
                     placeholder={placeholder}
                     className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                    style={{ borderColor: brand.border, color: brand.text }}
+                    style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                   />
                 </div>
               ))}
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Notes</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>Notes</label>
                 <textarea
                   rows={2}
                   value={orgForm.notes}
                   onChange={(e) => setOrgForm((f) => ({ ...f, notes: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg border text-sm outline-none resize-none"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                 />
               </div>
             </div>
@@ -638,7 +638,7 @@ export default function NdisPage() {
               <button
                 onClick={() => { setShowCreateOrg(false); setOrgForm(EMPTY_ORG); }}
                 className="flex-1 py-2 rounded-xl border text-sm font-medium hover:bg-slate-50"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -646,7 +646,7 @@ export default function NdisPage() {
                 onClick={() => void createOrg()}
                 disabled={saving}
                 className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: brand.primary }}
+                style={{ background: dashboardTheme.color.primary }}
               >
                 {saving ? 'Saving…' : 'Create'}
               </button>
@@ -658,11 +658,11 @@ export default function NdisPage() {
       {/* Add participant modal */}
       {showAddPart && selectedOrg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.35)' }}>
-          <div className={`${glass} w-full max-w-sm p-6 rounded-2xl`}>
+          <div className={`${dashboardTheme.glass} w-full max-w-sm p-6 rounded-2xl`}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-base font-semibold" style={{ color: brand.text }}>Add Participant</h3>
-                <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{selectedOrg.name}</p>
+                <h3 className="text-base font-semibold" style={{ color: dashboardTheme.color.text }}>Add Participant</h3>
+                <p className="text-xs mt-0.5" style={{ color: dashboardTheme.color.muted }}>{selectedOrg.name}</p>
               </div>
               <button onClick={() => { setShowAddPart(false); setPartForm(EMPTY_PART); }} className="p-1 rounded-lg hover:bg-slate-100">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -676,14 +676,14 @@ export default function NdisPage() {
                 { key: 'ndis_number', label: 'NDIS number', placeholder: '430 123 456 7' },
               ].map(({ key, label, placeholder, type }) => (
                 <div key={key}>
-                  <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>{label}</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: dashboardTheme.color.muted }}>{label}</label>
                   <input
                     type={type || 'text'}
                     value={(partForm as Record<string, string>)[key]}
                     onChange={(e) => setPartForm((f) => ({ ...f, [key]: e.target.value }))}
                     placeholder={placeholder}
                     className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                    style={{ borderColor: brand.border, color: brand.text }}
+                    style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                   />
                 </div>
               ))}
@@ -692,7 +692,7 @@ export default function NdisPage() {
               <button
                 onClick={() => { setShowAddPart(false); setPartForm(EMPTY_PART); }}
                 className="flex-1 py-2 rounded-xl border text-sm font-medium hover:bg-slate-50"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -700,7 +700,7 @@ export default function NdisPage() {
                 onClick={() => void addParticipant()}
                 disabled={saving}
                 className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: brand.primary }}
+                style={{ background: dashboardTheme.color.primary }}
               >
                 {saving ? 'Adding…' : 'Add'}
               </button>

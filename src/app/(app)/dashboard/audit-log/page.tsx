@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -80,7 +80,7 @@ export default function AuditLogPage() {
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Audit Log</h1>
+          <h1 className="text-xl font-semibold" style={{ color: dashboardTheme.color.primary }}>Audit Log</h1>
           <p className="text-sm text-slate-500">Track all system changes and user actions.</p>
         </div>
         <div className="text-xs text-slate-400">{total} total entries</div>
@@ -94,13 +94,13 @@ export default function AuditLogPage() {
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none"
-          style={{ borderColor: brand.border }}
+          style={{ borderColor: dashboardTheme.color.border }}
         />
         <select
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
           className="rounded-xl border px-3 py-2 text-sm text-slate-800 bg-white"
-          style={{ borderColor: brand.border }}
+          style={{ borderColor: dashboardTheme.color.border }}
         >
           {actions.map((a) => (
             <option key={a} value={a}>{a === 'all' ? 'All actions' : a.replace(/_/g, ' ')}</option>
@@ -109,7 +109,7 @@ export default function AuditLogPage() {
         <button
           onClick={fetchEntries}
           className="px-4 py-2 rounded-xl text-sm text-white"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           Refresh
         </button>
@@ -171,7 +171,7 @@ export default function AuditLogPage() {
                     </span>
                     <span className="text-[11px] text-slate-400">{formatTime(entry.created_at)}</span>
                   </div>
-                  <p className="text-sm" style={{ color: brand.text }}>{entry.details || `${entry.action} ${entry.entity_type}`}</p>
+                  <p className="text-sm" style={{ color: dashboardTheme.color.text }}>{entry.details || `${entry.action} ${entry.entity_type}`}</p>
                   <p className="text-[11px] mt-0.5 text-slate-400">{entry.user_email || 'system'} · {entry.entity_type}</p>
                 </div>
               );
@@ -218,11 +218,11 @@ export default function AuditLogPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: brand.border }}>
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: dashboardTheme.color.border }}>
             Previous
           </button>
           <span className="text-xs text-slate-500">Page {page + 1} of {totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: brand.border }}>
+          <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1.5 rounded-lg border text-xs text-slate-600 bg-white disabled:opacity-40" style={{ borderColor: dashboardTheme.color.border }}>
             Next
           </button>
         </div>

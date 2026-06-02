@@ -1,29 +1,37 @@
 'use client';
 
 import { useState } from 'react';
-import { brand, core2, glass, glassSoft } from '@/app/ui/theme';
+import { ALL_THEMES, type Theme } from '@/lib/design-system/themes';
 
-/* ── helpers ──────────────────────────────────────────────────────────────── */
+/* ── small helpers ───────────────────────────────────────────────────────── */
 
 function Spec({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-5" style={{ boxShadow: core2.shadow.card }}>
+    <div className="rounded-2xl border border-black/5 bg-white p-5" style={{ boxShadow: '0 8px 26px rgba(2,6,23,0.05)' }}>
       <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
       {children}
     </div>
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function Swatch({ token, hex, usage, onCopy }: { token: string; hex: string; usage: string; onCopy: (t: string) => void }) {
   return (
-    <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">{children}</h3>
+    <button onClick={() => onCopy(token)} title={`Copy "${token}"`} className="group flex flex-col gap-1.5 text-left">
+      <div className="h-10 w-full rounded-xl border border-black/8" style={{ background: hex }} />
+      <p className="text-[10px] font-semibold text-slate-600 transition-colors group-hover:text-slate-900">{token}</p>
+      <p className="font-mono text-[9px] text-slate-400">{hex.length > 22 ? hex.slice(0, 22) + '…' : hex}</p>
+      <p className="text-[9px] leading-snug text-slate-400">{usage}</p>
+    </button>
   );
 }
 
-/* ── main component ───────────────────────────────────────────────────────── */
+/* ── main tab ────────────────────────────────────────────────────────────── */
 
 export function DesignSystemTab() {
+  const [activeContext, setActiveContext] = useState<0 | 1 | 2>(0);
   const [toast, setToast] = useState<string | null>(null);
+
+  const t: Theme = ALL_THEMES[activeContext];
 
   function copy(token: string) {
     void navigator.clipboard.writeText(token);
@@ -34,15 +42,15 @@ export function DesignSystemTab() {
   return (
     <div className="space-y-8">
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
-            Buds at Work · Core 2.0
+            Buds at Work · Design System
           </p>
-          <h2 className="mt-0.5 text-xl font-semibold text-white">Design System</h2>
+          <h2 className="mt-0.5 text-xl font-semibold text-white">Context-Scoped Themes</h2>
           <p className="mt-1 text-[12px] text-white/45">
-            Click any token to copy its name. Three contexts: Admin dashboard · Crew portal · Public site.
+            Each context is independently editable. Click any swatch to copy its token path.
           </p>
         </div>
         {toast && (
@@ -52,81 +60,130 @@ export function DesignSystemTab() {
         )}
       </div>
 
+      {/* ── Context switcher ────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-1.5">
+        <div className="flex gap-1">
+          {ALL_THEMES.map((theme, i) => {
+            const active = activeContext === i;
+            return (
+              <button
+                key={theme.context}
+                onClick={() => setActiveContext(i as 0 | 1 | 2)}
+                className="flex-1 rounded-xl px-3 py-2.5 text-[12px] font-semibold transition-all"
+                style={active
+                  ? { background: theme.color.primary, color: theme.color.onDark }
+                  : { color: 'rgba(255,255,255,0.5)' }
+                }
+              >
+                {theme.name}
+                {active && (
+                  <span className="ml-2 rounded-full px-1.5 py-0.5 text-[10px]"
+                    style={{ background: 'rgba(255,255,255,0.15)' }}>
+                    active
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Context description strip */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 px-2 pb-1">
+          <p className="text-[10px] text-white/35">
+            Edit: <code className="text-white/55">src/lib/design-system/themes/{t.context}.ts</code>
+          </p>
+          <p className="text-[10px] text-white/35">
+            Import: <code className="text-white/55">import {'{ '}
+              {t.context === 'dashboard' ? 'dashboardTheme' : t.context === 'crew' ? 'crewTheme' : 'publicTheme'}
+              {'}'} from &apos;@/lib/design-system/themes&apos;</code>
+          </p>
+        </div>
+      </div>
+
+      {/* ── Preview strip ───────────────────────────────────────────────── */}
+      <Spec label={`${t.name} — page preview`}>
+        <div className="overflow-hidden rounded-xl border border-black/5" style={{ background: t.pageBg }}>
+          {/* Mini nav */}
+          <div className="flex items-center gap-3 border-b px-4 py-2.5" style={{ background: t.nav.bg, borderColor: t.nav.border }}>
+            <div className="h-5 w-5 rounded-md" style={{ background: t.color.primary }} />
+            <div className="flex gap-3">
+              {['Home', 'Jobs', 'Schedule'].map((item, i) => (
+                <span key={item} className="text-[11px] font-medium rounded-md px-2 py-0.5"
+                  style={i === 0
+                    ? { color: t.nav.activeText, background: t.nav.activeBg, fontWeight: 600 }
+                    : { color: t.nav.inactiveText }
+                  }>
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+          {/* Mini content */}
+          <div className="p-4 space-y-3">
+            <p style={{ fontSize: t.type.sectionHeading.size, fontWeight: t.type.sectionHeading.weight, color: t.color.primary, lineHeight: t.type.sectionHeading.leading }}>
+              {t.context === 'public' ? 'Book a local service' : t.context === 'crew' ? 'Your jobs today' : 'Operations overview'}
+            </p>
+            <div className="flex gap-2">
+              <div className="rounded-xl border p-3 flex-1" style={{ background: t.color.card, borderColor: t.color.border, boxShadow: t.shadow.card }}>
+                <p style={{ fontSize: t.type.meta.size, color: t.color.muted }}>Revenue MTD</p>
+                <p style={{ fontSize: '22px', fontWeight: 700, color: t.color.primary }}>$4,820</p>
+              </div>
+              <div className="rounded-xl border p-3 flex-1" style={{ background: t.color.surface, borderColor: t.color.border }}>
+                <p style={{ fontSize: t.type.meta.size, color: t.color.muted }}>Jobs</p>
+                <p style={{ fontSize: '22px', fontWeight: 700, color: t.color.primary }}>24</p>
+              </div>
+            </div>
+            <button className="rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ background: t.color.accent }}>
+              {t.context === 'public' ? 'Get a quote' : t.context === 'crew' ? 'Find jobs' : 'View schedule'}
+            </button>
+          </div>
+        </div>
+      </Spec>
+
       {/* ════════════════════════════════════════════════════════════════════
           TYPE
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="space-y-3">
-        <SectionLabel>Type</SectionLabel>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Type — {t.name}</h3>
 
-        {/* Display & headings */}
-        <Spec label="Type — Display & headings">
+        <Spec label="Display & headings">
           <div className="divide-y divide-black/5">
-            {[
-              { label: 'Page title', specimen: 'Dashboard', size: core2.type.pageTitle.size, weight: core2.type.pageTitle.weight, spec: '30px / 600 / tracking-[-0.03em]' },
-              { label: 'Section heading', specimen: "Today's Schedule", size: core2.type.sectionHeading.size, weight: core2.type.sectionHeading.weight, spec: '20px / 600 / tracking-[-0.02em]' },
-              { label: 'Card title', specimen: 'Revenue this month', size: core2.type.cardTitle.size, weight: core2.type.cardTitle.weight, spec: '16px / 600' },
-            ].map((row) => (
+            {([
+              { label: 'Page title',      step: t.type.pageTitle,      specimen: t.context === 'public' ? 'Book a local service' : t.context === 'crew' ? 'Crew Hub' : 'Dashboard' },
+              { label: 'Section heading', step: t.type.sectionHeading, specimen: "Today's Schedule" },
+              { label: 'Card title',      step: t.type.cardTitle,      specimen: 'Revenue this month' },
+            ] as const).map((row) => (
               <div key={row.label} className="flex items-baseline justify-between gap-4 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <p
-                    style={{ fontSize: row.size, fontWeight: row.weight, color: brand.primary, letterSpacing: '-0.02em' }}
-                  >
+                  <p style={{ fontSize: row.step.size, fontWeight: row.step.weight, color: t.color.primary, lineHeight: row.step.leading }}>
                     {row.specimen}
                   </p>
-                  <p className="mt-0.5 text-[10px]" style={{ color: brand.muted }}>{row.label}</p>
+                  <p className="mt-0.5 text-[10px]" style={{ color: t.color.muted }}>{row.label}</p>
                 </div>
-                <code className="shrink-0 text-[10px] text-slate-400">{row.spec}</code>
+                <code className="shrink-0 text-[10px] text-slate-400">
+                  {row.step.size} / {row.step.weight} / {row.step.leading}
+                </code>
               </div>
             ))}
           </div>
         </Spec>
 
-        {/* Body & meta */}
-        <Spec label="Type — Body & meta">
+        <Spec label="Body & meta">
           <div className="divide-y divide-black/5">
-            {[
-              { label: 'Body', specimen: 'Standard clean · 3 bedrooms · 2 bathrooms', size: core2.type.body.size, weight: core2.type.body.weight, color: brand.text, spec: '15px / 400 / leading-[1.55]' },
-              { label: 'Meta', specimen: 'Last updated 2 hours ago · Order #1042', size: core2.type.meta.size, weight: core2.type.meta.weight, color: brand.muted, spec: '12.5px / 400 / leading-[1.5]' },
-              { label: 'KPI number', specimen: '$4,820', size: '30px', weight: 700, color: brand.primary, spec: 'text-3xl / 700 / tracking-tight' },
-              { label: 'Table value', specimen: 'Completed', size: '14px', weight: 600, color: brand.text, spec: '14px / 600' },
-            ].map((row) => (
+            {([
+              { label: 'Body', step: t.type.body, specimen: 'Standard clean · 3 bedrooms · 2 bathrooms', color: t.color.text },
+              { label: 'Meta', step: t.type.meta, specimen: 'Last updated 2 hours ago · Order #1042',    color: t.color.muted },
+            ] as const).map((row) => (
               <div key={row.label} className="flex items-baseline justify-between gap-4 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <p style={{ fontSize: row.size, fontWeight: row.weight, color: row.color }}>{row.specimen}</p>
-                  <p className="mt-0.5 text-[10px]" style={{ color: brand.muted }}>{row.label}</p>
+                  <p style={{ fontSize: row.step.size, fontWeight: row.step.weight, color: row.color }}>{row.specimen}</p>
+                  <p className="mt-0.5 text-[10px]" style={{ color: t.color.muted }}>{row.label}</p>
                 </div>
-                <code className="shrink-0 text-[10px] text-slate-400">{row.spec}</code>
+                <code className="shrink-0 text-[10px] text-slate-400">
+                  {row.step.size} / {row.step.weight}
+                </code>
               </div>
             ))}
-          </div>
-        </Spec>
-
-        {/* Eyebrow & trust row */}
-        <Spec label="Type — Eyebrow & trust row">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p
-                  className="font-semibold uppercase"
-                  style={{ fontSize: '10px', letterSpacing: '0.22em', color: brand.muted }}
-                >
-                  Buds · Active · Logan & South Brisbane
-                </p>
-                <p className="mt-1 text-[10px]" style={{ color: brand.muted }}>Eyebrow label — context above major sections</p>
-              </div>
-              <code className="shrink-0 text-[10px] text-slate-400">10px / 600 / tracking-[0.22em] / uppercase</code>
-            </div>
-            <div className="border-t border-black/5 pt-4">
-              <div className="flex flex-wrap items-center gap-5">
-                {['Certified', 'Fully insured', 'Local crew', 'Verified'].map((t) => (
-                  <div key={t} className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: brand.accent }} />
-                    <span className="text-[11px] font-semibold" style={{ color: brand.muted }}>{t}</span>
-                  </div>
-                ))}
-              </div>
-              <code className="mt-2 block text-[10px] text-slate-400">Trust row · 11px / 600 · dot = brand.accent · brand.muted text</code>
-            </div>
           </div>
         </Spec>
       </section>
@@ -135,66 +192,57 @@ export function DesignSystemTab() {
           COLORS
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="space-y-3">
-        <SectionLabel>Colors</SectionLabel>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Colors — {t.name}</h3>
 
-        <Spec label="Colors — Primary palette">
+        <Spec label="Primary palette">
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-            {[
-              { token: 'brand.primary', hex: brand.primary, usage: 'Headings, numbers, nav' },
-              { token: 'brand.accent', hex: brand.accent, usage: 'CTAs, active states' },
-              { token: 'brand.accentSoft', hex: brand.accentSoft, usage: 'Pill fills, hovers' },
-              { token: 'brand.surface', hex: brand.surface, usage: 'Tinted surface' },
-              { token: 'brand.surfaceAlt', hex: brand.surfaceAlt, usage: 'Alt tinted' },
-              { token: 'brand.bg', hex: brand.bg, usage: 'Page background' },
-              { token: 'brand.card', hex: brand.card, usage: 'Card white' },
-              { token: 'brand.border', hex: brand.border, usage: 'Borders' },
-            ].map((s) => (
-              <button
-                key={s.token}
-                onClick={() => copy(s.token)}
-                title={`Copy "${s.token}"`}
-                className="group flex flex-col gap-1.5 text-left"
-              >
-                <div
-                  className="h-10 w-full rounded-xl border border-black/8"
-                  style={{ background: s.hex }}
-                />
-                <p className="text-[10px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{s.token}</p>
-                <p className="font-mono text-[9px] text-slate-400">{s.hex}</p>
-                <p className="text-[9px] text-slate-400 leading-snug">{s.usage}</p>
-              </button>
+            {([
+              { token: 'color.primary',    hex: t.color.primary,    usage: 'Headings, numbers' },
+              { token: 'color.accent',     hex: t.color.accent,     usage: 'CTAs, active' },
+              { token: 'color.accentSoft', hex: t.color.accentSoft, usage: 'Pill fills, hover' },
+              { token: 'color.surface',    hex: t.color.surface,    usage: 'Tinted surface' },
+              { token: 'color.surfaceAlt', hex: t.color.surfaceAlt, usage: 'Alt surface' },
+              { token: 'color.bg',         hex: t.color.bg,         usage: 'Page bg' },
+              { token: 'color.card',       hex: t.color.card,       usage: 'Card white' },
+              { token: 'color.border',     hex: t.color.border,     usage: 'Borders' },
+            ] as const).map((s) => (
+              <Swatch key={s.token} token={s.token} hex={s.hex} usage={s.usage} onCopy={copy} />
             ))}
           </div>
         </Spec>
 
-        <Spec label="Colors — Text & semantic">
+        <Spec label="Text & semantic">
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-            {[
-              { token: 'brand.text', hex: brand.text, usage: 'Body text' },
-              { token: 'brand.muted', hex: brand.muted, usage: 'Labels, secondary' },
-              { token: 'brand.focus', hex: brand.focus, usage: 'Focus ring' },
-              { token: 'core2.color.success', hex: core2.color.success, usage: 'Success' },
-              { token: 'core2.color.warning', hex: core2.color.warning, usage: 'Warning' },
-              { token: 'core2.color.error', hex: core2.color.error, usage: 'Errors' },
-              { token: 'core2.color.info', hex: core2.color.info, usage: 'Info / neutral' },
-              { token: 'core2.color.secondary', hex: core2.color.secondary, usage: 'Gold — sparingly' },
-            ].map((s) => (
-              <button
-                key={s.token}
-                onClick={() => copy(s.token)}
-                title={`Copy "${s.token}"`}
-                className="group flex flex-col gap-1.5 text-left"
-              >
-                <div
-                  className="h-10 w-full rounded-xl border border-black/8"
-                  style={{ background: s.hex }}
-                />
-                <p className="text-[10px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{s.token}</p>
-                <p className="font-mono text-[9px] text-slate-400">{s.hex}</p>
-                <p className="text-[9px] text-slate-400 leading-snug">{s.usage}</p>
-              </button>
+            {([
+              { token: 'color.text',          hex: t.color.text,          usage: 'Body text' },
+              { token: 'color.muted',         hex: t.color.muted,         usage: 'Labels' },
+              { token: 'color.focus',         hex: t.color.focus,         usage: 'Focus ring' },
+              { token: 'color.success',       hex: t.color.success,       usage: 'Success' },
+              { token: 'color.warning',       hex: t.color.warning,       usage: 'Warning' },
+              { token: 'color.error',         hex: t.color.error,         usage: 'Error' },
+              { token: 'color.secondary',     hex: t.color.secondary,     usage: 'Gold — sparingly' },
+              { token: 'color.onDark',        hex: t.color.onDark,        usage: 'On dark bg' },
+            ] as const).map((s) => (
+              <Swatch key={s.token} token={s.token} hex={s.hex} usage={s.usage} onCopy={copy} />
             ))}
           </div>
+        </Spec>
+
+        {/* Side-by-side diff — all three contexts at once */}
+        <Spec label="Primary colour — all three contexts compared">
+          <div className="flex gap-3">
+            {ALL_THEMES.map((theme) => (
+              <div key={theme.context} className="flex flex-1 flex-col gap-1.5">
+                <div className="h-10 rounded-xl border border-black/8" style={{ background: theme.color.primary }} />
+                <div className="h-10 rounded-xl border border-black/8" style={{ background: theme.color.accent }} />
+                <p className="text-[10px] font-semibold text-slate-600">{theme.name}</p>
+                <p className="font-mono text-[9px] text-slate-400">{theme.color.primary}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] text-slate-400">
+            Currently identical across contexts — diverge them by editing each theme file independently.
+          </p>
         </Spec>
       </section>
 
@@ -202,57 +250,70 @@ export function DesignSystemTab() {
           SPACING
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="space-y-3">
-        <SectionLabel>Spacing</SectionLabel>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Spacing — {t.name}</h3>
 
         <Spec label="Radii scale">
           <div className="flex flex-wrap items-end gap-6">
             {([
-              { key: 'sm', px: 10, usage: 'Chips, inputs, tags' },
-              { key: 'md', px: 14, usage: 'Buttons, rows' },
-              { key: 'lg', px: 20, usage: 'Cards, panels' },
-              { key: 'xl', px: 26, usage: 'Feature panels, hero cards' },
+              { key: 'sm', usage: 'Chips, inputs' },
+              { key: 'md', usage: 'Buttons, rows' },
+              { key: 'lg', usage: 'Cards, panels' },
+              { key: 'xl', usage: 'Feature panels' },
             ] as const).map((r) => (
-              <button
-                key={r.key}
-                onClick={() => copy(`core2.radius.${r.key}`)}
-                className="group flex flex-col items-center gap-2"
-              >
+              <button key={r.key} onClick={() => copy(`radius.${r.key}`)} className="group flex flex-col items-center gap-2">
                 <div
-                  className="border-2 transition-opacity group-hover:opacity-80"
+                  className="border-2 transition-opacity group-hover:opacity-75"
                   style={{
-                    width: 44 + r.px * 1.2,
-                    height: 44 + r.px * 1.2,
-                    borderRadius: r.px,
-                    background: brand.accentSoft,
-                    borderColor: brand.accent,
+                    width: 44 + parseInt(t.radius[r.key]) * 1.1,
+                    height: 44 + parseInt(t.radius[r.key]) * 1.1,
+                    borderRadius: t.radius[r.key],
+                    background: t.color.accentSoft,
+                    borderColor: t.color.accent,
                   }}
                 />
-                <p className="text-[10px] font-semibold text-slate-700">core2.radius.{r.key}</p>
-                <p className="font-mono text-[10px] text-slate-400">{r.px}px</p>
+                <p className="text-[10px] font-semibold text-slate-700">radius.{r.key}</p>
+                <p className="font-mono text-[10px] text-slate-400">{t.radius[r.key]}</p>
                 <p className="text-[9px] text-slate-400">{r.usage}</p>
               </button>
             ))}
           </div>
+          {/* Radius diff across contexts */}
+          <div className="mt-4 border-t border-black/5 pt-4">
+            <p className="mb-2 text-[10px] text-slate-400">All contexts compared</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-left text-slate-400">
+                    <th className="pb-1.5 pr-4 font-semibold">Scale</th>
+                    {ALL_THEMES.map((th) => <th key={th.context} className="pb-1.5 pr-4 font-semibold">{th.name}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {(['sm', 'md', 'lg', 'xl'] as const).map((key) => (
+                    <tr key={key} className="border-t border-black/4">
+                      <td className="py-1 pr-4 font-sans font-semibold text-slate-600">{key}</td>
+                      {ALL_THEMES.map((th) => (
+                        <td key={th.context} className={`py-1 pr-4 ${th.context === t.context ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+                          {th.radius[key]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </Spec>
 
         <Spec label="Shadows & elevation">
-          <div className="flex flex-wrap items-end gap-8">
-            {([
-              { key: 'card', usage: 'Default card', bg: '#fafafa' },
-              { key: 'hover', usage: 'Hover / lifted', bg: '#fff' },
-              { key: 'modal', usage: 'Modals, drawers', bg: '#fff' },
-            ] as const).map((s) => (
-              <button
-                key={s.key}
-                onClick={() => copy(`core2.shadow.${s.key}`)}
-                className="group flex flex-col items-center gap-3"
-              >
+          <div className="flex flex-wrap gap-8">
+            {(['card', 'hover', 'modal'] as const).map((key) => (
+              <button key={key} onClick={() => copy(`shadow.${key}`)} className="group flex flex-col items-center gap-3">
                 <div
-                  className="h-16 w-28 rounded-2xl border border-black/5 transition-transform group-hover:scale-[1.03]"
-                  style={{ background: s.bg, boxShadow: core2.shadow[s.key] }}
+                  className="h-16 w-28 rounded-2xl border border-black/5 bg-white transition-transform group-hover:scale-[1.03]"
+                  style={{ boxShadow: t.shadow[key] }}
                 />
-                <p className="text-[10px] font-semibold text-slate-700">core2.shadow.{s.key}</p>
-                <p className="text-[9px] text-slate-400">{s.usage}</p>
+                <p className="text-[10px] font-semibold text-slate-700">shadow.{key}</p>
               </button>
             ))}
           </div>
@@ -263,339 +324,157 @@ export function DesignSystemTab() {
           COMPONENTS
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="space-y-3">
-        <SectionLabel>Components</SectionLabel>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Components — {t.name}</h3>
 
-        {/* Buttons */}
         <Spec label="Buttons">
           <div className="flex flex-wrap items-end gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <button
-                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                style={{ background: brand.accent }}
-              >
-                Book a service
-              </button>
-              <code className="text-[9px] text-slate-400">Primary CTA</code>
-              <code className="text-[9px] text-slate-400">brand.accent bg / white</code>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <button className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                View details
-              </button>
-              <code className="text-[9px] text-slate-400">Secondary</code>
-              <code className="text-[9px] text-slate-400">white + border-slate-200</code>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <button className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50">
-                Cancel
-              </button>
-              <code className="text-[9px] text-slate-400">Ghost</code>
-              <code className="text-[9px] text-slate-400">transparent bg</code>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <button className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white">
-                Delete
-              </button>
-              <code className="text-[9px] text-slate-400">Danger</code>
-              <code className="text-[9px] text-slate-400">bg-red-500 / white</code>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
-                <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                  <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <code className="text-[9px] text-slate-400">Icon button</code>
-              <code className="text-[9px] text-slate-400">h-9 w-9 · rounded-xl</code>
-            </div>
+            {[
+              { label: 'Primary CTA', node: (
+                <button className="rounded-full px-5 py-2.5 text-sm font-semibold text-white" style={{ background: t.color.accent }}>
+                  {t.context === 'public' ? 'Get a quote' : t.context === 'crew' ? 'Find jobs' : 'Book service'}
+                </button>
+              ), spec: 'rounded-full · color.accent bg' },
+              { label: 'Secondary', node: (
+                <button className="rounded-full border px-5 py-2.5 text-sm font-semibold" style={{ borderColor: t.color.border, color: t.color.text }}>
+                  View details
+                </button>
+              ), spec: 'rounded-full · border · color.border' },
+              { label: 'Ghost', node: (
+                <button className="rounded-full px-5 py-2.5 text-sm font-semibold" style={{ color: t.color.muted }}>
+                  Cancel
+                </button>
+              ), spec: 'rounded-full · transparent' },
+              { label: 'Danger', node: (
+                <button className="rounded-full px-5 py-2.5 text-sm font-semibold text-white" style={{ background: t.color.error }}>
+                  Delete
+                </button>
+              ), spec: 'rounded-full · color.error bg' },
+            ].map((b) => (
+              <div key={b.label} className="flex flex-col items-center gap-2">
+                {b.node}
+                <code className="text-[9px] text-slate-400">{b.label}</code>
+                <code className="text-[9px] text-slate-400">{b.spec}</code>
+              </div>
+            ))}
           </div>
-          <p className="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[10px] text-amber-700">
-            Rule: button bg = <strong>brand.accent</strong> (#1C7C54). Never use brand.primary for button backgrounds — that is for headings and numbers only.
+          <p className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[10px] text-amber-700">
+            Rule: button bg = <strong>color.accent</strong>. Never use color.primary for button backgrounds — headings and numbers only.
           </p>
         </Spec>
 
-        {/* Cards */}
         <Spec label="Cards">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {/* Panel */}
             <div>
-              <div className="rounded-[22px] border border-black/5 bg-white px-5 py-5" style={{ boxShadow: core2.shadow.card }}>
-                <p className="text-sm font-semibold" style={{ color: brand.primary }}>Revenue MTD</p>
-                <p className="text-[12px]" style={{ color: brand.muted }}>Month to date</p>
-                <p className="mt-2 text-2xl font-bold tracking-tight" style={{ color: brand.primary }}>$4,820</p>
+              <div className="border p-5" style={{ borderRadius: t.radius.lg, background: t.color.card, borderColor: t.color.border, boxShadow: t.shadow.card }}>
+                <p className="text-sm font-semibold" style={{ color: t.color.primary }}>Revenue MTD</p>
+                <p style={{ fontSize: t.type.meta.size, color: t.color.muted }}>Month to date</p>
+                <p className="mt-2 text-2xl font-bold tracking-tight" style={{ color: t.color.primary }}>$4,820</p>
               </div>
-              <code className="mt-1.5 block text-[9px] text-slate-400">Panel: rounded-[22px] border border-black/5 bg-white px-5 py-5</code>
+              <code className="mt-1.5 block text-[9px] text-slate-400">Panel · radius.lg · shadow.card</code>
             </div>
-            {/* SummaryCard */}
             <div>
-              <div className="rounded-[22px] border border-black/5 bg-white px-4 py-4" style={{ boxShadow: core2.shadow.card }}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Jobs this week</p>
-                <p className="mt-1.5 text-3xl font-bold tracking-tight" style={{ color: brand.primary }}>24</p>
-                <p className="mt-0.5 text-[11px]" style={{ color: brand.muted }}>+3 from last week</p>
+              <div className="border p-4" style={{ borderRadius: t.radius.lg, background: t.color.card, borderColor: t.color.border, boxShadow: t.shadow.card }}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.color.muted }}>Jobs this week</p>
+                <p className="mt-1.5 text-3xl font-bold tracking-tight" style={{ color: t.color.primary }}>24</p>
               </div>
-              <code className="mt-1.5 block text-[9px] text-slate-400">SummaryCard: rounded-[22px] border border-black/5 bg-white px-4 py-4</code>
+              <code className="mt-1.5 block text-[9px] text-slate-400">SummaryCard · radius.lg · shadow.card</code>
             </div>
-            {/* StatRow */}
             <div>
-              <div className="rounded-xl border border-black/5 bg-white px-3.5 py-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm" style={{ color: brand.muted }}>Outstanding</p>
-                  <p className="text-sm font-semibold" style={{ color: brand.primary }}>$1,240</p>
-                </div>
+              <div className="flex items-center justify-between border px-3.5 py-2.5" style={{ borderRadius: t.radius.md, background: t.color.card, borderColor: t.color.border }}>
+                <p className="text-sm" style={{ color: t.color.muted }}>Outstanding</p>
+                <p className="text-sm font-semibold" style={{ color: t.color.primary }}>$1,240</p>
               </div>
-              <code className="mt-1.5 block text-[9px] text-slate-400">StatRow: rounded-xl border border-black/5 bg-white px-3.5 py-2.5</code>
+              <code className="mt-1.5 block text-[9px] text-slate-400">StatRow · radius.md</code>
             </div>
           </div>
         </Spec>
 
-        {/* Chips & badges */}
         <Spec label="Chips & badges">
           <div className="flex flex-wrap items-end gap-5">
             {[
-              { label: 'Scheduled', bg: 'bg-sky-100', text: 'text-sky-700', spec: 'sky-100 / sky-700' },
-              { label: 'In progress', bg: 'bg-amber-100', text: 'text-amber-700', spec: 'amber-100 / amber-700' },
-              { label: 'Completed', bg: 'bg-emerald-100', text: 'text-emerald-700', spec: 'emerald-100 / emerald-700' },
-              { label: 'Cancelled', bg: 'bg-red-100', text: 'text-red-700', spec: 'red-100 / red-700' },
+              { label: 'Scheduled',   bg: 'bg-sky-100',     text: 'text-sky-700'     },
+              { label: 'In progress', bg: 'bg-amber-100',   text: 'text-amber-700'   },
+              { label: 'Completed',   bg: 'bg-emerald-100', text: 'text-emerald-700' },
+              { label: 'Cancelled',   bg: 'bg-red-100',     text: 'text-red-700'     },
             ].map((c) => (
               <div key={c.label} className="flex flex-col items-center gap-1.5">
-                <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${c.bg} ${c.text}`}>
+                <span className={`px-3 py-1 text-[11px] font-semibold ${c.bg} ${c.text}`} style={{ borderRadius: t.radius.sm }}>
                   {c.label}
                 </span>
-                <code className="text-[9px] text-slate-400">{c.spec}</code>
+                <code className="text-[9px] text-slate-400">radius.sm</code>
               </div>
             ))}
             <div className="flex flex-col items-center gap-1.5">
-              <span className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
-                <span className="h-2 w-2 rounded-full" style={{ background: brand.accent }} />
+              <span className="inline-flex items-center gap-1.5 border px-3 py-1 text-[11px] font-semibold text-slate-700"
+                style={{ borderRadius: t.radius.sm, borderColor: t.color.border, background: t.color.card }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: t.color.accent }} />
                 Active
               </span>
               <code className="text-[9px] text-slate-400">HeaderChip</code>
-              <code className="text-[9px] text-slate-400">white + border + dot</code>
             </div>
             <div className="flex flex-col items-center gap-1.5">
-              <span
-                className="rounded-full px-3 py-1 text-[11px] font-semibold"
-                style={{ background: brand.accentSoft, color: brand.accent }}
-              >
-                Active
+              <span className="px-3 py-1 text-[11px] font-semibold"
+                style={{ borderRadius: t.radius.sm, background: t.color.accentSoft, color: t.color.accent }}>
+                Accent pill
               </span>
-              <code className="text-[9px] text-slate-400">Accent pill</code>
-              <code className="text-[9px] text-slate-400">brand.accentSoft / brand.accent</code>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <span
-                className="rounded-full px-3 py-1 text-[11px] font-semibold"
-                style={{ background: core2.color.secondarySoft, color: core2.color.secondary }}
-              >
-                Gold badge
-              </span>
-              <code className="text-[9px] text-slate-400">Gold pill — sparingly</code>
-              <code className="text-[9px] text-slate-400">secondarySoft / secondary</code>
-            </div>
-          </div>
-          <p className="mt-3 text-[10px] text-slate-400">
-            All chips: <code>rounded-full px-3 py-1 text-[11px] font-semibold</code> · StatusChip pulls colours from <code>statusStyles</code> in <code>@/types/dashboard</code>.
-          </p>
-        </Spec>
-
-        {/* Form inputs */}
-        <Spec label="Form inputs">
-          <div className="max-w-xs space-y-4">
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold" style={{ color: brand.text }}>
-                Property address
-              </label>
-              <input
-                readOnly
-                value="123 Example St, Brisbane"
-                className="w-full rounded-[10px] border px-3 py-2.5 text-sm outline-none focus:ring-2"
-                style={{ borderColor: brand.border, color: brand.text, background: brand.card }}
-              />
-              <p className="mt-1 text-[10px] text-slate-400">Label: 13px / 600 · Input: rounded-[10px] border brand.border</p>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold" style={{ color: brand.text }}>
-                Service type
-              </label>
-              <select
-                className="w-full rounded-[10px] border px-3 py-2.5 text-sm"
-                style={{ borderColor: brand.border, color: brand.text, background: brand.card }}
-              >
-                <option>Standard clean</option>
-                <option>Deep clean</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <input type="checkbox" id="ds-chk" className="h-4 w-4 rounded" />
-              <label htmlFor="ds-chk" className="text-sm" style={{ color: brand.text }}>
-                Include window clean
-              </label>
-            </div>
-            <div className="rounded-[10px] border px-3 py-2.5 text-sm" style={{ borderColor: brand.focus, color: brand.text, outline: `2px solid ${brand.focus}`, outlineOffset: '2px' }}>
-              Focus state preview
-              <p className="text-[10px]" style={{ color: brand.muted }}>outline: brand.focus · outlineOffset: 2px</p>
-            </div>
-          </div>
-        </Spec>
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════════
-          BRAND
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section className="space-y-3">
-        <SectionLabel>Brand</SectionLabel>
-
-        {/* Avatars */}
-        <Spec label="Avatars">
-          <div className="flex flex-wrap items-end gap-6">
-            {[
-              { initials: 'JT', cls: 'h-8 w-8 text-[10px]', label: 'sm · h-8 w-8' },
-              { initials: 'JT', cls: 'h-10 w-10 text-[11px]', label: 'md · h-10 w-10' },
-              { initials: 'JT', cls: 'h-14 w-14 text-[14px]', label: 'lg · h-14 w-14' },
-            ].map((av) => (
-              <div key={av.label} className="flex flex-col items-center gap-2">
-                <div
-                  className={`${av.cls} flex items-center justify-center rounded-full font-semibold`}
-                  style={{ background: brand.accentSoft, color: brand.accent }}
-                >
-                  {av.initials}
-                </div>
-                <code className="text-[9px] text-slate-400">{av.label}</code>
-                <code className="text-[9px] text-slate-400">accentSoft / accent</code>
-              </div>
-            ))}
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex -space-x-2.5">
-                {['BT', 'AM', 'KL', '+3'].map((i) => (
-                  <div
-                    key={i}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold"
-                    style={{ background: brand.accentSoft, color: brand.accent }}
-                  >
-                    {i}
-                  </div>
-                ))}
-              </div>
-              <code className="text-[9px] text-slate-400">Stacked row</code>
-              <code className="text-[9px] text-slate-400">-space-x-2.5 · border-2 border-white</code>
+              <code className="text-[9px] text-slate-400">color.accentSoft / accent</code>
             </div>
           </div>
         </Spec>
 
-        {/* Icons */}
-        <Spec label="Icons">
-          <div className="grid grid-cols-4 gap-4 sm:grid-cols-8">
-            {[
-              { label: 'Refresh', path: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
-              { label: 'Arrow up', path: 'M5 10l7-7m0 0l7 7m-7-7v18' },
-              { label: 'Arrow dn', path: 'M19 14l-7 7m0 0l-7-7m7 7V3' },
-              { label: 'Check', path: 'M5 13l4 4L19 7' },
-              { label: 'Close', path: 'M6 18L18 6M6 6l12 12' },
-              { label: 'Plus', path: 'M12 4v16m8-8H4' },
-              { label: 'Calendar', path: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-              { label: 'User', path: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-            ].map((ic) => (
-              <div key={ic.label} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/5 bg-white"
-                  style={{ boxShadow: core2.shadow.card }}
-                >
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke={brand.accent}
-                    strokeWidth={1.8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d={ic.path} />
-                  </svg>
-                </div>
-                <p className="text-[10px] text-slate-500">{ic.label}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[10px] text-slate-400">
-            All icons: strokeWidth 1.8 · stroke=brand.accent · strokeLinecap=&quot;round&quot; · 18–24px.
-            Labels are required — icons never replace text.
-          </p>
-        </Spec>
-
-        {/* Logo — Wordmark */}
-        <Spec label="Logo — Wordmark">
-          <div className="flex flex-wrap items-start gap-6">
-            {/* On white */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex h-20 w-44 items-center justify-center rounded-2xl border border-black/5 bg-white" style={{ boxShadow: core2.shadow.card }}>
-                <div className="flex flex-col items-center leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: brand.muted }}>Buds</span>
-                  <span className="text-xl font-bold tracking-tight" style={{ color: brand.primary }}>at Work</span>
-                </div>
-              </div>
-              <code className="text-[9px] text-slate-400">On white</code>
-            </div>
-            {/* On surface */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex h-20 w-44 items-center justify-center rounded-2xl" style={{ background: brand.surface }}>
-                <div className="flex flex-col items-center leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: brand.muted }}>Buds</span>
-                  <span className="text-xl font-bold tracking-tight" style={{ color: brand.primary }}>at Work</span>
-                </div>
-              </div>
-              <code className="text-[9px] text-slate-400">On brand.surface</code>
-            </div>
-            {/* On primary / reversed */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex h-20 w-44 items-center justify-center rounded-2xl" style={{ background: brand.primary }}>
-                <div className="flex flex-col items-center leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">Buds</span>
-                  <span className="text-xl font-bold tracking-tight text-white">at Work</span>
-                </div>
-              </div>
-              <code className="text-[9px] text-slate-400">On brand.primary (reversed)</code>
-            </div>
-          </div>
-        </Spec>
-
-        {/* Glass tokens */}
         <Spec label="Glass tokens">
           <div className="flex flex-wrap gap-5">
-            <div className="flex flex-col gap-2">
-              <div
-                className="relative h-20 w-44 overflow-hidden rounded-2xl"
-                style={{ background: `linear-gradient(135deg, ${brand.surface}, ${brand.accentSoft})` }}
-              >
-                <div className={`${glass} absolute inset-0 flex items-center justify-center rounded-2xl`}>
-                  <code className="text-[12px] font-semibold" style={{ color: brand.primary }}>glass</code>
+            {([
+              { key: 'glass', value: t.glass, label: 'Full glass' },
+              { key: 'glassSoft', value: t.glassSoft, label: 'Soft glass' },
+            ] as const).map((g) => (
+              <div key={g.key} className="flex flex-col gap-2">
+                <div className="relative h-20 w-44 overflow-hidden rounded-2xl"
+                  style={{ background: `linear-gradient(135deg, ${t.color.surface}, ${t.color.accentSoft})` }}>
+                  <div className={`${g.value} absolute inset-0 flex items-center justify-center rounded-2xl`}>
+                    <code className="text-[12px] font-semibold" style={{ color: t.color.primary }}>{g.key}</code>
+                  </div>
                 </div>
+                <code className="text-[9px] text-slate-400">{g.label}</code>
               </div>
-              <code className="text-[9px] text-slate-400">bg-white/80 backdrop-blur-2xl</code>
-              <code className="text-[9px] text-slate-400">border border-black/10 shadow-lg</code>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div
-                className="relative h-20 w-44 overflow-hidden rounded-2xl"
-                style={{ background: `linear-gradient(135deg, ${brand.surface}, ${brand.accentSoft})` }}
-              >
-                <div className={`${glassSoft} absolute inset-0 flex items-center justify-center rounded-2xl`}>
-                  <code className="text-[12px] font-semibold" style={{ color: brand.primary }}>glassSoft</code>
-                </div>
-              </div>
-              <code className="text-[9px] text-slate-400">bg-white/70 backdrop-blur-2xl</code>
-              <code className="text-[9px] text-slate-400">border border-black/10 shadow-md</code>
-            </div>
+            ))}
           </div>
-          <p className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[10px] text-red-700">
-            Anti-pattern: <code>glass</code> and <code>glassSoft</code> are <strong>strings</strong> — always{' '}
-            <code>className={'{glass}'}</code>. Never <code>style={'{...glass}'}</code> or <code>{'{...glass}'}</code>.
+          <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[10px] text-red-700">
+            Always <code>className={'{t.glass}'}</code> — never <code>style={'{...t.glass}'}</code>. These are Tailwind class strings, not objects.
           </p>
         </Spec>
       </section>
 
-      {/* Footer */}
+      {/* ── File map ──────────────────────────────────────────────────── */}
+      <Spec label="Where to edit each context">
+        <div className="space-y-2">
+          {ALL_THEMES.map((theme) => (
+            <div key={theme.context} className="flex items-center gap-3 rounded-xl border px-4 py-3"
+              style={{
+                borderColor: theme.context === t.context ? t.color.accent : t.color.border,
+                background: theme.context === t.context ? t.color.accentSoft : t.color.card,
+              }}>
+              <div className="h-3 w-3 rounded-full" style={{ background: theme.color.primary }} />
+              <div>
+                <p className="text-[12px] font-semibold" style={{ color: t.color.primary }}>{theme.name}</p>
+                <code className="text-[10px] text-slate-500">src/lib/design-system/themes/{theme.context}.ts</code>
+              </div>
+              {theme.context === t.context && (
+                <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{ background: t.color.accent, color: '#fff' }}>
+                  viewing
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-[10px] text-slate-400">
+          Interface: <code>src/lib/design-system/themes/_theme.ts</code> — defines the shared shape all three contexts must implement.
+        </p>
+      </Spec>
+
       <div className="border-t border-white/[0.05] pt-4 text-[10px] text-white/30">
-        Core 2.0 · src/app/ui/theme.ts · All tokens live in brand.* and core2.* · Click any swatch to copy its token name
+        Batch 1 complete — theme files created. Next: migrate crew imports (Batch 2), then dashboard (Batch 3), then public (Batch 4).
       </div>
     </div>
   );

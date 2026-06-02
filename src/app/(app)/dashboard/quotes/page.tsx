@@ -4,7 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { FREQUENCY_LABELS, SERVICE_TYPE_LABELS } from '@/types/orders';
 import { normalizeQuoteStatus as _normalizeQuoteStatus } from '@/types/dashboard';
 
@@ -453,7 +453,7 @@ function QuotesPageContent() {
     <main className="max-w-7xl mx-auto py-8 px-4 space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: brand.primary }}>Quote Console</h1>
+          <h1 className="text-2xl font-semibold" style={{ color: dashboardTheme.color.primary }}>Quote Console</h1>
           <p className="text-sm text-slate-500">
             Review, approve, cancel, and archive quotes without letting historical items clog the active queue.
           </p>
@@ -463,7 +463,7 @@ function QuotesPageContent() {
           <button
             onClick={fetchQuotes}
             className="px-3 py-2 rounded-lg text-xs border"
-            style={{ borderColor: brand.border, color: brand.muted }}
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
           >
             Refresh
           </button>
@@ -513,7 +513,7 @@ function QuotesPageContent() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Name, email, service, reason, ID"
               className="w-full rounded-2xl border bg-white px-4 py-2.5 text-sm text-slate-900 outline-none"
-              style={{ borderColor: brand.border }}
+              style={{ borderColor: dashboardTheme.color.border }}
             />
           </div>
         </div>
@@ -710,7 +710,7 @@ function QuotesPageContent() {
               value={adjustPrice}
               onChange={(event) => setAdjustPrice(event.target.value)}
               className="w-full rounded-xl border px-4 py-2.5 text-sm mb-4"
-              style={{ borderColor: brand.border }}
+              style={{ borderColor: dashboardTheme.color.border }}
               placeholder="Reviewed total"
             />
             <div className="flex gap-3">
@@ -723,7 +723,7 @@ function QuotesPageContent() {
               <button
                 onClick={handleAdjust}
                 className="flex-1 px-4 py-2 text-sm rounded-lg text-white"
-                style={{ background: brand.primary }}
+                style={{ background: dashboardTheme.color.primary }}
               >
                 Save
               </button>
@@ -756,7 +756,7 @@ function QuotesPageContent() {
               onChange={(event) => setCancelReason(event.target.value)}
               rows={5}
               className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 outline-none"
-              style={{ borderColor: brand.border }}
+              style={{ borderColor: dashboardTheme.color.border }}
               placeholder="Customer withdrew, scope changed, duplicate quote, unable to service address..."
             />
 
@@ -1022,7 +1022,7 @@ function Section({
                       onClick={() => onRequestPayment(quote)}
                       disabled={loading}
                       className="rounded-lg px-3 py-1.5 text-xs text-white disabled:opacity-60"
-                      style={{ background: brand.primary }}
+                      style={{ background: dashboardTheme.color.primary }}
                     >
                       {quote.status === 'payment_pending' ? 'Resend payment link' : 'Send payment link'}
                     </button>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useDashboardData } from './hooks/useDashboardData';
 import { ErrorMessage, RefreshIcon } from './components/shared';
@@ -490,7 +490,7 @@ export default function DashboardHome() {
     return (
       <div className="grid gap-6 w-full px-3 sm:px-4 md:px-10 lg:px-12 pb-14">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Operations Console</h1>
+          <h1 className="text-xl font-semibold" style={{ color: dashboardTheme.color.primary }}>Operations Console</h1>
         </div>
         <ErrorMessage message={error} onRetry={refetch} />
       </div>
@@ -538,7 +538,7 @@ export default function DashboardHome() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-[-0.03em]" style={{ color: brand.primary }}>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em]" style={{ color: dashboardTheme.color.primary }}>
                 {roleCopy.title}
               </h1>
               <div className="flex items-center gap-2">
@@ -612,7 +612,7 @@ function SectionShell({
     <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_8px_26px_rgba(2,6,23,0.05)]">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: brand.primary }}>{title}</h2>
+          <h2 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: dashboardTheme.color.primary }}>{title}</h2>
           {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
         </div>
         {actionHref && actionLabel ? (
@@ -747,7 +747,7 @@ function CrewCard({ member }: { member: DashboardCrewMember }) {
 
   return (
     <Link href={member.awaitingApproval ? '/dashboard/crew?tab=onboarding&filter=awaiting_approval' : '/dashboard/crew?tab=applicants&group=crew'} className="flex items-start gap-3 rounded-[20px] border border-black/5 bg-white px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: member.status === 'active' ? brand.primary : '#64748b' }}>
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: member.status === 'active' ? dashboardTheme.color.primary : '#64748b' }}>
         {getInitials(member.full_name)}
       </span>
       <div className="min-w-0 flex-1">

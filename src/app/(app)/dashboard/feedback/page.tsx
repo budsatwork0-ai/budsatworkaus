@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -106,8 +106,8 @@ export default function FeedbackPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Feedback & Ideas</h1>
-          <p className="text-sm mt-0.5" style={{ color: brand.muted }}>
+          <h1 className="text-2xl font-bold" style={{ color: dashboardTheme.color.text }}>Feedback & Ideas</h1>
+          <p className="text-sm mt-0.5" style={{ color: dashboardTheme.color.muted }}>
             Submissions from the website — bugs, feature ideas, and general thoughts.
           </p>
         </div>
@@ -129,9 +129,9 @@ export default function FeedbackPage() {
             onClick={() => setFilter(s)}
             className="px-4 py-1.5 rounded-full text-sm font-medium border transition-all"
             style={{
-              borderColor: filter === s ? brand.primary : brand.border,
-              backgroundColor: filter === s ? `${brand.primary}12` : 'transparent',
-              color: filter === s ? brand.primary : brand.muted,
+              borderColor: filter === s ? dashboardTheme.color.primary : dashboardTheme.color.border,
+              backgroundColor: filter === s ? `${dashboardTheme.color.primary}12` : 'transparent',
+              color: filter === s ? dashboardTheme.color.primary : dashboardTheme.color.muted,
             }}
           >
             {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -146,10 +146,10 @@ export default function FeedbackPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-sm" style={{ color: brand.muted }}>Loading...</div>
+        <div className="text-sm" style={{ color: dashboardTheme.color.muted }}>Loading...</div>
       ) : filtered.length === 0 ? (
         <div className={glass + ' p-8 text-center'}>
-          <p className="text-sm" style={{ color: brand.muted }}>
+          <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>
             {filter === 'all' ? 'No feedback submitted yet.' : `No ${filter} feedback.`}
           </p>
         </div>
@@ -177,7 +177,7 @@ export default function FeedbackPage() {
                     >
                       {item.status}
                     </span>
-                    <span className="text-xs" style={{ color: brand.muted }}>
+                    <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                       {new Date(item.created_at).toLocaleDateString('en-AU', {
                         day: 'numeric', month: 'short', year: 'numeric',
                       })}
@@ -191,7 +191,7 @@ export default function FeedbackPage() {
                         onClick={() => updateStatus(item.id, 'reviewed')}
                         disabled={saving === item.id}
                         className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors hover:bg-slate-50 disabled:opacity-50"
-                        style={{ borderColor: brand.border, color: brand.text }}
+                        style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
                       >
                         Mark reviewed
                       </button>
@@ -201,7 +201,7 @@ export default function FeedbackPage() {
                         onClick={() => updateStatus(item.id, 'closed')}
                         disabled={saving === item.id}
                         className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors hover:bg-slate-50 disabled:opacity-50"
-                        style={{ borderColor: brand.border, color: brand.muted }}
+                        style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
                       >
                         Close
                       </button>
@@ -211,7 +211,7 @@ export default function FeedbackPage() {
                         onClick={() => updateStatus(item.id, 'new')}
                         disabled={saving === item.id}
                         className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors hover:bg-slate-50 disabled:opacity-50"
-                        style={{ borderColor: brand.border, color: brand.muted }}
+                        style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
                       >
                         Reopen
                       </button>
@@ -221,8 +221,8 @@ export default function FeedbackPage() {
 
                 {/* Subject */}
                 <div>
-                  <h3 className="font-semibold text-base" style={{ color: brand.text }}>{item.subject}</h3>
-                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed" style={{ color: brand.muted }}>
+                  <h3 className="font-semibold text-base" style={{ color: dashboardTheme.color.text }}>{item.subject}</h3>
+                  <p className="mt-1 text-sm whitespace-pre-wrap leading-relaxed" style={{ color: dashboardTheme.color.muted }}>
                     {item.description}
                   </p>
                 </div>
@@ -232,7 +232,7 @@ export default function FeedbackPage() {
                   <button
                     onClick={() => setLightbox(item.photo_url!)}
                     className="block overflow-hidden rounded-xl border hover:opacity-90 transition-opacity"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                     aria-label="View full photo"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -249,9 +249,9 @@ export default function FeedbackPage() {
                   {item.admin_notes && !isEditingNotes && (
                     <div
                       className="mb-2 rounded-xl px-3 py-2 text-sm"
-                      style={{ backgroundColor: `${brand.primary}08`, color: brand.muted }}
+                      style={{ backgroundColor: `${dashboardTheme.color.primary}08`, color: dashboardTheme.color.muted }}
                     >
-                      <span className="font-medium" style={{ color: brand.text }}>Notes: </span>
+                      <span className="font-medium" style={{ color: dashboardTheme.color.text }}>Notes: </span>
                       {item.admin_notes}
                     </div>
                   )}
@@ -263,7 +263,7 @@ export default function FeedbackPage() {
                         rows={3}
                         placeholder="Add internal notes..."
                         className="w-full rounded-xl border bg-white/80 px-3 py-2 text-sm outline-none transition-all focus:ring-2 focus:ring-offset-1 resize-none"
-                        style={{ borderColor: brand.border }}
+                        style={{ borderColor: dashboardTheme.color.border }}
                         autoFocus
                       />
                       <div className="flex gap-2">
@@ -271,7 +271,7 @@ export default function FeedbackPage() {
                           onClick={() => saveNotes(item.id)}
                           disabled={saving === item.id}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                          style={{ backgroundColor: brand.primary }}
+                          style={{ backgroundColor: dashboardTheme.color.primary }}
                         >
                           {saving === item.id ? 'Saving...' : 'Save notes'}
                         </button>
@@ -281,7 +281,7 @@ export default function FeedbackPage() {
                             setNotes((prev) => ({ ...prev, [item.id]: item.admin_notes ?? '' }));
                           }}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium border"
-                          style={{ borderColor: brand.border, color: brand.muted }}
+                          style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
                         >
                           Cancel
                         </button>
@@ -291,7 +291,7 @@ export default function FeedbackPage() {
                     <button
                       onClick={() => setExpandedNotes(item.id)}
                       className="text-xs underline underline-offset-2"
-                      style={{ color: brand.muted }}
+                      style={{ color: dashboardTheme.color.muted }}
                     >
                       {item.admin_notes ? 'Edit notes' : 'Add notes'}
                     </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { useDashboardData } from '../../hooks/useDashboardData';
 
 type ScheduleOrder = {
@@ -118,7 +118,7 @@ export default function ScheduleTab() {
           <button
             onClick={() => setWeekOffset((w) => w - 1)}
             className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50"
-            style={{ borderColor: brand.border }}
+            style={{ borderColor: dashboardTheme.color.border }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="15 18 9 12 15 6" />
@@ -128,21 +128,21 @@ export default function ScheduleTab() {
             onClick={() => setWeekOffset(0)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium"
             style={weekOffset === 0
-              ? { background: brand.primary, color: 'white' }
-              : { border: `1px solid ${brand.border}`, color: brand.muted }}
+              ? { background: dashboardTheme.color.primary, color: 'white' }
+              : { border: `1px solid ${dashboardTheme.color.border}`, color: dashboardTheme.color.muted }}
           >
             Today
           </button>
           <button
             onClick={() => setWeekOffset((w) => w + 1)}
             className="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50"
-            style={{ borderColor: brand.border }}
+            style={{ borderColor: dashboardTheme.color.border }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
-          <span className="text-sm font-medium ml-2" style={{ color: brand.text }}>{weekLabel}</span>
+          <span className="text-sm font-medium ml-2" style={{ color: dashboardTheme.color.text }}>{weekLabel}</span>
         </div>
       </div>
 
@@ -161,15 +161,15 @@ export default function ScheduleTab() {
               <div
                 key={dateStr}
                 className={`rounded-2xl border p-3 min-h-[200px] bg-white/80 ${isToday ? 'border-2' : 'border-black/5'}`}
-                style={isToday ? { borderColor: brand.primary } : undefined}
+                style={isToday ? { borderColor: dashboardTheme.color.primary } : undefined}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold" style={{ color: isToday ? brand.primary : brand.muted }}>
+                  <span className="text-xs font-semibold" style={{ color: isToday ? dashboardTheme.color.primary : dashboardTheme.color.muted }}>
                     {DAYS[i]}
                   </span>
                   <span
                     className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${isToday ? 'text-white' : ''}`}
-                    style={isToday ? { background: brand.primary } : { color: brand.muted }}
+                    style={isToday ? { background: dashboardTheme.color.primary } : { color: dashboardTheme.color.muted }}
                   >
                     {date.getDate()}
                   </span>
@@ -230,7 +230,7 @@ export default function ScheduleTab() {
       {/* Unscheduled Jobs */}
       {unscheduled.length > 0 && (
         <div className={`${glass} p-5`}>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: brand.text }}>
+          <h2 className="text-sm font-semibold mb-3" style={{ color: dashboardTheme.color.text }}>
             Unscheduled Jobs ({unscheduled.length})
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -247,9 +247,9 @@ export default function ScheduleTab() {
                       >
                         {order.service}
                       </span>
-                      <p className="text-sm font-medium mt-1" style={{ color: brand.text }}>{order.customer}</p>
+                      <p className="text-sm font-medium mt-1" style={{ color: dashboardTheme.color.text }}>{order.customer}</p>
                     </div>
-                    <p className="text-sm font-semibold" style={{ color: brand.text }}>${order.amount.toFixed(0)}</p>
+                    <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>${order.amount.toFixed(0)}</p>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
                     <button

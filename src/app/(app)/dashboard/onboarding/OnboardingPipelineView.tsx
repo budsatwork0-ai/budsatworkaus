@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 type EmployeeCard = {
   id: string;
@@ -132,17 +132,17 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
   };
 
   return (
-    <div className="min-h-screen" style={{ background: brand.bg }}>
+    <div className="min-h-screen" style={{ background: dashboardTheme.color.bg }}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Crew onboarding</h1>
-          <p className="text-sm md:text-base mt-1" style={{ color: brand.muted }}>
+          <h1 className="text-2xl md:text-3xl font-bold" style={{ color: dashboardTheme.color.primary }}>Crew onboarding</h1>
+          <p className="text-sm md:text-base mt-1" style={{ color: dashboardTheme.color.muted }}>
             Live onboarding progress from each employee’s actual crew onboarding steps.
           </p>
         </div>
         <button
           className="px-3 py-2 rounded-lg border"
-          style={{ borderColor: brand.border, color: brand.muted }}
+          style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
           onClick={() => {
             setLoading(true);
             fetchEmployees();
@@ -154,13 +154,13 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Total', value: summary.total, color: brand.primary },
+          { label: 'Total', value: summary.total, color: dashboardTheme.color.primary },
           { label: 'In progress', value: summary.inProgress, color: '#92400E' },
           { label: 'Awaiting approval', value: summary.awaitingApproval, color: '#1D4ED8' },
           { label: 'Crew active', value: summary.activeCrew, color: '#047857' },
         ].map((item) => (
-          <div key={item.label} className={`${glass} rounded-2xl p-4`} style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}>
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: brand.muted }}>{item.label}</p>
+          <div key={item.label} className={`${glass} rounded-2xl p-4`} style={{ background: dashboardTheme.color.card, borderColor: 'rgba(0,0,0,0.08)' }}>
+            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: dashboardTheme.color.muted }}>{item.label}</p>
             <p className="text-2xl font-bold mt-2" style={{ color: item.color }}>{item.value}</p>
           </div>
         ))}
@@ -176,7 +176,7 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
           <button
             key={item.key}
             className={`px-3 py-1.5 rounded-lg border ${filter === item.key ? 'bg-black/5' : ''}`}
-            style={{ borderColor: brand.border, color: filter === item.key ? brand.primary : brand.muted }}
+            style={{ borderColor: dashboardTheme.color.border, color: filter === item.key ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
             onClick={() => setFilter(item.key as FilterKey)}
           >
             {item.label}
@@ -187,15 +187,15 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
       {loading && (
         <div className="space-y-3">
           {[1, 2, 3].map((item) => (
-            <div key={item} className={`${glass} rounded-2xl p-5 h-44 animate-pulse`} style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }} />
+            <div key={item} className={`${glass} rounded-2xl p-5 h-44 animate-pulse`} style={{ background: dashboardTheme.color.card, borderColor: 'rgba(0,0,0,0.08)' }} />
           ))}
         </div>
       )}
 
       {error && !loading && (
         <div className="text-center py-12">
-          <p className="text-sm" style={{ color: brand.muted }}>{error}</p>
-          <button className="mt-2 text-sm underline" style={{ color: brand.primary }} onClick={() => { setLoading(true); fetchEmployees(); }}>
+          <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>{error}</p>
+          <button className="mt-2 text-sm underline" style={{ color: dashboardTheme.color.primary }} onClick={() => { setLoading(true); fetchEmployees(); }}>
             Try again
           </button>
         </div>
@@ -213,12 +213,12 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
               <div
                 key={employee.id}
                 className={`${glass} rounded-3xl p-5 md:p-6`}
-                style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}
+                style={{ background: dashboardTheme.color.card, borderColor: 'rgba(0,0,0,0.08)' }}
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-xl font-semibold" style={{ color: brand.text }}>{employee.full_name}</h2>
+                      <h2 className="text-xl font-semibold" style={{ color: dashboardTheme.color.text }}>{employee.full_name}</h2>
                       <span
                         className="px-2.5 py-1 rounded-full text-xs font-semibold"
                         style={{ background: meta.bg, color: meta.fg }}
@@ -226,7 +226,7 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
                         {meta.label}
                       </span>
                     </div>
-                    <p className="text-sm mt-1" style={{ color: brand.muted }}>
+                    <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
                       {employee.email}
                       {employee.suburb ? ` · ${employee.suburb}` : ''}
                       {employee.services?.length ? ` · ${employee.services.join(', ')}` : ''}
@@ -234,17 +234,17 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
 
                     <div className="mt-4">
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <p style={{ color: brand.text }}>
+                        <p style={{ color: dashboardTheme.color.text }}>
                           {employee.currentSectionLabel
                             ? `Step ${employee.progress.currentStep} of ${employee.progress.total}: ${employee.currentSectionLabel}`
                             : 'All onboarding steps completed'}
                         </p>
-                        <span style={{ color: brand.muted }}>
+                        <span style={{ color: dashboardTheme.color.muted }}>
                           {employee.progress.completed}/{employee.progress.total}
                         </span>
                       </div>
                       <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(15,61,46,0.08)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${progressPct}%`, background: brand.primary }} />
+                        <div className="h-full rounded-full" style={{ width: `${progressPct}%`, background: dashboardTheme.color.primary }} />
                       </div>
                     </div>
 
@@ -264,12 +264,12 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
                     </div>
                   </div>
 
-                  <div className="w-full lg:w-[320px] rounded-2xl border p-4" style={{ borderColor: brand.border, background: '#fff' }}>
-                    <p className="text-sm font-semibold" style={{ color: brand.text }}>Required documents</p>
+                  <div className="w-full lg:w-[320px] rounded-2xl border p-4" style={{ borderColor: dashboardTheme.color.border, background: '#fff' }}>
+                    <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>Required documents</p>
                     <div className="mt-3 space-y-2">
                       {employee.requiredDocuments.map((document) => (
                         <div key={document.docType} className="flex items-center justify-between gap-3 text-sm">
-                          <span style={{ color: brand.muted }}>{document.label}</span>
+                          <span style={{ color: dashboardTheme.color.muted }}>{document.label}</span>
                           <span style={{ color: document.submitted ? '#047857' : '#B45309' }}>
                             {document.submitted ? 'Submitted' : 'Missing'}
                           </span>
@@ -282,7 +282,7 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
                         onClick={() => approveEmployee(employee.id)}
                         disabled={approving === employee.id}
                         className="mt-4 w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                        style={{ background: brand.primary }}
+                        style={{ background: dashboardTheme.color.primary }}
                       >
                         {approving === employee.id ? 'Approving...' : 'Convert to staff'}
                       </button>
@@ -294,7 +294,7 @@ export function OnboardingPipelineView({ initialFilter }: { initialFilter?: stri
           })}
 
           {sorted.length === 0 && (
-            <div className="text-xs px-3 py-8 text-center rounded-lg border" style={{ borderColor: brand.border, color: brand.muted }}>
+            <div className="text-xs px-3 py-8 text-center rounded-lg border" style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}>
               No employees match this filter.
             </div>
           )}

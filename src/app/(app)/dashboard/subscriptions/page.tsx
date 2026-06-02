@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type {
   Subscription,
   SubscriptionStatus,
@@ -432,7 +432,7 @@ export default function SubscriptionsPage() {
                     type="button"
                     onClick={() => updateSubscriptionStatus(selectedSubscription.id, 'active')}
                     className="rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                    style={{ background: brand.primary }}
+                    style={{ background: dashboardTheme.color.primary }}
                   >
                     Resume Subscription
                   </button>
@@ -494,7 +494,7 @@ export default function SubscriptionsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>
+          <h1 className="text-xl font-semibold" style={{ color: dashboardTheme.color.primary }}>
             Subscriptions
           </h1>
           <p className="text-sm text-slate-500">
@@ -511,7 +511,7 @@ export default function SubscriptionsPage() {
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="px-3 py-2 text-xs rounded-lg text-white"
-            style={{ background: brand.primary }}
+            style={{ background: dashboardTheme.color.primary }}
           >
             + New Subscription
           </button>
@@ -543,7 +543,7 @@ export default function SubscriptionsPage() {
                   ? 'text-white'
                   : 'bg-transparent text-slate-600 hover:text-slate-900'
               }`}
-              style={activeTab === tab.key ? { background: brand.primary } : undefined}
+              style={activeTab === tab.key ? { background: dashboardTheme.color.primary } : undefined}
             >
               {tab.label}
             </button>

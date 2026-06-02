@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import type { AdminAlert } from '@/lib/admin-alerts';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
@@ -15,7 +15,7 @@ const SEVERITY_STYLES: Record<AdminAlert['severity'], { bg: string; text: string
 
 function AlertSkeleton() {
   return (
-    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: brand.border, background: brand.card }}>
+    <div className={`${glass} rounded-2xl p-4 animate-pulse`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
       <div className="flex items-start gap-3">
         <div className="w-2 h-2 rounded-full mt-1.5 bg-slate-200 flex-shrink-0" />
         <div className="flex-1 space-y-2">
@@ -131,12 +131,12 @@ function AlertsPageContent() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: brand.bg }}>
+    <div className="min-h-screen" style={{ background: dashboardTheme.color.bg }}>
       <div className="mb-6">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>Alerts</h1>
-            <p className="text-sm mt-1" style={{ color: brand.muted }}>
+            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: dashboardTheme.color.primary }}>Alerts</h1>
+            <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>
               Urgent issues and reminders across jobs and payables.
             </p>
           </div>
@@ -144,7 +144,7 @@ function AlertsPageContent() {
             <button
               onClick={fetchAlerts}
               className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-white"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
             >
               Refresh
             </button>
@@ -152,7 +152,7 @@ function AlertsPageContent() {
               <button
                 onClick={() => void dismissAlerts(filtered.map((alert) => alert.id))}
                 className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-white"
-                style={{ borderColor: brand.border, color: brand.primary }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
               >
                 Clear visible ({filtered.length})
               </button>
@@ -161,7 +161,7 @@ function AlertsPageContent() {
               <button
                 onClick={() => void restoreDismissed()}
                 className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-white"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Restore hidden ({dismissedCount})
               </button>
@@ -186,7 +186,7 @@ function AlertsPageContent() {
               router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
             }}
             className={`px-3 py-1 rounded-full text-xs border transition ${filter === f ? 'bg-white shadow-sm font-medium' : 'bg-transparent hover:bg-white/60'}`}
-            style={{ borderColor: brand.border, color: filter === f ? brand.primary : brand.muted }}
+            style={{ borderColor: dashboardTheme.color.border, color: filter === f ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
           >
             {f === 'all'
               ? `All (${alerts.length})`
@@ -204,12 +204,12 @@ function AlertsPageContent() {
 
       {/* Error state */}
       {!isLoading && error && (
-        <div className={`${glass} rounded-2xl p-6 text-center`} style={{ borderColor: brand.border, background: brand.card }}>
+        <div className={`${glass} rounded-2xl p-6 text-center`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
           <p className="text-sm text-red-600 mb-2">{error}</p>
           <button
             onClick={fetchAlerts}
             className="text-xs px-4 py-1.5 rounded-lg border"
-            style={{ borderColor: brand.border, color: brand.primary }}
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
           >
             Try again
           </button>
@@ -220,12 +220,12 @@ function AlertsPageContent() {
       {!isLoading && !error && (
         <div className="space-y-2">
           {filtered.length === 0 && (
-            <div className={`${glass} rounded-2xl p-8 text-center`} style={{ borderColor: brand.border, background: brand.card }}>
+            <div className={`${glass} rounded-2xl p-8 text-center`} style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.card }}>
               <div className="text-2xl mb-2">✓</div>
-              <div className="text-sm font-medium" style={{ color: brand.text }}>
+              <div className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>
                 {filter === 'all' ? 'No active alerts' : `No ${filter} alerts`}
               </div>
-              <div className="text-xs mt-1" style={{ color: brand.muted }}>
+              <div className="text-xs mt-1" style={{ color: dashboardTheme.color.muted }}>
                 {filter === 'all'
                   ? dismissedCount > 0
                     ? 'Everything active is cleared. Restore hidden alerts if needed.'
@@ -241,21 +241,21 @@ function AlertsPageContent() {
                 key={alert.id}
                 className={`${glass} rounded-2xl p-4 transition hover:shadow-md`}
                 style={{
-                  borderColor: brand.border,
-                  background: brand.card,
+                  borderColor: dashboardTheme.color.border,
+                  background: dashboardTheme.color.card,
                 }}
               >
                 <div className="flex items-start gap-3">
                   <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${sev.dot}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm" style={{ color: brand.text }}>{alert.title}</span>
+                      <span className="font-semibold text-sm" style={{ color: dashboardTheme.color.text }}>{alert.title}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${sev.bg} ${sev.text}`}>{sev.label}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{alert.source}</span>
                     </div>
-                    <p className="text-sm mt-1" style={{ color: brand.muted }}>{alert.message}</p>
+                    <p className="text-sm mt-1" style={{ color: dashboardTheme.color.muted }}>{alert.message}</p>
                     <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="text-[11px]" style={{ color: brand.muted }}>
+                      <div className="text-[11px]" style={{ color: dashboardTheme.color.muted }}>
                         {formatTimestamp(alert.timestamp)}
                       </div>
                       <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ function AlertsPageContent() {
                           <a
                             href={alert.href}
                             className="text-[11px] font-medium"
-                            style={{ color: brand.primary }}
+                            style={{ color: dashboardTheme.color.primary }}
                           >
                             Open
                           </a>

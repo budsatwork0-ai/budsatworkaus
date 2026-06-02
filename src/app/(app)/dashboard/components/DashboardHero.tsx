@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency } from '@/lib/dashboard/utils';
 import type { DashboardMetrics, MoneyFlowData, ActivityItem } from '@/types/dashboard';
 
@@ -21,7 +21,7 @@ function Delta({ value }: { value: number }) {
   return (
     <span
       className="ml-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 align-middle text-[11.5px] font-semibold"
-      style={up ? { background: brand.accentSoft, color: brand.accent } : { background: '#fbe9e8', color: '#d9534f' }}
+      style={up ? { background: dashboardTheme.color.accentSoft, color: dashboardTheme.color.accent } : { background: '#fbe9e8', color: '#d9534f' }}
     >
       {up ? '↗' : '↘'} {pct(value)}
     </span>
@@ -39,7 +39,7 @@ function KpiTile({ label, value, delta, note, highlighted }: {
     <div className={`rounded-[20px] border border-black/5 px-5 py-4 ${highlighted ? 'bg-white shadow-[0_6px_20px_rgba(2,6,23,0.06)]' : 'bg-[#fafafa]'}`}>
       <div className="text-[13px] text-slate-500">{label}</div>
       <div className="mt-1.5 flex items-baseline">
-        <span className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: brand.primary }}>{value}</span>
+        <span className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>{value}</span>
         {typeof delta === 'number' && <Delta value={delta} />}
       </div>
       <div className="mt-0.5 text-[12px] text-slate-400">{note ?? 'vs last month'}</div>
@@ -68,7 +68,7 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
         {/* Overview */}
         <section className={CARD}>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight" style={{ color: brand.primary }}>Overview</h2>
+            <h2 className="text-lg font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>Overview</h2>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-black/5 px-3.5 py-2 text-[12.5px] text-slate-500">This month</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -77,14 +77,14 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
           </div>
           {customerAvatars.length > 0 && (
             <div className="mt-5">
-              <div className="text-[16px] font-semibold" style={{ color: brand.primary }}>
+              <div className="text-[16px] font-semibold" style={{ color: dashboardTheme.color.primary }}>
                 {customerCount} customer{customerCount === 1 ? '' : 's'} this month
               </div>
               <div className="mt-0.5 text-[13px] text-slate-500">Your most active accounts.</div>
               <div className="mt-3 flex items-center gap-4">
                 {customerAvatars.map((c, i) => (
                   <div key={`${c.label}-${i}`} className="text-center">
-                    <div className="mx-auto flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#e6efe9] text-[15px] font-semibold" style={{ color: brand.primary }}>
+                    <div className="mx-auto flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#e6efe9] text-[15px] font-semibold" style={{ color: dashboardTheme.color.primary }}>
                       {initials(c.label)}
                     </div>
                     <div className="mt-1.5 max-w-[64px] truncate text-[12px] text-slate-500">{c.label.split(' ')[0]}</div>
@@ -103,7 +103,7 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
         {trend.length > 0 && (
           <section className={CARD}>
             <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-lg font-bold tracking-tight" style={{ color: brand.primary }}>Revenue view</h2>
+              <h2 className="text-lg font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>Revenue view</h2>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-black/5 px-3.5 py-2 text-[12.5px] text-slate-500">Last {trend.length} months</span>
             </div>
             <div className="relative flex h-52 items-end gap-3 pt-8">
@@ -111,7 +111,7 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
                 <div
                   key={`${t.month}-${i}`}
                   className="relative flex-1 rounded-t-[9px] rounded-b-[7px]"
-                  style={{ height: `${Math.max(6, (t.revenue / maxRev) * 100)}%`, background: i === peakIdx ? brand.accent : '#e6efe9' }}
+                  style={{ height: `${Math.max(6, (t.revenue / maxRev) * 100)}%`, background: i === peakIdx ? dashboardTheme.color.accent : '#e6efe9' }}
                 >
                   {i === peakIdx && (
                     <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#111827] px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -134,7 +134,7 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
       <div className="space-y-5">
         {services.length > 0 && (
           <section className={CARD}>
-            <h2 className="mb-3 text-lg font-bold tracking-tight" style={{ color: brand.primary }}>Popular services</h2>
+            <h2 className="mb-3 text-lg font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>Popular services</h2>
             {services.map((s, i) => (
               <div key={`${s.service}-${i}`} className="flex items-center gap-3 border-t border-black/5 py-3 first:border-t-0">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] text-white" style={{ background: SERVICE_SHADES[i % SERVICE_SHADES.length] }}>
@@ -142,9 +142,9 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-[13.5px] font-medium text-slate-900">{s.service}</div>
-                  <span className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: brand.accentSoft, color: brand.accent }}>Active</span>
+                  <span className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: dashboardTheme.color.accentSoft, color: dashboardTheme.color.accent }}>Active</span>
                 </div>
-                <div className="ml-auto text-[13.5px] font-semibold" style={{ color: brand.primary }}>{formatCurrency(s.amount)}</div>
+                <div className="ml-auto text-[13.5px] font-semibold" style={{ color: dashboardTheme.color.primary }}>{formatCurrency(s.amount)}</div>
               </div>
             ))}
             <Link href="/dashboard/reports" className="mt-3.5 block rounded-2xl border border-black/5 py-3 text-center text-[13px] text-slate-500 transition hover:bg-slate-50">
@@ -155,16 +155,16 @@ export function DashboardHero({ metrics, moneyFlow, recentActivity }: {
 
         {activity.length > 0 && (
           <section className={CARD}>
-            <h2 className="mb-3 text-lg font-bold tracking-tight" style={{ color: brand.primary }}>Recent activity</h2>
+            <h2 className="mb-3 text-lg font-bold tracking-tight" style={{ color: dashboardTheme.color.primary }}>Recent activity</h2>
             {activity.map((item) => (
               <div key={item.id} className="flex items-start gap-3 border-t border-black/5 py-3 first:border-t-0">
-                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: brand.accent }} />
+                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dashboardTheme.color.accent }} />
                 <div className="min-w-0">
                   <div className="truncate text-[13.5px] font-medium text-slate-900">{item.title}</div>
                   {item.description && <div className="truncate text-[12px] text-slate-500">{item.description}</div>}
                 </div>
                 {item.amount !== undefined && (
-                  <div className="ml-auto text-[13px] font-semibold" style={{ color: brand.primary }}>{formatCurrency(item.amount)}</div>
+                  <div className="ml-auto text-[13px] font-semibold" style={{ color: dashboardTheme.color.primary }}>{formatCurrency(item.amount)}</div>
                 )}
               </div>
             ))}

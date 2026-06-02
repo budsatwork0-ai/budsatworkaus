@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -198,35 +198,35 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
     <div className="grid gap-6 w-full px-4 md:px-10 lg:px-12 pb-14">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: brand.primary }}>Applicant Pipeline</h1>
+          <h1 className="text-xl font-semibold" style={{ color: dashboardTheme.color.primary }}>Applicant Pipeline</h1>
           <p className="text-sm text-slate-500">Track applicants, volunteers, and sponsor enquiries.</p>
         </div>
         <div className="flex gap-1 p-1 rounded-xl bg-white/60 border border-black/5">
-          <button onClick={() => setView('kanban')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={view === 'kanban' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}>Board</button>
-          <button onClick={() => setView('list')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={view === 'list' ? { background: brand.primary, color: 'white' } : { color: brand.muted }}>List</button>
+          <button onClick={() => setView('kanban')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={view === 'kanban' ? { background: dashboardTheme.color.primary, color: 'white' } : { color: dashboardTheme.color.muted }}>Board</button>
+          <button onClick={() => setView('list')} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={view === 'list' ? { background: dashboardTheme.color.primary, color: 'white' } : { color: dashboardTheme.color.muted }}>List</button>
         </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className={`${glass} p-4`}>
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Total</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: brand.primary }}>{applicants.length}</p>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: dashboardTheme.color.muted }}>Total</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: dashboardTheme.color.primary }}>{applicants.length}</p>
         </div>
         <div className={`${glass} p-4`}>
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>This Week</p>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: dashboardTheme.color.muted }}>This Week</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#3B82F6' }}>{thisWeek}</p>
         </div>
         <div className={`${glass} p-4`}>
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>In Pipeline</p>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: dashboardTheme.color.muted }}>In Pipeline</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#8B5CF6' }}>{applicants.filter((a) => a.stage !== 'ready').length}</p>
         </div>
         <div className={`${glass} p-4`}>
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Community</p>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: dashboardTheme.color.muted }}>Community</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#4338CA' }}>{communityCount}</p>
         </div>
         <div className={`${glass} p-4`}>
-          <p className="text-[11px] uppercase tracking-wider" style={{ color: brand.muted }}>Linked onboarding</p>
+          <p className="text-[11px] uppercase tracking-wider" style={{ color: dashboardTheme.color.muted }}>Linked onboarding</p>
           <p className="text-2xl font-bold mt-1" style={{ color: '#1D4ED8' }}>{linkedCrewOnboarding}</p>
         </div>
       </div>
@@ -240,8 +240,8 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
             className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
             style={
               group === g
-                ? { background: brand.primary, color: 'white', borderColor: brand.primary }
-                : { background: 'white', color: brand.muted, borderColor: '#E5E7EB' }
+                ? { background: dashboardTheme.color.primary, color: 'white', borderColor: dashboardTheme.color.primary }
+                : { background: 'white', color: dashboardTheme.color.muted, borderColor: '#E5E7EB' }
             }
           >
             {g === 'all' ? 'All' : g === 'crew' ? 'Crew' : 'Community'}
@@ -278,18 +278,18 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
                     const onboardingMeta = !community ? crewJourneyMeta(a) : null;
                     return (
                       <div key={a.id} className={`${glass} p-3`}>
-                        <p className="text-sm font-medium" style={{ color: brand.text }}>{a.full_name}</p>
+                        <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>{a.full_name}</p>
                         <div className="mt-1">
                           <RoleBadge role={a.role} />
                         </div>
-                        <p className="text-[10px] mt-1" style={{ color: brand.muted }}>
+                        <p className="text-[10px] mt-1" style={{ color: dashboardTheme.color.muted }}>
                           {new Date(a.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
                         </p>
                         {a.email && (
-                          <p className="text-[10px] truncate mt-0.5" style={{ color: brand.muted }}>{a.email}</p>
+                          <p className="text-[10px] truncate mt-0.5" style={{ color: dashboardTheme.color.muted }}>{a.email}</p>
                         )}
                         {!a.missing_docs?.length && community && a.quality_business_name && (
-                          <p className="text-[10px] mt-0.5 truncate" style={{ color: brand.muted }}>{a.quality_business_name}</p>
+                          <p className="text-[10px] mt-0.5 truncate" style={{ color: dashboardTheme.color.muted }}>{a.quality_business_name}</p>
                         )}
                         {a.missing_docs && a.missing_docs.length > 0 && (
                           <p className="text-[10px] mt-1" style={{ color: '#DC2626' }}>{a.missing_docs.length} missing docs</p>
@@ -318,7 +318,7 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
                           <a
                             href={`mailto:${a.email}`}
                             className="mt-1 block w-full text-[11px] px-2 py-1 rounded-lg font-medium text-center border"
-                            style={{ borderColor: '#E5E7EB', color: brand.muted }}
+                            style={{ borderColor: '#E5E7EB', color: dashboardTheme.color.muted }}
                           >
                             Email →
                           </a>
@@ -329,7 +329,7 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
                           <button
                             onClick={() => updateStage(a.id, nextStage)}
                             className="mt-2 w-full text-[11px] px-2 py-1 rounded-lg font-medium text-white"
-                            style={{ background: brand.primary }}
+                            style={{ background: dashboardTheme.color.primary }}
                           >
                             Move to {STAGE_LABELS[nextStage]}
                           </button>
@@ -427,7 +427,7 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
                           <a
                             href={`mailto:${a.email}`}
                             className="text-xs px-2 py-1 rounded-lg border"
-                            style={{ borderColor: '#E5E7EB', color: brand.muted }}
+                            style={{ borderColor: '#E5E7EB', color: dashboardTheme.color.muted }}
                           >
                             Email
                           </a>
@@ -435,7 +435,7 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
 
                         {/* Crew actions */}
                         {!community && !a.user_id && nextStage && (
-                          <button onClick={() => updateStage(a.id, nextStage)} className="text-xs px-2 py-1 rounded-lg text-white" style={{ background: brand.primary }}>
+                          <button onClick={() => updateStage(a.id, nextStage)} className="text-xs px-2 py-1 rounded-lg text-white" style={{ background: dashboardTheme.color.primary }}>
                             Advance
                           </button>
                         )}

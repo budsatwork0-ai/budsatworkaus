@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { toast } from 'sonner';
 
 type ModalType = 'invoice' | 'expense' | 'job' | 'reminder' | 'crew' | null;
@@ -73,7 +73,7 @@ function CloseIcon({ className = 'h-5 w-5' }: { className?: string }) {
 }
 
 const quickActions = [
-  { id: 'invoice',  label: 'Create Invoice',   icon: <InvoiceIcon />,  color: brand.primary },
+  { id: 'invoice',  label: 'Create Invoice',   icon: <InvoiceIcon />,  color: dashboardTheme.color.primary },
   { id: 'expense',  label: 'Record Expense',    icon: <ExpenseIcon />,  color: '#EF4444' },
   { id: 'job',      label: 'Schedule Job',      icon: <CalendarIcon />, color: '#6366F1' },
   { id: 'reminder', label: 'Send Reminder',     icon: <BellIcon />,     color: '#F59E0B' },
@@ -118,7 +118,7 @@ function Modal({
             className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-6 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold" style={{ color: brand.text }}>
+              <h2 className="text-xl font-semibold" style={{ color: dashboardTheme.color.text }}>
                 {title}
               </h2>
               <button
@@ -254,7 +254,7 @@ function CreateInvoiceForm({ onClose }: { onClose: () => void }) {
           type="submit"
           disabled={isSubmitting}
           className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
-          style={{ background: brand.primary }}
+          style={{ background: dashboardTheme.color.primary }}
         >
           {isSubmitting ? 'Creating...' : 'Create Invoice'}
         </button>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabaseBrowserClientSafe } from '@/lib/supabase/client';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { Panel } from '../shared';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -72,10 +72,10 @@ const POD: Array<{ initials: string; name: string; role: string; color: string; 
 ];
 
 const STATUS_BADGE: Record<string, { bg: string; fg: string; label: string }> = {
-  draft: { bg: '#F1F7F3', fg: brand.muted, label: 'Draft' },
-  approved: { bg: '#DDF3E4', fg: brand.accent, label: 'Approved' },
+  draft: { bg: '#F1F7F3', fg: dashboardTheme.color.muted, label: 'Draft' },
+  approved: { bg: '#DDF3E4', fg: dashboardTheme.color.accent, label: 'Approved' },
   scheduled: { bg: '#E0F2FE', fg: '#0369A1', label: 'Scheduled' },
-  published: { bg: '#DDF3E4', fg: brand.accent, label: 'Published' },
+  published: { bg: '#DDF3E4', fg: dashboardTheme.color.accent, label: 'Published' },
   rejected: { bg: '#FEE2E2', fg: '#B91C1C', label: 'Rejected' },
 };
 
@@ -107,7 +107,7 @@ function Sparkline({ values }: { values: number[] }) {
   }).join(' ');
   return (
     <svg width={w} height={h} className="opacity-50">
-      <polyline points={pts} fill="none" stroke={brand.accent} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts} fill="none" stroke={dashboardTheme.color.accent} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -271,7 +271,7 @@ export default function MarketingStudioTab() {
   if (!tablesReady && !loading) {
     return (
       <div className="rounded-[24px] border border-dashed border-black/10 bg-white/80 p-8 text-center">
-        <p className="text-sm font-semibold" style={{ color: brand.primary }}>Marketing Studio is ready to switch on</p>
+        <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.primary }}>Marketing Studio is ready to switch on</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
           Apply migration{' '}
           <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">077_marketing_studio.sql</code>{' '}
@@ -340,8 +340,8 @@ export default function MarketingStudioTab() {
                 onClick={() => setChannel(c.key)}
                 className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
                 style={on
-                  ? { background: brand.accentSoft, borderColor: brand.focus, color: brand.accent }
-                  : { background: '#fff', borderColor: brand.border, color: brand.muted }}
+                  ? { background: dashboardTheme.color.accentSoft, borderColor: dashboardTheme.color.focus, color: dashboardTheme.color.accent }
+                  : { background: '#fff', borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 {c.label}
               </button>
@@ -356,7 +356,7 @@ export default function MarketingStudioTab() {
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{k.label}</p>
               {k.api && (
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: brand.accentSoft, color: brand.accent }}>
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: dashboardTheme.color.accentSoft, color: dashboardTheme.color.accent }}>
                   API
                 </span>
               )}
@@ -364,7 +364,7 @@ export default function MarketingStudioTab() {
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-900">{loading ? '—' : k.value}</p>
             <div className="mt-3 flex items-end justify-between gap-2 overflow-hidden">
               <span className="inline-flex min-w-0 shrink rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                style={{ background: k.up ? brand.accentSoft : '#FEE2E2', color: k.up ? brand.accent : '#B91C1C' }}>
+                style={{ background: k.up ? dashboardTheme.color.accentSoft : '#FEE2E2', color: k.up ? dashboardTheme.color.accent : '#B91C1C' }}>
                 {k.pill}
               </span>
               {k.spark && !loading && <Sparkline values={k.spark} />}
@@ -379,20 +379,20 @@ export default function MarketingStudioTab() {
           {/* Capture brief */}
           <Panel title="Today's Capture Brief" subtitle="From the Field Producer — what to film on the job today.">
             {brief ? (
-              <div className="rounded-[18px] border p-4" style={{ borderColor: brand.border, background: brand.surfaceAlt }}>
+              <div className="rounded-[18px] border p-4" style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surfaceAlt }}>
                 {brief.job_context ? (
-                  <p className="text-xs font-bold uppercase tracking-[0.1em]" style={{ color: brand.accent }}>{brief.job_context}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em]" style={{ color: dashboardTheme.color.accent }}>{brief.job_context}</p>
                 ) : null}
                 <ol className="mt-3 space-y-2">
                   {(brief.shot_list ?? []).map((shot, i) => (
                     <li key={i} className="flex items-start gap-2.5 text-sm">
-                      <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: brand.accent }}>{i + 1}</span>
+                      <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: dashboardTheme.color.accent }}>{i + 1}</span>
                       <span>{shot}</span>
                     </li>
                   ))}
                 </ol>
                 {brief.say_to_camera ? (
-                  <p className="mt-3 rounded-[14px] border border-dashed bg-white px-3 py-2.5 text-sm italic" style={{ borderColor: brand.focus }}>
+                  <p className="mt-3 rounded-[14px] border border-dashed bg-white px-3 py-2.5 text-sm italic" style={{ borderColor: dashboardTheme.color.focus }}>
                     &ldquo;{brief.say_to_camera}&rdquo;
                   </p>
                 ) : null}
@@ -415,7 +415,7 @@ export default function MarketingStudioTab() {
                   onClick={() => void approveAll()}
                   disabled={approvingAll}
                   className="rounded-[9px] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
-                  style={{ background: brand.accent }}
+                  style={{ background: dashboardTheme.color.accent }}
                 >
                   {approvingAll ? 'Approving…' : `Approve all (${pendingDrafts.length})`}
                 </button>
@@ -425,7 +425,7 @@ export default function MarketingStudioTab() {
             }
           >
             {drafts.length > 0 ? (
-              <div className="divide-y" style={{ borderColor: brand.border }}>
+              <div className="divide-y" style={{ borderColor: dashboardTheme.color.border }}>
                 {drafts.map((d) => {
                   const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.draft;
                   return (
@@ -436,7 +436,7 @@ export default function MarketingStudioTab() {
                       </div>
                       <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: badge.bg, color: badge.fg }}>{badge.label}</span>
                       {d.status === 'draft' ? (
-                        <button type="button" onClick={() => void approve(d.id)} className="rounded-[11px] px-3 py-1.5 text-xs font-bold text-white" style={{ background: brand.accent }}>
+                        <button type="button" onClick={() => void approve(d.id)} className="rounded-[11px] px-3 py-1.5 text-xs font-bold text-white" style={{ background: dashboardTheme.color.accent }}>
                           Approve
                         </button>
                       ) : null}
@@ -460,7 +460,7 @@ export default function MarketingStudioTab() {
               {POD.map((a) => {
                 const lastRun = agentRuns.find((r) => r.agent_id === a.agentId);
                 return (
-                  <div key={a.name} className="flex items-center gap-3 rounded-[14px] border p-3" style={{ borderColor: brand.border }}>
+                  <div key={a.name} className="flex items-center gap-3 rounded-[14px] border p-3" style={{ borderColor: dashboardTheme.color.border }}>
                     <div className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] text-sm font-extrabold text-white" style={{ background: a.color }}>{a.initials}</div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-slate-900">{a.name}</p>
@@ -474,7 +474,7 @@ export default function MarketingStudioTab() {
                     </div>
                     <span
                       className="flex flex-none items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
-                      style={lastRun ? { background: brand.accentSoft, color: brand.accent } : { background: '#F1F5F9', color: brand.muted }}
+                      style={lastRun ? { background: dashboardTheme.color.accentSoft, color: dashboardTheme.color.accent } : { background: '#F1F5F9', color: dashboardTheme.color.muted }}
                     >
                       <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
                       {lastRun ? 'Live' : 'Idle'}
@@ -490,12 +490,12 @@ export default function MarketingStudioTab() {
             {campaigns.length > 0 ? (
               <div className="grid gap-3">
                 {campaigns.map((c) => (
-                  <div key={c.id} className="rounded-[16px] border p-4" style={{ borderColor: brand.border, background: brand.surface }}>
+                  <div key={c.id} className="rounded-[16px] border p-4" style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.surface }}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-base font-extrabold" style={{ color: brand.primary }}>{c.name}</p>
-                      <span className="rounded-full px-2 py-0.5 text-[10px] font-bold capitalize" style={{ background: '#fff', color: brand.muted }}>{c.status}</span>
+                      <p className="text-base font-extrabold" style={{ color: dashboardTheme.color.primary }}>{c.name}</p>
+                      <span className="rounded-full px-2 py-0.5 text-[10px] font-bold capitalize" style={{ background: '#fff', color: dashboardTheme.color.muted }}>{c.status}</span>
                     </div>
-                    {c.hook ? <p className="mt-1 text-sm font-semibold italic" style={{ color: brand.accent }}>&ldquo;{c.hook}&rdquo;</p> : null}
+                    {c.hook ? <p className="mt-1 text-sm font-semibold italic" style={{ color: dashboardTheme.color.accent }}>&ldquo;{c.hook}&rdquo;</p> : null}
                     {c.goal_notes ? <p className="mt-2 text-xs text-slate-500">{c.goal_notes}</p> : null}
                   </div>
                 ))}
@@ -513,8 +513,8 @@ export default function MarketingStudioTab() {
             subtitle={autoFilledChannels.size > 0 ? 'Auto-filled channels are hidden — only manual channels shown.' : 'Manual entry. Platform APIs auto-fill this once connected.'}
           >
             {manualChannels.length === 0 ? (
-              <div className="rounded-[14px] border p-4 text-center" style={{ borderColor: brand.border, background: brand.accentSoft }}>
-                <p className="text-sm font-semibold" style={{ color: brand.accent }}>All channels auto-filled today ✓</p>
+              <div className="rounded-[14px] border p-4 text-center" style={{ borderColor: dashboardTheme.color.border, background: dashboardTheme.color.accentSoft }}>
+                <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.accent }}>All channels auto-filled today ✓</p>
                 <p className="mt-1 text-xs text-slate-500">Instagram and Facebook pulled from the API this morning.</p>
               </div>
             ) : (
@@ -522,7 +522,7 @@ export default function MarketingStudioTab() {
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Channel
                     <select value={logChannel} onChange={(e) => setLogChannel(e.target.value as Exclude<Channel, 'combined'>)}
-                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal normal-case text-slate-900" style={{ borderColor: brand.border }}>
+                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal normal-case text-slate-900" style={{ borderColor: dashboardTheme.color.border }}>
                       {manualChannels.map((ch) => (
                         <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>
                       ))}
@@ -530,19 +530,19 @@ export default function MarketingStudioTab() {
                   </label>
                   <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Views
                     <input value={logViews} onChange={(e) => setLogViews(e.target.value)} type="number" inputMode="numeric" placeholder="0"
-                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: brand.border }} />
+                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: dashboardTheme.color.border }} />
                   </label>
                   <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Engagements
                     <input value={logEng} onChange={(e) => setLogEng(e.target.value)} type="number" inputMode="numeric" placeholder="0"
-                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: brand.border }} />
+                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: dashboardTheme.color.border }} />
                   </label>
                   <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Followers
                     <input value={logFollowers} onChange={(e) => setLogFollowers(e.target.value)} type="number" inputMode="numeric" placeholder="0"
-                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: brand.border }} />
+                      className="mt-1.5 w-full rounded-[11px] border bg-white px-3 py-2 text-sm font-normal text-slate-900" style={{ borderColor: dashboardTheme.color.border }} />
                   </label>
                 </div>
                 <button type="button" onClick={() => void saveNumbers()} disabled={saving}
-                  className="rounded-[11px] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60" style={{ background: brand.accent }}>
+                  className="rounded-[11px] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60" style={{ background: dashboardTheme.color.accent }}>
                   {saving ? 'Saving…' : 'Save today\'s numbers'}
                 </button>
                 <p className="text-xs text-slate-500">

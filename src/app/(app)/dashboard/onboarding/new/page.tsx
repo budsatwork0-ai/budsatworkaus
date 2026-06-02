@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 
@@ -79,18 +79,18 @@ export default function NewOnboardeePage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: brand.bg }}>
+    <div className="min-h-screen" style={{ background: dashboardTheme.color.bg }}>
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: brand.primary }}>New Onboardee</h1>
-        <p className="text-sm md:text-base mt-1" style={{ color: brand.muted }}>
+        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: dashboardTheme.color.primary }}>New Onboardee</h1>
+        <p className="text-sm md:text-base mt-1" style={{ color: dashboardTheme.color.muted }}>
           Create a real intake record that flows into verification, paperwork, and activation.
         </p>
       </div>
 
-      <div className={`${glass} rounded-2xl p-5 max-w-3xl`} style={{ background: brand.card, borderColor: 'rgba(0,0,0,0.08)' }}>
-        <div className="flex items-center gap-2 text-xs mb-4" style={{ color: brand.muted }}>
+      <div className={`${glass} rounded-2xl p-5 max-w-3xl`} style={{ background: dashboardTheme.color.card, borderColor: 'rgba(0,0,0,0.08)' }}>
+        <div className="flex items-center gap-2 text-xs mb-4" style={{ color: dashboardTheme.color.muted }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <span key={n} className={`px-2 py-1 rounded border ${step === n ? 'bg-black/5' : ''}`} style={{ borderColor: brand.border }}>
+            <span key={n} className={`px-2 py-1 rounded border ${step === n ? 'bg-black/5' : ''}`} style={{ borderColor: dashboardTheme.color.border }}>
               Step {n}
             </span>
           ))}
@@ -98,19 +98,19 @@ export default function NewOnboardeePage() {
 
         {step === 1 && (
           <div className="space-y-4">
-            <div className="font-medium" style={{ color: brand.primary }}>Basics</div>
+            <div className="font-medium" style={{ color: dashboardTheme.color.primary }}>Basics</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input className="px-3 py-2 rounded-lg border" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} style={{ borderColor: brand.border }} />
-              <input className="px-3 py-2 rounded-lg border" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ borderColor: brand.border }} />
-              <input className="px-3 py-2 rounded-lg border" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ borderColor: brand.border }} />
-              <input className="px-3 py-2 rounded-lg border" placeholder="Suburb" value={suburb} onChange={(e) => setSuburb(e.target.value)} style={{ borderColor: brand.border }} />
+              <input className="px-3 py-2 rounded-lg border" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} style={{ borderColor: dashboardTheme.color.border }} />
+              <input className="px-3 py-2 rounded-lg border" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ borderColor: dashboardTheme.color.border }} />
+              <input className="px-3 py-2 rounded-lg border" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ borderColor: dashboardTheme.color.border }} />
+              <input className="px-3 py-2 rounded-lg border" placeholder="Suburb" value={suburb} onChange={(e) => setSuburb(e.target.value)} style={{ borderColor: dashboardTheme.color.border }} />
               <div className="flex gap-2 md:col-span-2 flex-wrap">
                 {ROLE_OPTIONS.map((option) => (
                   <button
                     key={option}
                     onClick={() => setRole(option)}
                     className={`px-3 py-2 rounded-lg border ${role === option ? 'bg-black/5' : ''}`}
-                    style={{ borderColor: brand.border, color: role === option ? brand.primary : brand.muted }}
+                    style={{ borderColor: dashboardTheme.color.border, color: role === option ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
                   >
                     {option}
                   </button>
@@ -122,29 +122,29 @@ export default function NewOnboardeePage() {
 
         {step === 2 && (
           <div className="space-y-4">
-            <div className="font-medium" style={{ color: brand.primary }}>Availability & Areas</div>
-            <div className="text-xs" style={{ color: brand.muted }}>Service areas</div>
+            <div className="font-medium" style={{ color: dashboardTheme.color.primary }}>Availability & Areas</div>
+            <div className="text-xs" style={{ color: dashboardTheme.color.muted }}>Service areas</div>
             <div className="flex flex-wrap gap-2">
               {['Brisbane', 'Ipswich', 'Gold Coast', 'Sunshine Coast'].map((a) => (
                 <button
                   key={a}
                   onClick={() => toggle(areas, a, setAreas)}
                   className={`px-3 py-1.5 rounded-lg border text-sm ${areas.includes(a) ? 'bg-black/5' : ''}`}
-                  style={{ borderColor: brand.border, color: areas.includes(a) ? brand.primary : brand.muted }}
+                  style={{ borderColor: dashboardTheme.color.border, color: areas.includes(a) ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
                 >
                   {a}
                 </button>
               ))}
             </div>
 
-            <div className="text-xs mt-3" style={{ color: brand.muted }}>Days available</div>
+            <div className="text-xs mt-3" style={{ color: dashboardTheme.color.muted }}>Days available</div>
             <div className="flex flex-wrap gap-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                 <button
                   key={d}
                   onClick={() => toggle(days, d, setDays)}
                   className={`px-3 py-1.5 rounded-lg border text-sm ${days.includes(d) ? 'bg-black/5' : ''}`}
-                  style={{ borderColor: brand.border, color: days.includes(d) ? brand.primary : brand.muted }}
+                  style={{ borderColor: dashboardTheme.color.border, color: days.includes(d) ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
                 >
                   {d}
                 </button>
@@ -155,14 +155,14 @@ export default function NewOnboardeePage() {
 
         {step === 3 && (
           <div className="space-y-4">
-            <div className="font-medium" style={{ color: brand.primary }}>Service Skills</div>
+            <div className="font-medium" style={{ color: dashboardTheme.color.primary }}>Service Skills</div>
             <div className="flex flex-wrap gap-2">
               {['Windows', 'Lawns', 'Cleaning', 'Car Detailing', 'Dump Runs', 'Bin Cleans'].map((s) => (
                 <button
                   key={s}
                   onClick={() => toggle(services, s, setServices)}
                   className={`px-3 py-1.5 rounded-lg border text-sm ${services.includes(s) ? 'bg-black/5' : ''}`}
-                  style={{ borderColor: brand.border, color: services.includes(s) ? brand.primary : brand.muted }}
+                  style={{ borderColor: dashboardTheme.color.border, color: services.includes(s) ? dashboardTheme.color.primary : dashboardTheme.color.muted }}
                 >
                   {s}
                 </button>
@@ -173,7 +173,7 @@ export default function NewOnboardeePage() {
 
         {step === 4 && (
           <div className="space-y-3">
-            <div className="font-medium" style={{ color: brand.primary }}>Compliance Snapshot</div>
+            <div className="font-medium" style={{ color: dashboardTheme.color.primary }}>Compliance Snapshot</div>
             {[
               ['license', 'Driver License'],
               ['insurance', 'Public Liability Insurance'],
@@ -191,7 +191,7 @@ export default function NewOnboardeePage() {
 
         {step === 5 && (
           <div className="space-y-2 text-sm">
-            <div className="font-medium" style={{ color: brand.primary }}>Review</div>
+            <div className="font-medium" style={{ color: dashboardTheme.color.primary }}>Review</div>
             <div><strong>Name:</strong> {name || '—'}</div>
             <div><strong>Email:</strong> {email || '—'}</div>
             <div><strong>Phone:</strong> {phone || '—'}</div>
@@ -207,7 +207,7 @@ export default function NewOnboardeePage() {
         <div className="flex items-center justify-between mt-5">
           <button
             className="px-3 py-2 rounded-lg border"
-            style={{ borderColor: brand.border, color: brand.muted }}
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
             onClick={() => setStep(Math.max(1, step - 1))}
             disabled={submitting}
           >
@@ -216,7 +216,7 @@ export default function NewOnboardeePage() {
           {step < 5 ? (
             <button
               className="px-3 py-2 rounded-lg border"
-              style={{ borderColor: brand.border, color: brand.primary }}
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.primary }}
               onClick={() => setStep(step + 1)}
               disabled={submitting}
             >
@@ -225,7 +225,7 @@ export default function NewOnboardeePage() {
           ) : (
             <button
               className="px-3 py-2 rounded-lg text-white disabled:opacity-60"
-              style={{ background: brand.primary }}
+              style={{ background: dashboardTheme.color.primary }}
               onClick={createApplicant}
               disabled={submitting}
             >

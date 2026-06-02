@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 import { formatCurrency } from '@/lib/dashboard/utils';
 import type { DashboardMetrics, JobRecord, ReceivableRecord } from '@/types/dashboard';
 
@@ -82,7 +82,7 @@ export default function DomainCommandPanel({ metrics, jobs, receivables, onTabCh
         key: 'finance',
         domain: 'Finance',
         icon: ICONS.finance,
-        color: brand.primary,
+        color: dashboardTheme.color.primary,
         primary: formatCurrency(metrics?.cashBalance ?? 0),
         secondary: `${revenueGoalPct}% of monthly target · ${grossMargin}% margin`,
         badge: overdueAmount > 0 ? `${overdueCount} overdue` : undefined,

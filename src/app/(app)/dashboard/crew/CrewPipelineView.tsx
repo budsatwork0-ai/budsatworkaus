@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { brand } from '@/app/ui/theme';
+import { dashboardTheme } from '@/lib/design-system/themes';
 
 type PipelineStage = 'intake' | 'verify' | 'paperwork' | 'induct' | 'ready';
 type ReadinessStatus = 'ready' | 'waiting' | 'blocked' | 'inactive';
@@ -171,8 +171,8 @@ function ModalShell({
       <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden />
       <div className="relative w-full max-w-lg rounded-3xl border border-black/10 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-lg font-semibold" style={{ color: brand.text }}>{title}</h2>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-sm" style={{ color: brand.muted }}>
+          <h2 className="text-lg font-semibold" style={{ color: dashboardTheme.color.text }}>{title}</h2>
+          <button onClick={onClose} className="rounded-lg px-2 py-1 text-sm" style={{ color: dashboardTheme.color.muted }}>
             Close
           </button>
         </div>
@@ -439,8 +439,8 @@ export function CrewPipelineView() {
     <div className="grid gap-5 px-4 pb-14 md:px-10 lg:px-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold" style={{ color: brand.primary }}>Crew Pipeline</h1>
-          <p className="mt-1 text-sm" style={{ color: brand.muted }}>
+          <h1 className="text-2xl font-semibold" style={{ color: dashboardTheme.color.primary }}>Crew Pipeline</h1>
+          <p className="mt-1 text-sm" style={{ color: dashboardTheme.color.muted }}>
             One continuous flow from first enquiry to deployable crew, with readiness and staffing actions built in.
           </p>
         </div>
@@ -450,12 +450,12 @@ export function CrewPipelineView() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search crew, suburb, role"
             className="w-full rounded-xl border px-3 py-2 text-sm outline-none sm:w-64"
-            style={{ borderColor: brand.border, color: brand.text, background: 'white' }}
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text, background: 'white' }}
           />
           <button
             onClick={() => fetchPipeline()}
             className="rounded-xl border px-3 py-2 text-sm font-medium"
-            style={{ borderColor: brand.border, color: brand.muted, background: 'white' }}
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted, background: 'white' }}
           >
             Refresh
           </button>
@@ -464,14 +464,14 @@ export function CrewPipelineView() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
-          { label: 'People', value: summary.total, color: brand.primary },
+          { label: 'People', value: summary.total, color: dashboardTheme.color.primary },
           { label: 'Ready now', value: summary.ready, color: '#047857' },
           { label: 'Blocked', value: summary.blocked, color: '#B91C1C' },
           { label: 'Waiting', value: summary.waiting, color: '#1D4ED8' },
           { label: 'Assignable', value: summary.activeRoster, color: '#0F766E' },
         ].map((card) => (
           <div key={card.label} className={`${glass} p-4`}>
-            <p className="text-[11px] uppercase tracking-[0.16em]" style={{ color: brand.muted }}>{card.label}</p>
+            <p className="text-[11px] uppercase tracking-[0.16em]" style={{ color: dashboardTheme.color.muted }}>{card.label}</p>
             <p className="mt-2 text-2xl font-bold" style={{ color: card.color }}>{card.value}</p>
           </div>
         ))}
@@ -485,8 +485,8 @@ export function CrewPipelineView() {
             className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
             style={
               readinessFilter === item
-                ? { background: brand.primary, borderColor: brand.primary, color: 'white' }
-                : { background: 'white', borderColor: '#E5E7EB', color: brand.muted }
+                ? { background: dashboardTheme.color.primary, borderColor: dashboardTheme.color.primary, color: 'white' }
+                : { background: 'white', borderColor: '#E5E7EB', color: dashboardTheme.color.muted }
             }
           >
             {item === 'all' ? 'All' : item === 'ready' ? 'Ready to work' : item.charAt(0).toUpperCase() + item.slice(1)}
@@ -505,8 +505,8 @@ export function CrewPipelineView() {
         </div>
       ) : error ? (
         <div className={`${glass} p-8 text-center`}>
-          <p className="text-sm" style={{ color: brand.muted }}>{error}</p>
-          <button onClick={() => fetchPipeline()} className="mt-3 text-sm font-medium" style={{ color: brand.primary }}>
+          <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>{error}</p>
+          <button onClick={() => fetchPipeline()} className="mt-3 text-sm font-medium" style={{ color: dashboardTheme.color.primary }}>
             Try again
           </button>
         </div>
@@ -521,12 +521,12 @@ export function CrewPipelineView() {
                   <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: sc.bg, color: sc.fg }}>
                     {STAGE_LABELS[stage]}
                   </span>
-                  <span className="text-xs" style={{ color: brand.muted }}>{stagePeople.length}</span>
+                  <span className="text-xs" style={{ color: dashboardTheme.color.muted }}>{stagePeople.length}</span>
                 </div>
 
                 {stagePeople.length === 0 ? (
                   <div className={`${glass} border-dashed p-5 text-center`}>
-                    <p className="text-xs" style={{ color: brand.muted }}>No one in {STAGE_LABELS[stage].toLowerCase()}.</p>
+                    <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>No one in {STAGE_LABELS[stage].toLowerCase()}.</p>
                   </div>
                 ) : (
                   stagePeople.map((person) => {
@@ -540,8 +540,8 @@ export function CrewPipelineView() {
                       <div key={person.id} className={`${glass} p-3.5`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold" style={{ color: brand.text }}>{person.fullName}</p>
-                            <p className="mt-0.5 text-[11px]" style={{ color: brand.muted }}>
+                            <p className="truncate text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{person.fullName}</p>
+                            <p className="mt-0.5 text-[11px]" style={{ color: dashboardTheme.color.muted }}>
                               {person.defaultRole || person.pipelineRole}
                               {person.suburb ? ` · ${person.suburb}` : ''}
                             </p>
@@ -555,7 +555,7 @@ export function CrewPipelineView() {
                         </div>
 
                         <div className="mt-3 flex items-center justify-between gap-3 text-[11px]">
-                          <span style={{ color: brand.muted }}>{person.timeInStage}</span>
+                          <span style={{ color: dashboardTheme.color.muted }}>{person.timeInStage}</span>
                           <span className="rounded-full px-2 py-1 font-semibold" style={{ background: score.bg, color: score.fg }}>
                             {score.label}
                           </span>
@@ -563,7 +563,7 @@ export function CrewPipelineView() {
 
                         <div className="mt-2 rounded-xl px-3 py-2" style={{ background: '#F8FBF9' }}>
                           <div className="flex items-start justify-between gap-3 text-[11px]">
-                            <span className="shrink-0 pt-0.5" style={{ color: brand.muted }}>Availability</span>
+                            <span className="shrink-0 pt-0.5" style={{ color: dashboardTheme.color.muted }}>Availability</span>
                             {person.availabilitySlots.length > 0 ? (
                               <div className="flex flex-col items-end gap-0.5">
                                 {person.availabilitySlots.map((slot) => {
@@ -580,15 +580,15 @@ export function CrewPipelineView() {
                             )}
                           </div>
                           <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
-                            <span style={{ color: brand.muted }}>Deployability</span>
-                            <span style={{ color: brand.text }}>
+                            <span style={{ color: dashboardTheme.color.muted }}>Deployability</span>
+                            <span style={{ color: dashboardTheme.color.text }}>
                               {person.staffing.assignable ? 'Can assign now' : person.readiness.detail}
                             </span>
                           </div>
                           {(person.employmentType || person.hourlyRate != null) && (
                             <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
-                              <span style={{ color: brand.muted }}>Staff setup</span>
-                              <span style={{ color: brand.text }}>
+                              <span style={{ color: dashboardTheme.color.muted }}>Staff setup</span>
+                              <span style={{ color: dashboardTheme.color.text }}>
                                 {[formatEmploymentType(person.employmentType), person.hourlyRate != null ? `$${person.hourlyRate}/hr` : null].filter(Boolean).join(' · ')}
                               </span>
                             </div>
@@ -601,7 +601,7 @@ export function CrewPipelineView() {
                               <span
                                 key={tag}
                                 className="rounded-full border px-2 py-1 text-[10px] font-medium"
-                                style={{ borderColor: '#D7E7DD', background: '#F4FBF6', color: brand.primary }}
+                                style={{ borderColor: '#D7E7DD', background: '#F4FBF6', color: dashboardTheme.color.primary }}
                               >
                                 {tag}
                               </span>
@@ -626,13 +626,13 @@ export function CrewPipelineView() {
                         {person.onboarding && (
                           <div className="mt-3 rounded-xl border border-slate-100 bg-white/70 px-3 py-2 text-[11px]">
                             <div className="flex items-center justify-between gap-3">
-                              <span style={{ color: brand.muted }}>Onboarding</span>
-                              <span style={{ color: brand.text }}>
+                              <span style={{ color: dashboardTheme.color.muted }}>Onboarding</span>
+                              <span style={{ color: dashboardTheme.color.text }}>
                                 {person.onboarding.progress.completed}/{person.onboarding.progress.total}
                               </span>
                             </div>
                             <div className="mt-1 flex items-center justify-between gap-3">
-                              <span style={{ color: brand.muted }}>
+                              <span style={{ color: dashboardTheme.color.muted }}>
                                 {person.onboarding.currentSectionLabel ? `Current: ${person.onboarding.currentSectionLabel}` : 'All sections complete'}
                               </span>
                               {person.onboarding.missingRequiredDocs > 0 && (
@@ -660,14 +660,14 @@ export function CrewPipelineView() {
                         {person.staffing.assignedJobs > 0 && (
                           <div className="mt-3 rounded-xl px-3 py-2 text-[11px]" style={{ background: '#F8FBF9' }}>
                             <div className="flex items-center justify-between gap-3">
-                              <span style={{ color: brand.muted }}>Assignments</span>
-                              <span style={{ color: brand.text }}>
+                              <span style={{ color: dashboardTheme.color.muted }}>Assignments</span>
+                              <span style={{ color: dashboardTheme.color.text }}>
                                 {person.staffing.assignedJobs} total · {person.staffing.inProgressJobs} active
                               </span>
                             </div>
                             <div className="mt-1 flex items-center justify-between gap-3">
-                              <span style={{ color: brand.muted }}>Next job</span>
-                              <span style={{ color: brand.text }}>{formatDate(person.staffing.nextJobDate)}</span>
+                              <span style={{ color: dashboardTheme.color.muted }}>Next job</span>
+                              <span style={{ color: dashboardTheme.color.text }}>{formatDate(person.staffing.nextJobDate)}</span>
                             </div>
                           </div>
                         )}
@@ -677,7 +677,7 @@ export function CrewPipelineView() {
                             <button
                               onClick={() => openAssignModal(person)}
                               className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white"
-                              style={{ background: brand.primary }}
+                              style={{ background: dashboardTheme.color.primary }}
                             >
                               Assign to job
                             </button>
@@ -686,7 +686,7 @@ export function CrewPipelineView() {
                             <a
                               href={`/dashboard/crew/${person.employeeId}/documents`}
                               className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
-                              style={{ borderColor: brand.border, color: brand.accent }}
+                              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.accent }}
                             >
                               View documents
                             </a>
@@ -704,7 +704,7 @@ export function CrewPipelineView() {
                             <a
                               href={messageHref}
                               className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
-                              style={{ borderColor: '#E5E7EB', color: brand.muted }}
+                              style={{ borderColor: '#E5E7EB', color: dashboardTheme.color.muted }}
                             >
                               Send message
                             </a>
@@ -748,7 +748,7 @@ export function CrewPipelineView() {
                               disabled={!person.canRewindStage || workingId === person.id}
                               onClick={() => prevStage && updateStage(person, prevStage)}
                               className="rounded-lg px-2 py-1 text-[11px] font-medium disabled:opacity-40"
-                              style={{ color: brand.muted }}
+                              style={{ color: dashboardTheme.color.muted }}
                             >
                               Move back
                             </button>
@@ -756,7 +756,7 @@ export function CrewPipelineView() {
                               disabled={!person.canAdvanceStage || workingId === person.id}
                               onClick={() => nextStage && updateStage(person, nextStage)}
                               className="rounded-lg px-2 py-1 text-[11px] font-medium disabled:opacity-40"
-                              style={{ color: brand.primary }}
+                              style={{ color: dashboardTheme.color.primary }}
                             >
                               Move forward
                             </button>
@@ -778,29 +778,29 @@ export function CrewPipelineView() {
           onClose={() => setConvertTarget(null)}
         >
           <div className="space-y-4">
-            <p className="text-sm leading-6" style={{ color: brand.muted }}>
+            <p className="text-sm leading-6" style={{ color: dashboardTheme.color.muted }}>
               {convertTarget.isApprovalAction
                 ? 'Confirm their role and pay setup, then approve to unlock the full crew portal. You can still request specific documents after approval.'
                 : 'Save the core staff setup now so the crew member lands with a default role, pay settings, and roster status instead of just a label change.'}
             </p>
             <div>
-              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Default role</label>
+              <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Default role</label>
               <input
                 value={convertForm.defaultRole}
                 onChange={(event) => setConvertForm((prev) => ({ ...prev, defaultRole: event.target.value }))}
                 placeholder="e.g. Team Lead, Window Cleaning"
                 className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: brand.border }}
+                style={{ borderColor: dashboardTheme.color.border }}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Employment type</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Employment type</label>
                 <select
                   value={convertForm.employmentType}
                   onChange={(event) => setConvertForm((prev) => ({ ...prev, employmentType: event.target.value }))}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 >
                   {EMPLOYMENT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -808,7 +808,7 @@ export function CrewPipelineView() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Hourly rate</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Hourly rate</label>
                 <input
                   value={convertForm.hourlyRate}
                   onChange={(event) => setConvertForm((prev) => ({ ...prev, hourlyRate: event.target.value }))}
@@ -816,11 +816,11 @@ export function CrewPipelineView() {
                   min="0"
                   step="0.01"
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 />
               </div>
             </div>
-            <label className="flex items-start gap-3 rounded-xl border px-3 py-3" style={{ borderColor: brand.border }}>
+            <label className="flex items-start gap-3 rounded-xl border px-3 py-3" style={{ borderColor: dashboardTheme.color.border }}>
               <input
                 checked={convertForm.rosterActive}
                 onChange={(event) => setConvertForm((prev) => ({ ...prev, rosterActive: event.target.checked }))}
@@ -828,8 +828,8 @@ export function CrewPipelineView() {
                 className="mt-1 h-4 w-4 accent-emerald-700"
               />
               <div>
-                <p className="text-sm font-medium" style={{ color: brand.text }}>Add to active crew roster</p>
-                <p className="text-xs" style={{ color: brand.muted }}>
+                <p className="text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Add to active crew roster</p>
+                <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>
                   When on, this person becomes available for scheduling as soon as they are approved.
                 </p>
               </div>
@@ -838,7 +838,7 @@ export function CrewPipelineView() {
               <button
                 onClick={() => setConvertTarget(null)}
                 className="rounded-xl border px-3 py-2 text-sm font-medium"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -846,7 +846,7 @@ export function CrewPipelineView() {
                 onClick={submitConversion}
                 disabled={workingId === convertTarget.id}
                 className="rounded-xl px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                style={{ background: brand.primary }}
+                style={{ background: dashboardTheme.color.primary }}
               >
                 {workingId === convertTarget.id
                   ? (convertTarget.isApprovalAction ? 'Approving…' : 'Saving…')
@@ -860,7 +860,7 @@ export function CrewPipelineView() {
       {assignTarget && (
         <ModalShell title={`Assign ${assignTarget.fullName} to a job`} onClose={() => setAssignTarget(null)}>
           <div className="space-y-4">
-            <p className="text-sm" style={{ color: brand.muted }}>
+            <p className="text-sm" style={{ color: dashboardTheme.color.muted }}>
               Open jobs are filtered toward this crew member’s current capabilities so dispatch stays quick.
             </p>
             {ordersLoading ? (
@@ -868,7 +868,7 @@ export function CrewPipelineView() {
                 {[1, 2, 3].map((item) => <div key={item} className="h-14 animate-pulse rounded-2xl bg-slate-100" />)}
               </div>
             ) : availableOrders.length === 0 ? (
-              <div className="rounded-2xl border border-dashed p-6 text-center text-sm" style={{ borderColor: brand.border, color: brand.muted }}>
+              <div className="rounded-2xl border border-dashed p-6 text-center text-sm" style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}>
                 No open jobs right now.
               </div>
             ) : (
@@ -879,16 +879,16 @@ export function CrewPipelineView() {
                     onClick={() => assignOrder(order.id)}
                     disabled={workingId === assignTarget.id}
                     className="w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-60"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: dashboardTheme.color.border }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold" style={{ color: brand.text }}>{order.customer_name}</p>
-                        <p className="mt-0.5 text-[11px]" style={{ color: brand.muted }}>
+                        <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>{order.customer_name}</p>
+                        <p className="mt-0.5 text-[11px]" style={{ color: dashboardTheme.color.muted }}>
                           {titleize(order.service_type)} · {titleize(order.status)}
                         </p>
                       </div>
-                      <span className="text-[11px]" style={{ color: brand.muted }}>
+                      <span className="text-[11px]" style={{ color: dashboardTheme.color.muted }}>
                         {formatDate(order.scheduled_date)}
                       </span>
                     </div>
@@ -906,17 +906,17 @@ export function CrewPipelineView() {
           onClose={() => setContractTarget(null)}
         >
           <div className="space-y-4">
-            <p className="text-sm leading-6" style={{ color: brand.muted }}>
+            <p className="text-sm leading-6" style={{ color: dashboardTheme.color.muted }}>
               The contract will be emailed to <strong>{contractTarget.email}</strong> via DocuSign for electronic signature. A copy goes to admin@budsatwork.com once signed.
             </p>
 
             <div>
-              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Contract type</label>
+              <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Contract type</label>
               <select
                 value={contractForm.contractType}
                 onChange={(e) => setContractForm((prev) => ({ ...prev, contractType: e.target.value as typeof contractForm.contractType }))}
                 className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: brand.border }}
+                style={{ borderColor: dashboardTheme.color.border }}
               >
                 <option value="pay_amendment">Pay Rate Amendment</option>
                 <option value="employment_type_change">Change of Employment Type</option>
@@ -927,7 +927,7 @@ export function CrewPipelineView() {
 
             {contractForm.contractType === 'pay_amendment' && (
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New hourly rate ($)</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>New hourly rate ($)</label>
                 <input
                   type="number"
                   min="0"
@@ -936,10 +936,10 @@ export function CrewPipelineView() {
                   onChange={(e) => setContractForm((prev) => ({ ...prev, newRate: e.target.value }))}
                   placeholder="e.g. 32.50"
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 />
                 {contractTarget.hourlyRate != null && (
-                  <p className="mt-1 text-xs" style={{ color: brand.muted }}>
+                  <p className="mt-1 text-xs" style={{ color: dashboardTheme.color.muted }}>
                     Current rate: ${contractTarget.hourlyRate}/hr
                   </p>
                 )}
@@ -948,19 +948,19 @@ export function CrewPipelineView() {
 
             {contractForm.contractType === 'employment_type_change' && (
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New employment type</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>New employment type</label>
                 <select
                   value={contractForm.newEmploymentType}
                   onChange={(e) => setContractForm((prev) => ({ ...prev, newEmploymentType: e.target.value }))}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 >
                   {EMPLOYMENT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
                 {contractTarget.employmentType && (
-                  <p className="mt-1 text-xs" style={{ color: brand.muted }}>
+                  <p className="mt-1 text-xs" style={{ color: dashboardTheme.color.muted }}>
                     Current type: {formatEmploymentType(contractTarget.employmentType)}
                   </p>
                 )}
@@ -969,37 +969,37 @@ export function CrewPipelineView() {
 
             {contractForm.contractType === 'role_change' && (
               <div>
-                <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>New role title</label>
+                <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>New role title</label>
                 <input
                   value={contractForm.newRole}
                   onChange={(e) => setContractForm((prev) => ({ ...prev, newRole: e.target.value }))}
                   placeholder="e.g. Senior Cleaner, Team Lead"
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: dashboardTheme.color.border }}
                 />
               </div>
             )}
 
             <div>
-              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Effective date</label>
+              <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Effective date</label>
               <input
                 type="date"
                 value={contractForm.effectiveDate}
                 onChange={(e) => setContractForm((prev) => ({ ...prev, effectiveDate: e.target.value }))}
                 className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: brand.border }}
+                style={{ borderColor: dashboardTheme.color.border }}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium" style={{ color: brand.text }}>Additional notes (optional)</label>
+              <label className="mb-1 block text-sm font-medium" style={{ color: dashboardTheme.color.text }}>Additional notes (optional)</label>
               <textarea
                 value={contractForm.notes}
                 onChange={(e) => setContractForm((prev) => ({ ...prev, notes: e.target.value }))}
                 placeholder="Any other terms, context, or conditions to include in the contract…"
                 rows={3}
                 className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: brand.border }}
+                style={{ borderColor: dashboardTheme.color.border }}
               />
             </div>
 
@@ -1007,7 +1007,7 @@ export function CrewPipelineView() {
               <button
                 onClick={() => setContractTarget(null)}
                 className="rounded-xl border px-3 py-2 text-sm font-medium"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.muted }}
               >
                 Cancel
               </button>
