@@ -25,6 +25,30 @@ import type { MissionControlHealth } from '@/lib/bud/health';
 import type { BudActivityEvent } from '@/lib/bud/types';
 import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
 import { deriveGlobalTruth, type GlobalTruthState } from '@/lib/bud/overview-v2';
+import type { BusinessSnapshotData } from '../MissionControlClient';
+
+/* ── section label ───────────────────────────────────────────────────────── */
+
+type SectionBadge = 'Active' | 'Read Only' | 'Report' | 'Placeholder' | 'Prototype';
+
+const SECTION_BADGE_STYLE: Record<SectionBadge, string> = {
+  'Active':      'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+  'Read Only':   'border-white/10 bg-white/[0.04] text-white/40',
+  'Report':      'border-sky-500/30 bg-sky-500/10 text-sky-400',
+  'Placeholder': 'border-slate-500/20 bg-slate-500/[0.06] text-slate-400',
+  'Prototype':   'border-violet-500/30 bg-violet-500/10 text-violet-400',
+};
+
+function SectionLabel({ label, badge }: { label: string; badge: SectionBadge }) {
+  return (
+    <div className="flex items-center gap-2.5 pt-1">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">{label}</span>
+      <span className={`inline-flex items-center rounded border px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider ${SECTION_BADGE_STYLE[badge]}`}>
+        {badge}
+      </span>
+    </div>
+  );
+}
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
 
@@ -47,6 +71,7 @@ const SEVERITY_TONE: Record<BudOsQueueItem['severity'], { label: string; tone: s
 
 type Props = {
   commandState: MissionControlHealth;
+  businessSnapshot: BusinessSnapshotData;
   queue: BudOsQueueItem[];
   activity: BudActivityEvent[];
   selectedId: string | null;
@@ -61,6 +86,7 @@ type Props = {
 
 export function OverviewCore({
   commandState,
+  businessSnapshot,
   queue,
   activity,
   selectedId,
@@ -74,6 +100,7 @@ export function OverviewCore({
 
   return (
     <div className="space-y-5">
+      <SectionLabel label="Runtime" badge="Active" />
       <StateAndAsk truth={truth} commandState={commandState} />
       <Vitals commandState={commandState} />
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
@@ -88,6 +115,10 @@ export function OverviewCore({
         />
         <ActivityFeed activity={activity} />
       </div>
+      <SectionLabel label="Business" badge="Read Only" />
+      <BusinessSnapshot snapshot={businessSnapshot} />
+      <NextAction commandState={commandState} queue={queue} />
+      <SectionLabel label="Reports" badge="Report" />
       <Deployment commandState={commandState} activity={activity} />
     </div>
   );
@@ -241,6 +272,125 @@ function Vitals({ commandState }: { commandState: MissionControlHealth }) {
           {c.sub && <p className="mt-0.5 text-[11px] text-white/40">{c.sub}</p>}
         </div>
       ))}
+    </section>
+  );
+}
+
+/* ── business snapshot ───────────────────────────────────────────────────── */
+
+function fmtRevenue(n: number): string {
+  if (n >= 10_000) return `$${(n / 1000).toFixed(1)}k`;
+  if (n >= 1_000) return `$${(n / 1000).toFixed(2).replace(/\.?0+$/, '')}k`;
+  return `$${n.toFixed(0)}`;
+}
+
+function BusinessSnapshot({ snapshot }: { snapshot: BusinessSnapshotData }) {
+  const cells: Array<{ label: string; value: string; sub: string; tone: string }> = [
+    {
+      label: 'Revenue MTD',
+      value: fmtRevenue(snapshot.mtd_revenue),
+      sub: `${snapshot.mtd_orders} order${snapshot.mtd_orders !== 1 ? 's' : ''} this month`,
+      tone: 'text-white',
+    },
+    {
+      label: 'Completed',
+      value: String(snapshot.completed_mtd),
+      sub: 'jobs finished this month',
+      tone: snapshot.completed_mtd > 0 ? 'text-emerald-300' : 'text-white/60',
+    },
+    {
+      label: 'In progress',
+      value: String(snapshot.in_progress),
+      sub: 'confirmed or active',
+      tone: snapshot.in_progress > 0 ? 'text-amber-300' : 'text-white/60',
+    },
+    {
+      label: "Today's jobs",
+      value: String(snapshot.jobs_today),
+      sub: 'scheduled today',
+      tone: snapshot.jobs_today > 0 ? 'text-sky-300' : 'text-white/60',
+    },
+  ];
+
+  return (
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{c.label}</p>
+          <p className={`mt-1 text-xl font-semibold tabular-nums ${c.tone}`}>{c.value}</p>
+          <p className="mt-0.5 text-[11px] text-white/40">{c.sub}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ── next recommended action ─────────────────────────────────────────────── */
+
+function deriveNextAction(
+  commandState: MissionControlHealth,
+  queue: BudOsQueueItem[],
+): { text: string; detail?: string; urgent: boolean } {
+  if (commandState.deployment.status === 'failed') {
+    return { text: 'Check deployment — latest deploy failed', urgent: true };
+  }
+  if (commandState.counts.broken_agents > 0) {
+    const n = commandState.counts.broken_agents;
+    return {
+      text: `Investigate ${n} broken agent${n > 1 ? 's' : ''}`,
+      detail: commandState.agents_needing_attention.slice(0, 3).join(', ') || undefined,
+      urgent: true,
+    };
+  }
+  const topItem = queue[0];
+  if (commandState.approvals.total_pending > 0 && topItem) {
+    const n = commandState.approvals.total_pending;
+    return {
+      text: `Review: ${topItem.title}`,
+      detail: n > 1 ? `${n} items in the approval queue` : undefined,
+      urgent: false,
+    };
+  }
+  if (commandState.counts.failed_runs > 5) {
+    return {
+      text: `${commandState.counts.failed_runs} recent run failures — check agent health tab`,
+      urgent: false,
+    };
+  }
+  if (commandState.counts.watch_agents > 0) {
+    const n = commandState.counts.watch_agents;
+    return {
+      text: `${n} agent${n > 1 ? 's' : ''} on watch — monitor for continued failures`,
+      urgent: false,
+    };
+  }
+  return { text: 'System nominal — no immediate action required', urgent: false };
+}
+
+function NextAction({
+  commandState,
+  queue,
+}: {
+  commandState: MissionControlHealth;
+  queue: BudOsQueueItem[];
+}) {
+  const action = deriveNextAction(commandState, queue);
+  return (
+    <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+        Next Recommended Action
+      </p>
+      <p className={`text-sm font-medium ${action.urgent ? 'text-white' : 'text-white/65'}`}>
+        {action.urgent && (
+          <span className="mr-2 inline-flex items-center rounded border border-red-400/40 bg-red-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-red-400">
+            Urgent
+          </span>
+        )}
+        {action.text}
+      </p>
+      {action.detail && (
+        <p className="mt-1 text-xs text-white/40">{action.detail}</p>
+      )}
     </section>
   );
 }

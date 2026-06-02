@@ -99,6 +99,10 @@
     {
       "path": "/api/agents/cron?agent_id=seo-meta",
       "schedule": "0 4 * * 0"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=field-producer",
+      "schedule": "0 20 * * *"
     }
   ]
 }

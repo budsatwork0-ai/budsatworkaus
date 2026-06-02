@@ -14,40 +14,6 @@ export type UxEvolutionRecommendation = {
   can_queue_approval: boolean;
 };
 
-type AdminUxProposalRow = {
-  id: string;
-  page_path: string | null;
-  audience?: string | null;
-  severity: string | null;
-  title: string;
-  body: string | null;
-  proposed_change?: unknown;
-  status: string | null;
-  created_at: string;
-};
-
-type DesignInsightRow = {
-  id: string;
-  page_path: string | null;
-  insight_type: string | null;
-  severity: string | null;
-  title: string;
-  body: string | null;
-  proposed_change?: unknown;
-  status: string | null;
-  created_at: string;
-};
-
-type AgentEvolutionRow = {
-  id: string;
-  target_agent_id: string;
-  evolution_type: string;
-  rationale: string;
-  proposed_diff?: unknown;
-  status: string | null;
-  created_at: string;
-};
-
 type BudInsightRow = {
   id: string;
   category: string;
@@ -81,16 +47,6 @@ function normalizeSeverity(value: string | null | undefined): UxEvolutionRecomme
   return 'medium';
 }
 
-function normalizeStatus(value: string | null | undefined): UxEvolutionRecommendation['status'] {
-  if (value === 'reviewing') return 'reviewing';
-  if (value === 'accepted') return 'accepted';
-  if (value === 'rejected') return 'rejected';
-  if (value === 'shipped') return 'shipped';
-  if (value === 'approved') return 'approved';
-  if (value === 'applied') return 'applied';
-  if (value === 'pending') return 'pending';
-  return 'new';
-}
 
 function short(text: string | null | undefined, fallback: string): string {
   const value = (text ?? '').trim();
@@ -99,62 +55,11 @@ function short(text: string | null | undefined, fallback: string): string {
 }
 
 export function buildUxEvolutionRecommendations(args: {
-  adminUxProposals?: AdminUxProposalRow[];
-  designInsights?: DesignInsightRow[];
-  agentEvolutions?: AgentEvolutionRow[];
   budInsights?: BudInsightRow[];
   memory?: MemoryRow[];
   failedRuns?: FailedRunRow[];
 }): UxEvolutionRecommendation[] {
   const recommendations: UxEvolutionRecommendation[] = [];
-
-  for (const row of args.adminUxProposals ?? []) {
-    recommendations.push({
-      id: `admin-ux:${row.id}`,
-      source: 'admin_ux_proposal',
-      source_id: row.id,
-      title: row.title,
-      summary: short(row.body, 'Bud found admin workflow friction that can be simplified.'),
-      severity: normalizeSeverity(row.severity),
-      status: normalizeStatus(row.status),
-      affected_area: row.page_path ?? row.audience ?? 'Admin experience',
-      proposed_change: row.proposed_change ?? null,
-      created_at: row.created_at,
-      can_queue_approval: ['new', 'reviewing'].includes(normalizeStatus(row.status)),
-    });
-  }
-
-  for (const row of args.designInsights ?? []) {
-    recommendations.push({
-      id: `design:${row.id}`,
-      source: 'design_insight',
-      source_id: row.id,
-      title: row.title,
-      summary: short(row.body, 'Bud found a design or conversion improvement.'),
-      severity: normalizeSeverity(row.severity),
-      status: normalizeStatus(row.status),
-      affected_area: row.page_path ?? row.insight_type ?? 'Design system',
-      proposed_change: row.proposed_change ?? null,
-      created_at: row.created_at,
-      can_queue_approval: ['new', 'reviewing'].includes(normalizeStatus(row.status)),
-    });
-  }
-
-  for (const row of args.agentEvolutions ?? []) {
-    recommendations.push({
-      id: `agent-evolution:${row.id}`,
-      source: 'agent_evolution',
-      source_id: row.id,
-      title: `${row.evolution_type.replaceAll('_', ' ')} for ${row.target_agent_id}`,
-      summary: short(row.rationale, 'Bud found a way to improve an agent.'),
-      severity: row.evolution_type === 'retire' || row.evolution_type === 'autonomy_change' ? 'high' : 'medium',
-      status: normalizeStatus(row.status),
-      affected_area: row.target_agent_id,
-      proposed_change: row.proposed_diff ?? null,
-      created_at: row.created_at,
-      can_queue_approval: normalizeStatus(row.status) === 'pending',
-    });
-  }
 
   for (const row of args.budInsights ?? []) {
     const category = row.category.toLowerCase();

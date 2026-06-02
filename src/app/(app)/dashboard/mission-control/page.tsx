@@ -16,14 +16,18 @@ async function loadData() {
     { auth: { persistSession: false } },
   );
 
-  // 11 queries (was 18) — removed: stats, repair learnings, adminUx, designInsights,
-  // agentEvolutions, efficiencyFindings, bud_lobby_states (all fed into unused client fields)
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const today = now.toISOString().slice(0, 10);
+
+  // 13 queries — 11 agent/ops queries + 2 lightweight business snapshot queries
   const [
     agentsRes, runsRes, actionsRes, githubRes,
     githubLastSuccessRes, githubLastFailureRes,
     insightsRes,
     budActivityRes, budApprovalsRes, budTasksRes,
     changeRequestsRes,
+    ordersSnapshotRes, todayJobsRes,
   ] = await Promise.all([
     supabase.from('agents').select('id, name, status, category, autonomy, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
@@ -66,6 +70,16 @@ async function loadData() {
     supabase.from('bud_change_requests')
       .select('id, task_id, branch_name, issue_url, pr_url, deployment_url, status, created_at')
       .order('created_at', { ascending: false }).limit(20),
+    // Business snapshot — MTD orders (lightweight: only final_price + status)
+    supabase.from('orders')
+      .select('final_price, status')
+      .gte('created_at', startOfMonth)
+      .neq('status', 'cancelled'),
+    // Jobs scheduled today
+    supabase.from('orders')
+      .select('id')
+      .eq('scheduled_date', today)
+      .neq('status', 'cancelled'),
   ]);
 
   // memory_documents is small and feeds commandState — keep but don't return raw
@@ -120,9 +134,6 @@ async function loadData() {
   // uxEvolution: UX-signal tables removed from fetch (were always empty in practice).
   // Still computed from budInsights + failed runs so it degrades gracefully.
   const uxEvolution = buildUxEvolutionRecommendations({
-    adminUxProposals: [],
-    designInsights: [],
-    agentEvolutions: [],
     budInsights: insightsRes.data ?? [],
     memory,
     failedRuns: runs
@@ -154,6 +165,15 @@ async function loadData() {
     uxEvolution,
   });
 
+  const ordersThisMonth = ordersSnapshotRes.data ?? [];
+  const businessSnapshot = {
+    mtd_revenue: ordersThisMonth.reduce((sum, o) => sum + ((o.final_price as number | null) ?? 0), 0),
+    mtd_orders:  ordersThisMonth.length,
+    completed_mtd: ordersThisMonth.filter((o) => o.status === 'completed').length,
+    in_progress:   ordersThisMonth.filter((o) => o.status === 'in_progress' || o.status === 'confirmed').length,
+    jobs_today:  (todayJobsRes.data ?? []).length,
+  };
+
   let devOs: DevOsResponse = { sessions: [], agentStats: {}, totalSessions: 0, conventionCount: 0 };
   try {
     const [devOsRes, conventionRes] = await Promise.all([
@@ -180,6 +200,7 @@ async function loadData() {
     agents,
     latestRuns,
     devOs,
+    businessSnapshot,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     commandState,
     budOs: {

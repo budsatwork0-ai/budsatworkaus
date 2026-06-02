@@ -225,6 +225,12 @@ export function DesignSystemTab() {
 
       {/* ── Preview strip ───────────────────────────────────────────────── */}
       <Spec label={`${t.name} — page preview`}>
+        <div className="mb-2 flex items-center gap-1.5">
+          <span className="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-amber-400">
+            Sample Data
+          </span>
+          <span className="text-[10px] text-slate-400">Values below are illustrative — not live data</span>
+        </div>
         <div className="overflow-hidden rounded-xl border border-black/5" style={{ background: t.pageBg }}>
           {/* Mini nav */}
           <div className="flex items-center gap-3 border-b px-4 py-2.5" style={{ background: t.nav.bg, borderColor: t.nav.border }}>
@@ -596,9 +602,6 @@ export function DesignSystemTab() {
         </p>
       </Spec>
 
-      <div className="border-t border-white/[0.05] pt-4 text-[10px] text-white/30">
-        Batch 1 complete — theme files created. Next: migrate crew imports (Batch 2), then dashboard (Batch 3), then public (Batch 4).
-      </div>
     </div>
   );
 }

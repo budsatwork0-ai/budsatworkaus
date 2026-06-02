@@ -4,11 +4,10 @@
  * Buds OS — Mission Control
  *
  * Tabs:
- *   Home         - operator cockpit (state, vitals, action queue, activity, deployment)
+ *   Home         - operator cockpit (platform state, attention queue, activity, deployment)
  *   Agents       - real-time agent fleet view
- *   Brain        - Graphify knowledge graph + evidence log
  *   Improvements - tracked fix and refactor backlog
- *   Dev          - Terminal, Dev OS reference, Design System
+ *   Dev          - Development Command (Terminal, Dev OS, Design System, Graphify, Evidence)
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -21,7 +20,6 @@ import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewCore } from './_components/OverviewCore';
 import { AgentHierarchy } from './_components/AgentHierarchy';
-import { BrainTab } from './_components/BrainTab';
 import { ImprovementsTab } from './_components/ImprovementsTab';
 import { DevTab } from './_components/DevTab';
 import { BridgeStatus } from './_components/BridgeStatus';
@@ -32,11 +30,20 @@ type AgentRow = {
   autonomy: string; last_run_at?: string | null; last_success_at?: string | null;
 };
 
+export type BusinessSnapshotData = {
+  mtd_revenue: number;
+  mtd_orders: number;
+  completed_mtd: number;
+  in_progress: number;
+  jobs_today: number;
+};
+
 type Props = {
   agents?: AgentRow[];
   latestRuns?: Record<string, { confidence_score: number | null; finished_at: string | null }>;
   budActivity?: BudActivityEvent[];
   commandState: MissionControlHealth;
+  businessSnapshot: BusinessSnapshotData;
   budOs: {
     actionQueue: BudOsQueueItem[];
   };
@@ -48,7 +55,6 @@ type Props = {
 const TABS = [
   { key: 'home',         label: 'Home' },
   { key: 'agents',       label: 'Agents' },
-  { key: 'brain',        label: 'Brain' },
   { key: 'improvements', label: 'Improvements' },
   { key: 'dev',          label: 'Dev' },
 ] as const;
@@ -65,6 +71,7 @@ export function MissionControlClient({
   agents = [],
   latestRuns = {},
   commandState,
+  businessSnapshot,
   budOs,
   budActivity = [],
   devOs,
@@ -281,6 +288,7 @@ export function MissionControlClient({
           {tab === 'home' && (
             <OverviewCore
               commandState={commandState}
+              businessSnapshot={businessSnapshot}
               queue={queue}
               activity={liveActivity}
               selectedId={selectedId}
@@ -298,8 +306,6 @@ export function MissionControlClient({
           {tab === 'agents' && agents.length === 0 && (
             <p className="py-12 text-center text-sm text-white/40">No agents registered yet.</p>
           )}
-
-          {tab === 'brain' && <BrainTab />}
 
           {tab === 'improvements' && <ImprovementsTab />}
 

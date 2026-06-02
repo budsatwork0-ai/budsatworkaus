@@ -30,6 +30,36 @@ const CATEGORY_META: Record<string, { label: string; dot: string; chip: string }
 
 const FALLBACK_META = { label: 'Other', dot: 'bg-white/30', chip: 'border-white/15 text-white/50' };
 
+// Source of truth: vercel.json cron entries. Update here when wiring a new agent.
+const CRON_WIRED_IDS = new Set([
+  'bud', 'bud-observer', 'quote-triage', 'customer-reply', 'lead-scorer',
+  'reviews', 'scheduling', 'reconciliation', 'whs-safety-reminder',
+  'cash-flow-forecaster', 'lapsed-win-back', 'seo-meta', 'price-optimizer',
+  'analytics-intelligence', 'admin-optimization', 'ux-intelligence',
+  'github-historian', 'design-system', 'field-producer',
+]);
+
+// Agents with an explicit runtime block (not merely unwired).
+const BLOCKED_IDS = new Set(['browser-agent']);
+
+function executionTier(agent: AgentRow): 'cron' | 'blocked' | 'manual' {
+  if (BLOCKED_IDS.has(agent.id)) return 'blocked';
+  if (CRON_WIRED_IDS.has(agent.id) && agent.status === 'enabled') return 'cron';
+  return 'manual';
+}
+
+const TIER_STYLE: Record<'cron' | 'blocked' | 'manual', string> = {
+  cron:    'text-emerald-400/70',
+  manual:  'text-white/25',
+  blocked: 'text-rose-400/60',
+};
+
+const TIER_LABEL: Record<'cron' | 'blocked' | 'manual', string> = {
+  cron:    'Cron',
+  manual:  'Manual',
+  blocked: 'Blocked',
+};
+
 const STATUS_STYLE: Record<string, string> = {
   enabled:  'bg-emerald-400/15 text-emerald-400 border-emerald-400/25',
   disabled: 'bg-white/[0.04] text-white/30 border-white/[0.08]',
@@ -39,7 +69,6 @@ const STATUS_STYLE: Record<string, string> = {
   watch:    'bg-sky-400/10 text-sky-300 border-sky-400/20',
 };
 
-/** Statuses that count as "active" for the fleet summary line */
 const ACTIVE_STATUSES = new Set(['enabled', 'idle', 'watch']);
 
 function formatRunAt(iso: string | null | undefined): string {
@@ -73,6 +102,9 @@ export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
 
   const activeCount = agents.filter(a => ACTIVE_STATUSES.has(a.status)).length;
   const plannedCount = agents.filter(a => a.status === 'planned').length;
+  const cronCount = agents.filter(a => executionTier(a) === 'cron').length;
+  const blockedCount = agents.filter(a => executionTier(a) === 'blocked').length;
+  const manualCount = activeCount - cronCount - blockedCount;
 
   if (agents.length === 0) return null;
 
@@ -82,8 +114,9 @@ export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
         <div className="min-w-0">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Runtime agent fleet</h2>
           <p className="mt-1 text-xs text-white/45">
-            {activeCount} of {agents.length} agents active
-            {plannedCount > 0 && ` · ${plannedCount} planned (awaiting integration)`}
+            {cronCount} scheduled · {manualCount} manual
+            {blockedCount > 0 && ` · ${blockedCount} blocked`}
+            {plannedCount > 0 && ` · ${plannedCount} planned`}
             {' · runs on Vercel cron, separate from the Dev OS layer'}
           </p>
         </div>
@@ -121,6 +154,10 @@ export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-white/30">
                         <span suppressHydrationWarning>{formatRunAt(runAt)}</span>
+                        <span className="text-white/25">·</span>
+                        <span className={TIER_STYLE[executionTier(agent)]}>
+                          {TIER_LABEL[executionTier(agent)]}
+                        </span>
                         {conf != null && (
                           <span className="text-white/25">·</span>
                         )}

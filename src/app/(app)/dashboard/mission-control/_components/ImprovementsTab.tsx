@@ -376,6 +376,14 @@ export function ImprovementsTab() {
 
   return (
     <div className="space-y-5">
+      {/* Section label */}
+      <div className="flex items-center gap-2.5 pt-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">Reports</span>
+        <span className="inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-sky-400">
+          Report
+        </span>
+      </div>
+
       {/* Plain-English intro */}
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
         <p className="text-[13px] text-white/55">
