@@ -124,7 +124,7 @@ async function processEvent(
     switch (event) {
       case 'pull_request': await handlePullRequest(payload as unknown as PullRequestPayload, supabase); break;
       case 'push':         await handlePush(payload as unknown as PushPayload, supabase); break;
-      case 'deployment_status': await handleDeploymentStatus(payload as unknown as DeploymentStatusPayload, supabase); break;
+      case 'deployment_status': await handleDeploymentStatus(payload as unknown as DeploymentStatusPayload, deliveryId, supabase); break;
       case 'release':      await handleRelease(payload as unknown as ReleasePayload, supabase); break;
       default:
         // Silently ignore unhandled events
@@ -269,6 +269,7 @@ async function handlePush(
 
 async function handleDeploymentStatus(
   payload: DeploymentStatusPayload,
+  deliveryId: string,
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<void> {
   const { deployment_status: ds, deployment, repository } = payload;
@@ -288,6 +289,21 @@ async function handleDeploymentStatus(
   };
 
   const note = formatDeploymentNote(processed);
+
+  await eventsDb(supabase)
+    .update({
+      action: ds.state,
+      repo: repository.full_name,
+      metadata: {
+        sha: deployment.sha,
+        branch: deployment.ref,
+        environment: ds.environment,
+        target_url: ds.target_url,
+        url: ds.target_url,
+        description: ds.description,
+      },
+    })
+    .eq('delivery_id', deliveryId);
 
   await writeMemory(
     supabase,

@@ -17,7 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemoryDocument, NewMemoryInput } from './types';
 import { embedDocument } from './embeddings';
 import { checkDuplicate } from './dedup';
-import { CATEGORY_FOLDER, DEDUP_HARD_THRESHOLD } from './config';
+import { CATEGORY_FOLDER } from './config';
 
 // ── Content hash ──────────────────────────────────────────────────────────────
 
@@ -125,6 +125,25 @@ export async function writeMemory(
     .single();
 
   if (error || !data) {
+    const duplicateVaultPath =
+      error?.code === '23505' ||
+      error?.message?.includes('memory_documents_vault_path_key') ||
+      error?.message?.toLowerCase().includes('duplicate key');
+
+    if (duplicateVaultPath) {
+      const { data: upserted, error: upsertError } = await supabase
+        .from('memory_documents')
+        .upsert(row, { onConflict: 'vault_path' })
+        .select()
+        .single();
+
+      if (!upsertError && upserted) {
+        return { ok: true, doc: upserted as MemoryDocument };
+      }
+
+      return { ok: false, reason: 'error', message: upsertError?.message ?? 'Vault path upsert failed' };
+    }
+
     return { ok: false, reason: 'error', message: error?.message ?? 'Insert failed' };
   }
 

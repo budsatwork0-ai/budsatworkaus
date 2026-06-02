@@ -435,7 +435,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       const requires = !autoOk;
       if (requires) needsApproval = true;
 
-      await supabase.from('agent_actions').insert({
+      const { data: actionRow, error: actionInsertErr } = await supabase.from('agent_actions').insert({
         run_id: runId,
         agent_id: args.agentId,
         action_type: action.action_type,
@@ -445,7 +445,15 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         preview: action.preview,
         requires_approval: requires,
         status: requires ? 'pending' : 'approved',
-      });
+      }).select('id').single();
+
+      if (actionInsertErr || !actionRow) {
+        throw new Error(`Failed to record agent action: ${actionInsertErr?.message ?? 'missing inserted row'}`);
+      }
+
+      if (!requires) {
+        await executeApprovedAction(actionRow.id as string);
+      }
     },
 
     llm: async (prompt, opts = {}) => {
@@ -706,7 +714,7 @@ export async function executeApprovedAction(actionId: string): Promise<void> {
   if (error || !action) throw new Error('Action not approved or missing');
 
   try {
-    await dispatchEffect(action.action_type, action.payload);
+    await dispatchEffect(action as AgentActionEffectRow);
     await supabase
       .from('agent_actions')
       .update({ status: 'executed', executed_at: new Date().toISOString() })
@@ -727,29 +735,34 @@ export async function executeApprovedAction(actionId: string): Promise<void> {
  * Effect dispatch table. Each handler calls the existing Buds At Work
  * libraries (resend for email, supabase for direct writes, etc.).
  */
-async function dispatchEffect(
-  type: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  switch (type) {
+type AgentActionEffectRow = {
+  id: string;
+  action_type: string;
+  target_table: string | null;
+  target_id: string | null;
+  payload: Record<string, unknown>;
+};
+
+async function dispatchEffect(action: AgentActionEffectRow): Promise<void> {
+  switch (action.action_type) {
     case 'send_email':
-      return sendEmailEffect(payload);
+      return sendEmailEffect(action);
     case 'send_sms':
-      return sendSmsEffect(payload);
+      return sendSmsEffect(action.payload);
     case 'create_quote':
-      return createQuoteEffect(payload);
+      return createQuoteEffect(action.payload);
     case 'schedule_job':
-      return scheduleJobEffect(payload);
+      return scheduleJobEffect(action.payload);
     case 'flag_for_review':
-      return flagForReviewEffect(payload);
+      return flagForReviewEffect(action.payload);
     case 'ux_fix_required':
-      return flagForReviewEffect(payload);
+      return flagForReviewEffect(action.payload);
     case 'update_service_price':
-      return updateServicePriceEffect(payload);
+      return updateServicePriceEffect(action.payload);
     case 'write_theme_file':
-      return writeThemeFileEffect(payload);
+      return writeThemeFileEffect(action.payload);
     default:
-      throw new Error(`No handler for action_type=${type}`);
+      throw new Error(`No handler for action_type=${action.action_type}`);
   }
 }
 
@@ -805,17 +818,15 @@ async function updateServicePriceEffect(
 // Effect handlers — call the existing Buds At Work libraries
 // ---------------------------------------------------------------------
 
-async function sendEmailEffect(payload: Record<string, unknown>): Promise<void> {
+async function sendEmailEffect(action: AgentActionEffectRow): Promise<void> {
   const { getResendClient, FROM_ADDRESS } = await import('@/lib/email/resend');
+  const payload = action.payload;
   const p = payload as { to: string; subject: string; html: string };
   if (!p.to || !p.subject || !p.html) throw new Error('send_email: missing to/subject/html');
 
   const resend = getResendClient();
   if (!resend) {
-    // No RESEND_API_KEY configured — log and treat as a no-op rather than
-    // failing approved actions. Agents are still useful as drafters.
-    console.warn('[agent] send_email skipped — RESEND_API_KEY not set', { to: p.to });
-    return;
+    throw new Error('send_email: RESEND_API_KEY is not configured');
   }
 
   const { error } = await resend.emails.send({
@@ -825,6 +836,29 @@ async function sendEmailEffect(payload: Record<string, unknown>): Promise<void> 
     html: p.html,
   });
   if (error) throw new Error(`resend: ${error.message ?? JSON.stringify(error)}`);
+
+  if (action.target_table === 'leads' && action.target_id) {
+    const supabase = adminClient();
+    const now = new Date().toISOString();
+    await supabase
+      .from('leads')
+      .update({ first_response_at: now })
+      .eq('id', action.target_id)
+      .is('first_response_at', null);
+    await supabase.from('lead_conversations').insert({
+      lead_id: action.target_id,
+      direction: 'outbound',
+      channel: 'email',
+      body: typeof p.html === 'string' ? p.html : null,
+      author_label: 'Customer Reply agent',
+      metadata: {
+        agent_action_id: action.id,
+        subject: p.subject,
+        to: p.to,
+      },
+      created_at: now,
+    });
+  }
 }
 
 async function sendSmsEffect(payload: Record<string, unknown>): Promise<void> {
@@ -837,8 +871,7 @@ async function sendSmsEffect(payload: Record<string, unknown>): Promise<void> {
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_FROM;
   if (!sid || !token || !from) {
-    console.warn('[agent] send_sms skipped — TWILIO_* env vars not set', { to: p.to });
-    return;
+    throw new Error('send_sms: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_FROM is not configured');
   }
 
   const body = new URLSearchParams({ From: from, To: p.to, Body: p.body });
@@ -940,4 +973,3 @@ async function writeThemeFileEffect(payload: Record<string, unknown>): Promise<v
     throw new Error(`write_theme_file: failed to write file: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
-

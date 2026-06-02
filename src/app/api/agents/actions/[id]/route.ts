@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/auth';
 import { executeApprovedAction } from '@/lib/agents/runtime';
+import { isDangerousAction } from '@/lib/bud/autonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,33 @@ export async function POST(
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  await supabase
+  const { data: action, error: readErr } = await supabase
+    .from('agent_actions')
+    .select('id, action_type, payload, status, requires_approval')
+    .eq('id', id)
+    .single();
+
+  if (readErr || !action) {
+    return NextResponse.json({ error: 'action not found' }, { status: 404 });
+  }
+  if (action.status !== 'pending') {
+    return NextResponse.json({ error: `action is already ${action.status}` }, { status: 409 });
+  }
+
+  if (body.decision === 'approve') {
+    const payload = (action.payload ?? {}) as Record<string, unknown>;
+    const riskLevel = typeof payload.risk_level === 'string' ? payload.risk_level : 'medium';
+    if (isDangerousAction(action.action_type as string) || ['high', 'critical'].includes(riskLevel)) {
+      if (!body.notes?.trim()) {
+        return NextResponse.json(
+          { error: 'approval notes required for guarded actions' },
+          { status: 400 },
+        );
+      }
+    }
+  }
+
+  const { error: updateErr } = await supabase
     .from('agent_actions')
     .update({
       status: body.decision === 'approve' ? 'approved' : 'rejected',
@@ -43,7 +70,10 @@ export async function POST(
       reviewed_at: new Date().toISOString(),
       review_notes: body.notes ?? null,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('status', 'pending');
+
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
 
   if (body.decision === 'approve') {
     try {

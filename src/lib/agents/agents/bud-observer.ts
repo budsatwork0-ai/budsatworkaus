@@ -21,6 +21,11 @@
 import type { AgentDefinition, AgentContext } from '../types';
 import { triggerImprovement } from '@/lib/bud/orchestrator';
 
+const DEFAULT_OBSERVER_BUDGET_MS = 210_000;
+const LLM_TIMEOUT_MS = 75_000;
+const IMPROVEMENT_TIMEOUT_MS = 45_000;
+const MIN_EXIT_WINDOW_MS = 25_000;
+
 const SYSTEM = `You are the Bud Observer for Buds At Work. Your role is to analyse
 cross-system signals and identify the top improvement opportunities.
 
@@ -58,6 +63,39 @@ export const budObserverAgent: AgentDefinition = {
   schedule: '0 */6 * * *',  // every 6 hours
 
   async run(ctx: AgentContext) {
+    const startedAt = Date.now();
+    const configuredBudgetMs = Number(process.env.BUD_OBSERVER_BUDGET_MS ?? DEFAULT_OBSERVER_BUDGET_MS);
+    const budgetMs = Number.isFinite(configuredBudgetMs) && configuredBudgetMs > 60_000
+      ? configuredBudgetMs
+      : DEFAULT_OBSERVER_BUDGET_MS;
+    const checkpoints: string[] = [];
+    const remainingMs = () => Math.max(0, budgetMs - (Date.now() - startedAt));
+    const shouldStop = (phase: string) => {
+      const remaining = remainingMs();
+      checkpoints.push(`${phase}:${remaining}ms_remaining`);
+      if (remaining < MIN_EXIT_WINDOW_MS) {
+        ctx.log(`bud-observer: stopping before ${phase}; runtime budget nearly exhausted`, { remainingMs: remaining });
+        return true;
+      }
+      return false;
+    };
+    const withTimeout = async <T,>(label: string, promise: Promise<T>, timeoutMs: number): Promise<T | null> => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<null>((resolve) => {
+            timer = setTimeout(() => {
+              ctx.log(`bud-observer: ${label} timed out`, { timeoutMs, remainingMs: remainingMs() });
+              resolve(null);
+            }, timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
     const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const since3d = new Date(Date.now() - 3 * 86_400_000).toISOString();
     const since30d = new Date(Date.now() - 30 * 86_400_000).toISOString();
@@ -196,7 +234,36 @@ Focus on items that are:
 
 Return the JSON as described in your system instructions.`;
 
-    const raw = await ctx.llm(prompt, { system: SYSTEM });
+    if (shouldStop('llm')) {
+      return {
+        summary: 'Bud Observer collected signals but stopped before LLM analysis to avoid runtime reaping.',
+        output: {
+          status: 'partial',
+          summary: 'Observer exited at timeout-safe checkpoint before LLM analysis.',
+          findings: [],
+          recommended_actions: ['Re-run Bud Observer after reducing signal volume or increasing BUD_OBSERVER_BUDGET_MS'],
+          confidence: 0.4,
+          risk_level: 'low',
+          raw_output: { checkpoints, remaining_ms: remainingMs() },
+        },
+      };
+    }
+
+    const raw = await withTimeout('llm_analysis', ctx.llm(prompt, { system: SYSTEM }), Math.min(LLM_TIMEOUT_MS, Math.max(10_000, remainingMs() - MIN_EXIT_WINDOW_MS)));
+    if (!raw) {
+      return {
+        summary: 'Bud Observer timed out during LLM analysis and exited safely before runtime reaping.',
+        output: {
+          status: 'partial',
+          summary: 'LLM analysis timed out; no improvements were triggered.',
+          findings: [],
+          recommended_actions: ['Inspect signal volume and LLM latency for bud-observer'],
+          confidence: 0.35,
+          risk_level: 'low',
+          raw_output: { checkpoints, remaining_ms: remainingMs(), phase: 'llm_timeout' },
+        },
+      };
+    }
 
     let signals: Array<{
       signal_type: string;
@@ -216,7 +283,7 @@ Return the JSON as described in your system instructions.`;
         signals?: typeof signals;
         summary?: string;
       };
-      signals = parsed.signals ?? [];
+      signals = (parsed.signals ?? []).slice(0, 5);
       observerSummary = parsed.summary ?? '';
     } catch {
       ctx.log('bud-observer: failed to parse LLM response', { raw: raw.slice(0, 500) });
@@ -224,13 +291,18 @@ Return the JSON as described in your system instructions.`;
 
     // ── Trigger improvements for high-confidence signals ──────────────────────
     const triggered: string[] = [];
+    const skippedForTimeout: string[] = [];
     const MIN_CONFIDENCE = 0.65;
 
     for (const signal of signals) {
       if (signal.confidence < MIN_CONFIDENCE) continue;
+      if (shouldStop(`trigger:${signal.title}`)) {
+        skippedForTimeout.push(signal.title);
+        continue;
+      }
 
       try {
-        const result = await triggerImprovement(ctx.supabase, {
+        const result = await withTimeout(`trigger_improvement:${signal.title}`, triggerImprovement(ctx.supabase, {
           source: 'observer',
           signalType: signal.signal_type,
           severity: signal.severity,
@@ -241,7 +313,12 @@ Return the JSON as described in your system instructions.`;
           referenceFiles: signal.reference_files,
           metadata: { observer_run_id: ctx.runId, confidence: signal.confidence },
           requestedBy: 'bud-observer',
-        });
+        }), Math.min(IMPROVEMENT_TIMEOUT_MS, Math.max(5_000, remainingMs() - MIN_EXIT_WINDOW_MS)));
+
+        if (!result) {
+          skippedForTimeout.push(signal.title);
+          continue;
+        }
 
         if (result.status !== 'deduplicated') {
           triggered.push(`[${signal.severity}] ${signal.title} → ${result.status}`);
@@ -253,8 +330,11 @@ Return the JSON as described in your system instructions.`;
     }
 
     // ── Propose action for signals that need human review ─────────────────────
-    const reviewNeeded = signals.filter((s) => s.confidence < MIN_CONFIDENCE || s.severity === 'critical');
-    if (reviewNeeded.length > 0) {
+    const reviewNeeded = [
+      ...signals.filter((s) => s.confidence < MIN_CONFIDENCE || s.severity === 'critical'),
+      ...signals.filter((s) => skippedForTimeout.includes(s.title)),
+    ];
+    if (reviewNeeded.length > 0 && !shouldStop('propose_review')) {
       await ctx.proposeAction({
         action_type: 'flag_for_review',
         payload: {
@@ -273,7 +353,7 @@ Return the JSON as described in your system instructions.`;
     const autoTriggered = triggered.length;
 
     return {
-      summary: `Bud Observer found ${total} signal(s). Auto-triggered ${autoTriggered} improvement(s). ${observerSummary.slice(0, 200)}`,
+      summary: `Bud Observer found ${total} signal(s). Auto-triggered ${autoTriggered} improvement(s). ${skippedForTimeout.length} skipped for runtime safety. ${observerSummary.slice(0, 200)}`,
       output: {
         status: total > 0 ? 'success' : 'partial',
         summary: `Found ${total} improvement opportunities, triggered ${autoTriggered} autonomously.`,
@@ -287,6 +367,9 @@ Return the JSON as described in your system instructions.`;
           signals_found: total,
           auto_triggered: autoTriggered,
           triggered_titles: triggered,
+          skipped_for_timeout: skippedForTimeout,
+          checkpoints,
+          remaining_ms: remainingMs(),
           snapshot_summary: {
             ux_proposals: (uxProposals ?? []).length,
             problematic_agents: problematicAgents.length,

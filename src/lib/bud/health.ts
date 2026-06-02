@@ -15,6 +15,11 @@ type ActionRow = {
   id: string;
   agent_id?: string | null;
   status: string;
+  created_at?: string | null;
+  action_type?: string | null;
+  payload?: Record<string, unknown> | null;
+  task_id?: string | null;
+  bud_tasks?: BudApprovalTaskRow | BudApprovalTaskRow[] | null;
 };
 
 type AgentRow = {
@@ -50,6 +55,16 @@ type BudTaskRow = {
   linked_memory_note: string | null;
   created_at: string;
   updated_at?: string | null;
+};
+
+type BudApprovalTaskRow = {
+  id?: string | null;
+  status?: string | null;
+  risk_level?: string | null;
+  linked_pr?: string | null;
+  description?: string | null;
+  source_agent?: string | null;
+  confidence?: number | null;
 };
 
 type ChangeRequestRow = {
@@ -164,9 +179,45 @@ export type MissionControlHealth = GlobalHealthCheck & {
   approvals: {
     pending_agent_actions: number;
     pending_bud_approvals: number;
+    actionable_pending: number;
+    needs_manual_review: number;
+    archived_stale: number;
+    blocked_historical: number;
     total_pending: number;
   };
 };
+
+export type ApprovalTruthLabel = 'Actionable' | 'Blocked' | 'Archived' | 'Needs manual review';
+
+const STALE_APPROVAL_MS = 24 * 3600_000;
+
+function firstTask(task: ActionRow['bud_tasks']): BudApprovalTaskRow | null {
+  if (Array.isArray(task)) return task[0] ?? null;
+  return task ?? null;
+}
+
+function payloadHasDiffOrPr(payload: Record<string, unknown> | null | undefined, linkedPr?: string | null): boolean {
+  if (linkedPr) return true;
+  if (!payload) return false;
+  return Boolean(payload.diff ?? payload.diff_summary ?? payload.patch ?? payload.pr_url ?? payload.pull_request_url);
+}
+
+export function classifyApprovalTruth(approval: ActionRow, nowMs = Date.now()): ApprovalTruthLabel {
+  if (approval.status === 'archived') return 'Archived';
+  if (approval.status === 'blocked') return 'Blocked';
+  if (approval.status !== 'pending') return 'Archived';
+
+  const task = firstTask(approval.bud_tasks);
+  const createdAt = approval.created_at ? new Date(approval.created_at).getTime() : nowMs;
+  const stale = Number.isFinite(createdAt) && nowMs - createdAt > STALE_APPROVAL_MS;
+  const taskClosed = ['archived', 'completed'].includes(task?.status ?? '');
+  const riskLevel = task?.risk_level ?? null;
+  const highRiskWithoutDiff = ['high', 'critical'].includes(riskLevel ?? '') && !payloadHasDiffOrPr(approval.payload, task?.linked_pr ?? null);
+
+  if (stale && (taskClosed || highRiskWithoutDiff)) return 'Blocked';
+  if (highRiskWithoutDiff) return 'Needs manual review';
+  return 'Actionable';
+}
 
 export type AgentHealthLabel = 'healthy' | 'watch' | 'needs_repair' | 'broken' | 'inactive';
 
@@ -447,7 +498,13 @@ function recommendedActionForAgent(state: {
 
 function computeDeploymentState(events: GithubEventRow[]): MissionControlDeploymentState {
   const deploymentEvents = events
-    .filter((event) => event.event_type === 'deployment_status' || event.event_type === 'deployment_failure')
+    .filter((event) => (
+      event.event_type === 'deployment_failure' ||
+      (
+        event.event_type === 'deployment_status' &&
+        ['created', 'pending', 'in_progress', 'success', 'failure', 'error'].includes(event.action ?? '')
+      )
+    ))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const latest = deploymentEvents[0] ?? null;
   const lastSuccess = deploymentEvents.find((event) => event.event_type === 'deployment_status' && event.action === 'success') ?? null;
@@ -537,7 +594,11 @@ export function computeMissionControlHealth({
   insights?: InsightRow[];
   memory?: MemoryRow[];
 }): MissionControlHealth {
-  const allApprovals = [...actions, ...budApprovals];
+  const healthBudApprovals = budApprovals.filter((approval) => {
+    const label = classifyApprovalTruth(approval);
+    return label === 'Actionable' || label === 'Needs manual review';
+  });
+  const allApprovals = [...actions, ...healthBudApprovals];
 
   // Pre-compute repair counts so strict nominal rules see them.
   const blockedRepairTasks = tasks.filter((t) => t.status === 'blocked' || t.status === 'failed').length;
@@ -623,6 +684,12 @@ export function computeMissionControlHealth({
   const lastMemory = memory[0] ?? null;
   const pendingBudApprovals = budApprovals.filter((approval) => approval.status === 'pending').length;
   const pendingAgentActions = actions.filter((action) => action.status === 'pending').length;
+  const truthLabels = budApprovals.map((approval) => classifyApprovalTruth(approval));
+  const actionableBudApprovals = truthLabels.filter((label) => label === 'Actionable').length;
+  const manualBudApprovals = truthLabels.filter((label) => label === 'Needs manual review').length;
+  const archivedBudApprovals = truthLabels.filter((label) => label === 'Archived').length;
+  const blockedBudApprovals = truthLabels.filter((label) => label === 'Blocked').length;
+  const actionableAgentActions = actions.filter((action) => action.status === 'pending').length;
   const memoryState = {
     connected: memory.length > 0,
     recent_count: memory.length,
@@ -634,7 +701,7 @@ export function computeMissionControlHealth({
     { key: 'monitor', label: 'Monitor', status: agents.length > 0 ? 'online' : 'blocked', detail: `${agents.length} agents registered` },
     { key: 'diagnose', label: 'Diagnose', status: runs.length > 0 ? 'online' : 'partial', detail: `${runs.length} recent run signals` },
     { key: 'repair', label: 'Repair', status: repairSessions.length > 0 ? 'online' : 'partial', detail: `${repairSessions.length} repair session${repairSessions.length === 1 ? '' : 's'}` },
-    { key: 'approve', label: 'Approve', status: pendingAgentActions + pendingBudApprovals > 0 ? 'online' : 'partial', detail: `${pendingAgentActions + pendingBudApprovals} pending approvals` },
+    { key: 'approve', label: 'Approve', status: actionableAgentActions + actionableBudApprovals + manualBudApprovals > 0 ? 'online' : 'partial', detail: `${actionableAgentActions + actionableBudApprovals} actionable approvals, ${blockedBudApprovals} blocked` },
     { key: 'deploy', label: 'Deploy', status: deployment.connected ? (deployment.status === 'failed' ? 'blocked' : 'online') : 'blocked', detail: deployment.summary },
     { key: 'verify', label: 'Verify', status: deployment.connected ? 'online' : 'blocked', detail: deployment.last_success_at ? 'Deployment status webhook active' : 'No verified successful deployment yet' },
     { key: 'learn', label: 'Learn', status: memoryState.connected ? 'online' : 'blocked', detail: memoryState.connected ? `${memoryState.recent_count} recent memory records` : 'Memory vault not synced' },
@@ -643,7 +710,7 @@ export function computeMissionControlHealth({
   const operatingMode = computeOperatingMode({
     global,
     repairSessions,
-    pendingApprovals: pendingAgentActions + pendingBudApprovals,
+    pendingApprovals: actionableAgentActions + actionableBudApprovals + manualBudApprovals,
     deployment,
   });
 
@@ -659,7 +726,11 @@ export function computeMissionControlHealth({
     approvals: {
       pending_agent_actions: pendingAgentActions,
       pending_bud_approvals: pendingBudApprovals,
-      total_pending: pendingAgentActions + pendingBudApprovals,
+      actionable_pending: actionableAgentActions + actionableBudApprovals,
+      needs_manual_review: manualBudApprovals,
+      archived_stale: archivedBudApprovals,
+      blocked_historical: blockedBudApprovals,
+      total_pending: actionableAgentActions + actionableBudApprovals + manualBudApprovals,
     },
     summary: global.is_nominal
       ? 'Bud OS is monitoring the workforce from one operational state engine.'

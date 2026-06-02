@@ -67,6 +67,13 @@ const SEVERITY_TONE: Record<BudOsQueueItem['severity'], { label: string; tone: s
   low: { label: 'Observation', tone: 'border-white/15 text-white/55 bg-white/[0.02]' },
 };
 
+const APPROVAL_TRUTH_TONE: Record<NonNullable<BudOsQueueItem['approval']>['truth_label'], string> = {
+  Actionable: 'border-emerald-400/35 bg-emerald-500/[0.08] text-emerald-300',
+  Blocked: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
+  Archived: 'border-white/15 bg-white/[0.03] text-white/45',
+  'Needs manual review': 'border-amber-400/35 bg-amber-500/[0.08] text-amber-300',
+};
+
 /* ── props ───────────────────────────────────────────────────────────────── */
 
 type Props = {
@@ -236,7 +243,7 @@ function Vitals({ commandState }: { commandState: MissionControlHealth }) {
     {
       label: 'Pending approvals',
       value: String(commandState.approvals.total_pending),
-      sub: `${commandState.approvals.pending_bud_approvals} Bud · ${commandState.approvals.pending_agent_actions} agent`,
+      sub: `${commandState.approvals.actionable_pending} actionable · ${commandState.approvals.needs_manual_review} manual · ${commandState.approvals.blocked_historical} blocked · ${commandState.approvals.archived_stale} archived`,
       tone: commandState.approvals.total_pending > 0 ? 'text-yellow-200' : 'text-white/70',
     },
     {
@@ -424,6 +431,22 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
       chipTone: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
     };
   }
+  if (approval.truth_label === 'Archived') {
+    return {
+      label: 'Archived',
+      reason: 'This approval is historical and is no longer a live decision.',
+      containerTone: 'border-white/10 bg-white/[0.02]',
+      chipTone: 'border-white/20 text-white/55',
+    };
+  }
+  if (approval.truth_label === 'Blocked') {
+    return {
+      label: 'Blocked',
+      reason: summary || 'This approval is stale or missing execution proof. It must not be approved without a fresh task, diff, or PR.',
+      containerTone: 'border-red-400/30 bg-red-500/[0.05]',
+      chipTone: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
+    };
+  }
   if (approval.readiness === 'awaiting_diff') {
     return {
       label: 'Hold — no diff',
@@ -503,8 +526,10 @@ function ActionQueue({
           const active = item.id === selectedId;
           const investigating = investigatingIds.has(item.id);
           const weight = SEVERITY_TONE[item.severity];
-          const notReady = item.approval ? item.approval.readiness !== 'ready' : false;
           const approval = item.approval;
+          const notReady = approval
+            ? approval.readiness !== 'ready' || approval.truth_label === 'Blocked' || approval.truth_label === 'Archived'
+            : false;
           const plan = approval?.proposed_plan ?? [];
           const files = approval?.affected_files ?? [];
           const description = approval?.full_description ?? '';
@@ -531,6 +556,14 @@ function ActionQueue({
                     {item.agent_name && <span>{item.agent_name}</span>}
                     {item.agent_name && <span>·</span>}
                     <span>{item.status}</span>
+                    {approval && (
+                      <>
+                        <span>·</span>
+                        <span className={`rounded-full border px-1.5 py-px font-semibold ${APPROVAL_TRUTH_TONE[approval.truth_label]}`}>
+                          {approval.truth_label}
+                        </span>
+                      </>
+                    )}
                     {approval && (
                       <>
                         <span>·</span>

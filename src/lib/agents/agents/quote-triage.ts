@@ -52,7 +52,9 @@ export const quoteTriageAgent: AgentDefinition = {
       Number((ctx.config?.auto_send_under_aud as number) ?? 250);
 
     let actions = 0;
-    let autoSent = 0;
+    let autoEligibleCount = 0;
+    let triaged = 0;
+    let parseFailures = 0;
 
     for (const q of pending) {
       const prompt = `Quote request:
@@ -73,8 +75,10 @@ Return triage JSON.`;
         reason: string;
       };
       try {
-        parsed = JSON.parse(raw);
+        const jsonText = raw.trim().match(/\{[\s\S]*\}/)?.[0] ?? raw;
+        parsed = JSON.parse(jsonText);
       } catch {
+        parseFailures += 1;
         ctx.log('failed to parse model output', { id: q.id });
         continue;
       }
@@ -82,23 +86,58 @@ Return triage JSON.`;
       const autoEligible =
         parsed.confidence >= 0.75 &&
         parsed.estimated_aud <= autoSendThreshold &&
-        !parsed.ndis;
+        !parsed.ndis &&
+        Boolean(q.customer_email);
+
+      if (!q.customer_email) {
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          target_table: 'quotes',
+          target_id: q.id,
+          requiresApproval: true,
+          confidence: parsed.confidence,
+          risk_level: 'medium',
+          preview: `Quote ${q.id} has no customer email; cannot send drafted ${parsed.service} quote`,
+          payload: {
+            quote_id: q.id,
+            reason: 'missing_customer_email',
+            estimate: parsed.estimated_aud,
+            service: parsed.service,
+          },
+        });
+        actions += 1;
+        await ctx.supabase
+          .from('quotes')
+          .update({
+            agent_triaged_at: new Date().toISOString(),
+            agent_estimate_aud: parsed.estimated_aud,
+            agent_service: parsed.service,
+            agent_ndis: parsed.ndis,
+          })
+          .eq('id', q.id);
+        triaged += 1;
+        continue;
+      }
 
       await ctx.proposeAction({
         action_type: 'send_email',
         target_table: 'quotes',
         target_id: q.id,
         requiresApproval: !autoEligible,
+        confidence: parsed.confidence,
+        risk_level: parsed.ndis || parsed.estimated_aud > autoSendThreshold ? 'medium' : 'low',
         preview: `Quote ${parsed.service} for ${q.customer_name} at ${q.service_address ?? 'unknown address'} — AUD $${parsed.estimated_aud}`,
         payload: {
           to: q.customer_email,
           subject: `Your quote from Buds At Work`,
           html: parsed.draft_message,
+          confidence: parsed.confidence,
+          risk_level: parsed.ndis || parsed.estimated_aud > autoSendThreshold ? 'medium' : 'low',
           meta: { quote_id: q.id, estimate: parsed.estimated_aud, ndis: parsed.ndis },
         },
       });
       actions += 1;
-      if (autoEligible) autoSent += 1;
+      if (autoEligible) autoEligibleCount += 1;
 
       await ctx.supabase
         .from('quotes')
@@ -109,11 +148,16 @@ Return triage JSON.`;
           agent_ndis: parsed.ndis,
         })
         .eq('id', q.id);
+      triaged += 1;
+    }
+
+    if (triaged === 0 && pending.length > 0) {
+      throw new Error(`Quote Triage parsed 0/${pending.length} quote decision(s); no triage actions were produced.`);
     }
 
     return {
-      summary: `Triaged ${pending.length} quote(s) — ${autoSent} auto-sent, ${actions - autoSent} queued for review.`,
-      output: { triaged: pending.length, auto_sent: autoSent },
+      summary: `Triaged ${triaged} quote(s) — ${autoEligibleCount} eligible for auto-send, ${actions - autoEligibleCount} requiring review.${parseFailures ? ` ${parseFailures} parse failure(s).` : ''}`,
+      output: { triaged, auto_send_eligible: autoEligibleCount, actions_proposed: actions, parse_failures: parseFailures },
     };
   },
 };

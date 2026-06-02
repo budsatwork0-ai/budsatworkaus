@@ -66,6 +66,23 @@ export const customerReplyAgent: AgentDefinition = {
     if (leadsErr) throw new Error(`fetch leads: ${leadsErr.message}`);
     if (!leads?.length) return { summary: 'No unanswered leads — all inbound messages already have a response.' };
 
+    const { data: pendingActions, error: actionsErr } = await ctx.supabase
+      .from('agent_actions')
+      .select('target_id')
+      .eq('agent_id', ctx.agentId)
+      .eq('action_type', 'send_email')
+      .eq('target_table', 'leads')
+      .eq('status', 'pending')
+      .in('target_id', leadIds);
+
+    if (actionsErr) throw new Error(`fetch pending replies: ${actionsErr.message}`);
+
+    const leadsWithPendingReply = new Set(
+      (pendingActions ?? [])
+        .map((action) => action.target_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+
     const leadById = new Map<string, LeadRow>((leads as LeadRow[]).map((l) => [l.id, l]));
 
     // Keep the newest inbound message per unanswered lead (inbound is already
@@ -76,6 +93,7 @@ export const customerReplyAgent: AgentDefinition = {
       if (!conv.lead_id || seen.has(conv.lead_id)) continue;
       const lead = leadById.get(conv.lead_id);
       if (!lead || !lead.customer_email || !conv.body) continue;
+      if (leadsWithPendingReply.has(lead.id)) continue;
       seen.add(conv.lead_id);
       targets.push({ conv, lead });
       if (targets.length >= 15) break;

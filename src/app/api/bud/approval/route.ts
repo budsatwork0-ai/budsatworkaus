@@ -54,16 +54,34 @@ export async function POST(req: NextRequest) {
 
   const { data: item, error: fetchErr } = await supabase
     .from('bud_approval_queue')
-    .select('*, bud_tasks(id)')
+    .select('*, bud_tasks(id, status, risk_level, linked_pr)')
     .eq('id', body.id)
+    .eq('status', 'pending')
     .single();
 
   if (fetchErr || !item) {
-    return NextResponse.json({ error: 'Approval item not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Pending approval item not found' }, { status: 404 });
+  }
+
+  if (body.decision === 'approved') {
+    const task = Array.isArray(item.bud_tasks) ? item.bud_tasks[0] : item.bud_tasks;
+    const payload = (item.payload ?? {}) as Record<string, unknown>;
+    const riskLevel = task?.risk_level ?? null;
+    const diff = payload.diff ?? payload.diff_summary ?? payload.patch;
+    const linkedPr = task?.linked_pr ?? payload.pr_url;
+    if (['blocked', 'failed', 'archived', 'completed'].includes(task?.status ?? '')) {
+      return NextResponse.json({ error: 'Cannot approve a blocked, archived, completed, or failed Bud task' }, { status: 409 });
+    }
+    if (['high', 'critical'].includes(String(riskLevel)) && !diff && !linkedPr) {
+      return NextResponse.json(
+        { error: 'High-risk Bud approval requires a diff summary or linked PR before approval' },
+        { status: 400 },
+      );
+    }
   }
 
   // Update the approval record
-  await supabase
+  const { data: updated, error: updateErr } = await supabase
     .from('bud_approval_queue')
     .update({
       status: body.decision,
@@ -71,10 +89,18 @@ export async function POST(req: NextRequest) {
       reviewed_at: new Date().toISOString(),
       notes: body.notes ?? null,
     })
-    .eq('id', body.id);
+    .eq('id', body.id)
+    .eq('status', 'pending')
+    .select('id')
+    .single();
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  if (!updated) {
+    return NextResponse.json({ error: 'Approval is no longer pending' }, { status: 409 });
+  }
 
   // If there's a linked task, execute the repair plan
-  const taskId = item.bud_tasks?.id ?? item.task_id;
+  const linkedTask = Array.isArray(item.bud_tasks) ? item.bud_tasks[0] : item.bud_tasks;
+  const taskId = linkedTask?.id ?? item.task_id;
   if (taskId) {
     try {
       await executeRepairPlan(supabase, taskId, body.decision === 'approved');

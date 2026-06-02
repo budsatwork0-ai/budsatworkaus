@@ -1,5 +1,5 @@
 import { BUD_CLUSTERS, type BudActivityEvent, type BudApprovalItem, type BudState } from './types';
-import type { MissionControlHealth } from './health';
+import { classifyApprovalTruth, type ApprovalTruthLabel, type MissionControlHealth } from './health';
 import type { UxEvolutionRecommendation } from './ux-evolution-engine';
 
 export type BudOsStateLabel =
@@ -56,6 +56,7 @@ export type BudOsApprovalDetail = {
   readiness_summary: string;
   source_agent: string | null;
   requested_at: string;
+  truth_label: ApprovalTruthLabel;
 };
 
 export type BudOsQueueItem = {
@@ -413,6 +414,7 @@ function buildApprovalDetailFromBudApproval(args: {
     } | null;
   };
   repairSession?: MissionControlHealth['repair_sessions'][number];
+  truthLabel: ApprovalTruthLabel;
 }): BudOsApprovalDetail {
   const task = args.approval.bud_tasks;
   const payload = (args.approval.payload ?? {}) as Record<string, unknown>;
@@ -484,6 +486,7 @@ function buildApprovalDetailFromBudApproval(args: {
     readiness_summary: readiness.summary,
     source_agent: task?.source_agent ?? null,
     requested_at: args.approval.created_at,
+    truth_label: args.truthLabel,
   };
 }
 
@@ -530,6 +533,7 @@ function buildApprovalDetailFromAgentAction(args: { action: ActionRow }): BudOsA
     readiness_summary: readiness.summary,
     source_agent: args.action.agent_id,
     requested_at: args.action.created_at,
+    truth_label: 'Needs manual review',
   };
 }
 
@@ -575,6 +579,14 @@ export function buildBudOsActionQueue(args: {
       bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
     };
     const task = annotated.bud_tasks;
+    const truthLabel = classifyApprovalTruth({
+      id: approval.id,
+      status: approval.status,
+      created_at: approval.created_at,
+      payload: approval.payload,
+      task_id: approval.task_id,
+      bud_tasks: task,
+    });
     // Skip autonomous Bud self-investigation approvals — these are created by the
     // Bud cron investigating itself, which causes an infinite loop. They have both
     // source_agent='bud' AND requested_by='bud'. User-triggered "Fix with Bud"
@@ -582,26 +594,32 @@ export function buildBudOsActionQueue(args: {
     // must NOT be skipped.
     if (task?.source_agent === 'bud' && (approval.requested_by === 'bud' || !approval.requested_by)) continue;
     const repairSession = approval.task_id ? sessionByTask.get(approval.task_id) : undefined;
-    const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession });
+    const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession, truthLabel });
+    const group: BudOsQueueGroup = truthLabel === 'Archived' ? 'completed_actions' : 'needs_approval';
     items.push({
       id: `bud-approval:${approval.id}`,
       source: 'bud_approval',
       source_id: approval.id,
       task_id: approval.task_id,
-      group: 'needs_approval',
+      group,
       title: task?.description ?? approval.action_type,
-      detail: `Bud needs approval for ${approval.action_type}.`,
+      detail: truthLabel === 'Archived'
+        ? `Archived stale Bud approval for ${approval.action_type}.`
+        : truthLabel === 'Blocked'
+          ? `Blocked historical Bud approval for ${approval.action_type}.`
+          : `Bud needs approval for ${approval.action_type}.`,
       severity: severityFrom(task?.risk_level),
       status: approval.status,
       agent_id: task?.source_agent ?? null,
       agent_name: task?.source_agent ? agentById.get(task.source_agent)?.name ?? task.source_agent : 'Bud',
       created_at: approval.created_at,
-      actions: actionSet('needs_approval'),
+      actions: actionSet(group),
       approval: detail,
     });
   }
 
   for (const action of args.actions) {
+    if (!action.id) continue;
     const detail = buildApprovalDetailFromAgentAction({ action });
     items.push({
       id: `agent-action:${action.id}`,
@@ -729,7 +747,18 @@ export function buildBudOsActionQueue(args: {
     completed_actions: 4,
   };
 
-  return items.sort((a, b) => {
+  const deduped = new Map<string, BudOsQueueItem>();
+  for (const item of items) {
+    const targetKey = item.approval?.target_table && item.approval.target_id
+      ? `${item.source}:${item.agent_id ?? 'unknown'}:${item.approval.action_type}:${item.approval.target_table}:${item.approval.target_id}`
+      : item.id;
+    const existing = deduped.get(targetKey);
+    if (!existing || new Date(item.created_at).getTime() > new Date(existing.created_at).getTime()) {
+      deduped.set(targetKey, item);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => {
     const byGroup = groupOrder[a.group] - groupOrder[b.group];
     if (byGroup !== 0) return byGroup;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();

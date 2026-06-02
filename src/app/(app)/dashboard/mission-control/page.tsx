@@ -57,8 +57,8 @@ async function loadData() {
       .select('id, event_type, narrative, actor, target, metadata, created_at')
       .order('created_at', { ascending: false }).limit(50),
     supabase.from('bud_approval_queue')
-      .select('id, task_id, action_type, payload, status, requested_by, reviewed_by, reviewed_at, notes, created_at, bud_tasks(description, source_agent, risk_level, confidence)')
-      .eq('status', 'pending').order('created_at', { ascending: false }).limit(10),
+      .select('id, task_id, action_type, payload, status, requested_by, reviewed_by, reviewed_at, notes, created_at, bud_tasks(id, status, description, source_agent, risk_level, confidence, linked_pr)')
+      .in('status', ['pending', 'archived', 'blocked']).order('created_at', { ascending: false }).limit(120),
     supabase.from('bud_tasks')
       .select('id, source_agent, target_agent, status, confidence, risk_level, description, autonomy_level, linked_issue, linked_pr, linked_deployment, linked_memory_note, created_at, updated_at')
       .in('status', [
@@ -126,7 +126,15 @@ async function loadData() {
   const changeRequests = changeRequestsRes.data ?? [];
   const commandState = computeMissionControlHealth({
     agents, runs, actions,
-    budApprovals: budApprovals.map((a) => ({ id: a.id, agent_id: null, status: a.status })),
+    budApprovals: budApprovals.map((a) => ({
+      id: a.id,
+      agent_id: null,
+      status: a.status,
+      created_at: a.created_at,
+      payload: a.payload,
+      task_id: a.task_id,
+      bud_tasks: (a as { bud_tasks?: unknown }).bud_tasks as never,
+    })),
     tasks: budTasks, changeRequests, github: githubData,
     insights: insightsRes.data ?? [], memory,
   });
@@ -153,7 +161,8 @@ async function loadData() {
       started_at: r.started_at as string,
     })),
     actions: actions.map((a) => ({
-      id: a.id as string, agent_id: (a.agent_id as string | null) ?? null,
+      id: ((a as { id?: string; action_id?: string }).id ?? (a as { action_id?: string }).action_id) as string,
+      agent_id: (a.agent_id as string | null) ?? null,
       action_type: a.action_type as string, preview: a.preview as string,
       created_at: a.created_at as string,
       payload: (a as { payload?: Record<string, unknown> | null }).payload ?? null,

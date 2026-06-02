@@ -76,11 +76,14 @@ export type BudApprovalItem = {
   task_id: string | null;
   action_type: string;
   payload: Record<string, unknown>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'archived' | 'blocked';
   requested_by: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   notes: string | null;
+  archived_at?: string | null;
+  archive_reason?: string | null;
+  blocked_reason?: string | null;
   created_at: string;
 };
 
