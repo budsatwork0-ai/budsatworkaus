@@ -102,6 +102,7 @@ export function MissionControlClient({
   const [liveActivity, setLiveActivity] = useState<BudActivityEvent[]>(budActivity.slice(0, 12));
   const [investigatingIds, setInvestigatingIds] = useState<Set<string>>(new Set());
   const actionedIdsRef = useRef<Set<string>>(new Set());
+  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const incomingQueueKey = budOs.actionQueue.map((i) => i.id).join(',');
   useEffect(() => {
@@ -141,14 +142,17 @@ export function MissionControlClient({
         }, ...prev].slice(0, 20));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bud_approval_queue' }, () => {
-        router.refresh();
+        if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+        refreshDebounceRef.current = setTimeout(() => router.refresh(), 10_000);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bud_tasks' }, () => {
-        router.refresh();
+        if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+        refreshDebounceRef.current = setTimeout(() => router.refresh(), 10_000);
       })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
+      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
     };
   }, [router]);
 
