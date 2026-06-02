@@ -245,6 +245,72 @@ function Vitals({ commandState }: { commandState: MissionControlHealth }) {
   );
 }
 
+/* ── verdict helper ──────────────────────────────────────────────────────── */
+
+type VerdictResult = {
+  label: string;
+  reason: string;
+  containerTone: string;
+  chipTone: string;
+};
+
+function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
+  if (!approval) {
+    return {
+      label: 'Needs investigation',
+      reason: 'Not enough information to make a decision yet. Ask Bud to investigate first.',
+      containerTone: 'border-white/10 bg-white/[0.02]',
+      chipTone: 'border-white/20 text-white/55',
+    };
+  }
+  if (approval.readiness === 'blocked') {
+    return {
+      label: 'Do not approve',
+      reason: 'Something is blocking this change. Investigate and resolve the blocker before approving.',
+      containerTone: 'border-red-400/30 bg-red-500/[0.05]',
+      chipTone: 'border-red-400/40 bg-red-500/[0.08] text-red-300',
+    };
+  }
+  if (approval.readiness === 'awaiting_diff') {
+    return {
+      label: 'Hold — no diff',
+      reason: 'This is marked high-risk but there is no code diff or linked PR to review. Do not approve until you can see exactly what will change.',
+      containerTone: 'border-amber-400/25 bg-amber-500/[0.04]',
+      chipTone: 'border-amber-400/40 bg-amber-500/[0.08] text-amber-300',
+    };
+  }
+  if (approval.linked_pr) {
+    return {
+      label: 'Review PR first',
+      reason: `There is a linked pull request with the actual code diff. Read it before approving — the PR is the source of truth for what will land in production.`,
+      containerTone: 'border-sky-400/25 bg-sky-500/[0.04]',
+      chipTone: 'border-sky-400/40 bg-sky-500/[0.08] text-sky-300',
+    };
+  }
+  if (approval.risk_level === 'high' || approval.risk_level === 'critical') {
+    return {
+      label: 'Needs review',
+      reason: 'High-risk change. Read the proposed steps above carefully. If the change is not specific and concrete, reject and ask for a PR first.',
+      containerTone: 'border-orange-400/25 bg-orange-500/[0.04]',
+      chipTone: 'border-orange-400/40 bg-orange-500/[0.08] text-orange-300',
+    };
+  }
+  if (approval.readiness === 'ready' && (approval.risk_level === 'low' || approval.risk_level === 'medium')) {
+    return {
+      label: 'Safe to approve',
+      reason: 'Low blast radius, fully drafted, and gated. Review the steps above, then approve if they look correct.',
+      containerTone: 'border-emerald-400/25 bg-emerald-500/[0.04]',
+      chipTone: 'border-emerald-400/40 bg-emerald-500/[0.08] text-emerald-300',
+    };
+  }
+  return {
+    label: 'Needs review',
+    reason: 'Read the proposed change above before deciding. Approve only if the steps are specific and you understand the impact.',
+    containerTone: 'border-white/10 bg-white/[0.02]',
+    chipTone: 'border-white/20 text-white/55',
+  };
+}
+
 /* ── 3. action queue ─────────────────────────────────────────────────────── */
 
 function ActionQueue({
@@ -350,55 +416,62 @@ function ActionQueue({
                 </div>
               </div>
 
-              {/* Expansion drawer — concrete details shown when this item is selected */}
+              {/* Expansion drawer */}
               {active && hasDetail && (
-                <div className="border-t border-white/[0.05] bg-black/20 px-5 py-4 space-y-4">
-                  {/* Why it matters */}
+                <div className="border-t border-white/[0.05] bg-black/20 px-5 py-4 space-y-5">
+
+                  {/* ── 1. The idea ── */}
                   {description && description !== item.title && (
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1">Why this matters</p>
-                      <p className="text-xs leading-relaxed text-white/75">{description}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">The idea</p>
+                      <p className="text-sm leading-relaxed text-white/80">{description}</p>
                     </div>
                   )}
 
-                  {/* Proposed concrete change */}
-                  {plan.length > 0 && (
+                  {/* ── 2. What it actually does ── */}
+                  {(plan.length > 0 || files.length > 0) && (
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Proposed change</p>
-                      <ol className="space-y-1">
-                        {plan.map((step, i) => (
-                          <li key={i} className="flex gap-2 text-xs text-white/80">
-                            <span className="mt-px shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[10px] font-semibold tabular-nums text-white/50">{i + 1}</span>
-                            <span className="leading-relaxed">{step}</span>
-                          </li>
-                        ))}
-                      </ol>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">What it actually does</p>
+                      {plan.length > 0 && (
+                        <ol className="space-y-1.5 mb-2">
+                          {plan.map((step, i) => (
+                            <li key={i} className="flex gap-2.5 text-sm text-white/75">
+                              <span className="mt-px shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[10px] font-semibold tabular-nums text-white/40">{i + 1}</span>
+                              <span className="leading-relaxed">{step}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {files.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          <span className="text-[11px] text-white/35 self-center mr-1">Files:</span>
+                          {files.map((f) => (
+                            <span key={f} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-sky-300/80">{f}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Files affected */}
-                  {files.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Files affected</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {files.map((f) => (
-                          <span key={f} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-sky-300/80">{f}</span>
-                        ))}
+                  {/* ── 3. Verdict ── */}
+                  {approval && (() => {
+                    const verdict = deriveVerdict(approval);
+                    return (
+                      <div className={`rounded-xl border px-4 py-3 ${verdict.containerTone}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Verdict</p>
+                          <span className={`rounded-full border px-2 py-px text-[10px] font-semibold uppercase tracking-wider ${verdict.chipTone}`}>
+                            {verdict.label}
+                          </span>
+                        </div>
+                        <p className="text-sm leading-relaxed text-white/75">{verdict.reason}</p>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* Blast radius */}
-                  {approval?.blast_radius && (
-                    <div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.05] px-3 py-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/70 mb-0.5">Blast radius</p>
-                      <p className="text-xs text-amber-200/70">{approval.blast_radius}</p>
-                    </div>
-                  )}
-
-                  {/* Decision buttons — full width, side by side */}
+                  {/* ── Decision buttons ── */}
                   {approval && (
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => {
                           if (notReady) { toast.error(`Not ready: ${approval.readiness_summary}`); return; }
