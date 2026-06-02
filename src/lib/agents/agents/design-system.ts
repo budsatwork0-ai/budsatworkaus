@@ -1,25 +1,31 @@
 /**
- * Design System Agent — autonomous visual consistency auditor.
+ * Design Integrity & System Guardian — orchestrates the full design audit workflow.
  *
- * Responsibilities:
- *   · Audit 8 areas of the Buds At Work design system
- *   · Score each area 0–100 (weighted overall consistency score)
- *   · Detect component duplication and glass morphism drift
- *   · Enforce Apple-inspired simplicity principles
- *   · Maintain sticky footer, typography, and CTA compliance
- *   · Generate prioritised refactor tasks
- *   · Store canonical design spec in Obsidian memory for recall by other agents
- *   · Track consistency trends across audit cycles
+ * Coordinates:
+ *   · Layout Critic      — page hierarchy, WCAG AA, mobile UX
+ *   · Admin UX Designer  — audience-segmented UX review (admin/crew/public)
+ *   · UX Intelligence    — cross-area UX signals (read from design_insights)
+ *   · Design Developer   — receives implementation task proposals (approval required)
+ *   · Bud Observer       — registers post-deployment verification signal
  *
- * Obsidian output (via logAgentRun → workspace.ts):
- *   · Findings  → Agents/Design-System-Agent/Findings/
- *   · Tasks     → Agents/Design-System-Agent/Tasks/
- *   · Reports   → Agents/Design-System-Agent/Reports/
- *   · Decisions → Agents/Design-System-Agent/Decisions/ (approved standards)
+ * Workflow:
+ *   1. Pull prior audit history + open violations + UX findings
+ *   2. Semantic memory recall
+ *   3. Call Layout Critic + Admin UX Designer as sub-agents
+ *   4. Run own LLM audit with all context (8 design areas + sub-agent input)
+ *   5. Score + persist to Supabase
+ *   6. Generate canonical design spec (first run or when P0/P1s present)
+ *   7. Write integrity report → docs/design-integrity/latest-report.md
+ *   8. Propose Design Developer implementation tasks (requiresApproval: true)
+ *   9. Register improvement signals with Bud Observer
+ *  10. Return structured result
  *
- * Supabase output:
- *   · design_audits      — per-run score snapshots
- *   · design_violations  — individual violations
+ * Output:
+ *   · docs/design-integrity/latest-report.md — human-readable integrity report
+ *   · design_audits              — per-run score snapshots
+ *   · design_violations          — individual violations
+ *   · Obsidian: design/audits/   — full run report
+ *   · Obsidian: design/violations/ — high-severity violation notes
  *
  * Schedule: Saturday 6 AM AEST (weekly, post-week code review)
  */
@@ -27,13 +33,14 @@ import type { AgentDefinition, AgentContext, AgentRunResult } from '../types';
 import type { AgentFinding, AgentTask, AgentIssue, AgentDecision } from '@/lib/memory/agents/types';
 import { AUDIT_AREAS, buildAuditContext, computeOverallScore, scoreLabel, COMPONENT_STANDARDS } from '@/lib/design-system/rules';
 import { KNOWN_DUPLICATES, SIMPLICITY_RULES, GLASS_VARIANTS } from '@/lib/design-system/tokens';
+import fs from 'fs';
+import path from 'path';
 
-// Ensure COMPONENT_STANDARDS is referenced so the import is used
 void COMPONENT_STANDARDS;
 
 // ── LLM prompts ───────────────────────────────────────────────────────────────
 
-const AUDIT_SYSTEM = `You are the Design System Agent for Buds At Work — a local home-services
+const AUDIT_SYSTEM = `You are the Design Integrity & System Guardian for Buds At Work — a local home-services
 platform with an Apple-inspired glass morphism UI (deep green brand, Geist Sans font, Tailwind v4).
 
 You receive:
@@ -42,6 +49,8 @@ You receive:
   · Historical audit memory (prior scores and findings)
   · Open design violations from Supabase
   · Recent deployment + UX findings (for cross-reference)
+  · Layout Critic findings (page hierarchy, WCAG AA, mobile)
+  · Admin UX Designer findings (admin/crew/public audience UX)
 
 Audit each area and return strict JSON only — no prose, no fences:
 
@@ -120,8 +129,6 @@ The document should be:
 Return only the markdown content — no JSON wrapper.`;
 
 // ── Component snapshot ────────────────────────────────────────────────────────
-// Curated excerpts of key components for LLM context.
-// These are manually maintained and updated when components change.
 
 const COMPONENT_SNAPSHOT = `
 ## Key Component Implementations (snapshot for audit)
@@ -218,6 +225,13 @@ function toIssueSeverity(s: string): 'critical' | 'high' | 'medium' | 'low' {
   return 'low';
 }
 
+function scoreColor(score: number): string {
+  if (score >= 85) return 'green';
+  if (score >= 70) return 'amber';
+  if (score >= 50) return 'orange';
+  return 'red';
+}
+
 // ── Agent definition ──────────────────────────────────────────────────────────
 
 interface Violation {
@@ -249,17 +263,19 @@ interface SpecDecision {
 
 export const designSystemAgent: AgentDefinition = {
   id: 'design-system',
-  name: 'Design System',
+  name: 'Design Integrity & System Guardian',
   description:
-    'Audits 8 design system areas (glass morphism, typography, colors, duplication, spacing, CTAs, sticky footer, Apple simplicity). ' +
-    'Scores consistency 0–100, generates refactor tasks, and maintains canonical design spec in Obsidian.',
+    'Orchestrates the full design integrity workflow. Coordinates Layout Critic, Admin UX Designer, ' +
+    'and UX Intelligence signals. Scores 8 design areas (0–100), detects token drift and hardcoded styles, ' +
+    'generates an integrity report at docs/design-integrity/latest-report.md, and queues implementation ' +
+    'tasks for Design Developer (human approval required before any UI changes).',
   category: 'ops',
   autonomy: 'review',
   schedule: '0 6 * * 6', // Saturday 6 AM AEST
 
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now = new Date().toISOString().slice(0, 10);
-    ctx.log('Design System Agent starting', { date: now, runId: ctx.runId });
+    ctx.log('Design Integrity & System Guardian starting', { date: now, runId: ctx.runId });
 
     // ── 1. Pull prior audit history ───────────────────────────────────────
 
@@ -281,7 +297,7 @@ export const designSystemAgent: AgentDefinition = {
         .from('design_insights')
         .select('page_path, insight_type, title, severity')
         .gte('created_at', thirtyDaysAgo)
-        .limit(15),
+        .limit(20),
     ]);
 
     // ── 2. Semantic memory recall ─────────────────────────────────────────
@@ -299,7 +315,78 @@ export const designSystemAgent: AgentDefinition = {
       )
       .join('\n\n');
 
-    // ── 3. Build audit prompt ─────────────────────────────────────────────
+    // ── 3. Sub-agent orchestration ────────────────────────────────────────
+    // Call Layout Critic + Admin UX Designer in parallel for fresh page signals.
+    // UX Intelligence findings are already in design_insights (read above) — no double-run.
+
+    const subAgentSummaries: Record<string, string> = {};
+
+    const [layoutResult, adminUxResult] = await Promise.allSettled([
+      ctx.callAgent(
+        'layout-critic',
+        {
+          pages: [
+            {
+              path: '/',
+              html_snippet: '<section class="hero"><h1>Good people doing honest work.</h1><p>Quote-first local services.</p><a class="cta-quote-hero">Get a quote</a></section>',
+              mobile_notes: 'Hero CTA visibility on iPhone SE (375px). Sticky footer overlap check.',
+            },
+            {
+              path: '/services',
+              html_snippet: '<main class="services-wizard"><div class="step-indicator"/><div class="service-selector"/><div class="sticky-cta">Get Quote</div></main>',
+              mobile_notes: 'Multi-step wizard: step progress indicator, CTA placement at each step, address autocomplete layout.',
+            },
+            {
+              path: '/dashboard',
+              html_snippet: '<main class="dashboard"><nav class="tabs"/><section class="tab-content"><div class="summary-cards"/></section></main>',
+              mobile_notes: 'Admin dashboard tab density, card scannability on mobile.',
+            },
+          ],
+        },
+        'audit page layouts for visual hierarchy, WCAG AA accessibility, and mobile UX',
+      ),
+      ctx.callAgent(
+        'admin-ux-designer',
+        {
+          pages: [
+            {
+              path: '/dashboard',
+              audience: 'admin',
+              notes: 'Dashboard tabs: Schedule, Overview, Receivables, Payables, Jobs, Reports. Focus: click-to-action efficiency, table scannability.',
+            },
+            {
+              path: '/crew',
+              audience: 'crew',
+              notes: 'Crew portal: jobs, earnings, documents, schedule. Focus: mobile tap targets ≥44px, plain English, single-purpose screens.',
+            },
+            {
+              path: '/',
+              audience: 'public',
+              notes: 'Marketing homepage with quote CTA. Focus: hero CTA above fold, social proof, suburb specificity.',
+            },
+          ],
+        },
+        'review admin, crew, and public pages against audience-specific UX rubrics',
+      ),
+    ]);
+
+    if (layoutResult.status === 'fulfilled') {
+      subAgentSummaries['layout-critic'] = layoutResult.value.summary;
+      ctx.log('Layout Critic complete', { summary: layoutResult.value.summary.slice(0, 120) });
+    } else {
+      ctx.log('Layout Critic sub-call failed', { err: String(layoutResult.reason) });
+      subAgentSummaries['layout-critic'] = 'Layout Critic unavailable this cycle.';
+    }
+
+    if (adminUxResult.status === 'fulfilled') {
+      subAgentSummaries['admin-ux-designer'] = adminUxResult.value.summary;
+      ctx.log('Admin UX Designer complete', { summary: adminUxResult.value.summary.slice(0, 120) });
+    } else {
+      ctx.log('Admin UX Designer sub-call failed', { err: String(adminUxResult.reason) });
+      subAgentSummaries['admin-ux-designer'] = 'Admin UX Designer unavailable this cycle.';
+    }
+
+    // ── 4. Build audit prompt ─────────────────────────────────────────────
 
     const auditPrompt = [
       '## Design System Audit Context',
@@ -336,6 +423,14 @@ export const designSystemAgent: AgentDefinition = {
           ].join('\n')
         : '## Recent UX Findings\nNone.',
       '',
+      `## Sub-Agent Findings This Cycle`,
+      '',
+      `### Layout Critic`,
+      subAgentSummaries['layout-critic'] ?? 'No findings.',
+      '',
+      `### Admin UX Designer`,
+      subAgentSummaries['admin-ux-designer'] ?? 'No findings.',
+      '',
       historyText
         ? `## Historical Design Memory\n\n${historyText}`
         : '## Historical Design Memory\nNone.',
@@ -343,7 +438,7 @@ export const designSystemAgent: AgentDefinition = {
       'Audit all 8 areas and return the violations JSON.',
     ].join('\n');
 
-    // ── 4. LLM audit ──────────────────────────────────────────────────────
+    // ── 5. LLM audit ──────────────────────────────────────────────────────
 
     let areaScores: Record<string, number> = {};
     let violations: Violation[] = [];
@@ -374,10 +469,13 @@ export const designSystemAgent: AgentDefinition = {
 
     const overallScore = computeOverallScore(areaScores);
     const grade = scoreLabel(overallScore);
+    const p0s = violations.filter((v) => v.priority === 'P0' || v.severity === 'critical');
+    const p1Count = violations.filter((v) => v.priority === 'P1').length;
+    const p2Count = violations.filter((v) => v.priority === 'P2').length;
 
     ctx.log('Audit scored', { overallScore, grade, violations: violations.length });
 
-    // ── 5. Generate canonical design spec (first run or weekly refresh) ───
+    // ── 6. Generate canonical design spec (first run or weekly refresh) ───
 
     let specMarkdown = '';
     const isFirstRun = !priorAudits || (priorAudits as Array<unknown>).length === 0;
@@ -411,7 +509,6 @@ export const designSystemAgent: AgentDefinition = {
         ctx.log('Spec generation failed — proceeding without spec update');
       }
 
-      // Write canonical spec to Obsidian
       if (specMarkdown) {
         await ctx.memory.write({
           category: 'design',
@@ -422,11 +519,10 @@ export const designSystemAgent: AgentDefinition = {
           vaultPath: `design/design-system-spec.md`,
         });
 
-        // Component inventory document
         const inventoryMd = [
           '# Component Inventory — Buds At Work',
           '',
-          `> Generated by Design System Agent on ${now}. Overall score: **${overallScore}/100** (${grade})`,
+          `> Generated by Design Integrity Guardian on ${now}. Overall score: **${overallScore}/100** (${grade})`,
           '',
           '## Known Duplicates (pending consolidation)',
           '',
@@ -455,7 +551,7 @@ export const designSystemAgent: AgentDefinition = {
       }
     }
 
-    // ── 6. Persist audit to Supabase ──────────────────────────────────────
+    // ── 7. Persist audit to Supabase ──────────────────────────────────────
 
     const { data: auditRow } = await ctx.supabase
       .from('design_audits')
@@ -467,8 +563,8 @@ export const designSystemAgent: AgentDefinition = {
         area_scores: areaScores,
         executive_summary: executiveSummary,
         violation_count: violations.length,
-        p0_count: violations.filter((v) => v.priority === 'P0').length,
-        p1_count: violations.filter((v) => v.priority === 'P1').length,
+        p0_count: p0s.length,
+        p1_count: p1Count,
         quick_wins: quickWins,
       })
       .select('id')
@@ -496,7 +592,6 @@ export const designSystemAgent: AgentDefinition = {
       });
     }
 
-    // Write high-signal violations to Obsidian memory for cross-agent recall
     for (const v of violations.filter((v) => v.severity === 'critical' || v.severity === 'high')) {
       await ctx.memory.write({
         category: 'design',
@@ -520,9 +615,178 @@ export const designSystemAgent: AgentDefinition = {
       });
     }
 
-    // ── 7. Propose P0 actions ─────────────────────────────────────────────
+    // ── 8. Write integrity report ─────────────────────────────────────────
+    // docs/design-integrity/latest-report.md — human-readable, report-only.
+    // No UI changes are applied here. Design Developer tasks require approval.
 
-    const p0s = violations.filter((v) => v.priority === 'P0' || v.severity === 'critical');
+    const priorScores = (priorAudits as Array<Record<string, unknown>> ?? [])
+      .map((a) => `${a.audit_date}: ${a.overall_score}`)
+      .join(' → ');
+
+    const areaTable = AUDIT_AREAS.map((a) => {
+      const score = areaScores[a.id] ?? 0;
+      const color = scoreColor(score);
+      const trend = priorAudits && (priorAudits as Array<Record<string, unknown>>).length > 0
+        ? (() => {
+            const prev = (priorAudits as Array<Record<string, unknown>>)[0]?.area_scores as Record<string, number> | undefined;
+            const prevScore = prev?.[a.id];
+            if (prevScore === undefined) return '';
+            const diff = score - prevScore;
+            return diff > 0 ? ` ↑${diff}` : diff < 0 ? ` ↓${Math.abs(diff)}` : ' →';
+          })()
+        : '';
+      return `| ${a.label} | ${score}/100${trend} | ${a.weight * 100}% | ${color} |`;
+    });
+
+    const topQuickWin = quickWins[0] ?? 'No quick wins identified.';
+    const recommendedNextAction = p0s.length > 0
+      ? `Fix critical: ${p0s[0]!.title} — ${p0s[0]!.component}`
+      : p1Count > 0
+        ? `Address high-priority: ${violations.find((v) => v.priority === 'P1')?.title ?? 'review P1 violations'}`
+        : topQuickWin;
+
+    const reportMd = [
+      `# Design Integrity Report — ${now}`,
+      '',
+      `> **This is a read-only audit report.** No UI changes have been applied.`,
+      `> Implementation tasks have been queued for Design Developer and require human approval.`,
+      '',
+      '## Status Summary',
+      '',
+      '| Metric | Value |',
+      '|--------|-------|',
+      `| Design Score | **${overallScore}/100** — ${grade.toUpperCase()} |`,
+      `| Critical Issues (P0) | ${p0s.length} |`,
+      `| High Priority (P1) | ${p1Count} |`,
+      `| Warnings (P2) | ${p2Count} |`,
+      `| Total Violations | ${violations.length} |`,
+      `| Quick Wins | ${quickWins.length} |`,
+      `| Last Audit | ${now} |`,
+      `| Recommended Next Action | ${recommendedNextAction} |`,
+      priorScores ? `| Score Trend | ${priorScores} → ${overallScore} |` : '',
+      '',
+      '## Area Scores',
+      '',
+      '| Area | Score | Weight | Health |',
+      '|------|-------|--------|--------|',
+      ...areaTable,
+      '',
+      '## Executive Summary',
+      '',
+      executiveSummary || '_No summary generated._',
+      '',
+      '## Sub-Agent Findings',
+      '',
+      '### Layout Critic',
+      subAgentSummaries['layout-critic'] ?? '_Not run._',
+      '',
+      '### Admin UX Designer',
+      subAgentSummaries['admin-ux-designer'] ?? '_Not run._',
+      '',
+      '### UX Intelligence (from design_insights — last 30 days)',
+      uxFindings && uxFindings.length > 0
+        ? (uxFindings as Array<Record<string, unknown>>).map(
+            (f) => `- [${f.severity}] \`${f.page_path}\` — ${f.title}`,
+          ).join('\n')
+        : '_No recent UX findings._',
+      '',
+      violations.length > 0
+        ? [
+            `## Violations (${violations.length} total)`,
+            '',
+            ...violations.slice(0, 15).map(
+              (v) =>
+                `### [${v.priority}] ${v.title}\n` +
+                `**Component:** \`${v.component}\`  |  **Area:** ${v.area}  |  **Effort:** ${v.effort}\n\n` +
+                v.description.slice(0, 400) +
+                `\n\n**Proposed Fix:** ${v.proposed_fix.slice(0, 200)}\n`,
+            ),
+          ].join('\n')
+        : '## Violations\n_None detected — system is compliant._',
+      '',
+      quickWins.length > 0
+        ? [
+            '## Quick Wins (< 30 min each)',
+            '',
+            ...quickWins.map((w) => `- ${w}`),
+          ].join('\n')
+        : '',
+      '',
+      consolidationCandidates.length > 0
+        ? [
+            '## Component Consolidation Candidates',
+            '',
+            ...consolidationCandidates.map(
+              (c) =>
+                `### ${c.components.join(' + ')}\n${c.description}\n**Proposed primitive:** \`${c.proposed_primitive}\``,
+            ),
+          ].join('\n')
+        : '',
+      '',
+      '## Implementation Queue',
+      '',
+      '> Design Developer tasks have been proposed and are pending human approval.',
+      '> No UI changes will be made until an operator approves each action in Mission Control.',
+      '',
+      p0s.length > 0
+        ? [
+            '### Critical Tasks (P0) — queued for Design Developer',
+            ...p0s.map((v) => `- **${v.title}** (\`${v.component}\`) — ${v.effort}`),
+          ].join('\n')
+        : '### No P0 tasks this cycle.',
+      '',
+      violations.filter((v) => v.priority === 'P1').length > 0
+        ? [
+            '### High Priority Tasks (P1)',
+            ...violations.filter((v) => v.priority === 'P1').map((v) => `- ${v.title} (\`${v.component}\`) — ${v.effort}`),
+          ].join('\n')
+        : '',
+      '',
+      '## Post-Deployment Verification',
+      '',
+      '> After any approved Design Developer task is applied:',
+      '> Bud Observer will automatically detect the design_insights signal and verify the change',
+      '> at its next observation cycle. No manual trigger required.',
+      '',
+      '## Backlinks',
+      '',
+      '- [[UX-Agent]]',
+      '- [[Layout-Critic]]',
+      '- [[Admin-UX-Designer]]',
+      '- [[Design-Developer]]',
+      '- [[Bud-Observer]]',
+      '- [[src/app/ui/theme.ts]]',
+      '- [[src/components/]]',
+      '- [[Design System Specification — Buds At Work]]',
+      '',
+      `---`,
+      `_Generated by Design Integrity & System Guardian · Run ID: ${ctx.runId} · ${now}_`,
+    ]
+      .filter((l) => l !== undefined)
+      .join('\n');
+
+    try {
+      const reportDir = path.join(process.cwd(), 'docs', 'design-integrity');
+      await fs.promises.mkdir(reportDir, { recursive: true });
+      await fs.promises.writeFile(path.join(reportDir, 'latest-report.md'), reportMd, 'utf-8');
+      ctx.log('Integrity report written', { path: 'docs/design-integrity/latest-report.md' });
+    } catch (err) {
+      ctx.log('Failed to write integrity report', { err: String(err) });
+    }
+
+    // Also write to Obsidian
+    await ctx.memory.write({
+      category: 'design',
+      title: `Design Integrity Report — ${now}`,
+      body: reportMd,
+      tags: ['design-audit', 'integrity', 'weekly', grade, now],
+      agentScope: 'design-system',
+      vaultPath: `design/audits/${now}-design-integrity-report.md`,
+    });
+
+    // ── 9. Propose P0 actions + Design Developer tasks ────────────────────
+    // All require human approval. No automatic UI changes.
+
     for (const v of p0s) {
       await ctx.proposeAction({
         action_type: 'design_fix_required',
@@ -535,15 +799,49 @@ export const designSystemAgent: AgentDefinition = {
         },
         preview: `[P0 Design] ${v.title} — ${v.component}: ${v.proposed_fix.slice(0, 100)}`,
         requiresApproval: true,
+        risk_level: 'medium',
       });
     }
 
-    // ── 8. Build Obsidian output ──────────────────────────────────────────
+    // Queue top P1 violations as Design Developer tasks (one proposal per P1)
+    for (const v of violations.filter((v) => v.priority === 'P1').slice(0, 3)) {
+      await ctx.proposeAction({
+        action_type: 'design_developer_task',
+        payload: {
+          violation_id: v.id,
+          title: v.title,
+          component: v.component,
+          area: v.area,
+          proposed_fix: v.proposed_fix,
+          affected_files: v.affected_files,
+          effort: v.effort,
+          agent_to_execute: 'design-developer',
+        },
+        preview: `[P1 → Design Developer] ${v.title}: ${v.proposed_fix.slice(0, 100)}`,
+        requiresApproval: true,
+        risk_level: 'low',
+      });
+    }
 
-    // Score trend line for the report
-    const priorScores = (priorAudits as Array<Record<string, unknown>> ?? [])
-      .map((a) => `${a.audit_date}: ${a.overall_score}`)
-      .join(' → ');
+    // Register design debt signals with Bud Observer (non-blocking, fire-and-forget)
+    if (p0s.length > 0 || p1Count > 0) {
+      ctx.callAgent(
+        'bud-observer',
+        {
+          signal_source: 'design-integrity-guardian',
+          design_score: overallScore,
+          p0_count: p0s.length,
+          p1_count: p1Count,
+          run_id: ctx.runId,
+          top_violation: p0s[0]?.title ?? violations[0]?.title ?? null,
+        },
+        'verify design debt signals and register improvement opportunities',
+      ).catch((err) => {
+        ctx.log('Bud Observer notification skipped', { err: String(err) });
+      });
+    }
+
+    // ── 10. Build Obsidian output ─────────────────────────────────────────
 
     const obsidianFindings: AgentFinding[] = violations.map(
       (v): AgentFinding => ({
@@ -569,7 +867,6 @@ export const designSystemAgent: AgentDefinition = {
       }),
     );
 
-    // Tasks for P0/P1 violations + all quick wins
     const obsidianTasks: AgentTask[] = [
       ...violations
         .filter((v) => v.priority === 'P0' || v.priority === 'P1')
@@ -577,7 +874,7 @@ export const designSystemAgent: AgentDefinition = {
           (v): AgentTask => ({
             title: `[${v.priority}] Fix: ${v.title.slice(0, 80)}`,
             context:
-              `Design System audit (${now}) — **component:** \`${v.component}\`  |  ` +
+              `Design Integrity Guardian (${now}) — **component:** \`${v.component}\`  |  ` +
               `**effort:** ${v.effort}  |  **area:** ${v.area}`,
             priority: toTaskPriority(v.priority),
             systems: v.affected_files,
@@ -587,13 +884,14 @@ export const designSystemAgent: AgentDefinition = {
               'Visual regression check: render on mobile (375px) and desktop (1440px)',
               'No new lint errors',
               `Area score for ${v.area} improves in next audit`,
+              'Bud Observer verifies change at next observation cycle',
             ],
           }),
         ),
       ...quickWins.slice(0, 6).map(
         (win): AgentTask => ({
           title: win.slice(0, 80),
-          context: `Quick win from Design System audit ${ctx.runId} (${now}).`,
+          context: `Quick win from Design Integrity audit ${ctx.runId} (${now}).`,
           priority: 'medium',
           tags: ['design-quick-win'],
           acceptanceCriteria: [win, 'No visual regressions'],
@@ -601,12 +899,11 @@ export const designSystemAgent: AgentDefinition = {
       ),
     ];
 
-    // Consolidation candidates → Decisions
     const obsidianDecisions: AgentDecision[] = [
       ...consolidationCandidates.slice(0, 4).map(
         (c): AgentDecision => ({
           title: `Consolidate: ${c.components.join(' + ')} → ${c.proposed_primitive}`,
-          context: `Design System audit (${now}) identified near-duplicate components.`,
+          context: `Design Integrity Guardian (${now}) identified near-duplicate components.`,
           rationale: c.description,
           consequences:
             `Creates unified primitive at ${c.proposed_primitive}. ` +
@@ -620,7 +917,7 @@ export const designSystemAgent: AgentDefinition = {
       ...specDecisions.slice(0, 4).map(
         (d): AgentDecision => ({
           title: d.title,
-          context: `Design System audit (${now}) — standardisation decision.`,
+          context: `Design Integrity Guardian (${now}) — standardisation decision.`,
           rationale: d.rationale,
           consequences: `Rule: ${d.rule}`,
           status: 'accepted',
@@ -630,7 +927,6 @@ export const designSystemAgent: AgentDefinition = {
       ),
     ];
 
-    // P0 violations + recurring issues → Active-Issues
     const obsidianIssues: AgentIssue[] = violations
       .filter((v) => v.priority === 'P0')
       .slice(0, 6)
@@ -645,106 +941,19 @@ export const designSystemAgent: AgentDefinition = {
         }),
       );
 
-    // ── 9. Build full report markdown ─────────────────────────────────────
-
-    const areaTable = AUDIT_AREAS.map((a) => {
-      const score = areaScores[a.id] ?? 0;
-      const trend = priorAudits && (priorAudits as Array<Record<string, unknown>>).length > 0
-        ? (() => {
-            const prev = (priorAudits as Array<Record<string, unknown>>)[0]?.area_scores as Record<string, number> | undefined;
-            const prevScore = prev?.[a.id];
-            if (prevScore === undefined) return '';
-            const diff = score - prevScore;
-            return diff > 0 ? ` ↑${diff}` : diff < 0 ? ` ↓${Math.abs(diff)}` : ' →';
-          })()
-        : '';
-      return `| ${a.label} | ${score}/100${trend} | ${a.weight * 100}% |`;
-    });
-
-    const reportMd = [
-      `# Design System Audit — ${now}`,
-      '',
-      `> **Overall Score: ${overallScore}/100** — Grade: **${grade.toUpperCase()}**`,
-      priorScores ? `> **Trend:** ${priorScores} → ${overallScore}` : '',
-      '',
-      '## Area Scores',
-      '',
-      '| Area | Score | Weight |',
-      '|------|-------|--------|',
-      ...areaTable,
-      '',
-      '## Executive Summary',
-      '',
-      executiveSummary || '_No summary generated._',
-      '',
-      violations.length > 0
-        ? [
-            `## Violations (${violations.length} total, ${p0s.length} critical)`,
-            '',
-            ...violations.slice(0, 12).map(
-              (v) =>
-                `### [${v.priority}] ${v.title}\n` +
-                `**Component:** \`${v.component}\`  |  **Area:** ${v.area}  |  **Effort:** ${v.effort}\n\n` +
-                v.description.slice(0, 400) +
-                `\n\n**Fix:** ${v.proposed_fix.slice(0, 200)}\n`,
-            ),
-          ].join('\n')
-        : '## Violations\n_None detected — system is compliant._',
-      '',
-      quickWins.length > 0
-        ? [
-            '## Quick Wins (< 30 min each)',
-            '',
-            ...quickWins.map((w) => `- ${w}`),
-          ].join('\n')
-        : '',
-      '',
-      consolidationCandidates.length > 0
-        ? [
-            '## Component Consolidation',
-            '',
-            ...consolidationCandidates.map(
-              (c) =>
-                `### ${c.components.join(' + ')}\n${c.description}\n**Proposed primitive:** \`${c.proposed_primitive}\``,
-            ),
-          ].join('\n')
-        : '',
-      '',
-      '## Backlinks',
-      '',
-      '- [[UX-Agent]]',
-      '- [[/services]]',
-      '- [[src/app/ui/theme.ts]]',
-      '- [[src/components/]]',
-      '- [[Design System Specification — Buds At Work]]',
-    ]
-      .filter((l) => l !== undefined)
-      .join('\n');
-
-    // Write report to Obsidian
-    await ctx.memory.write({
-      category: 'design',
-      title: `Design System Audit Report — ${now}`,
-      body: reportMd,
-      tags: ['design-audit', 'weekly', grade, now],
-      agentScope: 'design-system',
-      vaultPath: `design/audits/${now}-design-system-audit.md`,
-    });
-
-    // ── 10. Summary ───────────────────────────────────────────────────────
-
-    const p1Count = violations.filter((v) => v.priority === 'P1').length;
+    // ── 11. Summary ───────────────────────────────────────────────────────
 
     const summary = [
-      `Design System audit complete — score ${overallScore}/100 (${grade}).`,
-      `${violations.length} violations found: ${p0s.length} critical, ${p1Count} high.`,
-      `${consolidationCandidates.length} consolidation candidates identified.`,
+      `Design Integrity audit complete — score ${overallScore}/100 (${grade}).`,
+      `${violations.length} violations found: ${p0s.length} critical, ${p1Count} high, ${p2Count} warnings.`,
+      `Sub-agents: Layout Critic (${layoutResult.status}), Admin UX Designer (${adminUxResult.status}).`,
+      `${consolidationCandidates.length} consolidation candidates. Report at docs/design-integrity/latest-report.md.`,
       executiveSummary,
     ]
       .filter(Boolean)
       .join(' ');
 
-    ctx.log('Design System Agent complete', {
+    ctx.log('Design Integrity & System Guardian complete', {
       overallScore,
       grade,
       violations: violations.length,
@@ -767,10 +976,13 @@ export const designSystemAgent: AgentDefinition = {
           violation_count: violations.length,
           p0_count: p0s.length,
           p1_count: p1Count,
+          p2_count: p2Count,
           consolidation_candidates: consolidationCandidates.length,
           quick_wins: quickWins,
           executive_summary: executiveSummary,
+          sub_agents: subAgentSummaries,
           spec_updated: isFirstRun || isWeeklyRefresh,
+          report_path: 'docs/design-integrity/latest-report.md',
         },
       },
     };

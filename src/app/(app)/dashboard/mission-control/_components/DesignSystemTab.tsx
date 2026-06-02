@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { ALL_THEMES, type Theme } from '@/lib/design-system/themes';
 
 /* ── small helpers ───────────────────────────────────────────────────────── */
@@ -25,11 +26,130 @@ function Swatch({ token, hex, usage, onCopy }: { token: string; hex: string; usa
   );
 }
 
+/* ── integrity card ──────────────────────────────────────────────────────── */
+
+interface DesignAudit {
+  audit_date: string;
+  overall_score: number;
+  score_label: string;
+  p0_count: number;
+  p1_count: number;
+  violation_count: number;
+  quick_wins: string[];
+  executive_summary: string;
+}
+
+function scoreRing(score: number): { track: string; fill: string; label: string } {
+  if (score >= 85) return { track: 'rgba(16,185,129,0.15)', fill: '#10b981', label: 'text-emerald-400' };
+  if (score >= 70) return { track: 'rgba(251,191,36,0.15)',  fill: '#f59e0b', label: 'text-amber-400'   };
+  if (score >= 50) return { track: 'rgba(249,115,22,0.15)',  fill: '#f97316', label: 'text-orange-400'  };
+  return           { track: 'rgba(239,68,68,0.15)',          fill: '#ef4444', label: 'text-red-400'     };
+}
+
+function IntegrityCard({ audit }: { audit: DesignAudit | null }) {
+  if (!audit) {
+    return (
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">Design Integrity</p>
+        <p className="mt-2 text-[12px] text-white/40">
+          No audit data yet. Run the Design Integrity &amp; System Guardian agent to generate a report.
+        </p>
+      </div>
+    );
+  }
+
+  const ring = scoreRing(audit.overall_score);
+  const topQuickWin = audit.quick_wins?.[0] ?? null;
+  const nextAction = audit.p0_count > 0
+    ? `Fix ${audit.p0_count} critical issue${audit.p0_count > 1 ? 's' : ''} — approve in action queue`
+    : audit.p1_count > 0
+      ? `Address ${audit.p1_count} high-priority violation${audit.p1_count > 1 ? 's' : ''}`
+      : topQuickWin ?? 'System is healthy — schedule next audit';
+
+  const warnings = audit.violation_count - audit.p0_count - audit.p1_count;
+
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
+            Design Integrity &amp; System Guardian
+          </p>
+          <p className="mt-0.5 text-[11px] text-white/30">
+            Last audit: {audit.audit_date}
+          </p>
+        </div>
+        <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-white/50">
+          {audit.score_label.toUpperCase()}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Score */}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.04] px-3 py-4">
+          <p className={`text-3xl font-bold tabular-nums ${ring.label}`}>{audit.overall_score}</p>
+          <p className="mt-0.5 text-[10px] text-white/35">/ 100</p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/30">Score</p>
+        </div>
+
+        {/* Critical */}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.04] px-3 py-4">
+          <p className={`text-3xl font-bold tabular-nums ${audit.p0_count > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            {audit.p0_count}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/30">Critical</p>
+        </div>
+
+        {/* Warnings */}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.04] px-3 py-4">
+          <p className={`text-3xl font-bold tabular-nums ${(audit.p1_count + warnings) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {audit.p1_count + Math.max(0, warnings)}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/30">Warnings</p>
+        </div>
+
+        {/* Quick wins */}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.04] px-3 py-4">
+          <p className="text-3xl font-bold tabular-nums text-sky-400">{audit.quick_wins?.length ?? 0}</p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/30">Quick Wins</p>
+        </div>
+      </div>
+
+      {/* Next action */}
+      <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">Recommended next action</p>
+        <p className="mt-1 text-[12px] text-white/70">{nextAction}</p>
+      </div>
+
+      {/* Report path */}
+      <p className="mt-3 text-[10px] text-white/20">
+        Full report: <code className="text-white/30">docs/design-integrity/latest-report.md</code>
+      </p>
+    </div>
+  );
+}
+
 /* ── main tab ────────────────────────────────────────────────────────────── */
 
 export function DesignSystemTab() {
   const [activeContext, setActiveContext] = useState<0 | 1 | 2>(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [latestAudit, setLatestAudit] = useState<DesignAudit | null>(null);
+
+  useEffect(() => {
+    const sb = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+    sb.from('design_audits')
+      .select('audit_date, overall_score, score_label, p0_count, p1_count, violation_count, quick_wins, executive_summary')
+      .order('audit_date', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) setLatestAudit(data as DesignAudit);
+      });
+  }, []);
 
   const t: Theme = ALL_THEMES[activeContext];
 
@@ -41,6 +161,9 @@ export function DesignSystemTab() {
 
   return (
     <div className="space-y-8">
+
+      {/* ── Integrity card ──────────────────────────────────────────────── */}
+      <IntegrityCard audit={latestAudit} />
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
