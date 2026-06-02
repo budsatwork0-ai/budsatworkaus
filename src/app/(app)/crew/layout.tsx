@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useEmployee } from '@/app/hooks/useEmployee';
-import { brand } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { useSessionManager } from '@/app/hooks/useSessionManager';
 import { SessionWarningModal } from '@/components/SessionWarningModal';
@@ -77,20 +77,19 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
       <div
         className="min-h-screen flex items-center justify-center"
         style={{
-          background:
-            'radial-gradient(1200px 600px at 20% -10%, #dff3ea 0%, transparent 60%), #f6f8f7',
+          background: crewTheme.pageBg,
         }}
       >
         {employeeError ? (
           <div className="text-center px-4">
-            <p className="text-sm font-medium mb-1" style={{ color: brand.text }}>
+            <p className="text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
               Could not load your crew profile
             </p>
-            <p className="text-xs mb-4" style={{ color: brand.muted }}>{employeeError}</p>
+            <p className="text-xs mb-4" style={{ color: crewTheme.color.muted }}>{employeeError}</p>
             <button
               onClick={refetch}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: brand.primary }}
+              style={{ background: crewTheme.color.primary }}
             >
               Try again
             </button>
@@ -98,7 +97,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
         ) : (
           <div
             className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-            style={{ borderColor: brand.primary, borderTopColor: 'transparent' }}
+            style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }}
           />
         )}
       </div>
@@ -111,19 +110,16 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
   return (
     <div
       className="min-h-screen"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, #dff3ea 0%, transparent 60%), radial-gradient(900px 500px at 120% 10%, #e8efe7 0%, transparent 50%), #f6f8f7',
-      }}
+      style={{ background: crewTheme.pageBg }}
     >
       {/* ── Top Navigation ── */}
       <header
         className="sticky top-0 z-40 border-b"
         style={{
-          background: 'rgba(255,255,255,0.88)',
+          background: crewTheme.nav.bg,
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderColor: 'rgba(0,0,0,0.06)',
+          borderColor: crewTheme.nav.border,
         }}
         role="banner"
       >
@@ -134,15 +130,15 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
             <Link href="/crew" className="flex items-center gap-2.5 shrink-0">
               <div
                 className="h-8 w-8 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                style={{ background: brand.primary }}
+                style={{ background: crewTheme.color.primary }}
               >
                 B
               </div>
               <div className="hidden sm:block leading-tight">
-                <div className="font-bold text-sm tracking-tight" style={{ color: brand.primary }}>
+                <div className="font-bold text-sm tracking-tight" style={{ color: crewTheme.color.primary }}>
                   Buds At Work
                 </div>
-                <div className="text-[10px]" style={{ color: brand.muted }}>Crew Hub</div>
+                <div className="text-[10px]" style={{ color: crewTheme.color.muted }}>Crew Hub</div>
               </div>
             </Link>
 
@@ -159,8 +155,8 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
                     href={item.href}
                     className="px-3 py-1.5 rounded-lg text-sm transition-all"
                     style={{
-                      color: active ? brand.primary : brand.muted,
-                      background: active ? 'rgba(15,61,46,0.08)' : 'transparent',
+                      color: active ? crewTheme.nav.activeText : crewTheme.nav.inactiveText,
+                      background: active ? crewTheme.nav.activeBg : 'transparent',
                       fontWeight: active ? 600 : 400,
                     }}
                   >
@@ -197,7 +193,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
               <button
                 onClick={handleSignOut}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-slate-100"
-                style={{ color: brand.muted }}
+                style={{ color: crewTheme.color.muted }}
               >
                 Sign out
               </button>
@@ -290,8 +286,8 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
                       href={item.href}
                       className="px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
                       style={{
-                        color: active ? brand.primary : brand.text,
-                        background: active ? 'rgba(15,61,46,0.08)' : 'transparent',
+                        color: active ? crewTheme.nav.activeText : crewTheme.nav.inactiveText,
+                        background: active ? crewTheme.nav.activeBg : 'transparent',
                       }}
                       onClick={() => setMobileOpen(false)}
                     >
@@ -303,7 +299,7 @@ export default function CrewLayout({ children }: { children: React.ReactNode }) 
                 <button
                   onClick={handleSignOut}
                   className="px-3 py-2.5 rounded-lg text-sm text-left"
-                  style={{ color: brand.muted }}
+                  style={{ color: crewTheme.color.muted }}
                 >
                   Sign out
                 </button>

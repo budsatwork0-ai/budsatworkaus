@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useAuth } from '@/app/hooks/useAuth';
 import { ONBOARDING_SECTION_LABELS } from '@/types/crew';
 import type { OnboardingSection } from '@/types/crew';
@@ -99,7 +99,7 @@ export default function OnboardingPage() {
       <div className="flex items-center justify-center py-24">
         <div
           className="w-7 h-7 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: brand.primary, borderTopColor: 'transparent' }}
+          style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }}
         />
       </div>
     );
@@ -108,11 +108,11 @@ export default function OnboardingPage() {
   if (loadError || !data) {
     return (
       <div className="text-center py-24 space-y-3">
-        <p style={{ color: brand.muted }}>{loadError || 'Unable to load onboarding.'}</p>
+        <p style={{ color: crewTheme.color.muted }}>{loadError || 'Unable to load onboarding.'}</p>
         <button
           onClick={() => window.location.reload()}
           className="text-sm font-semibold underline underline-offset-2"
-          style={{ color: brand.primary }}
+          style={{ color: crewTheme.color.primary }}
         >
           Refresh page
         </button>
@@ -133,7 +133,7 @@ export default function OnboardingPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-3xl overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${brand.primary} 0%, #1a5c41 100%)` }}
+          style={{ background: `linear-gradient(135deg, ${crewTheme.color.primary} 0%, #1a5c41 100%)` }}
         >
           <div className="px-6 py-7 sm:px-8 flex flex-col sm:flex-row sm:items-center gap-5">
             <div className="flex items-start gap-4 flex-1 min-w-0">
@@ -163,7 +163,7 @@ export default function OnboardingPage() {
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           className="rounded-3xl overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${brand.primary} 0%, #1a5c41 100%)` }}
+          style={{ background: `linear-gradient(135deg, ${crewTheme.color.primary} 0%, #1a5c41 100%)` }}
         >
           <div className="px-6 py-7 sm:px-8 flex flex-col sm:flex-row sm:items-center gap-5">
             <div className="flex items-start gap-4 flex-1">
@@ -185,7 +185,7 @@ export default function OnboardingPage() {
                   <Link
                     href="/crew"
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-sm font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
-                    style={{ color: brand.primary }}
+                    style={{ color: crewTheme.color.primary }}
                   >
                     Crew dashboard
                     <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -217,8 +217,8 @@ export default function OnboardingPage() {
           {/* Returning employee header */}
           {!isNewEmployee && !onboardingComplete && (
             <div className="mb-6">
-              <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Complete your profile</h1>
-              <p className="text-sm mt-1" style={{ color: brand.muted }}>
+              <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>Complete your profile</h1>
+              <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
                 {progress.completed} of {progress.total} sections done — finish up to unlock paid jobs.
               </p>
             </div>
@@ -249,12 +249,12 @@ export default function OnboardingPage() {
                       className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-sm transition-all duration-300"
                       style={{
                         background: section.completed
-                          ? brand.primary
+                          ? crewTheme.color.primary
                           : isNext
-                          ? brand.primary
+                          ? crewTheme.color.primary
                           : 'rgba(15,61,46,0.1)',
-                        color: section.completed || isNext ? 'white' : brand.primary,
-                        boxShadow: isNext ? `0 0 0 4px ${brand.primary}20` : 'none',
+                        color: section.completed || isNext ? 'white' : crewTheme.color.primary,
+                        boxShadow: isNext ? `0 0 0 4px ${crewTheme.color.primary}20` : 'none',
                       }}
                     >
                       {section.completed ? (
@@ -271,7 +271,7 @@ export default function OnboardingPage() {
                         style={{
                           height: 40,
                           background: section.completed
-                            ? brand.primary
+                            ? crewTheme.color.primary
                             : 'rgba(15,61,46,0.12)',
                         }}
                       />
@@ -281,38 +281,38 @@ export default function OnboardingPage() {
                   {/* Step card — locked steps are non-interactive */}
                   {isLocked ? (
                     <div
-                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 ${isLast ? 'mb-0' : 'mb-2'} ${glass} opacity-50 cursor-not-allowed select-none`}
+                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 ${isLast ? 'mb-0' : 'mb-2'} ${crewTheme.glass} opacity-50 cursor-not-allowed select-none`}
                     >
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm leading-snug" style={{ color: brand.text }}>{label}</p>
-                        {desc && <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{desc}</p>}
+                        <p className="font-semibold text-sm leading-snug" style={{ color: crewTheme.color.text }}>{label}</p>
+                        {desc && <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>{desc}</p>}
                       </div>
-                      <svg className="w-4 h-4 shrink-0" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-4 h-4 shrink-0" style={{ color: crewTheme.color.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
                       </svg>
                     </div>
                   ) : (
                     <Link
                       href={href}
-                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] ${isLast ? 'mb-0' : 'mb-2'} ${isNext ? '' : glass}`}
+                      className={`flex-1 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-5 sm:py-4 transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] ${isLast ? 'mb-0' : 'mb-2'} ${isNext ? '' : crewTheme.glass}`}
                       style={isNext ? {
-                        background: `${brand.primary}09`,
-                        border: `1.5px solid ${brand.primary}30`,
-                        boxShadow: `0 2px 16px ${brand.primary}10`,
+                        background: `${crewTheme.color.primary}09`,
+                        border: `1.5px solid ${crewTheme.color.primary}30`,
+                        boxShadow: `0 2px 16px ${crewTheme.color.primary}10`,
                       } : {}}
                     >
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm leading-snug" style={{ color: brand.text }}>{label}</p>
-                        {desc && <p className="text-xs mt-0.5" style={{ color: brand.muted }}>{desc}</p>}
+                        <p className="font-semibold text-sm leading-snug" style={{ color: crewTheme.color.text }}>{label}</p>
+                        {desc && <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>{desc}</p>}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {section.completed && (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#ECFDF5', color: brand.primary }}>
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#ECFDF5', color: crewTheme.color.primary }}>
                             Done
                           </span>
                         )}
                         {isNext && (
-                          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ background: brand.primary }}>
+                          <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ background: crewTheme.color.primary }}>
                             Start now
                             <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                               <path d="M5 12h14M12 5l7 7-7 7" />
@@ -321,7 +321,7 @@ export default function OnboardingPage() {
                         )}
                         <svg
                           className="w-4 h-4"
-                          style={{ color: isNext ? brand.primary : brand.muted, opacity: isNext ? 1 : 0.5 }}
+                          style={{ color: isNext ? crewTheme.color.primary : crewTheme.color.muted, opacity: isNext ? 1 : 0.5 }}
                           fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -339,10 +339,10 @@ export default function OnboardingPage() {
         <div className="space-y-4 lg:sticky lg:top-24">
 
           {/* Progress card */}
-          <div className={`${glass} rounded-2xl p-5`}>
+          <div className={`${crewTheme.glass} rounded-2xl p-5`}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold" style={{ color: brand.text }}>Your progress</p>
-              <span className="text-xl font-bold tabular-nums leading-none" style={{ color: brand.primary }}>
+              <p className="text-sm font-semibold" style={{ color: crewTheme.color.text }}>Your progress</p>
+              <span className="text-xl font-bold tabular-nums leading-none" style={{ color: crewTheme.color.primary }}>
                 {progressPct}%
               </span>
             </div>
@@ -351,7 +351,7 @@ export default function OnboardingPage() {
             <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(15,61,46,0.08)' }}>
               <motion.div
                 className="h-full rounded-full"
-                style={{ background: brand.primary }}
+                style={{ background: crewTheme.color.primary }}
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPct}%` }}
                 transition={{ duration: 0.9, ease: 'easeOut' }}
@@ -364,78 +364,78 @@ export default function OnboardingPage() {
                 <div
                   key={s.section}
                   className="h-1.5 flex-1 rounded-full transition-all duration-300"
-                  style={{ background: s.completed ? brand.primary : 'rgba(15,61,46,0.12)' }}
+                  style={{ background: s.completed ? crewTheme.color.primary : 'rgba(15,61,46,0.12)' }}
                 />
               ))}
             </div>
 
-            <p className="text-xs" style={{ color: brand.muted }}>
+            <p className="text-xs" style={{ color: crewTheme.color.muted }}>
               {progress.completed} of {progress.total} sections complete
               {nextSection && (
                 <>
                   {' · '}
-                  <span className="font-medium" style={{ color: brand.primary }}>
+                  <span className="font-medium" style={{ color: crewTheme.color.primary }}>
                     {ONBOARDING_SECTION_LABELS[nextSection.section as OnboardingSection] || nextSection.section}
                   </span>
                   {' '}is next
                 </>
               )}
               {onboardingComplete && (
-                <span className="font-semibold" style={{ color: brand.primary }}> All done!</span>
+                <span className="font-semibold" style={{ color: crewTheme.color.primary }}> All done!</span>
               )}
             </p>
 
             <div className="mt-4 pt-3 flex items-center gap-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-              <svg className="h-3 w-3 shrink-0" style={{ color: brand.primary }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-3 w-3 shrink-0" style={{ color: crewTheme.color.primary }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              <p className="text-xs" style={{ color: brand.muted }}>Data is secure &amp; private</p>
+              <p className="text-xs" style={{ color: crewTheme.color.muted }}>Data is secure &amp; private</p>
             </div>
           </div>
 
           {/* What you unlock */}
           <div
             className="rounded-2xl p-5"
-            style={{ background: `${brand.primary}08`, border: `1px solid ${brand.primary}18` }}
+            style={{ background: `${crewTheme.color.primary}08`, border: `1px solid ${crewTheme.color.primary}18` }}
           >
-            <p className="text-sm font-semibold mb-3.5" style={{ color: brand.text }}>
+            <p className="text-sm font-semibold mb-3.5" style={{ color: crewTheme.color.text }}>
               {onboardingComplete ? 'Pending approval unlocks:' : 'Once approved, you unlock:'}
             </p>
             <div className="space-y-2.5">
               {UNLOCK_BENEFITS.map((item) => (
                 <div key={item.label} className="flex items-start gap-2.5">
                   <span className="text-sm leading-none mt-0.5">{item.icon}</span>
-                  <span className="text-xs font-medium leading-snug" style={{ color: brand.text }}>{item.label}</span>
+                  <span className="text-xs font-medium leading-snug" style={{ color: crewTheme.color.text }}>{item.label}</span>
                 </div>
               ))}
             </div>
             <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-              <p className="text-xs" style={{ color: brand.muted }}>
+              <p className="text-xs" style={{ color: crewTheme.color.muted }}>
                 Approval takes 1–2 business days after your profile is submitted.
               </p>
             </div>
           </div>
 
           {/* Help */}
-          <div className={`${glass} rounded-2xl p-5`}>
+          <div className={`${crewTheme.glass} rounded-2xl p-5`}>
             <div className="flex items-center gap-2.5 mb-2">
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: `${brand.primary}12`, color: brand.primary }}
+                style={{ background: `${crewTheme.color.primary}12`, color: crewTheme.color.primary }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold" style={{ color: brand.text }}>Need help?</p>
+              <p className="text-sm font-semibold" style={{ color: crewTheme.color.text }}>Need help?</p>
             </div>
-            <p className="text-xs leading-relaxed" style={{ color: brand.muted }}>
+            <p className="text-xs leading-relaxed" style={{ color: crewTheme.color.muted }}>
               Questions about a section or the requirements? Our team is happy to help.
             </p>
             <a
               href="mailto:admin@budsatwork.com"
               className="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold"
-              style={{ color: brand.primary }}
+              style={{ color: crewTheme.color.primary }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 7l-10 5L2 7" />

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import {
   DOC_TYPE_LABELS,
   NDIS_DOCS,
@@ -78,12 +78,12 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
   const hasLegacy = Boolean(!hasStorage && doc?.file_url);
 
   return (
-    <div className={`${glass} rounded-2xl p-5`}>
+    <div className={`${crewTheme.glass} rounded-2xl p-5`}>
       {/* Header row */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold" style={{ color: brand.text }}>{label}</span>
+            <span className="text-sm font-semibold" style={{ color: crewTheme.color.text }}>{label}</span>
             {isRequired && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#FEE2E2', color: '#991B1B' }}>
                 Required
@@ -103,16 +103,16 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
 
       {/* File info / upload zone */}
       {uploading ? (
-        <div className="flex items-center gap-3 rounded-xl border px-4 py-3" style={{ borderColor: brand.border }}>
-          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin shrink-0" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
-          <span className="text-sm" style={{ color: brand.muted }}>Uploading…</span>
+        <div className="flex items-center gap-3 rounded-xl border px-4 py-3" style={{ borderColor: crewTheme.color.border }}>
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin shrink-0" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
+          <span className="text-sm" style={{ color: crewTheme.color.muted }}>Uploading…</span>
         </div>
       ) : hasStorage ? (
-        <div className="rounded-xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: brand.border, background: 'rgba(15,61,46,0.03)' }}>
+        <div className="rounded-xl border px-4 py-3 flex items-center gap-3" style={{ borderColor: crewTheme.color.border, background: 'rgba(15,61,46,0.03)' }}>
           <FileIcon mime={doc!.mime_type} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: brand.text }}>{doc!.file_name}</p>
-            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+            <p className="text-sm font-medium truncate" style={{ color: crewTheme.color.text }}>{doc!.file_name}</p>
+            <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>
               {doc!.file_size ? formatBytes(doc!.file_size) : ''}
               {doc!.file_size && doc!.created_at ? ' · ' : ''}
               {doc!.created_at ? new Date(doc!.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
@@ -125,7 +125,7 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs font-semibold underline underline-offset-2"
-                style={{ color: brand.accent }}
+                style={{ color: crewTheme.color.accent }}
               >
                 View
               </a>
@@ -133,7 +133,7 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
             <button
               onClick={() => inputRef.current?.click()}
               className="text-xs font-medium px-2.5 py-1 rounded-lg border"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
             >
               Replace
             </button>
@@ -153,10 +153,10 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
             <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>Upload a file to replace this link</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <a href={doc!.file_url!} target="_blank" rel="noreferrer" className="text-xs font-semibold underline underline-offset-2" style={{ color: brand.accent }}>
+            <a href={doc!.file_url!} target="_blank" rel="noreferrer" className="text-xs font-semibold underline underline-offset-2" style={{ color: crewTheme.color.accent }}>
               Open
             </a>
-            <button onClick={() => inputRef.current?.click()} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: brand.primary }}>
+            <button onClick={() => inputRef.current?.click()} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: crewTheme.color.primary }}>
               Upload file
             </button>
           </div>
@@ -165,11 +165,11 @@ function DocCard({ docType, isRequired, doc, uploading, onUpload, onDelete }: Do
         <button
           onClick={() => inputRef.current?.click()}
           className="w-full rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors hover:border-opacity-60 group"
-          style={{ borderColor: brand.border }}
+          style={{ borderColor: crewTheme.color.border }}
         >
           <UploadIcon />
-          <p className="text-sm font-medium mt-2" style={{ color: brand.text }}>Click to upload</p>
-          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>PDF, JPG or PNG · Max 10 MB</p>
+          <p className="text-sm font-medium mt-2" style={{ color: crewTheme.color.text }}>Click to upload</p>
+          <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>PDF, JPG or PNG · Max 10 MB</p>
         </button>
       )}
 
@@ -204,8 +204,8 @@ function FileIcon({ mime }: { mime: string | null }) {
 
 function UploadIcon() {
   return (
-    <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: brand.surface }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.5">
+    <div className="mx-auto w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: crewTheme.color.surface }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={crewTheme.color.muted} strokeWidth="1.5">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
         <line x1="12" y1="3" x2="12" y2="15" />
@@ -222,14 +222,14 @@ function Section({ title, subtitle, tag, children }: { title: string; subtitle: 
       <div className="flex items-start gap-3 pt-2">
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold" style={{ color: brand.text, fontSize: '0.9375rem' }}>{title}</h2>
+            <h2 className="font-semibold" style={{ color: crewTheme.color.text, fontSize: '0.9375rem' }}>{title}</h2>
             {tag && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#FEE2E2', color: '#991B1B' }}>
                 {tag}
               </span>
             )}
           </div>
-          <p className="text-sm mt-0.5" style={{ color: brand.muted }}>{subtitle}</p>
+          <p className="text-sm mt-0.5" style={{ color: crewTheme.color.muted }}>{subtitle}</p>
         </div>
       </div>
       {children}
@@ -356,33 +356,33 @@ export default function DocumentsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
 
   return (
     <div className="space-y-10 max-w-2xl mx-auto pb-12">
-      <Link href="/crew/onboarding" className="inline-flex items-center gap-1 text-sm" style={{ color: brand.muted }}>
+      <Link href="/crew/onboarding" className="inline-flex items-center gap-1 text-sm" style={{ color: crewTheme.color.muted }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
         Onboarding
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: brand.text }}>Documents</h1>
-        <p className="mt-1 text-sm" style={{ color: brand.muted }}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: crewTheme.color.text }}>Documents</h1>
+        <p className="mt-1 text-sm" style={{ color: crewTheme.color.muted }}>
           Upload your compliance and work documents. Files are stored securely and only accessible to Buds At Work admin.
         </p>
       </div>
 
       {/* Progress indicator */}
       {onboarding && (
-        <div className={`${glass} rounded-2xl px-5 py-4 flex items-center justify-between gap-4`}>
+        <div className={`${crewTheme.glass} rounded-2xl px-5 py-4 flex items-center justify-between gap-4`}>
           <div>
-            <p className="text-sm font-semibold" style={{ color: onboarding.requiredDocumentsSubmitted ? '#047857' : brand.text }}>
+            <p className="text-sm font-semibold" style={{ color: onboarding.requiredDocumentsSubmitted ? '#047857' : crewTheme.color.text }}>
               {onboarding.requiredDocumentsSubmitted ? 'Required checks complete' : 'Compliance checks required'}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+            <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>
               {onboarding.requiredDocumentsSubmitted
                 ? 'All required documents submitted. Admin will review them before your approval.'
                 : `Upload all required documents to complete this step.`}
@@ -390,18 +390,18 @@ export default function DocumentsPage() {
           </div>
           <div
             className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center"
-            style={{ background: onboarding.requiredDocumentsSubmitted ? '#D1FAE5' : brand.surface }}
+            style={{ background: onboarding.requiredDocumentsSubmitted ? '#D1FAE5' : crewTheme.color.surface }}
           >
             {onboarding.requiredDocumentsSubmitted ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#047857" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={crewTheme.color.muted} strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
             )}
           </div>
         </div>
       )}
 
-      <div className="h-px" style={{ background: brand.border }} />
+      <div className="h-px" style={{ background: crewTheme.color.border }} />
 
       {/* Section 1 — Compliance checks */}
       <Section
@@ -422,7 +422,7 @@ export default function DocumentsPage() {
         ))}
       </Section>
 
-      <div className="h-px" style={{ background: brand.border }} />
+      <div className="h-px" style={{ background: crewTheme.color.border }} />
 
       {/* Section 2 — Supporting documents */}
       <Section
@@ -442,7 +442,7 @@ export default function DocumentsPage() {
         ))}
       </Section>
 
-      <div className="h-px" style={{ background: brand.border }} />
+      <div className="h-px" style={{ background: crewTheme.color.border }} />
 
       {/* Section 3 — Employment details */}
       <Section
@@ -461,15 +461,15 @@ export default function DocumentsPage() {
         </div>
 
         {/* Work arrangement */}
-        <div className={`${glass} rounded-2xl p-5 space-y-4`}>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Work arrangement</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-5 space-y-4`}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Work arrangement</p>
 
           <PayrollField label="Employment type">
             <select
               value={payroll.employment_type || ''}
               onChange={(e) => setPayroll((p) => ({ ...p, employment_type: (e.target.value as EmploymentType) || null }))}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: brand.border, color: brand.text, background: '#fff' }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text, background: '#fff' }}
             >
               <option value="">Select…</option>
               {(Object.entries(EMPLOYMENT_TYPE_LABELS) as [EmploymentType, string][]).map(([v, l]) => (
@@ -478,15 +478,15 @@ export default function DocumentsPage() {
             </select>
           </PayrollField>
 
-          <div className="h-px" style={{ background: brand.border }} />
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Right to work in Australia</p>
+          <div className="h-px" style={{ background: crewTheme.color.border }} />
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Right to work in Australia</p>
 
           <PayrollField label="Work status">
             <select
               value={payroll.right_to_work_type || ''}
               onChange={(e) => setPayroll((p) => ({ ...p, right_to_work_type: (e.target.value as RightToWorkType) || null }))}
               className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: brand.border, color: brand.text, background: '#fff' }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text, background: '#fff' }}
             >
               <option value="">Select…</option>
               {(Object.entries(RIGHT_TO_WORK_LABELS) as [RightToWorkType, string][]).map(([v, l]) => (
@@ -515,8 +515,8 @@ export default function DocumentsPage() {
         </div>
 
         {/* Tax File Number */}
-        <div className={`${glass} rounded-2xl p-5 space-y-4`}>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Tax file number</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-5 space-y-4`}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Tax file number</p>
           <PayrollField label="TFN" hint="9-digit number shown on your tax return or Notice of Assessment. Never share this publicly.">
             <div className="relative">
               <input
@@ -526,13 +526,13 @@ export default function DocumentsPage() {
                 placeholder="000 000 000"
                 autoComplete="off"
                 className="w-full rounded-xl border px-3 py-2.5 pr-16 text-sm outline-none"
-                style={{ borderColor: brand.border, color: brand.text, background: '#fff' }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text, background: '#fff' }}
               />
               <button
                 type="button"
                 onClick={() => setShowTfn((s) => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium"
-                style={{ color: brand.muted }}
+                style={{ color: crewTheme.color.muted }}
               >
                 {showTfn ? 'Hide' : 'Show'}
               </button>
@@ -541,8 +541,8 @@ export default function DocumentsPage() {
         </div>
 
         {/* Bank account */}
-        <div className={`${glass} rounded-2xl p-5 space-y-4`}>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Bank account</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-5 space-y-4`}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Bank account</p>
           <div className="grid grid-cols-2 gap-3">
             <PayrollField label="BSB">
               <TextInput
@@ -576,8 +576,8 @@ export default function DocumentsPage() {
         </div>
 
         {/* Superannuation */}
-        <div className={`${glass} rounded-2xl p-5 space-y-4`}>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Superannuation</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-5 space-y-4`}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Superannuation</p>
           <PayrollField label="Fund name">
             <TextInput
               value={payroll.super_fund_name || ''}
@@ -608,7 +608,7 @@ export default function DocumentsPage() {
             onClick={handleSavePayroll}
             disabled={savingPayroll}
             className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-opacity hover:opacity-90"
-            style={{ background: brand.primary }}
+            style={{ background: crewTheme.color.primary }}
           >
             {savingPayroll ? 'Saving…' : 'Save details'}
           </button>
@@ -623,9 +623,9 @@ export default function DocumentsPage() {
 function PayrollField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-sm font-medium" style={{ color: brand.text }}>{label}</label>
+      <label className="block text-sm font-medium" style={{ color: crewTheme.color.text }}>{label}</label>
       {children}
-      {hint && <p className="text-xs" style={{ color: brand.muted }}>{hint}</p>}
+      {hint && <p className="text-xs" style={{ color: crewTheme.color.muted }}>{hint}</p>}
     </div>
   );
 }
@@ -638,7 +638,7 @@ function TextInput({ value, onChange, placeholder }: { value: string; onChange: 
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-      style={{ borderColor: brand.border, color: brand.text, background: '#fff' }}
+      style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text, background: '#fff' }}
     />
   );
 }
@@ -650,7 +650,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-      style={{ borderColor: brand.border, color: brand.text, background: '#fff' }}
+      style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text, background: '#fff' }}
     />
   );
 }

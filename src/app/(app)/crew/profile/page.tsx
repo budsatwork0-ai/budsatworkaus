@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { ServiceType } from '@/types/orders';
@@ -158,7 +158,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -166,8 +166,8 @@ export default function ProfilePage() {
   if (!employee) {
     return (
       <div className="text-center py-20">
-        <p style={{ color: brand.text }}>No profile found.</p>
-        <Link href="/crew/onboarding" className="text-sm underline mt-2 inline-block" style={{ color: brand.primary }}>
+        <p style={{ color: crewTheme.color.text }}>No profile found.</p>
+        <Link href="/crew/onboarding" className="text-sm underline mt-2 inline-block" style={{ color: crewTheme.color.primary }}>
           Start Onboarding
         </Link>
       </div>
@@ -179,12 +179,12 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Profile</h1>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>Profile</h1>
         {!editing && (
           <button
             onClick={() => setEditing(true)}
             className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-            style={{ borderColor: brand.border, color: brand.primary }}
+            style={{ borderColor: crewTheme.color.border, color: crewTheme.color.primary }}
           >
             Edit Profile
           </button>
@@ -192,8 +192,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Personal Info */}
-      <div className={`${glass} rounded-2xl p-6`}>
-        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Personal Information</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
+        <h2 className="font-semibold mb-4" style={{ color: crewTheme.color.text }}>Personal Information</h2>
 
         {editing ? (
           <div className="space-y-4">
@@ -203,19 +203,19 @@ export default function ProfilePage() {
             <EditField label="Suburb" value={form.suburb as string} onChange={(v) => setForm((f) => ({ ...f, suburb: v }))} />
             {/* Profile photo upload */}
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>Profile Photo</label>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>Profile Photo</label>
               <div className="flex items-center gap-4">
                 {form.photo_url ? (
-                  <img src={form.photo_url as string} alt="Profile" className="w-14 h-14 rounded-full object-cover border-2 shrink-0" style={{ borderColor: brand.border }} />
+                  <img src={form.photo_url as string} alt="Profile" className="w-14 h-14 rounded-full object-cover border-2 shrink-0" style={{ borderColor: crewTheme.color.border }} />
                 ) : (
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${brand.primary}12` }}>
-                    <svg className="w-6 h-6" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${crewTheme.color.primary}12` }}>
+                    <svg className="w-6 h-6" style={{ color: crewTheme.color.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                   </div>
                 )}
                 <div>
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all hover:bg-slate-50" style={{ borderColor: brand.border, color: photoUploading ? brand.muted : brand.primary }}>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-all hover:bg-slate-50" style={{ borderColor: crewTheme.color.border, color: photoUploading ? crewTheme.color.muted : crewTheme.color.primary }}>
                     {photoUploading ? 'Uploading…' : (form.photo_url ? 'Change photo' : 'Upload photo')}
                     <input type="file" accept="image/*" className="sr-only" onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} disabled={photoUploading} />
                   </label>
@@ -226,7 +226,7 @@ export default function ProfilePage() {
             <EditField label="Bio" value={form.bio as string} onChange={(v) => setForm((f) => ({ ...f, bio: v }))} multiline />
 
             <div className="pt-2">
-              <h3 className="text-sm font-medium mb-2" style={{ color: brand.text }}>Emergency Contact</h3>
+              <h3 className="text-sm font-medium mb-2" style={{ color: crewTheme.color.text }}>Emergency Contact</h3>
               <div className="space-y-3">
                 <EditField label="Name" value={form.emergency_contact_name as string} onChange={(v) => setForm((f) => ({ ...f, emergency_contact_name: v }))} />
                 <EditField label="Phone" value={form.emergency_contact_phone as string} onChange={(v) => setForm((f) => ({ ...f, emergency_contact_phone: v }))} />
@@ -240,7 +240,7 @@ export default function ProfilePage() {
               <button
                 onClick={handleCancel}
                 className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -248,7 +248,7 @@ export default function ProfilePage() {
                 onClick={handleSave}
                 disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-60"
-                style={{ background: brand.primary }}
+                style={{ background: crewTheme.color.primary }}
               >
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
@@ -259,15 +259,15 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div className="flex items-center gap-4 pb-2">
               {employee.photo_url ? (
-                <img src={employee.photo_url} alt={employee.full_name} className="w-16 h-16 rounded-full object-cover border-2 shrink-0" style={{ borderColor: brand.border }} />
+                <img src={employee.photo_url} alt={employee.full_name} className="w-16 h-16 rounded-full object-cover border-2 shrink-0" style={{ borderColor: crewTheme.color.border }} />
               ) : (
-                <div className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 text-xl font-bold" style={{ background: `${brand.primary}15`, color: brand.primary }}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 text-xl font-bold" style={{ background: `${crewTheme.color.primary}15`, color: crewTheme.color.primary }}>
                   {employee.full_name?.charAt(0).toUpperCase()}
                 </div>
               )}
               <div>
-                <p className="font-semibold text-sm" style={{ color: brand.text }}>{employee.full_name}</p>
-                <p className="text-xs" style={{ color: brand.muted }}>{employee.email}</p>
+                <p className="font-semibold text-sm" style={{ color: crewTheme.color.text }}>{employee.full_name}</p>
+                <p className="text-xs" style={{ color: crewTheme.color.muted }}>{employee.email}</p>
               </div>
             </div>
             <InfoRow label="Name" value={employee.full_name} />
@@ -283,8 +283,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Status badges */}
-      <div className={`${glass} rounded-2xl p-6`}>
-        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Status</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
+        <h2 className="font-semibold mb-4" style={{ color: crewTheme.color.text }}>Status</h2>
         <div className="flex flex-wrap gap-2">
           <span
             className="px-3 py-1 rounded-full text-xs font-medium"
@@ -302,7 +302,7 @@ export default function ProfilePage() {
           )}
           <span
             className="px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: 'rgba(15,61,46,0.08)', color: brand.primary }}
+            style={{ background: 'rgba(15,61,46,0.08)', color: crewTheme.color.primary }}
           >
             Status: {employee.status}
           </span>
@@ -310,24 +310,24 @@ export default function ProfilePage() {
       </div>
 
       {/* Services */}
-      <div className={`${glass} rounded-2xl p-6`}>
-        <h2 className="font-semibold mb-4" style={{ color: brand.text }}>Services</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
+        <h2 className="font-semibold mb-4" style={{ color: crewTheme.color.text }}>Services</h2>
         {employee.services && employee.services.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {employee.services.map((s) => (
               <span
                 key={s}
                 className="px-3 py-1 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(15,61,46,0.08)', color: brand.primary }}
+                style={{ background: 'rgba(15,61,46,0.08)', color: crewTheme.color.primary }}
               >
                 {SERVICE_TYPE_LABELS[s as ServiceType] || s}
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm" style={{ color: brand.muted }}>
+          <p className="text-sm" style={{ color: crewTheme.color.muted }}>
             No services selected.{' '}
-            <Link href="/crew/onboarding/services" className="underline" style={{ color: brand.primary }}>
+            <Link href="/crew/onboarding/services" className="underline" style={{ color: crewTheme.color.primary }}>
               Set up in onboarding
             </Link>
           </p>
@@ -335,14 +335,14 @@ export default function ProfilePage() {
       </div>
 
       {/* Availability */}
-      <div className={`${glass} rounded-2xl p-6`}>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold" style={{ color: brand.text }}>Weekly Availability</h2>
+          <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>Weekly Availability</h2>
           {!editing && (
             <button
               onClick={() => setEditing(true)}
               className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-slate-50"
-              style={{ borderColor: brand.border, color: brand.primary }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.primary }}
             >
               Edit
             </button>
@@ -351,7 +351,7 @@ export default function ProfilePage() {
 
         {editing ? (
           <div className="space-y-3">
-            <p className="text-xs mb-3" style={{ color: brand.muted }}>
+            <p className="text-xs mb-3" style={{ color: crewTheme.color.muted }}>
               Select the days you&apos;re available and set your working hours for each day.
             </p>
             {DAYS.map((d) => {
@@ -361,8 +361,8 @@ export default function ProfilePage() {
                   key={d.key}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors"
                   style={{
-                    borderColor: day.enabled ? brand.primary : brand.border,
-                    background: day.enabled ? `${brand.primary}06` : 'transparent',
+                    borderColor: day.enabled ? crewTheme.color.primary : crewTheme.color.border,
+                    background: day.enabled ? `${crewTheme.color.primary}06` : 'transparent',
                   }}
                 >
                   {/* Day toggle */}
@@ -375,8 +375,8 @@ export default function ProfilePage() {
                     <div
                       className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors"
                       style={{
-                        borderColor: day.enabled ? brand.primary : brand.border,
-                        background: day.enabled ? brand.primary : 'white',
+                        borderColor: day.enabled ? crewTheme.color.primary : crewTheme.color.border,
+                        background: day.enabled ? crewTheme.color.primary : 'white',
                       }}
                     >
                       {day.enabled && (
@@ -387,7 +387,7 @@ export default function ProfilePage() {
                     </div>
                     <span
                       className="text-sm font-medium w-24"
-                      style={{ color: day.enabled ? brand.text : brand.muted }}
+                      style={{ color: day.enabled ? crewTheme.color.text : crewTheme.color.muted }}
                     >
                       {d.label}
                     </span>
@@ -401,19 +401,19 @@ export default function ProfilePage() {
                         value={day.start}
                         onChange={(e) => setDayTime(d.key, 'start', e.target.value)}
                         className="px-2 py-1 rounded-lg border text-sm"
-                        style={{ borderColor: brand.border, color: brand.text }}
+                        style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
                       />
-                      <span className="text-xs" style={{ color: brand.muted }}>to</span>
+                      <span className="text-xs" style={{ color: crewTheme.color.muted }}>to</span>
                       <input
                         type="time"
                         value={day.end}
                         onChange={(e) => setDayTime(d.key, 'end', e.target.value)}
                         className="px-2 py-1 rounded-lg border text-sm"
-                        style={{ borderColor: brand.border, color: brand.text }}
+                        style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
                       />
                     </div>
                   ) : (
-                    <span className="ml-auto text-xs" style={{ color: brand.muted }}>Unavailable</span>
+                    <span className="ml-auto text-xs" style={{ color: crewTheme.color.muted }}>Unavailable</span>
                   )}
                 </div>
               );
@@ -424,7 +424,7 @@ export default function ProfilePage() {
               <button
                 onClick={handleCancel}
                 className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
               >
                 Cancel
               </button>
@@ -432,7 +432,7 @@ export default function ProfilePage() {
                 onClick={handleSave}
                 disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-60"
-                style={{ background: brand.primary }}
+                style={{ background: crewTheme.color.primary }}
               >
                 {saving ? 'Saving…' : 'Save Availability'}
               </button>
@@ -444,32 +444,32 @@ export default function ProfilePage() {
               <span
                 key={slot}
                 className="px-3 py-1.5 rounded-xl text-xs font-medium"
-                style={{ background: 'rgba(15,61,46,0.07)', color: brand.primary }}
+                style={{ background: 'rgba(15,61,46,0.07)', color: crewTheme.color.primary }}
               >
                 {formatSlotForDisplay(slot)}
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm" style={{ color: brand.muted }}>
+          <p className="text-sm" style={{ color: crewTheme.color.muted }}>
             No availability set. Click <strong>Edit</strong> to add your working hours.
           </p>
         )}
       </div>
 
       {/* Documents overview */}
-      <div className={`${glass} rounded-2xl p-6`}>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold" style={{ color: brand.text }}>Documents</h2>
+          <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>Documents</h2>
           <Link
             href="/crew/onboarding/documents"
             className="text-sm"
-            style={{ color: brand.primary }}
+            style={{ color: crewTheme.color.primary }}
           >
             Manage Documents
           </Link>
         </div>
-        <p className="text-sm" style={{ color: brand.muted }}>
+        <p className="text-sm" style={{ color: crewTheme.color.muted }}>
           View and manage your uploaded documents in the onboarding section.
         </p>
       </div>
@@ -480,8 +480,8 @@ export default function ProfilePage() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-4">
-      <p className="text-xs font-medium uppercase tracking-wider w-28 shrink-0 pt-0.5" style={{ color: brand.muted }}>{label}</p>
-      <p className="text-sm" style={{ color: brand.text }}>{value}</p>
+      <p className="text-xs font-medium uppercase tracking-wider w-28 shrink-0 pt-0.5" style={{ color: crewTheme.color.muted }}>{label}</p>
+      <p className="text-sm" style={{ color: crewTheme.color.text }}>{value}</p>
     </div>
   );
 }
@@ -493,14 +493,14 @@ function EditField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>{label}</label>
+      <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>{label}</label>
       {multiline ? (
         <textarea
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           className="w-full px-3 py-2 rounded-lg border bg-white text-sm resize-none"
-          style={{ borderColor: brand.border, color: brand.text }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
         />
       ) : (
         <input
@@ -508,7 +508,7 @@ function EditField({
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-          style={{ borderColor: brand.border, color: brand.text }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
         />
       )}
     </div>

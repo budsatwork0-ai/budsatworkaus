@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import { ASSIGNMENT_STATUS_COLORS, ASSIGNMENT_STATUS_LABELS } from '@/types/crew';
@@ -85,7 +85,7 @@ export default function SchedulePage() {
   if (empLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -103,24 +103,24 @@ export default function SchedulePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Schedule</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>Your upcoming jobs at a glance.</p>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>Schedule</h1>
+        <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>Your upcoming jobs at a glance.</p>
       </div>
 
       {/* Weekly summary strip */}
       {!loading && (
         <div className="grid grid-cols-3 gap-3">
-          <div className={`${glass} rounded-2xl p-4 text-center`}>
-            <p className="text-2xl font-bold" style={{ color: brand.primary }}>{weekStats.count}</p>
-            <p className="text-xs mt-1" style={{ color: brand.muted }}>Jobs this week</p>
+          <div className={`${crewTheme.glass} rounded-2xl p-4 text-center`}>
+            <p className="text-2xl font-bold" style={{ color: crewTheme.color.primary }}>{weekStats.count}</p>
+            <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>Jobs this week</p>
           </div>
-          <div className={`${glass} rounded-2xl p-4 text-center`}>
+          <div className={`${crewTheme.glass} rounded-2xl p-4 text-center`}>
             <p className="text-2xl font-bold" style={{ color: '#3B82F6' }}>~{weekStats.estHours.toFixed(1)}h</p>
-            <p className="text-xs mt-1" style={{ color: brand.muted }}>Est. hours</p>
+            <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>Est. hours</p>
           </div>
-          <div className={`${glass} rounded-2xl p-4 text-center`}>
+          <div className={`${crewTheme.glass} rounded-2xl p-4 text-center`}>
             <p className="text-2xl font-bold" style={{ color: '#10B981' }}>${weekStats.earnings.toFixed(0)}</p>
-            <p className="text-xs mt-1" style={{ color: brand.muted }}>Earned</p>
+            <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>Earned</p>
           </div>
         </div>
       )}
@@ -130,11 +130,11 @@ export default function SchedulePage() {
         <button
           onClick={() => setWeekOffset((w) => w - 1)}
           className="px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-          style={{ borderColor: brand.border, color: brand.muted }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
         >
           &larr; Previous
         </button>
-        <p className="text-sm font-medium" style={{ color: brand.text }}>
+        <p className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
           {weekDates[0].toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
           {' - '}
           {weekDates[6].toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -142,7 +142,7 @@ export default function SchedulePage() {
         <button
           onClick={() => setWeekOffset((w) => w + 1)}
           className="px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-          style={{ borderColor: brand.border, color: brand.muted }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
         >
           Next &rarr;
         </button>
@@ -159,15 +159,15 @@ export default function SchedulePage() {
           return (
             <div
               key={i}
-              className={`${glass} rounded-xl p-3 min-h-[120px] ${isToday ? 'ring-2 ring-emerald-700' : ''}`}
+              className={`${crewTheme.glass} rounded-xl p-3 min-h-[120px] ${isToday ? 'ring-2 ring-emerald-700' : ''}`}
             >
               <div className="text-center mb-2">
-                <p className="text-[10px] uppercase font-medium" style={{ color: brand.muted }}>
+                <p className="text-[10px] uppercase font-medium" style={{ color: crewTheme.color.muted }}>
                   {DAYS[i]}
                 </p>
                 <p
                   className="text-lg font-bold"
-                  style={{ color: isToday ? brand.primary : brand.text }}
+                  style={{ color: isToday ? crewTheme.color.primary : crewTheme.color.text }}
                 >
                   {date.getDate()}
                 </p>
@@ -180,7 +180,7 @@ export default function SchedulePage() {
                       key={job.id}
                       href={`/crew/jobs/${job.id}`}
                       className="block px-1.5 py-1 rounded text-[10px] font-medium truncate transition-opacity hover:opacity-80"
-                      style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                      style={{ background: 'rgba(15,61,46,0.1)', color: crewTheme.color.primary }}
                     >
                       {serviceLabel}
                     </Link>
@@ -196,7 +196,7 @@ export default function SchedulePage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+            <div key={i} className={`${crewTheme.glass} rounded-2xl p-5 animate-pulse`}>
               <div className="h-4 bg-slate-200 rounded w-1/3 mb-3" />
               <div className="h-3 bg-slate-200 rounded w-1/2" />
             </div>
@@ -204,7 +204,7 @@ export default function SchedulePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: brand.muted }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: crewTheme.color.muted }}>
             This Week
           </h2>
           {weekDates.map((date) => {
@@ -214,7 +214,7 @@ export default function SchedulePage() {
 
             return (
               <div key={dateStr}>
-                <p className="text-xs font-medium mb-2" style={{ color: brand.muted }}>
+                <p className="text-xs font-medium mb-2" style={{ color: crewTheme.color.muted }}>
                   {date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' })}
                 </p>
                 {dayJobs.map((job) => {
@@ -226,24 +226,24 @@ export default function SchedulePage() {
                     <Link
                       key={job.id}
                       href={`/crew/jobs/${job.id}`}
-                      className={`block ${glass} rounded-xl p-4 mb-2 transition-transform hover:scale-[1.005]`}
+                      className={`block ${crewTheme.glass} rounded-xl p-4 mb-2 transition-transform hover:scale-[1.005]`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium" style={{ color: brand.text }}>
+                            <span className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                               {serviceLabel}
                             </span>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColor}`}>
                               {statusLabel}
                             </span>
                           </div>
-                          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                          <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>
                             {job.orders?.customer_name}
                             {job.orders?.scheduled_time && ` at ${job.orders.scheduled_time}`}
                           </p>
                         </div>
-                        <p className="font-bold" style={{ color: brand.primary }}>
+                        <p className="font-bold" style={{ color: crewTheme.color.primary }}>
                           ${job.orders?.final_price.toFixed(2)}
                         </p>
                       </div>

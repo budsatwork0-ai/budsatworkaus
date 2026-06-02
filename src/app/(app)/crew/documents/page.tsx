@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import {
   DOC_TYPE_LABELS,
   REQUIRED_DOCS,
@@ -70,12 +70,12 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
 
   return (
     <div
-      className={`${glass} rounded-2xl p-4 flex items-start gap-4 ${isExpiringSoon ? 'ring-2 ring-amber-300' : ''}`}
+      className={`${crewTheme.glass} rounded-2xl p-4 flex items-start gap-4 ${isExpiringSoon ? 'ring-2 ring-amber-300' : ''}`}
     >
       {/* Status dot / upload icon */}
       <div
         className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-        style={{ background: doc ? sc!.bg : brand.surface }}
+        style={{ background: doc ? sc!.bg : crewTheme.color.surface }}
       >
         {doc ? (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={sc!.color} strokeWidth="2.5">
@@ -88,7 +88,7 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
             )}
           </svg>
         ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={brand.muted} strokeWidth="1.75">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={crewTheme.color.muted} strokeWidth="1.75">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
@@ -97,19 +97,19 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: brand.text }}>{label}</p>
+        <p className="text-sm font-semibold" style={{ color: crewTheme.color.text }}>{label}</p>
 
         {uploading ? (
           <div className="flex items-center gap-2 mt-1">
-            <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
-            <span className="text-xs" style={{ color: brand.muted }}>Uploading…</span>
+            <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
+            <span className="text-xs" style={{ color: crewTheme.color.muted }}>Uploading…</span>
           </div>
         ) : hasStorage || hasLegacy ? (
           <div className="mt-0.5">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: sc!.bg, color: sc!.color }}>{sc!.label}</span>
-              {doc!.file_name && <span className="text-xs truncate" style={{ color: brand.muted }}>{doc!.file_name}</span>}
-              {doc!.file_size && <span className="text-xs" style={{ color: brand.muted }}>· {formatBytes(doc!.file_size)}</span>}
+              {doc!.file_name && <span className="text-xs truncate" style={{ color: crewTheme.color.muted }}>{doc!.file_name}</span>}
+              {doc!.file_size && <span className="text-xs" style={{ color: crewTheme.color.muted }}>· {formatBytes(doc!.file_size)}</span>}
             </div>
             {(isExpiringSoon || isExpired) && (
               <p className="text-xs mt-1 font-medium" style={{ color: isExpired ? '#991B1B' : '#B45309' }}>
@@ -118,7 +118,7 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
             )}
           </div>
         ) : (
-          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Not uploaded</p>
+          <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>Not uploaded</p>
         )}
       </div>
 
@@ -126,7 +126,7 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
         {hasStorage && doc!.signed_url && (
           <a href={doc!.signed_url} target="_blank" rel="noreferrer"
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border"
-            style={{ borderColor: brand.border, color: brand.accent }}>
+            style={{ borderColor: crewTheme.color.border, color: crewTheme.color.accent }}>
             View
           </a>
         )}
@@ -141,7 +141,7 @@ function DocRow({ docType, doc, uploading, onUpload, onDelete }: DocRowProps) {
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className="text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white disabled:opacity-50"
-          style={{ background: brand.primary }}
+          style={{ background: crewTheme.color.primary }}
         >
           {doc ? 'Replace' : 'Upload'}
         </button>
@@ -239,8 +239,8 @@ export default function CrewDocumentsPage() {
   return (
     <div className="space-y-8 max-w-2xl mx-auto pb-12">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: brand.text }}>Documents</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: crewTheme.color.text }}>Documents</h1>
+        <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
           Manage your compliance documents. Files are stored securely — only Buds At Work admin can access them.
         </p>
       </div>
@@ -271,12 +271,12 @@ export default function CrewDocumentsPage() {
       {/* Compliance checks */}
       <div className="space-y-3">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Compliance checks</h2>
-          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Required to work on the roster</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Compliance checks</h2>
+          <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>Required to work on the roster</p>
         </div>
         {loading
           ? Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className={`${glass} rounded-2xl h-16 animate-pulse`} style={{ opacity: 0.5 }} />
+              <div key={i} className={`${crewTheme.glass} rounded-2xl h-16 animate-pulse`} style={{ opacity: 0.5 }} />
             ))
           : requiredTypes.map((dt) => (
               <DocRow
@@ -293,12 +293,12 @@ export default function CrewDocumentsPage() {
       {/* Supporting documents */}
       <div className="space-y-3">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: brand.muted }}>Supporting documents</h2>
-          <p className="text-xs mt-0.5" style={{ color: brand.muted }}>Optional — upload if relevant to your role</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: crewTheme.color.muted }}>Supporting documents</h2>
+          <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>Optional — upload if relevant to your role</p>
         </div>
         {loading
           ? Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className={`${glass} rounded-2xl h-16 animate-pulse`} style={{ opacity: 0.3 }} />
+              <div key={i} className={`${crewTheme.glass} rounded-2xl h-16 animate-pulse`} style={{ opacity: 0.3 }} />
             ))
           : OPTIONAL_DOCS.map((dt) => (
               <DocRow
@@ -313,7 +313,7 @@ export default function CrewDocumentsPage() {
       </div>
 
       <div className="pt-2">
-        <Link href="/crew/onboarding/documents" className="text-sm font-medium underline underline-offset-2" style={{ color: brand.accent }}>
+        <Link href="/crew/onboarding/documents" className="text-sm font-medium underline underline-offset-2" style={{ color: crewTheme.color.accent }}>
           Update employment details →
         </Link>
       </div>

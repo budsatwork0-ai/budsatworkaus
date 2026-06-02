@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 
 type Context = 'home' | 'commercial' | 'ndis';
 type Service = 'cleaning' | 'windows' | 'yard' | 'dump' | 'detailing' | 'laundry';
@@ -486,7 +486,7 @@ function ChevronDown({ open }: { open: boolean }) {
 function Section({ title, items, color }: { title: string; items: string[]; color: string }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="rounded-2xl border" style={{ borderColor: brand.border }}>
+    <div className="rounded-2xl border" style={{ borderColor: crewTheme.color.border }}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -495,9 +495,9 @@ function Section({ title, items, color }: { title: string; items: string[]; colo
         <ChevronDown open={open} />
       </button>
       {open && (
-        <ul className="space-y-2 border-t px-4 pb-4 pt-3" style={{ borderColor: brand.border }}>
+        <ul className="space-y-2 border-t px-4 pb-4 pt-3" style={{ borderColor: crewTheme.color.border }}>
           {items.map((item, i) => (
-            <li key={i} className="flex gap-3 text-sm" style={{ color: brand.text }}>
+            <li key={i} className="flex gap-3 text-sm" style={{ color: crewTheme.color.text }}>
               <span className="mt-0.5 shrink-0 text-xs font-bold" style={{ color }}>{i + 1}.</span>
               <span className="leading-6">{item}</span>
             </li>
@@ -542,15 +542,15 @@ export default function HandbookPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-16">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: brand.text }}>Service Handbook</h1>
-        <p className="mt-1 text-sm" style={{ color: brand.muted }}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: crewTheme.color.text }}>Service Handbook</h1>
+        <p className="mt-1 text-sm" style={{ color: crewTheme.color.muted }}>
           Standard operating procedures for all Buds At Work services. Read the relevant section before each job.
         </p>
       </div>
 
       {/* Context selector */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: brand.muted }}>Service context</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: crewTheme.color.muted }}>Service context</p>
         <div className="flex gap-2 flex-wrap">
           {CONTEXTS.map((ctx) => (
             <button
@@ -559,8 +559,8 @@ export default function HandbookPage() {
               className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors"
               style={
                 activeContext === ctx.id
-                  ? { background: brand.primary, borderColor: brand.primary, color: 'white' }
-                  : { background: 'white', borderColor: brand.border, color: brand.muted }
+                  ? { background: crewTheme.color.primary, borderColor: crewTheme.color.primary, color: 'white' }
+                  : { background: 'white', borderColor: crewTheme.color.border, color: crewTheme.color.muted }
               }
             >
               <span>{ctx.icon}</span>
@@ -572,7 +572,7 @@ export default function HandbookPage() {
 
       {/* Service selector */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: brand.muted }}>Service type</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-widest" style={{ color: crewTheme.color.muted }}>Service type</p>
         <div className="flex gap-2 flex-wrap">
           {SERVICES.map((svc) => (
             <button
@@ -582,7 +582,7 @@ export default function HandbookPage() {
               style={
                 activeService === svc.id
                   ? { background: '#EFF6FF', borderColor: '#93C5FD', color: '#1D4ED8' }
-                  : { background: 'white', borderColor: brand.border, color: brand.muted }
+                  : { background: 'white', borderColor: crewTheme.color.border, color: crewTheme.color.muted }
               }
             >
               <span>{svc.icon}</span>
@@ -593,33 +593,33 @@ export default function HandbookPage() {
       </div>
 
       {/* SOP content */}
-      <div className={`${glass} rounded-3xl p-1`}>
+      <div className={`${crewTheme.glass} rounded-3xl p-1`}>
         <div className="rounded-2xl px-5 py-4" style={{ background: '#F8FBF9' }}>
           <div className="flex items-center gap-3">
             <span className="text-2xl">{SERVICES.find((s) => s.id === activeService)?.icon}</span>
             <div>
-              <h2 className="text-base font-bold" style={{ color: brand.text }}>{entry.title}</h2>
-              <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+              <h2 className="text-base font-bold" style={{ color: crewTheme.color.text }}>{entry.title}</h2>
+              <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>
                 {CONTEXTS.find((c) => c.id === activeContext)?.label} context
               </p>
             </div>
           </div>
           {entry.contextNotes && (
-            <div className="mt-3 rounded-xl border-l-4 pl-3 py-1" style={{ borderColor: brand.primary }}>
-              <p className="text-xs leading-5" style={{ color: brand.muted }}>{entry.contextNotes}</p>
+            <div className="mt-3 rounded-xl border-l-4 pl-3 py-1" style={{ borderColor: crewTheme.color.primary }}>
+              <p className="text-xs leading-5" style={{ color: crewTheme.color.muted }}>{entry.contextNotes}</p>
             </div>
           )}
         </div>
 
         <div className="space-y-3 p-4">
-          <Section title="Step-by-step procedure" items={entry.steps} color={brand.primary} />
+          <Section title="Step-by-step procedure" items={entry.steps} color={crewTheme.color.primary} />
           <Section title="Quality standards" items={entry.standards} color="#0F766E" />
           <SafetySection items={entry.safety} />
         </div>
       </div>
 
-      <div className="rounded-2xl border px-5 py-4 text-sm" style={{ borderColor: brand.border, color: brand.muted }}>
-        Questions about a job? Contact Jackson at <a href="mailto:admin@budsatwork.com" className="font-medium underline" style={{ color: brand.primary }}>admin@budsatwork.com</a> before starting work, not after.
+      <div className="rounded-2xl border px-5 py-4 text-sm" style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}>
+        Questions about a job? Contact Jackson at <a href="mailto:admin@budsatwork.com" className="font-medium underline" style={{ color: crewTheme.color.primary }}>admin@budsatwork.com</a> before starting work, not after.
       </div>
     </div>
   );

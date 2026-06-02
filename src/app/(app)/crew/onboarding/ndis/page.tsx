@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 
 const DISABILITY_TYPES = [
   'Intellectual disability',
@@ -98,7 +98,7 @@ export default function NDISOnboardingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -112,13 +112,13 @@ export default function NDISOnboardingPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <Link href="/crew/onboarding" className="text-sm" style={{ color: brand.muted }}>
+      <Link href="/crew/onboarding" className="text-sm" style={{ color: crewTheme.color.muted }}>
         &larr; Back to Onboarding
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>NDIS Worker Questionnaire</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>NDIS Worker Questionnaire</h1>
+        <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
           As an NDIS support worker, we need additional information to ensure compliance.
         </p>
       </div>
@@ -132,14 +132,14 @@ export default function NDISOnboardingPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
             style={{
               background: step === i ? 'rgba(15,61,46,0.08)' : 'transparent',
-              color: step === i ? brand.primary : brand.muted,
+              color: step === i ? crewTheme.color.primary : crewTheme.color.muted,
             }}
           >
             <span
               className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
               style={{
-                background: step === i ? brand.primary : brand.border,
-                color: step === i ? 'white' : brand.muted,
+                background: step === i ? crewTheme.color.primary : crewTheme.color.border,
+                color: step === i ? 'white' : crewTheme.color.muted,
               }}
             >
               {i + 1}
@@ -149,13 +149,13 @@ export default function NDISOnboardingPage() {
         ))}
       </div>
 
-      <div className={`${glass} rounded-2xl p-6 space-y-5`}>
+      <div className={`${crewTheme.glass} rounded-2xl p-6 space-y-5`}>
         {/* Step 1: Worker Screening */}
         {step === 0 && (
           <>
-            <h2 className="font-semibold" style={{ color: brand.text }}>NDIS Worker Screening</h2>
+            <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>NDIS Worker Screening</h2>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 NDIS Worker Screening Check Number <span className="text-red-500">*</span>
               </label>
               <input
@@ -164,11 +164,11 @@ export default function NDISOnboardingPage() {
                 onChange={(e) => updateField('screening_number', e.target.value)}
                 placeholder="e.g. WSC-123456"
                 className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 Screening Expiry Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -176,18 +176,18 @@ export default function NDISOnboardingPage() {
                 value={(responses.screening_expiry as string) || ''}
                 onChange={(e) => updateField('screening_expiry', e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 Screening State / Territory
               </label>
               <select
                 value={(responses.screening_state as string) || ''}
                 onChange={(e) => updateField('screening_state', e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
               >
                 <option value="">Select state</option>
                 <option value="NSW">NSW</option>
@@ -206,28 +206,28 @@ export default function NDISOnboardingPage() {
         {/* Step 2: Training & Modules */}
         {step === 1 && (
           <>
-            <h2 className="font-semibold" style={{ color: brand.text }}>Training & Modules</h2>
-            <p className="text-sm" style={{ color: brand.muted }}>
+            <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>Training & Modules</h2>
+            <p className="text-sm" style={{ color: crewTheme.color.muted }}>
               Select the NDIS training modules you have completed.
             </p>
             <div className="space-y-2">
               {NDIS_MODULES.map((mod) => {
                 const completed = ((responses.completed_modules as string[]) || []).includes(mod);
                 return (
-                  <label key={mod} className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-slate-50" style={{ borderColor: brand.border }}>
+                  <label key={mod} className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-slate-50" style={{ borderColor: crewTheme.color.border }}>
                     <input
                       type="checkbox"
                       checked={completed}
                       onChange={() => toggleArrayItem('completed_modules', mod)}
                       className="w-5 h-5 rounded accent-emerald-600"
                     />
-                    <span className="text-sm" style={{ color: brand.text }}>{mod}</span>
+                    <span className="text-sm" style={{ color: crewTheme.color.text }}>{mod}</span>
                   </label>
                 );
               })}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 Additional certifications or training
               </label>
               <textarea
@@ -236,7 +236,7 @@ export default function NDISOnboardingPage() {
                 rows={3}
                 placeholder="List any other relevant certifications..."
                 className="w-full px-3 py-2 rounded-lg border bg-white text-sm resize-none"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
               />
             </div>
           </>
@@ -245,8 +245,8 @@ export default function NDISOnboardingPage() {
         {/* Step 3: Experience & Knowledge */}
         {step === 2 && (
           <>
-            <h2 className="font-semibold" style={{ color: brand.text }}>Experience & Knowledge</h2>
-            <p className="text-sm" style={{ color: brand.muted }}>
+            <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>Experience & Knowledge</h2>
+            <p className="text-sm" style={{ color: crewTheme.color.muted }}>
               Select the disability types you have experience supporting.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -258,9 +258,9 @@ export default function NDISOnboardingPage() {
                     onClick={() => toggleArrayItem('disability_experience', dt)}
                     className="px-4 py-3 rounded-lg text-sm border transition-colors text-left"
                     style={{
-                      borderColor: selected ? brand.primary : brand.border,
+                      borderColor: selected ? crewTheme.color.primary : crewTheme.color.border,
                       background: selected ? 'rgba(15,61,46,0.08)' : 'transparent',
-                      color: selected ? brand.primary : brand.text,
+                      color: selected ? crewTheme.color.primary : crewTheme.color.text,
                       fontWeight: selected ? 600 : 400,
                     }}
                   >
@@ -271,10 +271,10 @@ export default function NDISOnboardingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 Plan management knowledge
               </label>
-              <p className="text-xs mb-2" style={{ color: brand.muted }}>
+              <p className="text-xs mb-2" style={{ color: crewTheme.color.muted }}>
                 Which plan management types are you familiar with?
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -286,9 +286,9 @@ export default function NDISOnboardingPage() {
                       onClick={() => toggleArrayItem('plan_management_knowledge', pm.value)}
                       className="px-3 py-2 rounded-lg text-sm border transition-colors"
                       style={{
-                        borderColor: selected ? brand.primary : brand.border,
+                        borderColor: selected ? crewTheme.color.primary : crewTheme.color.border,
                         background: selected ? 'rgba(15,61,46,0.08)' : 'transparent',
-                        color: selected ? brand.primary : brand.text,
+                        color: selected ? crewTheme.color.primary : crewTheme.color.text,
                         fontWeight: selected ? 600 : 400,
                       }}
                     >
@@ -300,7 +300,7 @@ export default function NDISOnboardingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: crewTheme.color.text }}>
                 Years of NDIS experience
               </label>
               <input
@@ -309,7 +309,7 @@ export default function NDISOnboardingPage() {
                 onChange={(e) => updateField('ndis_years_experience', e.target.value)}
                 min="0"
                 className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-                style={{ borderColor: brand.border, color: brand.text }}
+                style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
               />
             </div>
           </>
@@ -318,12 +318,12 @@ export default function NDISOnboardingPage() {
         {/* Step 4: Compliance */}
         {step === 3 && (
           <>
-            <h2 className="font-semibold" style={{ color: brand.text }}>Compliance Declarations</h2>
-            <p className="text-sm" style={{ color: brand.muted }}>
+            <h2 className="font-semibold" style={{ color: crewTheme.color.text }}>Compliance Declarations</h2>
+            <p className="text-sm" style={{ color: crewTheme.color.muted }}>
               Please read and acknowledge the following compliance requirements.
             </p>
 
-            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: brand.border }}>
+            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: crewTheme.color.border }}>
               <input
                 type="checkbox"
                 checked={Boolean(responses.code_of_conduct)}
@@ -331,16 +331,16 @@ export default function NDISOnboardingPage() {
                 className="mt-0.5 w-5 h-5 rounded accent-emerald-600"
               />
               <div>
-                <p className="text-sm font-medium" style={{ color: brand.text }}>
+                <p className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                   NDIS Code of Conduct <span className="text-red-500">*</span>
                 </p>
-                <p className="text-xs mt-1" style={{ color: brand.muted }}>
+                <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>
                   I have read, understood, and agree to comply with the NDIS Code of Conduct, including acting with respect, honesty, and integrity when providing supports.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: brand.border }}>
+            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: crewTheme.color.border }}>
               <input
                 type="checkbox"
                 checked={Boolean(responses.practice_standards)}
@@ -348,16 +348,16 @@ export default function NDISOnboardingPage() {
                 className="mt-0.5 w-5 h-5 rounded accent-emerald-600"
               />
               <div>
-                <p className="text-sm font-medium" style={{ color: brand.text }}>
+                <p className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                   NDIS Practice Standards <span className="text-red-500">*</span>
                 </p>
-                <p className="text-xs mt-1" style={{ color: brand.muted }}>
+                <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>
                   I understand the NDIS Practice Standards and will deliver supports in line with these standards.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: brand.border }}>
+            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: crewTheme.color.border }}>
               <input
                 type="checkbox"
                 checked={Boolean(responses.incident_reporting)}
@@ -365,16 +365,16 @@ export default function NDISOnboardingPage() {
                 className="mt-0.5 w-5 h-5 rounded accent-emerald-600"
               />
               <div>
-                <p className="text-sm font-medium" style={{ color: brand.text }}>
+                <p className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                   Incident Reporting <span className="text-red-500">*</span>
                 </p>
-                <p className="text-xs mt-1" style={{ color: brand.muted }}>
+                <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>
                   I understand my obligation to report incidents, including allegations of abuse, neglect, or exploitation, through the appropriate channels.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: brand.border }}>
+            <label className="flex items-start gap-3 p-4 rounded-lg border" style={{ borderColor: crewTheme.color.border }}>
               <input
                 type="checkbox"
                 checked={Boolean(responses.privacy_confidentiality)}
@@ -382,10 +382,10 @@ export default function NDISOnboardingPage() {
                 className="mt-0.5 w-5 h-5 rounded accent-emerald-600"
               />
               <div>
-                <p className="text-sm font-medium" style={{ color: brand.text }}>
+                <p className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                   Privacy & Confidentiality <span className="text-red-500">*</span>
                 </p>
-                <p className="text-xs mt-1" style={{ color: brand.muted }}>
+                <p className="text-xs mt-1" style={{ color: crewTheme.color.muted }}>
                   I will maintain the privacy and confidentiality of participant information at all times.
                 </p>
               </div>
@@ -400,7 +400,7 @@ export default function NDISOnboardingPage() {
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
           className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50 disabled:opacity-40"
-          style={{ borderColor: brand.border, color: brand.muted }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
         >
           Previous
         </button>
@@ -409,7 +409,7 @@ export default function NDISOnboardingPage() {
           <button
             onClick={() => setStep((s) => s + 1)}
             className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90"
-            style={{ background: brand.primary }}
+            style={{ background: crewTheme.color.primary }}
           >
             Next
           </button>
@@ -419,7 +419,7 @@ export default function NDISOnboardingPage() {
               onClick={() => handleSave(false)}
               disabled={saving}
               className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-slate-50"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
             >
               Save Draft
             </button>
@@ -427,7 +427,7 @@ export default function NDISOnboardingPage() {
               onClick={() => handleSave(true)}
               disabled={saving || !responses.code_of_conduct || !responses.practice_standards || !responses.incident_reporting || !responses.privacy_confidentiality}
               className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-50"
-              style={{ background: brand.primary }}
+              style={{ background: crewTheme.color.primary }}
             >
               {saving ? 'Saving...' : 'Complete NDIS Section'}
             </button>

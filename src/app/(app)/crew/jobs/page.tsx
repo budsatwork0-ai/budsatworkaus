@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { ServiceType } from '@/types/orders';
@@ -80,7 +80,7 @@ function SupportWindowCheck({ reqs }: { reqs: NdisRequirements }) {
   const hasTime = reqs.start_time && reqs.end_time;
   if (!hasTime) return null;
   return (
-    <span className="text-[11px]" style={{ color: brand.muted }}>
+    <span className="text-[11px]" style={{ color: crewTheme.color.muted }}>
       {reqs.start_time}–{reqs.end_time}
     </span>
   );
@@ -143,7 +143,7 @@ export default function AvailableJobsPage() {
   if (empLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -152,8 +152,8 @@ export default function AvailableJobsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Available Jobs</h1>
-          <p className="text-sm mt-1" style={{ color: brand.muted }}>Browse and accept jobs assigned to you.</p>
+          <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>Available Jobs</h1>
+          <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>Browse and accept jobs assigned to you.</p>
         </div>
       </div>
 
@@ -165,7 +165,7 @@ export default function AvailableJobsPage() {
             onClick={() => setFilter(opt.value)}
             className="px-3 py-1.5 rounded-lg text-sm transition-colors"
             style={{
-              color: filter === opt.value ? brand.primary : brand.muted,
+              color: filter === opt.value ? crewTheme.color.primary : crewTheme.color.muted,
               background: filter === opt.value ? 'rgba(15,61,46,0.08)' : 'transparent',
               fontWeight: filter === opt.value ? 600 : 400,
             }}
@@ -179,28 +179,28 @@ export default function AvailableJobsPage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+            <div key={i} className={`${crewTheme.glass} rounded-2xl p-5 animate-pulse`}>
               <div className="h-4 bg-slate-200 rounded w-1/3 mb-3" />
               <div className="h-3 bg-slate-200 rounded w-1/2" />
             </div>
           ))}
         </div>
       ) : error ? (
-        <div className={`${glass} rounded-2xl p-10 text-center`}>
-          <p className="font-medium mb-1" style={{ color: brand.text }}>Failed to load jobs</p>
-          <p className="text-sm mb-4" style={{ color: brand.muted }}>{error}</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-10 text-center`}>
+          <p className="font-medium mb-1" style={{ color: crewTheme.color.text }}>Failed to load jobs</p>
+          <p className="text-sm mb-4" style={{ color: crewTheme.color.muted }}>{error}</p>
           <button
             onClick={fetchJobs}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: brand.primary }}
+            style={{ background: crewTheme.color.primary }}
           >
             Try again
           </button>
         </div>
       ) : assignments.length === 0 ? (
-        <div className={`${glass} rounded-2xl p-10 text-center`}>
-          <p className="font-medium" style={{ color: brand.text }}>No available jobs right now</p>
-          <p className="text-sm mt-1" style={{ color: brand.muted }}>Check back later for new assignments.</p>
+        <div className={`${crewTheme.glass} rounded-2xl p-10 text-center`}>
+          <p className="font-medium" style={{ color: crewTheme.color.text }}>No available jobs right now</p>
+          <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>Check back later for new assignments.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -215,18 +215,18 @@ export default function AvailableJobsPage() {
             const warnings = match?.flags?.filter((f) => f.severity === 'warning') ?? [];
 
             return (
-              <div key={assignment.id} className={`${glass} rounded-2xl p-5`}>
+              <div key={assignment.id} className={`${crewTheme.glass} rounded-2xl p-5`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     {/* Service + NDIS badge */}
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span
                         className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                        style={{ background: 'rgba(15,61,46,0.1)', color: crewTheme.color.primary }}
                       >
                         {serviceLabel}
                       </span>
-                      <span className="text-xs" style={{ color: brand.muted }}>
+                      <span className="text-xs" style={{ color: crewTheme.color.muted }}>
                         {order.context === 'commercial' ? 'Commercial' : 'Home'}
                       </span>
                       {isNdis && (
@@ -238,14 +238,14 @@ export default function AvailableJobsPage() {
 
                     {/* Location (suburb only — no full address for privacy) */}
                     {reqs?.location_suburb ? (
-                      <p className="font-medium" style={{ color: brand.text }}>{reqs.location_suburb}</p>
+                      <p className="font-medium" style={{ color: crewTheme.color.text }}>{reqs.location_suburb}</p>
                     ) : (
-                      <p className="font-medium" style={{ color: brand.text }}>{order.customer_name}</p>
+                      <p className="font-medium" style={{ color: crewTheme.color.text }}>{order.customer_name}</p>
                     )}
 
                     {/* Date/time */}
                     {order.scheduled_date && (
-                      <p className="text-sm mt-1" style={{ color: brand.muted }}>
+                      <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
                         {new Date(order.scheduled_date).toLocaleDateString('en-AU', {
                           weekday: 'short', day: 'numeric', month: 'short',
                         })}
@@ -257,17 +257,17 @@ export default function AvailableJobsPage() {
                     {reqs && (
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         {reqs.location_suburb && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: crewTheme.color.surfaceAlt, color: crewTheme.color.muted }}>
                             📍 {reqs.location_suburb}
                           </span>
                         )}
                         {reqs.required_support_mode && reqs.required_support_mode !== 'any' && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: crewTheme.color.surfaceAlt, color: crewTheme.color.muted }}>
                             Support: {reqs.required_support_mode}
                           </span>
                         )}
                         {reqs.transport_required && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: brand.surfaceAlt, color: brand.muted }}>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: crewTheme.color.surfaceAlt, color: crewTheme.color.muted }}>
                             🚗 Transport needed
                           </span>
                         )}
@@ -293,7 +293,7 @@ export default function AvailableJobsPage() {
                     )}
 
                     {order.notes && (
-                      <p className="text-sm mt-2 line-clamp-2" style={{ color: brand.muted }}>
+                      <p className="text-sm mt-2 line-clamp-2" style={{ color: crewTheme.color.muted }}>
                         {order.notes}
                       </p>
                     )}
@@ -301,7 +301,7 @@ export default function AvailableJobsPage() {
 
                   {/* Right side: price + actions */}
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    <p className="text-lg font-bold" style={{ color: brand.primary }}>
+                    <p className="text-lg font-bold" style={{ color: crewTheme.color.primary }}>
                       ${order.final_price.toFixed(2)}
                     </p>
                     <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6' }}>
@@ -317,7 +317,7 @@ export default function AvailableJobsPage() {
                           <button
                             onClick={() => setConfirmDecline(null)}
                             className="px-3 py-1.5 rounded-lg text-sm border transition-colors"
-                            style={{ borderColor: brand.border, color: brand.muted }}
+                            style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
                           >
                             Cancel
                           </button>
@@ -339,7 +339,7 @@ export default function AvailableJobsPage() {
                           onClick={() => setConfirmDecline(assignment.id)}
                           disabled={actionLoading === assignment.id}
                           className="px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-red-50 disabled:opacity-50"
-                          style={{ borderColor: brand.border, color: '#DC2626' }}
+                          style={{ borderColor: crewTheme.color.border, color: '#DC2626' }}
                         >
                           Decline
                         </button>
@@ -347,7 +347,7 @@ export default function AvailableJobsPage() {
                           onClick={() => handleAction(assignment.id, 'accepted')}
                           disabled={actionLoading === assignment.id}
                           className="px-3 py-1.5 rounded-lg text-sm text-white transition-colors hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
-                          style={{ background: brand.primary }}
+                          style={{ background: crewTheme.color.primary }}
                         >
                           {actionLoading === assignment.id ? (
                             <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -361,7 +361,7 @@ export default function AvailableJobsPage() {
                     <Link
                       href={`/crew/jobs/${assignment.id}`}
                       className="text-xs underline"
-                      style={{ color: brand.muted }}
+                      style={{ color: crewTheme.color.muted }}
                     >
                       View details
                     </Link>

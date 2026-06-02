@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import { ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_COLORS } from '@/types/crew';
@@ -59,7 +59,7 @@ export default function MyJobsPage() {
   if (empLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -75,8 +75,8 @@ export default function MyJobsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>My Jobs</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>Track your accepted and completed jobs.</p>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>My Jobs</h1>
+        <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>Track your accepted and completed jobs.</p>
       </div>
 
       {error && (
@@ -92,7 +92,7 @@ export default function MyJobsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b" style={{ borderColor: brand.border }}>
+      <div className="flex items-center gap-1 border-b" style={{ borderColor: crewTheme.color.border }}>
         {[
           { key: 'active' as Tab, label: `Active (${activeJobs.length})` },
           { key: 'completed' as Tab, label: `Completed (${completedJobs.length})` },
@@ -102,8 +102,8 @@ export default function MyJobsPage() {
             onClick={() => setTab(t.key)}
             className="px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
             style={{
-              borderBottomColor: tab === t.key ? brand.primary : 'transparent',
-              color: tab === t.key ? brand.primary : brand.muted,
+              borderBottomColor: tab === t.key ? crewTheme.color.primary : 'transparent',
+              color: tab === t.key ? crewTheme.color.primary : crewTheme.color.muted,
             }}
           >
             {t.label}
@@ -114,25 +114,25 @@ export default function MyJobsPage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className={`${glass} rounded-2xl p-5 animate-pulse`}>
+            <div key={i} className={`${crewTheme.glass} rounded-2xl p-5 animate-pulse`}>
               <div className="h-4 bg-slate-200 rounded w-1/3 mb-3" />
               <div className="h-3 bg-slate-200 rounded w-1/2" />
             </div>
           ))}
         </div>
       ) : displayJobs.length === 0 ? (
-        <div className={`${glass} rounded-2xl p-10 text-center`}>
-          <p className="font-medium" style={{ color: brand.text }}>
+        <div className={`${crewTheme.glass} rounded-2xl p-10 text-center`}>
+          <p className="font-medium" style={{ color: crewTheme.color.text }}>
             {tab === 'active' ? 'No active jobs' : 'No completed jobs yet'}
           </p>
-          <p className="text-sm mt-1" style={{ color: brand.muted }}>
+          <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
             {tab === 'active' ? 'Accept jobs from the Available Jobs page to get started.' : 'Complete your first job to see it here.'}
           </p>
           {tab === 'active' && (
             <Link
               href="/crew/jobs"
               className="inline-block mt-4 px-4 py-2 rounded-lg text-sm text-white"
-              style={{ background: brand.primary }}
+              style={{ background: crewTheme.color.primary }}
             >
               Browse Available Jobs
             </Link>
@@ -142,7 +142,7 @@ export default function MyJobsPage() {
         <div className="space-y-6">
           {tab === 'active' && todayJobs.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: brand.muted }}>
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: crewTheme.color.muted }}>
                 Today
               </h2>
               <div className="space-y-3">
@@ -155,7 +155,7 @@ export default function MyJobsPage() {
 
           {tab === 'active' && upcomingJobs.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: brand.muted }}>
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: crewTheme.color.muted }}>
                 Upcoming
               </h2>
               <div className="space-y-3">
@@ -189,14 +189,14 @@ function JobCard({ assignment }: { assignment: JobAssignment }) {
   return (
     <Link
       href={`/crew/jobs/${assignment.id}`}
-      className={`block ${glass} rounded-2xl p-5 transition-transform hover:scale-[1.005]`}
+      className={`block ${crewTheme.glass} rounded-2xl p-5 transition-transform hover:scale-[1.005]`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span
               className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-              style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+              style={{ background: 'rgba(15,61,46,0.1)', color: crewTheme.color.primary }}
             >
               {serviceLabel}
             </span>
@@ -204,11 +204,11 @@ function JobCard({ assignment }: { assignment: JobAssignment }) {
               {statusLabel}
             </span>
           </div>
-          <p className="font-medium" style={{ color: brand.text }}>
+          <p className="font-medium" style={{ color: crewTheme.color.text }}>
             {order.customer_name}
           </p>
           {order.scheduled_date && (
-            <p className="text-sm mt-1" style={{ color: brand.muted }}>
+            <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
               {new Date(order.scheduled_date).toLocaleDateString('en-AU', {
                 weekday: 'short',
                 day: 'numeric',
@@ -219,7 +219,7 @@ function JobCard({ assignment }: { assignment: JobAssignment }) {
           )}
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-bold" style={{ color: brand.primary }}>
+          <p className="text-lg font-bold" style={{ color: crewTheme.color.primary }}>
             ${order.final_price.toFixed(2)}
           </p>
         </div>

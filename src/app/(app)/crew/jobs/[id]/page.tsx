@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import { SERVICE_TYPE_LABELS, ORDER_STATUS_LABELS } from '@/types/orders';
 import { ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_COLORS } from '@/types/crew';
@@ -152,7 +152,7 @@ export default function JobDetailPage() {
   if (empLoading || loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -160,8 +160,8 @@ export default function JobDetailPage() {
   if (!assignment || !assignment.orders) {
     return (
       <div className="text-center py-20">
-        <p className="font-medium" style={{ color: brand.text }}>Job not found</p>
-        <Link href="/crew/jobs" className="text-sm underline mt-2 inline-block" style={{ color: brand.primary }}>
+        <p className="font-medium" style={{ color: crewTheme.color.text }}>Job not found</p>
+        <Link href="/crew/jobs" className="text-sm underline mt-2 inline-block" style={{ color: crewTheme.color.primary }}>
           Back to Available Jobs
         </Link>
       </div>
@@ -189,18 +189,18 @@ export default function JobDetailPage() {
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <Link href={isAvailable ? '/crew/jobs' : '/crew/my-jobs'} className="text-sm" style={{ color: brand.muted }}>
+      <Link href={isAvailable ? '/crew/jobs' : '/crew/my-jobs'} className="text-sm" style={{ color: crewTheme.color.muted }}>
         &larr; Back to {isAvailable ? 'Available Jobs' : 'My Jobs'}
       </Link>
 
       {/* Header */}
-      <div className={`${glass} rounded-2xl p-6`}>
+      <div className={`${crewTheme.glass} rounded-2xl p-6`}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span
                 className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ background: 'rgba(15,61,46,0.1)', color: brand.primary }}
+                style={{ background: 'rgba(15,61,46,0.1)', color: crewTheme.color.primary }}
               >
                 {serviceLabel}
               </span>
@@ -208,20 +208,20 @@ export default function JobDetailPage() {
                 {statusLabel}
               </span>
             </div>
-            <h1 className="text-xl font-bold" style={{ color: brand.text }}>
+            <h1 className="text-xl font-bold" style={{ color: crewTheme.color.text }}>
               {order.customer_name}
             </h1>
-            <p className="text-sm mt-1" style={{ color: brand.muted }}>
+            <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
               Order status: {orderStatusLabel}
             </p>
           </div>
-          <p className="text-2xl font-bold shrink-0" style={{ color: brand.primary }}>
+          <p className="text-2xl font-bold shrink-0" style={{ color: crewTheme.color.primary }}>
             ${order.final_price.toFixed(2)}
           </p>
         </div>
 
         {/* Job details */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-5 border-t" style={{ borderColor: brand.border }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-5 border-t" style={{ borderColor: crewTheme.color.border }}>
           <Detail label="Service" value={`${serviceLabel} (${order.context === 'commercial' ? 'Commercial' : 'Home'})`} />
           {order.scope && <Detail label="Scope" value={order.scope} />}
           <Detail label="Scheduled" value={
@@ -234,14 +234,14 @@ export default function JobDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3 mt-5 pt-5 border-t" style={{ borderColor: brand.border }}>
+        <div className="flex gap-3 mt-5 pt-5 border-t" style={{ borderColor: crewTheme.color.border }}>
           {isAvailable && (
             <>
               <button
                 onClick={() => handleStatusChange('declined')}
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-lg text-sm border transition-colors hover:bg-red-50"
-                style={{ borderColor: brand.border, color: '#DC2626' }}
+                style={{ borderColor: crewTheme.color.border, color: '#DC2626' }}
               >
                 Decline
               </button>
@@ -249,7 +249,7 @@ export default function JobDetailPage() {
                 onClick={() => handleStatusChange('accepted')}
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-lg text-sm text-white transition-colors hover:opacity-90"
-                style={{ background: brand.primary }}
+                style={{ background: crewTheme.color.primary }}
               >
                 Accept Job
               </button>
@@ -275,15 +275,15 @@ export default function JobDetailPage() {
 
       {/* Completion form - shown when in progress */}
       {isInProgress && (
-        <div className={`${glass} rounded-2xl p-6`}>
-          <h2 className="text-lg font-bold mb-4" style={{ color: brand.text }}>
+        <div className={`${crewTheme.glass} rounded-2xl p-6`}>
+          <h2 className="text-lg font-bold mb-4" style={{ color: crewTheme.color.text }}>
             Complete This Job
           </h2>
 
           {/* Checklist */}
           {checklistResponses.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: brand.muted }}>
+              <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: crewTheme.color.muted }}>
                 {checklist?.name || 'Checklist'}
               </h3>
               <div className="space-y-3">
@@ -299,7 +299,7 @@ export default function JobDetailPage() {
                         className="mt-0.5 w-5 h-5 rounded border-slate-300 accent-emerald-600"
                       />
                       <div className="flex-1">
-                        <label className="text-sm font-medium cursor-pointer" style={{ color: brand.text }}>
+                        <label className="text-sm font-medium cursor-pointer" style={{ color: crewTheme.color.text }}>
                           {item.label}
                           {isRequired && <span className="text-red-500 ml-1">*</span>}
                         </label>
@@ -310,7 +310,7 @@ export default function JobDetailPage() {
                             value={item.note || ''}
                             onChange={(e) => updateChecklistNote(idx, e.target.value)}
                             className="mt-1 w-full text-sm px-3 py-1.5 rounded-lg border bg-white"
-                            style={{ borderColor: brand.border, color: brand.text }}
+                            style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
                           />
                         )}
                       </div>
@@ -323,7 +323,7 @@ export default function JobDetailPage() {
 
           {/* Notes */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold uppercase tracking-wider mb-2" style={{ color: brand.muted }}>
+            <label className="block text-sm font-semibold uppercase tracking-wider mb-2" style={{ color: crewTheme.color.muted }}>
               Completion Notes
             </label>
             <textarea
@@ -332,16 +332,16 @@ export default function JobDetailPage() {
               placeholder="Any notes about the job, issues encountered, etc."
               rows={3}
               className="w-full px-3 py-2 rounded-lg border bg-white text-sm resize-none"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             />
           </div>
 
           {/* Photo URLs (simplified - in production this would be file upload) */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold uppercase tracking-wider mb-2" style={{ color: brand.muted }}>
+            <label className="block text-sm font-semibold uppercase tracking-wider mb-2" style={{ color: crewTheme.color.muted }}>
               Photos
             </label>
-            <p className="text-xs mb-2" style={{ color: brand.muted }}>
+            <p className="text-xs mb-2" style={{ color: crewTheme.color.muted }}>
               Add photo URLs to document the completed work.
             </p>
             {photoUrls.map((url, idx) => (
@@ -355,7 +355,7 @@ export default function JobDetailPage() {
                     setPhotoUrls(updated);
                   }}
                   className="flex-1 px-3 py-1.5 rounded-lg border bg-white text-sm"
-                  style={{ borderColor: brand.border }}
+                  style={{ borderColor: crewTheme.color.border }}
                 />
                 <button
                   onClick={() => setPhotoUrls((prev) => prev.filter((_, i) => i !== idx))}
@@ -368,7 +368,7 @@ export default function JobDetailPage() {
             <button
               onClick={() => setPhotoUrls((prev) => [...prev, ''])}
               className="text-sm font-medium"
-              style={{ color: brand.primary }}
+              style={{ color: crewTheme.color.primary }}
             >
               + Add photo
             </button>
@@ -379,7 +379,7 @@ export default function JobDetailPage() {
             onClick={handleComplete}
             disabled={submitting || !allRequiredChecked}
             className="w-full py-3 rounded-xl text-white font-medium transition-opacity disabled:opacity-50"
-            style={{ background: brand.primary }}
+            style={{ background: crewTheme.color.primary }}
           >
             {submitting ? 'Submitting...' : 'Submit Completion'}
           </button>
@@ -397,8 +397,8 @@ export default function JobDetailPage() {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider" style={{ color: brand.muted }}>{label}</p>
-      <p className="text-sm mt-0.5" style={{ color: brand.text }}>{value}</p>
+      <p className="text-xs font-medium uppercase tracking-wider" style={{ color: crewTheme.color.muted }}>{label}</p>
+      <p className="text-sm mt-0.5" style={{ color: crewTheme.color.text }}>{value}</p>
     </div>
   );
 }

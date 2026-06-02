@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { useEmployee } from '@/app/hooks/useEmployee';
 import {
   SUPPORT_MODE_LABELS,
@@ -96,7 +96,7 @@ export default function SupportProfilePage() {
   if (empLoading || loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brand.primary, borderTopColor: 'transparent' }} />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -104,39 +104,39 @@ export default function SupportProfilePage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>Support Profile</h1>
-        <p className="text-sm mt-1" style={{ color: brand.muted }}>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>Support Profile</h1>
+        <p className="text-sm mt-1" style={{ color: crewTheme.color.muted }}>
           Help us match you with jobs that suit your support needs and availability.
           {!hasProfile && ' Your profile has not been set up yet.'}
         </p>
       </div>
 
       {/* Availability window */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: brand.text }}>Availability & Hours</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-5`}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: crewTheme.color.text }}>Availability & Hours</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Support funded from</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Support funded from</label>
             <input
               type="time"
               value={profile.support_window_start ?? ''}
               onChange={(e) => setProfile((p) => ({ ...p, support_window_start: e.target.value || null }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Support funded until</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Support funded until</label>
             <input
               type="time"
               value={profile.support_window_end ?? ''}
               onChange={(e) => setProfile((p) => ({ ...p, support_window_end: e.target.value || null }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Maximum shift length (minutes)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Maximum shift length (minutes)</label>
             <input
               type="number"
               min={30}
@@ -145,11 +145,11 @@ export default function SupportProfilePage() {
               value={profile.max_shift_duration_minutes}
               onChange={(e) => setProfile((p) => ({ ...p, max_shift_duration_minutes: Number(e.target.value) || 240 }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Travel radius (km)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Travel radius (km)</label>
             <input
               type="number"
               min={1}
@@ -157,12 +157,12 @@ export default function SupportProfilePage() {
               value={profile.travel_radius_km}
               onChange={(e) => setProfile((p) => ({ ...p, travel_radius_km: Number(e.target.value) || 10 }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             />
           </div>
         </div>
 
-        <label className="flex items-center gap-2 mt-4 cursor-pointer" style={{ color: brand.text }}>
+        <label className="flex items-center gap-2 mt-4 cursor-pointer" style={{ color: crewTheme.color.text }}>
           <input
             type="checkbox"
             checked={profile.can_work_after_support_hours}
@@ -174,16 +174,16 @@ export default function SupportProfilePage() {
       </div>
 
       {/* Support & transport */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: brand.text }}>Support & Transport</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-5`}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: crewTheme.color.text }}>Support & Transport</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>How do you work?</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>How do you work?</label>
             <select
               value={profile.support_mode}
               onChange={(e) => setProfile((p) => ({ ...p, support_mode: e.target.value as SupportMode }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             >
               {Object.entries(SUPPORT_MODE_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -191,12 +191,12 @@ export default function SupportProfilePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Transport</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Transport</label>
             <select
               value={profile.transport_status}
               onChange={(e) => setProfile((p) => ({ ...p, transport_status: e.target.value as TransportStatus }))}
               className="w-full rounded-xl border px-3 py-2 text-sm"
-              style={{ borderColor: brand.border, color: brand.text }}
+              style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
             >
               {Object.entries(TRANSPORT_STATUS_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -208,24 +208,24 @@ export default function SupportProfilePage() {
           {profile.support_mode === 'supported' && (
             <>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Support worker name</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Support worker name</label>
                 <input
                   type="text"
                   value={profile.support_worker_name ?? ''}
                   onChange={(e) => setProfile((p) => ({ ...p, support_worker_name: e.target.value || null }))}
                   className="w-full rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
                   placeholder="Full name"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: brand.muted }}>Support worker provider</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: crewTheme.color.muted }}>Support worker provider</label>
                 <input
                   type="text"
                   value={profile.support_worker_provider ?? ''}
                   onChange={(e) => setProfile((p) => ({ ...p, support_worker_provider: e.target.value || null }))}
                   className="w-full rounded-xl border px-3 py-2 text-sm"
-                  style={{ borderColor: brand.border, color: brand.text }}
+                  style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
                   placeholder="Organisation name"
                 />
               </div>
@@ -235,11 +235,11 @@ export default function SupportProfilePage() {
       </div>
 
       {/* Job preferences */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: brand.text }}>Job Preferences</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-5`}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: crewTheme.color.text }}>Job Preferences</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-2" style={{ color: brand.muted }}>Physical capacity</label>
+            <label className="block text-xs font-medium mb-2" style={{ color: crewTheme.color.muted }}>Physical capacity</label>
             <div className="grid grid-cols-3 gap-2">
               {(Object.entries(PHYSICAL_CAPACITY_LABELS) as [PhysicalCapacity, string][]).map(([v, l]) => (
                 <button
@@ -248,9 +248,9 @@ export default function SupportProfilePage() {
                   onClick={() => setProfile((p) => ({ ...p, physical_capacity: v }))}
                   className="px-3 py-2.5 rounded-xl border text-xs text-left transition-colors"
                   style={{
-                    borderColor: profile.physical_capacity === v ? brand.primary : brand.border,
+                    borderColor: profile.physical_capacity === v ? crewTheme.color.primary : crewTheme.color.border,
                     background: profile.physical_capacity === v ? 'rgba(15,61,46,0.07)' : 'transparent',
-                    color: profile.physical_capacity === v ? brand.primary : brand.text,
+                    color: profile.physical_capacity === v ? crewTheme.color.primary : crewTheme.color.text,
                     fontWeight: profile.physical_capacity === v ? 600 : 400,
                   }}
                 >
@@ -261,7 +261,7 @@ export default function SupportProfilePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-2" style={{ color: brand.muted }}>
+            <label className="block text-xs font-medium mb-2" style={{ color: crewTheme.color.muted }}>
               Preferred service types <span className="font-normal">(select all that apply)</span>
             </label>
             <div className="flex flex-wrap gap-2">
@@ -272,9 +272,9 @@ export default function SupportProfilePage() {
                   onClick={() => toggleService(value)}
                   className="px-3 py-1.5 rounded-full border text-xs transition-colors"
                   style={{
-                    borderColor: profile.preferred_services.includes(value) ? brand.primary : brand.border,
+                    borderColor: profile.preferred_services.includes(value) ? crewTheme.color.primary : crewTheme.color.border,
                     background: profile.preferred_services.includes(value) ? 'rgba(15,61,46,0.1)' : 'transparent',
-                    color: profile.preferred_services.includes(value) ? brand.primary : brand.muted,
+                    color: profile.preferred_services.includes(value) ? crewTheme.color.primary : crewTheme.color.muted,
                     fontWeight: profile.preferred_services.includes(value) ? 600 : 400,
                   }}
                 >
@@ -284,7 +284,7 @@ export default function SupportProfilePage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer" style={{ color: brand.text }}>
+          <label className="flex items-center gap-2 cursor-pointer" style={{ color: crewTheme.color.text }}>
             <input
               type="checkbox"
               checked={profile.customer_facing_ok}
@@ -297,14 +297,14 @@ export default function SupportProfilePage() {
       </div>
 
       {/* Emergency contact */}
-      <div className={`${glass} rounded-2xl p-5`}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: brand.text }}>Emergency Contact</h2>
+      <div className={`${crewTheme.glass} rounded-2xl p-5`}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: crewTheme.color.text }}>Emergency Contact</h2>
         <input
           type="text"
           value={profile.emergency_contact ?? ''}
           onChange={(e) => setProfile((p) => ({ ...p, emergency_contact: e.target.value || null }))}
           className="w-full rounded-xl border px-3 py-2 text-sm"
-          style={{ borderColor: brand.border, color: brand.text }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.text }}
           placeholder="Name and phone number"
         />
       </div>
@@ -315,7 +315,7 @@ export default function SupportProfilePage() {
           onClick={handleSave}
           disabled={saving}
           className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
-          style={{ background: brand.primary }}
+          style={{ background: crewTheme.color.primary }}
         >
           {saving ? (
             <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

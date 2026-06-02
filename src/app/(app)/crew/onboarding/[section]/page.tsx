@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { brand, glass } from '@/app/ui/theme';
+import { crewTheme } from '@/lib/design-system/themes';
 import { ONBOARDING_SECTION_LABELS } from '@/types/crew';
 import { SERVICE_TYPE_LABELS } from '@/types/orders';
 import type { OnboardingSection } from '@/types/crew';
@@ -174,7 +174,7 @@ export default function OnboardingSectionPage() {
       <div className="flex items-center justify-center py-20">
         <div
           className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-          style={{ borderColor: brand.primary, borderTopColor: 'transparent' }}
+          style={{ borderColor: crewTheme.color.primary, borderTopColor: 'transparent' }}
         />
       </div>
     );
@@ -188,7 +188,7 @@ export default function OnboardingSectionPage() {
         <Link
           href="/crew/onboarding"
           className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
-          style={{ color: brand.muted }}
+          style={{ color: crewTheme.color.muted }}
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
@@ -196,11 +196,11 @@ export default function OnboardingSectionPage() {
           Back to overview
         </Link>
         {isNdis ? (
-          <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: `${brand.primary}12`, color: brand.primary }}>
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: `${crewTheme.color.primary}12`, color: crewTheme.color.primary }}>
             NDIS section
           </span>
         ) : stepNum ? (
-          <span className="text-xs font-medium" style={{ color: brand.muted }}>
+          <span className="text-xs font-medium" style={{ color: crewTheme.color.muted }}>
             Step {stepNum} of {totalSteps}
           </span>
         ) : null}
@@ -212,7 +212,7 @@ export default function OnboardingSectionPage() {
           <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(15,61,46,0.08)' }}>
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${stepProgressPct}%`, background: brand.primary }}
+              style={{ width: `${stepProgressPct}%`, background: crewTheme.color.primary }}
             />
           </div>
         </div>
@@ -220,9 +220,9 @@ export default function OnboardingSectionPage() {
 
       {/* Section header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: brand.text }}>{sectionLabel}</h1>
+        <h1 className="text-2xl font-bold" style={{ color: crewTheme.color.text }}>{sectionLabel}</h1>
         {why && (
-          <p className="text-sm mt-1 leading-relaxed" style={{ color: brand.muted }}>{why.blurb}</p>
+          <p className="text-sm mt-1 leading-relaxed" style={{ color: crewTheme.color.muted }}>{why.blurb}</p>
         )}
       </div>
 
@@ -230,7 +230,7 @@ export default function OnboardingSectionPage() {
       {why?.note && (
         <div
           className="flex items-center gap-2 rounded-xl px-4 py-3 text-xs"
-          style={{ background: `${brand.primary}08`, color: brand.primary }}
+          style={{ background: `${crewTheme.color.primary}08`, color: crewTheme.color.primary }}
         >
           <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -240,7 +240,7 @@ export default function OnboardingSectionPage() {
       )}
 
       {/* Form fields */}
-      <div className={`${glass} rounded-2xl p-6 space-y-5`}>
+      <div className={`${crewTheme.glass} rounded-2xl p-6 space-y-5`}>
 
         {section === 'personal' && (
           <>
@@ -249,7 +249,7 @@ export default function OnboardingSectionPage() {
             <Field label="Suburb" value={responses.suburb as string} onChange={(v) => updateField('suburb', v)} placeholder="e.g. Fortitude Valley" />
             {/* Profile photo upload */}
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: brand.text }}>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: crewTheme.color.text }}>
                 Profile Photo <span className="text-red-500 ml-1">*</span>
               </label>
               <div className="flex items-center gap-4">
@@ -258,14 +258,14 @@ export default function OnboardingSectionPage() {
                     src={responses.photo_url as string}
                     alt="Profile"
                     className="w-16 h-16 rounded-full object-cover border-2 shrink-0"
-                    style={{ borderColor: brand.border }}
+                    style={{ borderColor: crewTheme.color.border }}
                   />
                 ) : (
                   <div
                     className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: `${brand.primary}12` }}
+                    style={{ background: `${crewTheme.color.primary}12` }}
                   >
-                    <svg className="w-7 h-7" style={{ color: brand.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <svg className="w-7 h-7" style={{ color: crewTheme.color.muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                   </div>
@@ -273,7 +273,7 @@ export default function OnboardingSectionPage() {
                 <div>
                   <label
                     className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all hover:bg-slate-50"
-                    style={{ borderColor: brand.border, color: photoUploading ? brand.muted : brand.primary }}
+                    style={{ borderColor: crewTheme.color.border, color: photoUploading ? crewTheme.color.muted : crewTheme.color.primary }}
                   >
                     {photoUploading ? (
                       <><Spinner className="h-3.5 w-3.5" /> Uploading…</>
@@ -288,7 +288,7 @@ export default function OnboardingSectionPage() {
                       disabled={photoUploading}
                     />
                   </label>
-                  <p className="text-xs mt-1.5" style={{ color: brand.muted }}>JPG, PNG or HEIC · Max 5MB</p>
+                  <p className="text-xs mt-1.5" style={{ color: crewTheme.color.muted }}>JPG, PNG or HEIC · Max 5MB</p>
                   {photoError && <p className="text-xs mt-1 text-red-600">{photoError}</p>}
                 </div>
               </div>
@@ -308,7 +308,7 @@ export default function OnboardingSectionPage() {
         {section === 'availability' && (
           <>
             <div>
-              <p className="text-sm font-medium mb-3" style={{ color: brand.text }}>
+              <p className="text-sm font-medium mb-3" style={{ color: crewTheme.color.text }}>
                 Which times are you available to work?
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -321,9 +321,9 @@ export default function OnboardingSectionPage() {
                       onClick={() => toggleArrayItem('availability', opt)}
                       className="px-3 py-2 rounded-xl text-sm border transition-all font-medium"
                       style={{
-                        borderColor: selected ? brand.primary : brand.border,
-                        background: selected ? `${brand.primary}10` : 'transparent',
-                        color: selected ? brand.primary : brand.muted,
+                        borderColor: selected ? crewTheme.color.primary : crewTheme.color.border,
+                        background: selected ? `${crewTheme.color.primary}10` : 'transparent',
+                        color: selected ? crewTheme.color.primary : crewTheme.color.muted,
                       }}
                     >
                       {AVAILABILITY_LABELS[opt]}
@@ -345,7 +345,7 @@ export default function OnboardingSectionPage() {
         {section === 'services' && (
           <>
             <div>
-              <p className="text-sm font-medium mb-3" style={{ color: brand.text }}>
+              <p className="text-sm font-medium mb-3" style={{ color: crewTheme.color.text }}>
                 Which services can you perform?
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -358,9 +358,9 @@ export default function OnboardingSectionPage() {
                       onClick={() => toggleArrayItem('services', key)}
                       className="px-4 py-3 rounded-xl text-sm border transition-all text-left font-medium"
                       style={{
-                        borderColor: selected ? brand.primary : brand.border,
-                        background: selected ? `${brand.primary}10` : 'transparent',
-                        color: selected ? brand.primary : brand.text,
+                        borderColor: selected ? crewTheme.color.primary : crewTheme.color.border,
+                        background: selected ? `${crewTheme.color.primary}10` : 'transparent',
+                        color: selected ? crewTheme.color.primary : crewTheme.color.text,
                       }}
                     >
                       {label as string}
@@ -379,10 +379,10 @@ export default function OnboardingSectionPage() {
                   className="w-5 h-5 rounded mt-0.5 accent-emerald-600 shrink-0"
                 />
                 <div>
-                  <span className="text-sm font-medium" style={{ color: brand.text }}>
+                  <span className="text-sm font-medium" style={{ color: crewTheme.color.text }}>
                     I am an NDIS support worker
                   </span>
-                  <p className="text-xs mt-0.5" style={{ color: brand.muted }}>
+                  <p className="text-xs mt-0.5" style={{ color: crewTheme.color.muted }}>
                     Adds an NDIS screening questionnaire to your onboarding.
                   </p>
                 </div>
@@ -422,7 +422,7 @@ export default function OnboardingSectionPage() {
           onClick={() => handleSave(false)}
           disabled={saving}
           className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-slate-50 disabled:opacity-50"
-          style={{ borderColor: brand.border, color: brand.muted }}
+          style={{ borderColor: crewTheme.color.border, color: crewTheme.color.muted }}
         >
           Save draft
         </button>
@@ -430,7 +430,7 @@ export default function OnboardingSectionPage() {
           onClick={() => handleSave(true)}
           disabled={saving}
           className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
-          style={{ background: brand.primary }}
+          style={{ background: crewTheme.color.primary }}
         >
           {saving && <Spinner />}
           {saving ? 'Saving…' : 'Save & mark complete'}
@@ -438,7 +438,7 @@ export default function OnboardingSectionPage() {
       </div>
 
       {/* Reassurance */}
-      <p className="text-xs text-center" style={{ color: brand.muted }}>
+      <p className="text-xs text-center" style={{ color: crewTheme.color.muted }}>
         You can return and update this section at any time before approval.
       </p>
     </div>
@@ -459,7 +459,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium mb-1.5" style={{ color: brand.text }}>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: crewTheme.color.text }}>
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
@@ -470,7 +470,7 @@ function Field({
           placeholder={placeholder}
           rows={3}
           className="w-full px-4 py-3 rounded-xl border border-black/10 bg-white/60 text-sm resize-none transition-all focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
-          style={{ color: brand.text }}
+          style={{ color: crewTheme.color.text }}
         />
       ) : (
         <input
@@ -479,11 +479,11 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className="w-full px-4 py-3 rounded-xl border border-black/10 bg-white/60 text-sm transition-all focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
-          style={{ color: brand.text }}
+          style={{ color: crewTheme.color.text }}
         />
       )}
       {hint && (
-        <p className="text-xs mt-1.5" style={{ color: brand.muted }}>{hint}</p>
+        <p className="text-xs mt-1.5" style={{ color: crewTheme.color.muted }}>{hint}</p>
       )}
     </div>
   );
