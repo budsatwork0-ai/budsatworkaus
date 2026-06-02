@@ -1,0 +1,42 @@
+name: Post-Deploy Canary Check
+
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types: [completed]
+
+jobs:
+  canary:
+    name: quote-triage error-rate gate
+    runs-on: ubuntu-latest
+    # Only run after a successful deployment
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for canary window
+        # Give the deployment 60 s to start serving traffic before sampling
+        run: sleep 60
+
+      - name: Run canary health-check
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          npx ts-node --project tsconfig.scripts.json scripts/canary-check.ts
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Canary check failed — quote-triage error rate exceeded threshold. Manual rollback may be required."
