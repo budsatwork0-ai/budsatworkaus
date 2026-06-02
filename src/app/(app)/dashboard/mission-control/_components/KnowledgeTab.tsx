@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
-import { ObsidianTab } from './ObsidianTab';
 import { EvidenceTab } from './EvidenceTab';
 import { GraphifyTab } from './GraphifyTab';
 import { ImprovementsTab } from './ImprovementsTab';
@@ -21,10 +20,9 @@ import { DevOsTab } from './DevOsTab';
  *   dev-os       — development agent layer + session history
  */
 
-type Section = 'notes' | 'evidence' | 'graphify' | 'improvements' | 'dev-os';
+type Section = 'evidence' | 'graphify' | 'improvements' | 'dev-os';
 
 const SECTIONS: { key: Section; label: string; sub: string }[] = [
-  { key: 'notes',        label: 'Architecture notes', sub: 'Obsidian vault — systems, components, refactor plans' },
   { key: 'evidence',     label: 'Evidence log',        sub: 'Terminal output, deployment records, QA results' },
   { key: 'graphify',     label: 'Graphify',            sub: 'Knowledge-graph map of the codebase' },
   { key: 'improvements', label: 'Improvements',        sub: 'Tracked backlog of fixes and refactors' },
@@ -32,7 +30,7 @@ const SECTIONS: { key: Section; label: string; sub: string }[] = [
 ];
 
 export function KnowledgeTab({ devOs }: { devOs: DevOsResponse }) {
-  const [section, setSection] = useState<Section>('notes');
+  const [section, setSection] = useState<Section>('evidence');
 
   return (
     <div className="space-y-4">
@@ -58,7 +56,6 @@ export function KnowledgeTab({ devOs }: { devOs: DevOsResponse }) {
       </div>
 
       {/* Content — each section manages its own fetch */}
-      {section === 'notes'        && <ObsidianTab />}
       {section === 'evidence'     && <EvidenceTab />}
       {section === 'graphify'     && <GraphifyTab />}
       {section === 'improvements' && <ImprovementsTab />}
