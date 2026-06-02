@@ -2,9 +2,6 @@
  * design-developer agent entry point.
  * On partial failure it emits a degraded fallback signal rather than
  * suppressing output entirely.
- *
- * NOTE: validate.ts was introduced in a prior draft — re-exported here
- * so callers have a single import path.
  */
 
 import { buildDegradedSignal, type DegradedSignalEntry } from '@/agents/shared/degraded-signal';
@@ -27,7 +24,7 @@ export interface DesignDeveloperResult {
  * Placeholder core logic — replace with real validation / LLM calls.
  */
 async function runCoreDesignDeveloper(): Promise<{ design_insights: DesignInsight[] }> {
-  // TODO: wire up validate.ts and real design-token checks
+  // TODO: wire up real design-token checks
   return { design_insights: [] };
 }
 
