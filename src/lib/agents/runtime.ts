@@ -8,6 +8,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 import { AGENT_REGISTRY } from './registry';
 import { AgentOutputSchema } from '@/lib/bud/schemas';
 import type {
@@ -70,22 +72,107 @@ interface CallModelResult {
   cacheCreationTokens: number;
 }
 
+async function callGemini(
+  prompt: string,
+  opts: { model?: string; system?: string } = {},
+): Promise<CallModelResult> {
+  const apiKey = process.env.GEMINI_API_KEY!;
+  const modelName = opts.model && opts.model.startsWith('gemini') ? opts.model : 'gemini-2.5-flash';
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+  const requestBody: Record<string, unknown> = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.2
+    }
+  };
+
+  if (opts.system) {
+    requestBody.systemInstruction = {
+      parts: [{ text: opts.system }]
+    };
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API ${res.status}: ${errText}`);
+  }
+
+  const json = (await res.json()) as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>;
+      };
+    }>;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+    };
+  };
+
+  const candidate = json.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text ?? '';
+
+  const inputTokens = json.usageMetadata?.promptTokenCount ?? 0;
+  const outputTokens = json.usageMetadata?.candidatesTokenCount ?? 0;
+
+  return {
+    text,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0
+  };
+}
+
 async function callModel(
   prompt: string,
   opts: { model?: string; system?: string } = {},
 ): Promise<CallModelResult> {
   const model = opts.model ?? DEFAULT_MODEL;
 
-  // Gate on circuit breaker before the first attempt. If the Anthropic API
-  // has been consistently overloaded, OPEN state blocks all LLM calls fleet-
-  // wide until a 5-minute cooldown passes. This prevents thundering-herd
-  // retry storms from turning a transient outage into 50 failed runs.
-  const { state: circuitState, resetsAt } = await getCircuitState();
-  if (circuitState === 'open') throw new CircuitOpenError(resetsAt);
+  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+  const isGeminiModel = model.startsWith('gemini');
+
+  if (isGeminiModel && hasGeminiKey) {
+    return callGemini(prompt, opts);
+  }
+
+  // Gate on circuit breaker before the first attempt for Anthropic.
+  let circuitActive = false;
+  try {
+    const { state: circuitState, resetsAt } = await getCircuitState();
+    if (circuitState === 'open') {
+      if (hasGeminiKey) {
+        console.warn('Anthropic circuit open. Falling back to Gemini.');
+        return callGemini(prompt, opts);
+      }
+      throw new CircuitOpenError(resetsAt);
+    }
+    circuitActive = true;
+  } catch (err) {
+    if (!circuitActive && hasGeminiKey) {
+      return callGemini(prompt, opts);
+    }
+    throw err;
+  }
 
   // Wrap the system prompt in a cache_control block so Anthropic can reuse
-  // it across runs of the same agent. This is the single biggest cost lever:
-  // repeated runs pay ~10% of the input token price for cached system tokens.
+  // it across runs of the same agent.
   const systemBlock = opts.system
     ? [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }]
     : undefined;
@@ -94,72 +181,87 @@ async function callModel(
   let lastErr: Error | null = null;
 
   while (attempt < MAX_LLM_ATTEMPTS) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'prompt-caching-2024-07-31',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        system: systemBlock,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'prompt-caching-2024-07-31',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          system: systemBlock,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
 
-    if (res.ok) {
-      const json = (await res.json()) as {
-        content: Array<{ type: string; text?: string }>;
-        usage: {
-          input_tokens: number;
-          output_tokens: number;
-          cache_read_input_tokens?: number;
-          cache_creation_input_tokens?: number;
+      if (res.ok) {
+        const json = (await res.json()) as {
+          content: Array<{ type: string; text?: string }>;
+          usage: {
+            input_tokens: number;
+            output_tokens: number;
+            cache_read_input_tokens?: number;
+            cache_creation_input_tokens?: number;
+          };
         };
-      };
 
-      const text = json.content
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text ?? '')
-        .join('\n');
+        const text = json.content
+          .filter((b) => b.type === 'text')
+          .map((b) => b.text ?? '')
+          .join('\n');
 
-      // Record success so half_open circuits can close after 2 good probes
-      recordLlmSuccess().catch(() => {});
+        // Record success so half_open circuits can close after 2 good probes
+        recordLlmSuccess().catch(() => {});
 
-      return {
-        text,
-        inputTokens: json.usage.input_tokens,
-        outputTokens: json.usage.output_tokens,
-        cacheReadTokens: json.usage.cache_read_input_tokens ?? 0,
-        cacheCreationTokens: json.usage.cache_creation_input_tokens ?? 0,
-      };
+        return {
+          text,
+          inputTokens: json.usage.input_tokens,
+          outputTokens: json.usage.output_tokens,
+          cacheReadTokens: json.usage.cache_read_input_tokens ?? 0,
+          cacheCreationTokens: json.usage.cache_creation_input_tokens ?? 0,
+        };
+      }
+
+      const body = await res.text();
+      lastErr = new Error(`Anthropic API ${res.status}: ${body}`);
+
+      // Retry only on transient errors.
+      const transient = res.status === 429 || res.status === 529 || res.status === 503;
+      if (!transient) {
+        if (hasGeminiKey) {
+          console.warn('Anthropic API failed with non-transient error. Falling back to Gemini:', lastErr);
+          return callGemini(prompt, opts);
+        }
+        throw lastErr;
+      }
+
+      // Record each transient failure so the circuit tracks the streak.
+      await recordLlmFailure();
+
+      attempt += 1;
+      if (attempt >= MAX_LLM_ATTEMPTS) break;
+
+      const retryAfter = Number(res.headers.get('retry-after'));
+      const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    } catch (err) {
+      if (hasGeminiKey) {
+        console.warn('Anthropic API fetch failed. Falling back to Gemini:', err);
+        return callGemini(prompt, opts);
+      }
+      throw err;
     }
+  }
 
-    const body = await res.text();
-    lastErr = new Error(`Anthropic API ${res.status}: ${body}`);
-
-    // Retry only on transient errors. 401 (invalid key), 400 (bad request),
-    // 404, etc. are configuration bugs that won't fix themselves on retry.
-    const transient = res.status === 429 || res.status === 529 || res.status === 503;
-    if (!transient) throw lastErr;
-
-    // Record each transient failure so the circuit tracks the streak.
-    // Awaited so the DB write completes before the next attempt reads state.
-    await recordLlmFailure();
-
-    attempt += 1;
-    if (attempt >= MAX_LLM_ATTEMPTS) break;
-
-    // Honour Retry-After (seconds) when present, otherwise exponential
-    // backoff with jitter: 1s, 2s, 4s ± up to 500ms.
-    const retryAfter = Number(res.headers.get('retry-after'));
-    const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
-      ? retryAfter * 1000
-      : 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
-    await new Promise((resolve) => setTimeout(resolve, backoffMs));
+  if (hasGeminiKey) {
+    console.warn('Anthropic API exhausted retries. Falling back to Gemini.');
+    return callGemini(prompt, opts);
   }
 
   throw lastErr ?? new Error('Anthropic API: exhausted retries with no response');
@@ -644,6 +746,8 @@ async function dispatchEffect(
       return flagForReviewEffect(payload);
     case 'update_service_price':
       return updateServicePriceEffect(payload);
+    case 'write_theme_file':
+      return writeThemeFileEffect(payload);
     default:
       throw new Error(`No handler for action_type=${type}`);
   }
@@ -806,3 +910,34 @@ async function flagForReviewEffect(payload: Record<string, unknown>): Promise<vo
     throw new Error(`flag_for_review: ${error.message}`);
   }
 }
+
+async function writeThemeFileEffect(payload: Record<string, unknown>): Promise<void> {
+  const theme = payload.theme as string | undefined;
+  const content = payload.content as string | undefined;
+
+  if (!theme || !content) {
+    throw new Error('write_theme_file: missing theme or content');
+  }
+
+  const allowedThemes = ['dashboard', 'crew', 'public'];
+  if (!allowedThemes.includes(theme)) {
+    throw new Error(`write_theme_file: invalid theme "${theme}". Must be one of: ${allowedThemes.join(', ')}`);
+  }
+
+  const themesDir = path.join(process.cwd(), 'src/lib/design-system/themes');
+  const filePath = path.join(themesDir, `${theme}.ts`);
+
+  // Double check directory traversal by ensuring the resolved file path starts with themesDir
+  const resolvedPath = path.resolve(filePath);
+  const resolvedThemesDir = path.resolve(themesDir);
+  if (!resolvedPath.startsWith(resolvedThemesDir)) {
+    throw new Error('write_theme_file: path traversal detected');
+  }
+
+  try {
+    await fs.promises.writeFile(resolvedPath, content, 'utf-8');
+  } catch (err) {
+    throw new Error(`write_theme_file: failed to write file: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+

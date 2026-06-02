@@ -54,6 +54,7 @@ import { adminUxDesignerAgent } from './agents/admin-ux-designer';
 import { lobbyThemeCuratorAgent } from './agents/lobby-theme-curator';
 import { agentArchitectAgent } from './agents/agent-architect';
 import { competitorScoutAgent } from './agents/competitor-scout';
+import { designDeveloperAgent } from './agents/design-developer';
 
 // Batch 7 — pricing
 import { priceOptimizerAgent } from './agents/price-optimizer';
@@ -117,6 +118,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [lobbyThemeCuratorAgent.id]: lobbyThemeCuratorAgent,
   [agentArchitectAgent.id]:    agentArchitectAgent,
   [competitorScoutAgent.id]:   competitorScoutAgent,
+  [designDeveloperAgent.id]:   designDeveloperAgent,
   [priceOptimizerAgent.id]:          priceOptimizerAgent,
   [analyticsIntelligenceAgent.id]:   analyticsIntelligenceAgent,
   [designSystemAgent.id]:            designSystemAgent,
