@@ -22,7 +22,9 @@ async function loadData() {
   // 11 queries (was 18) — removed: stats, repair learnings, adminUx, designInsights,
   // agentEvolutions, efficiencyFindings, bud_lobby_states (all fed into unused client fields)
   const [
-    agentsRes, runsRes, actionsRes, githubRes, insightsRes,
+    agentsRes, runsRes, actionsRes, githubRes,
+    githubLastSuccessRes, githubLastFailureRes,
+    insightsRes,
     budActivityRes, budApprovalsRes, budTasksRes,
     changeRequestsRes, repairExecutionsRes, repairStepsRes,
   ] = await Promise.all([
@@ -31,9 +33,22 @@ async function loadData() {
       .select('id, agent_id, status, summary, error, cost_cents, duration_ms, started_at, trigger')
       .order('started_at', { ascending: false }).limit(40),
     supabase.from('v_pending_agent_actions').select('*').limit(20),
+    // Recent events (push/PR/deployment created) — general activity
     supabase.from('github_events')
       .select('id, event_type, action, repo, metadata, status, created_at')
       .order('created_at', { ascending: false }).limit(20),
+    // Most recent deployment success — fetched separately because 'created' events
+    // (284 of them) bury it in the general limit-20 window.
+    supabase.from('github_events')
+      .select('id, event_type, action, repo, metadata, status, created_at')
+      .eq('event_type', 'deployment_status')
+      .eq('action', 'success')
+      .order('created_at', { ascending: false }).limit(1),
+    // Most recent deployment failure — same reason
+    supabase.from('github_events')
+      .select('id, event_type, action, repo, metadata, status, created_at')
+      .eq('event_type', 'deployment_failure')
+      .order('created_at', { ascending: false }).limit(1),
     supabase.from('bud_insights')
       .select('id, agent_id, category, severity, title, created_at')
       .is('resolved_at', null).order('created_at', { ascending: false }).limit(8),
@@ -90,7 +105,18 @@ async function loadData() {
   const runs   = runsRes.data ?? [];
   const actions = actionsRes.data ?? [];
   const budApprovals = (budApprovalsRes.data ?? []) as import('@/lib/bud/types').BudApprovalItem[];
-  const githubData = githubRes.data ?? [];
+  // Merge general events with targeted success/failure lookups; deduplicate by id.
+  const githubMerged = [
+    ...(githubRes.data ?? []),
+    ...(githubLastSuccessRes.data ?? []),
+    ...(githubLastFailureRes.data ?? []),
+  ];
+  const seenIds = new Set<string>();
+  const githubData = githubMerged.filter((e) => {
+    if (seenIds.has(e.id as string)) return false;
+    seenIds.add(e.id as string);
+    return true;
+  });
   const budTasks = budTasksRes.data ?? [];
   const changeRequests = changeRequestsRes.data ?? [];
   const commandState = computeMissionControlHealth({

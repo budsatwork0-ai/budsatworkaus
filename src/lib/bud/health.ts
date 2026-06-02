@@ -471,14 +471,19 @@ function computeDeploymentState(events: GithubEventRow[]): MissionControlDeploym
   const isProductionFailure =
     (latest.metadata as Record<string, unknown>)?.environment !== 'Preview' &&
     (latest.event_type === 'deployment_failure' || latest.action === 'failure' || latest.action === 'error');
+  // 'created' means Vercel queued the deployment — not that it's still running.
+  // After 20 minutes with no success/failure follow-up, treat it as stale rather
+  // than indefinitely showing "deploying".
+  const createdTimedOut = latest.action === 'created' && ageMs > 20 * 60_000;
   const status: MissionControlDeploymentState['status'] =
     isProductionFailure
       ? 'failed'
-      : latest.action === 'pending' || latest.action === 'in_progress' || latest.action === 'created'
+      : (latest.action === 'pending' || latest.action === 'in_progress') ||
+        (latest.action === 'created' && !createdTimedOut)
         ? 'deploying'
-        : latest.action !== 'success' || ageMs > 7 * 24 * 3600_000
-          ? 'stale'
-          : 'healthy';
+        : latest.action === 'success' && ageMs <= 7 * 24 * 3600_000
+          ? 'healthy'
+          : 'stale';
 
   return {
     connected: true,
