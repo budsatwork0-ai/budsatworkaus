@@ -239,7 +239,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ] },
     { id: 'automation', label: 'Automation', adminOnly: true, items: [
       { href: '/dashboard/mission-control', label: 'Bud OS',       icon: missionIcon },
-      { href: '/dashboard/agents',          label: 'Agents',       icon: agentsIcon },
       { href: '/dashboard/automations',     label: 'Automations',  icon: automationsIcon },
       { href: '/dashboard/audit-log',       label: 'Audit log',    icon: auditIcon },
     ] },
