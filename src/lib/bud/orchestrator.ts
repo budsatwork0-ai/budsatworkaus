@@ -568,20 +568,39 @@ export async function triggerImprovement(
     surface?: PipelineSurface;
   },
 ): Promise<{ signalId: string; executionId?: string; status: string; pipelineRunId?: string }> {
-  // Dedup: skip if a matching open signal exists in the last 6h
-  const since6h = new Date(Date.now() - 6 * 3600_000).toISOString();
+  // Dedup layer 1: exact title match within 7 days
+  const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
   const { data: existing } = await supabase
     .from('bud_improvement_signals')
     .select('id, status')
     .eq('signal_type', params.signalType)
     .eq('title', params.title)
     .in('status', ['new', 'queued', 'executing'])
-    .gte('created_at', since6h)
+    .gte('created_at', since7d)
     .limit(1)
     .maybeSingle();
 
   if (existing) {
     return { signalId: existing.id as string, status: 'deduplicated' };
+  }
+
+  // Dedup layer 2: same signal_type + affected_area within 24h catches variable-count
+  // titles like "21 errors", "84 errors" that share a root cause but bypass title dedup.
+  if (params.affectedArea) {
+    const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { data: areaMatch } = await supabase
+      .from('bud_improvement_signals')
+      .select('id, status')
+      .eq('signal_type', params.signalType)
+      .eq('affected_area', params.affectedArea)
+      .in('status', ['new', 'queued', 'executing'])
+      .gte('created_at', since24h)
+      .limit(1)
+      .maybeSingle();
+
+    if (areaMatch) {
+      return { signalId: areaMatch.id as string, status: 'deduplicated' };
+    }
   }
 
   const { data: signal, error } = await supabase
@@ -685,13 +704,31 @@ export async function triggerImprovement(
       source_agent: params.source,
       confidence: 0.7,
       risk_level: (params.severity === 'critical' || params.severity === 'high') ? 'high' : 'medium',
-      raw_input: { signal_id: signalId },
+      raw_input: {
+        signal_id: signalId,
+        signal_type: params.signalType,
+        severity: params.severity,
+        title: params.title,
+        description: params.description ?? null,
+        proposed_approach: params.proposedApproach ?? null,
+        reference_files: params.referenceFiles ?? [],
+        affected_area: params.affectedArea ?? null,
+      },
     });
 
     await queueApproval(supabase, {
       task_id: dummyTask.id,
       action_type: 'run_improvement_pipeline',
-      payload: { signal_id: signalId, title: params.title },
+      payload: {
+        signal_id: signalId,
+        title: params.title,
+        description: params.description ?? null,
+        proposed_approach: params.proposedApproach ?? null,
+        reference_files: params.referenceFiles ?? [],
+        affected_area: params.affectedArea ?? null,
+        signal_type: params.signalType,
+        severity: params.severity,
+      },
       requested_by: params.requestedBy ?? 'bud',
     });
 

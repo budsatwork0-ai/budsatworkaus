@@ -417,7 +417,19 @@ function buildApprovalDetailFromBudApproval(args: {
   const task = args.approval.bud_tasks;
   const payload = (args.approval.payload ?? {}) as Record<string, unknown>;
   const repair = args.repairSession;
-  const plan = planFromPayload(payload);
+
+  // For improvement-pipeline approvals the signal context is embedded in the payload.
+  const signalDescription = (payload['description'] as string | undefined) ?? null;
+  const signalApproach = (payload['proposed_approach'] as string | undefined) ?? null;
+  const signalFiles = Array.isArray(payload['reference_files'])
+    ? (payload['reference_files'] as string[])
+    : [];
+  const signalArea = (payload['affected_area'] as string | undefined) ?? null;
+
+  // Build plan from signal approach so the UI always has something concrete to show.
+  const plan = planFromPayload(payload).length > 0
+    ? planFromPayload(payload)
+    : signalApproach ? [signalApproach] : [];
   const diff = diffFromPayload(payload);
   const riskLevel = (task?.risk_level ?? null) as BudOsApprovalDetail['risk_level'];
   const linkedPr = repair?.linked_pr ?? (payload['pr_url'] as string | undefined) ?? null;
@@ -433,7 +445,14 @@ function buildApprovalDetailFromBudApproval(args: {
     taskStatus: repair?.status,
     riskLevel,
   });
-  const fullDescription = task?.description ?? args.approval.action_type ?? 'Unspecified Bud task.';
+  // Use the rich signal description when available, falling back to task description.
+  const fullDescription = signalDescription
+    ? `${signalDescription}${signalArea ? ` (area: ${signalArea})` : ''}`
+    : task?.description ?? args.approval.action_type ?? 'Unspecified Bud task.';
+  // Affected files: prefer explicit reference_files from signal over regex inference.
+  const affectedFiles = signalFiles.length > 0
+    ? signalFiles
+    : inferAffectedFiles(payload, fullDescription);
   return {
     action_type: args.approval.action_type,
     payload,
@@ -443,7 +462,7 @@ function buildApprovalDetailFromBudApproval(args: {
     confidence: task?.confidence ?? null,
     proposed_plan: plan,
     diff_summary: diff,
-    affected_files: inferAffectedFiles(payload, fullDescription),
+    affected_files: affectedFiles,
     blast_radius: describeBlastRadius({
       actionType: args.approval.action_type,
       payload,

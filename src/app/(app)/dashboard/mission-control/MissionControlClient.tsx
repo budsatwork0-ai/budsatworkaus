@@ -178,6 +178,24 @@ export function MissionControlClient({
     }
   }
 
+  async function reject(item: BudOsQueueItem, notes = '') {
+    try {
+      const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
+      const body = item.source === 'agent_action'
+        ? { decision: 'reject', notes: notes || undefined }
+        : { id: item.source_id, decision: 'rejected', notes: notes || undefined };
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? 'Rejection failed');
+      actionedIdsRef.current.add(item.id);
+      setQueue((prev) => prev.filter((entry) => entry.id !== item.id));
+      toast.success('Rejected and removed from queue');
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rejection failed');
+    }
+  }
+
   async function investigate(item: BudOsQueueItem) {
     setInvestigatingIds((prev) => new Set([...prev, item.id]));
     try {
@@ -275,6 +293,7 @@ export function MissionControlClient({
               investigatingIds={investigatingIds}
               onSelect={(item) => setSelectedId(item.id)}
               onApprove={(item) => void approve(item)}
+              onReject={(item) => void reject(item)}
               onInvestigate={(item) => void investigate(item)}
             />
           )}

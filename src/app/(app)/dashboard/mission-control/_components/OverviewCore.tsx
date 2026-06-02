@@ -53,6 +53,7 @@ type Props = {
   investigatingIds: Set<string>;
   onSelect: (item: BudOsQueueItem) => void;
   onApprove: (item: BudOsQueueItem) => void;
+  onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
 };
 
@@ -66,6 +67,7 @@ export function OverviewCore({
   investigatingIds,
   onSelect,
   onApprove,
+  onReject,
   onInvestigate,
 }: Props) {
   const truth = deriveGlobalTruth(commandState);
@@ -81,6 +83,7 @@ export function OverviewCore({
           investigatingIds={investigatingIds}
           onSelect={onSelect}
           onApprove={onApprove}
+          onReject={onReject}
           onInvestigate={onInvestigate}
         />
         <ActivityFeed activity={activity} />
@@ -250,6 +253,7 @@ function ActionQueue({
   investigatingIds,
   onSelect,
   onApprove,
+  onReject,
   onInvestigate,
 }: {
   queue: BudOsQueueItem[];
@@ -257,6 +261,7 @@ function ActionQueue({
   investigatingIds: Set<string>;
   onSelect: (item: BudOsQueueItem) => void;
   onApprove: (item: BudOsQueueItem) => void;
+  onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
 }) {
   const items = queue.slice(0, 10);
@@ -280,8 +285,14 @@ function ActionQueue({
           const investigating = investigatingIds.has(item.id);
           const weight = SEVERITY_TONE[item.severity];
           const notReady = item.approval ? item.approval.readiness !== 'ready' : false;
+          const approval = item.approval;
+          const plan = approval?.proposed_plan ?? [];
+          const files = approval?.affected_files ?? [];
+          const description = approval?.full_description ?? '';
+          const hasDetail = plan.length > 0 || files.length > 0 || description.length > 60;
           return (
             <li key={item.id}>
+              {/* Row */}
               <div
                 role="button"
                 tabIndex={0}
@@ -301,25 +312,25 @@ function ActionQueue({
                     {item.agent_name && <span>{item.agent_name}</span>}
                     {item.agent_name && <span>·</span>}
                     <span>{item.status}</span>
-                    {item.approval && (
+                    {approval && (
                       <>
                         <span>·</span>
                         <span className={notReady ? 'text-amber-300/80' : 'text-emerald-300/80'}>
-                          {item.approval.readiness_summary}
+                          {approval.readiness_summary}
                         </span>
                       </>
+                    )}
+                    {hasDetail && !active && (
+                      <span className="text-sky-400/60">· click to expand</span>
                     )}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
-                  {item.approval ? (
+                  {approval ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (notReady) {
-                          toast.error(`Not ready: ${item.approval!.readiness_summary}`);
-                          return;
-                        }
+                        if (notReady) { toast.error(`Not ready: ${approval.readiness_summary}`); return; }
                         onApprove(item);
                       }}
                       disabled={notReady}
@@ -338,6 +349,85 @@ function ActionQueue({
                   )}
                 </div>
               </div>
+
+              {/* Expansion drawer — concrete details shown when this item is selected */}
+              {active && hasDetail && (
+                <div className="border-t border-white/[0.05] bg-black/20 px-5 py-4 space-y-4">
+                  {/* Why it matters */}
+                  {description && description !== item.title && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1">Why this matters</p>
+                      <p className="text-xs leading-relaxed text-white/75">{description}</p>
+                    </div>
+                  )}
+
+                  {/* Proposed concrete change */}
+                  {plan.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Proposed change</p>
+                      <ol className="space-y-1">
+                        {plan.map((step, i) => (
+                          <li key={i} className="flex gap-2 text-xs text-white/80">
+                            <span className="mt-px shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[10px] font-semibold tabular-nums text-white/50">{i + 1}</span>
+                            <span className="leading-relaxed">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  {/* Files affected */}
+                  {files.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Files affected</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {files.map((f) => (
+                          <span key={f} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-sky-300/80">{f}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Blast radius */}
+                  {approval?.blast_radius && (
+                    <div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.05] px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/70 mb-0.5">Blast radius</p>
+                      <p className="text-xs text-amber-200/70">{approval.blast_radius}</p>
+                    </div>
+                  )}
+
+                  {/* Decision buttons — full width, side by side */}
+                  {approval && (
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          if (notReady) { toast.error(`Not ready: ${approval.readiness_summary}`); return; }
+                          onApprove(item);
+                        }}
+                        disabled={notReady}
+                        className="flex-1 rounded-lg border border-emerald-400/40 bg-emerald-500/10 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => onReject(item)}
+                        className="flex-1 rounded-lg border border-red-400/30 bg-red-500/[0.06] py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                  {!approval && (
+                    <button
+                      onClick={() => onInvestigate(item)}
+                      disabled={investigating}
+                      className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
+                    >
+                      {investigating ? 'Working…' : 'Ask Bud to investigate and propose a fix'}
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
