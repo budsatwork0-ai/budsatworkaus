@@ -61,11 +61,17 @@ export function ObsidianTab() {
   }
 
   if (!data || !data.available) {
+    const reason = (data as { available: false; reason: string } | null)?.reason ?? '';
+    const isProduction = reason.includes('bridge') || reason.includes('production');
     return (
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-8 text-center">
-        <p className="text-sm font-medium text-white/60">No architecture memory evidence available.</p>
+        <p className="text-sm font-medium text-white/60">
+          {isProduction ? 'Vault not available in production' : 'Architecture vault not found'}
+        </p>
         <p className="mt-1 text-xs text-white/35">
-          {(!data || !data.available) ? ((data as { available: false; reason: string } | null)?.reason ?? 'Vault not found locally.') : 'Vault not found locally.'}
+          {isProduction
+            ? 'Start the local Bud bridge to browse architecture notes here.'
+            : reason || 'Vault not found locally.'}
         </p>
       </div>
     );

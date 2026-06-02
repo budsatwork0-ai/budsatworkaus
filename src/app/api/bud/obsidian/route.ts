@@ -61,7 +61,9 @@ export async function GET(): Promise<NextResponse<ObsidianResponse>> {
   if (!fs.existsSync(vaultBase)) {
     return NextResponse.json({
       available: false,
-      reason: `architecture vault not found at ${vaultBase}`,
+      reason: process.env.VERCEL
+        ? 'Vault only accessible via local Bud bridge — not available in production.'
+        : `Vault not found at ${vaultBase}`,
     });
   }
 
