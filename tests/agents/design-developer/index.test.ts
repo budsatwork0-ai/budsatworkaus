@@ -18,7 +18,7 @@ const validInput = {
 
 describe('runDesignDeveloperAgent', () => {
   it('emits a success event for valid input', async () => {
-    const handler = vi.fn<[AgentEvent], void>();
+    const handler = vi.fn<(event: AgentEvent) => void>();
     const event = await runDesignDeveloperAgent(validInput, handler);
     expect(event.type).toBe('design_developer.success');
     expect(handler).toHaveBeenCalledOnce();
@@ -26,7 +26,7 @@ describe('runDesignDeveloperAgent', () => {
   });
 
   it('emits a validation_error failure event for invalid input', async () => {
-    const handler = vi.fn<[AgentEvent], void>();
+    const handler = vi.fn<(event: AgentEvent) => void>();
     const event = await runDesignDeveloperAgent({ componentName: '' }, handler);
     expect(event.type).toBe('design_developer.failure');
     if (event.type === 'design_developer.failure') {
@@ -37,7 +37,7 @@ describe('runDesignDeveloperAgent', () => {
   });
 
   it('emits a validation_error failure event for null input', async () => {
-    const handler = vi.fn<[AgentEvent], void>();
+    const handler = vi.fn<(event: AgentEvent) => void>();
     const event = await runDesignDeveloperAgent(null, handler);
     expect(event.type).toBe('design_developer.failure');
     if (event.type === 'design_developer.failure') {
