@@ -4,9 +4,6 @@ import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
-import { buildStructuredFailures } from '@/lib/bud/structured-failure';
-import { buildBudInitiatives } from '@/lib/bud/initiatives';
-import { buildThoughtStream } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +23,7 @@ async function loadData() {
     githubLastSuccessRes, githubLastFailureRes,
     insightsRes,
     budActivityRes, budApprovalsRes, budTasksRes,
-    changeRequestsRes, repairExecutionsRes, repairStepsRes,
+    changeRequestsRes,
   ] = await Promise.all([
     supabase.from('agents').select('id, name, status, category, autonomy, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
@@ -38,7 +35,7 @@ async function loadData() {
       .select('id, event_type, action, repo, metadata, status, created_at')
       .order('created_at', { ascending: false }).limit(20),
     // Most recent deployment success — fetched separately because 'created' events
-    // (284 of them) bury it in the general limit-20 window.
+    // bury it in the general limit-20 window.
     supabase.from('github_events')
       .select('id, event_type, action, repo, metadata, status, created_at')
       .eq('event_type', 'deployment_status')
@@ -69,12 +66,6 @@ async function loadData() {
     supabase.from('bud_change_requests')
       .select('id, task_id, branch_name, issue_url, pr_url, deployment_url, status, created_at')
       .order('created_at', { ascending: false }).limit(20),
-    supabase.from('bud_repair_executions')
-      .select('id, task_id, status, root_cause_type, root_cause_summary, repair_strategy, diff_summary, deployment_url, verification_status, ci_conclusion, ci_run_url, taste_score, taste_pass, taste_violations, taste_suggestions, browser_tests_passed, browser_tests_failed, browser_tests_total, browser_test_status, pr_url, issue_url, created_at')
-      .order('created_at', { ascending: false }).limit(20),
-    supabase.from('bud_repair_steps')
-      .select('id, execution_id, state, status, summary, started_at')
-      .order('started_at', { ascending: false }).limit(80),
   ]);
 
   // memory_documents is small and feeds commandState — keep but don't return raw
@@ -143,25 +134,6 @@ async function loadData() {
       })),
   });
 
-  const agentNameById = new Map<string, string>(agents.map((a) => [a.id as string, (a.name ?? a.id) as string]));
-  const structuredFailures = buildStructuredFailures({
-    runs: runs.map((r) => ({
-      id: r.id as string, agent_id: r.agent_id as string | null,
-      status: r.status as string, summary: r.summary as string | null,
-      error: r.error as string | null | undefined, started_at: r.started_at as string,
-    })),
-    agentNameById,
-  });
-
-  // initiatives only used server-side to build thoughtStream
-  const initiatives = buildBudInitiatives({ commandState, uxEvolution, structuredFailures });
-  const thoughtStream = buildThoughtStream({
-    commandState,
-    activity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
-    failures: structuredFailures,
-    initiatives,
-  });
-
   const actionQueue = buildBudOsActionQueue({
     commandState,
     runs: runs.map((r) => ({
@@ -212,19 +184,6 @@ async function loadData() {
     commandState,
     budOs: {
       actionQueue,
-      uxEvolution,
-      repairExecutions: repairExecutionsRes.data ?? [],
-      repairSteps: repairStepsRes.data ?? [],
-      changeRequests: changeRequests.map((cr) => ({
-        id: cr.id as string,
-        task_id: (cr.task_id as string | null) ?? null,
-        branch_name: (cr.branch_name as string | null) ?? null,
-        issue_url: (cr.issue_url as string | null) ?? null,
-        pr_url: (cr.pr_url as string | null) ?? null,
-        status: (cr.status as string) ?? 'open',
-      })),
-      structuredFailures,
-      thoughtStream,
     },
   };
 }

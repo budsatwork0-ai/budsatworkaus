@@ -3,10 +3,12 @@
 /**
  * Buds OS — Mission Control
  *
- * Sections:
- *   Overview  - operator cockpit (presence, vitals, work queue)
- *   Dev OS    - development agent layer reference
- *   Terminal  - Bud chat terminal
+ * Tabs:
+ *   Home         - operator cockpit (state, vitals, action queue, activity, deployment)
+ *   Agents       - real-time agent fleet view
+ *   Brain        - Graphify knowledge graph + evidence log
+ *   Improvements - tracked fix and refactor backlog
+ *   Dev          - Terminal, Dev OS reference, Design System
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -16,35 +18,18 @@ import { toast } from 'sonner';
 import type { BudActivityEvent } from '@/lib/bud/types';
 import type { MissionControlHealth } from '@/lib/bud/health';
 import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
-import type { UxEvolutionRecommendation } from '@/lib/bud/ux-evolution-engine';
-import type { StructuredFailure } from '@/lib/bud/structured-failure';
-import type { BudThought } from '@/lib/bud/thought-stream';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewCore } from './_components/OverviewCore';
-import { BudTerminal } from './_components/BudTerminal';
-import { KnowledgeTab } from './_components/KnowledgeTab';
-import { BridgeStatus } from './_components/BridgeStatus';
 import { AgentHierarchy } from './_components/AgentHierarchy';
-import { DesignSystemTab } from './_components/DesignSystemTab';
+import { BrainTab } from './_components/BrainTab';
+import { ImprovementsTab } from './_components/ImprovementsTab';
+import { DevTab } from './_components/DevTab';
+import { BridgeStatus } from './_components/BridgeStatus';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
-type AgentRow = { id: string; name: string; status: string; category: string; autonomy: string; last_run_at?: string | null; last_success_at?: string | null };
-
-type RepairExecutionRow = {
-  id: string; task_id: string | null; status: string;
-  root_cause_type: string | null; root_cause_summary: string | null;
-  repair_strategy: Record<string, unknown> | null; diff_summary: string | null;
-  deployment_url: string | null; verification_status: string;
-  ci_conclusion: string | null; ci_run_url: string | null;
-  taste_score: number | null; taste_pass: boolean | null;
-  taste_violations: string[] | null; taste_suggestions: string[] | null;
-  browser_tests_passed: number | null; browser_tests_failed: number | null;
-  browser_tests_total: number | null; browser_test_status: string | null;
-  pr_url: string | null; issue_url: string | null; created_at: string;
-};
-type RepairStepRow = {
-  id: string; execution_id: string; state: string;
-  status: string; summary: string; started_at: string;
+type AgentRow = {
+  id: string; name: string; status: string; category: string;
+  autonomy: string; last_run_at?: string | null; last_success_at?: string | null;
 };
 
 type Props = {
@@ -54,12 +39,6 @@ type Props = {
   commandState: MissionControlHealth;
   budOs: {
     actionQueue: BudOsQueueItem[];
-    uxEvolution: UxEvolutionRecommendation[];
-    repairExecutions: RepairExecutionRow[];
-    repairSteps: RepairStepRow[];
-    changeRequests: Array<{ id: string; task_id: string | null; branch_name: string | null; issue_url: string | null; pr_url: string | null; status: string }>;
-    structuredFailures: StructuredFailure[];
-    thoughtStream: BudThought[];
   };
   devOs: DevOsResponse;
 };
@@ -67,18 +46,20 @@ type Props = {
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
 
 const TABS = [
-  { key: 'overview',  label: 'Overview' },
-  { key: 'terminal',  label: 'Terminal' },
-  { key: 'knowledge', label: 'Knowledge' },
-  { key: 'design',    label: 'Design System' },
+  { key: 'home',         label: 'Home' },
+  { key: 'agents',       label: 'Agents' },
+  { key: 'brain',        label: 'Brain' },
+  { key: 'improvements', label: 'Improvements' },
+  { key: 'dev',          label: 'Dev' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
-/* ────────────────────────────────────────────────────────────────────────── */
-/*                                   PAGE                                     */
-/* ────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────── */
 
-type ActivityEvent = { id: string; event_type: string; narrative: string; actor: string; created_at: string; metadata?: Record<string, unknown>; target?: string };
+type ActivityEvent = {
+  id: string; event_type: string; narrative: string;
+  actor: string; created_at: string; metadata?: Record<string, unknown>; target?: string;
+};
 
 export function MissionControlClient({
   agents = [],
@@ -94,7 +75,7 @@ export function MissionControlClient({
   const rawTab = search?.get('tab');
   const initialTab: TabKey = TABS.some((t) => t.key === rawTab)
     ? (rawTab as TabKey)
-    : 'overview';
+    : 'home';
   const [tab, setTab] = useState<TabKey>(initialTab);
 
   const [queue, setQueue] = useState<BudOsQueueItem[]>(budOs.actionQueue);
@@ -126,7 +107,10 @@ export function MissionControlClient({
   }, [tab]);
 
   useEffect(() => {
-    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
     const channel = supabase
       .channel('bud-live-activity')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bud_activity_feed' }, (payload) => {
@@ -162,7 +146,9 @@ export function MissionControlClient({
       return;
     }
     try {
-      const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
+      const url = item.source === 'agent_action'
+        ? `/api/agents/actions/${item.source_id}`
+        : '/api/bud/approval';
       const body = item.source === 'agent_action'
         ? { decision: 'approve', notes: notes || undefined }
         : { id: item.source_id, decision: 'approved', notes: notes || undefined };
@@ -180,7 +166,9 @@ export function MissionControlClient({
 
   async function reject(item: BudOsQueueItem, notes = '') {
     try {
-      const url = item.source === 'agent_action' ? `/api/agents/actions/${item.source_id}` : '/api/bud/approval';
+      const url = item.source === 'agent_action'
+        ? `/api/agents/actions/${item.source_id}`
+        : '/api/bud/approval';
       const body = item.source === 'agent_action'
         ? { decision: 'reject', notes: notes || undefined }
         : { id: item.source_id, decision: 'rejected', notes: notes || undefined };
@@ -230,11 +218,11 @@ export function MissionControlClient({
 
   const truth = deriveGlobalTruth(commandState);
   const truthDot = {
-    healthy: 'bg-emerald-400',
-    degraded: 'bg-amber-400',
-    approval: 'bg-yellow-300',
-    recovering: 'bg-sky-400',
-    blocked: 'bg-red-400',
+    healthy:   'bg-emerald-400',
+    degraded:  'bg-amber-400',
+    approval:  'bg-yellow-300',
+    recovering:'bg-sky-400',
+    blocked:   'bg-red-400',
   }[truth.state];
 
   return (
@@ -246,7 +234,9 @@ export function MissionControlClient({
           <div className="flex items-center gap-3">
             <span className={`inline-flex h-2.5 w-2.5 rounded-full ${truthDot}`} />
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">Bud · {truth.headline}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                Bud · {truth.headline}
+              </p>
               <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
             </div>
           </div>
@@ -271,11 +261,15 @@ export function MissionControlClient({
                   key={entry.key}
                   onClick={() => setTab(entry.key)}
                   className={`relative shrink-0 border-b-2 px-3.5 py-2.5 text-[12px] font-semibold uppercase tracking-wider transition ${
-                    active ? 'border-sky-400 text-white' : 'border-transparent text-white/55 hover:text-white/85'
+                    active
+                      ? 'border-sky-400 text-white'
+                      : 'border-transparent text-white/55 hover:text-white/85'
                   }`}
                 >
                   {entry.label}
-                  {active && <span className="pointer-events-none absolute inset-x-2 -bottom-px h-px bg-gradient-to-r from-transparent via-sky-400 to-transparent" />}
+                  {active && (
+                    <span className="pointer-events-none absolute inset-x-2 -bottom-px h-px bg-gradient-to-r from-transparent via-sky-400 to-transparent" />
+                  )}
                 </button>
               );
             })}
@@ -284,7 +278,7 @@ export function MissionControlClient({
 
         {/* Tab content */}
         <div className="space-y-4">
-          {tab === 'overview' && (
+          {tab === 'home' && (
             <OverviewCore
               commandState={commandState}
               queue={queue}
@@ -298,15 +292,18 @@ export function MissionControlClient({
             />
           )}
 
-          {tab === 'overview' && agents.length > 0 && (
+          {tab === 'agents' && agents.length > 0 && (
             <AgentHierarchy agents={agents} latestRuns={latestRuns} />
           )}
+          {tab === 'agents' && agents.length === 0 && (
+            <p className="py-12 text-center text-sm text-white/40">No agents registered yet.</p>
+          )}
 
-          {tab === 'terminal' && <BudTerminal />}
+          {tab === 'brain' && <BrainTab />}
 
-          {tab === 'knowledge' && <KnowledgeTab devOs={devOs} />}
+          {tab === 'improvements' && <ImprovementsTab />}
 
-          {tab === 'design' && <DesignSystemTab />}
+          {tab === 'dev' && <DevTab devOs={devOs} />}
         </div>
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
