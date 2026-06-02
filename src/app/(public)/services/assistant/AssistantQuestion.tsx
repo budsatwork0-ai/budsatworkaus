@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 import { AssistantRegoLookup } from './AssistantRegoLookup';
 import type { QuestionDef, AssistantAnswers, AssistantAnswerId } from './types';
 
@@ -31,11 +31,11 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
     return (
       <div className="space-y-3">
         <div>
-          <p className="text-[17px] font-semibold leading-snug" style={{ color: brand.text }}>
+          <p className="text-[17px] font-semibold leading-snug" style={{ color: publicTheme.color.text }}>
             {question.prompt}
           </p>
           {question.hint && (
-            <p className="mt-1 text-[13px]" style={{ color: brand.muted }}>
+            <p className="mt-1 text-[13px]" style={{ color: publicTheme.color.muted }}>
               {question.hint}
             </p>
           )}
@@ -49,9 +49,9 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
                 onClick={() => onAnswer(question.id, opt.value)}
                 className="flex flex-col items-start rounded-2xl border px-4 py-3 text-left transition-all duration-150 active:scale-[0.98]"
                 style={{
-                  borderColor: selected ? brand.primary : brand.border,
-                  background: selected ? brand.primary : brand.card,
-                  color: selected ? '#fff' : brand.text,
+                  borderColor: selected ? publicTheme.color.primary : publicTheme.color.border,
+                  background: selected ? publicTheme.color.primary : publicTheme.color.card,
+                  color: selected ? '#fff' : publicTheme.color.text,
                   boxShadow: selected
                     ? '0 2px 8px rgba(15,61,46,0.18)'
                     : '0 1px 3px rgba(2,6,23,0.04)',
@@ -61,7 +61,7 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
                 {opt.sublabel && (
                   <span
                     className="mt-0.5 text-[11px] leading-tight"
-                    style={{ color: selected ? 'rgba(255,255,255,0.72)' : brand.muted }}
+                    style={{ color: selected ? 'rgba(255,255,255,0.72)' : publicTheme.color.muted }}
                   >
                     {opt.sublabel}
                   </span>
@@ -92,11 +92,11 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[17px] font-semibold leading-snug" style={{ color: brand.text }}>
+        <p className="text-[17px] font-semibold leading-snug" style={{ color: publicTheme.color.text }}>
           {question.prompt}
         </p>
         {question.hint && (
-          <p className="mt-1 text-[13px]" style={{ color: brand.muted }}>
+          <p className="mt-1 text-[13px]" style={{ color: publicTheme.color.muted }}>
             {question.hint}
           </p>
         )}
@@ -107,7 +107,7 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
           onClick={decrement}
           disabled={val <= min}
           className="flex h-12 w-12 items-center justify-center rounded-full border text-xl font-light transition-all disabled:opacity-30"
-          style={{ borderColor: brand.border, color: brand.primary }}
+          style={{ borderColor: publicTheme.color.border, color: publicTheme.color.primary }}
           aria-label="Decrease"
         >
           −
@@ -115,7 +115,7 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
 
         <span
           className="min-w-[56px] text-center text-[40px] font-bold tabular-nums leading-none"
-          style={{ color: brand.text }}
+          style={{ color: publicTheme.color.text }}
         >
           {val}
         </span>
@@ -124,7 +124,7 @@ export function AssistantQuestion({ question, answers, onAnswer }: Props) {
           onClick={increment}
           disabled={val >= max}
           className="flex h-12 w-12 items-center justify-center rounded-full border text-xl font-light transition-all disabled:opacity-30"
-          style={{ borderColor: brand.border, color: brand.primary }}
+          style={{ borderColor: publicTheme.color.border, color: publicTheme.color.primary }}
           aria-label="Increase"
         >
           +

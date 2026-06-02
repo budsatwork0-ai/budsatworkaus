@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { brand, glass, glassSoft, cx } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';
+import { cx } from '@/app/ui/theme';
 import { MARKETING_SERVICES, type MarketingServiceKey } from '@/lib/marketing-services';
 import { LOCAL_LANDING_PAGES, LOCAL_LANDING_PAGE_LIST } from '@/lib/local-landing-pages';
 
@@ -82,13 +83,13 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
 
         <div className="mx-auto grid max-w-6xl gap-10 px-6 pb-16 pt-4 md:grid-cols-[1.15fr_0.85fr] md:px-8 md:pt-10">
           <section className="flex flex-col justify-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em]" style={{ color: brand.primary }}>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em]" style={{ color: publicTheme.color.primary }}>
               {landing.eyebrow}
             </p>
-            <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl" style={{ color: brand.text }}>
+            <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl" style={{ color: publicTheme.color.text }}>
               {landing.headline}
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-relaxed" style={{ color: brand.muted }}>
+            <p className="mt-5 max-w-2xl text-lg leading-relaxed" style={{ color: publicTheme.color.muted }}>
               {landing.subhead}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -97,7 +98,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
                 data-track="local_landing_quote_click"
                 data-track-label={landing.slug}
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-base font-semibold shadow-lg transition-shadow hover:shadow-xl"
-                style={{ background: brand.primary, color: '#fff' }}
+                style={{ background: publicTheme.color.primary, color: '#fff' }}
               >
                 {landing.ctaLabel} <ArrowRightIcon />
               </Link>
@@ -106,40 +107,40 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
                 data-track="local_landing_donation_click"
                 data-track-label={landing.slug}
                 className="inline-flex items-center rounded-full border px-7 py-3.5 text-base font-semibold transition-colors hover:bg-white/70"
-                style={{ borderColor: brand.border, color: brand.primary }}
+                style={{ borderColor: publicTheme.color.border, color: publicTheme.color.primary }}
               >
                 {landing.secondaryCtaLabel}
               </Link>
             </div>
           </section>
 
-          <aside className={cx('rounded-3xl p-7 md:p-8', glass)}>
-            <p className="text-sm" style={{ color: brand.muted }}>Starting from</p>
-            <p className="mt-1 text-5xl font-bold" style={{ color: brand.text }}>${svc.from}</p>
-            <p className="mt-2 text-sm" style={{ color: brand.muted }}>
+          <aside className={cx('rounded-3xl p-7 md:p-8', publicTheme.glass)}>
+            <p className="text-sm" style={{ color: publicTheme.color.muted }}>Starting from</p>
+            <p className="mt-1 text-5xl font-bold" style={{ color: publicTheme.color.text }}>${svc.from}</p>
+            <p className="mt-2 text-sm" style={{ color: publicTheme.color.muted }}>
               Final price depends on scope and is reviewed before payment.
             </p>
 
-            <div className="my-7 h-px" style={{ background: brand.border }} />
+            <div className="my-7 h-px" style={{ background: publicTheme.color.border }} />
 
-            <h2 className="text-lg font-semibold" style={{ color: brand.text }}>Why people click through</h2>
+            <h2 className="text-lg font-semibold" style={{ color: publicTheme.color.text }}>Why people click through</h2>
             <ul className="mt-5 space-y-3">
               {landing.bullets.map((item) => (
                 <li key={item} className="flex items-start gap-3">
                   <span
                     className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
-                    style={{ background: `${brand.primary}20`, color: brand.primary }}
+                    style={{ background: `${publicTheme.color.primary}20`, color: publicTheme.color.primary }}
                   >
                     <CheckIcon />
                   </span>
-                  <span className="text-sm leading-relaxed" style={{ color: brand.text }}>{item}</span>
+                  <span className="text-sm leading-relaxed" style={{ color: publicTheme.color.text }}>{item}</span>
                 </li>
               ))}
             </ul>
 
-            <div className="mt-7 rounded-2xl p-4" style={{ background: `${brand.primary}08` }}>
-              <p className="text-sm font-semibold" style={{ color: brand.text }}>New local service, honest positioning</p>
-              <p className="mt-1 text-sm leading-relaxed" style={{ color: brand.muted }}>
+            <div className="mt-7 rounded-2xl p-4" style={{ background: `${publicTheme.color.primary}08` }}>
+              <p className="text-sm font-semibold" style={{ color: publicTheme.color.text }}>New local service, honest positioning</p>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: publicTheme.color.muted }}>
                 We&apos;re building from the ground up, so we don&apos;t fake reviews. We focus on clear quoting, useful work, and local support.
               </p>
             </div>
@@ -197,34 +198,34 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <div className="mx-auto max-w-3xl space-y-12 pb-16 pt-4 px-6 md:px-8">
           {/* Breadcrumb */}
           <nav className="text-sm" aria-label="Breadcrumb">
-            <ol className="flex items-center gap-1.5" style={{ color: brand.muted }}>
+            <ol className="flex items-center gap-1.5" style={{ color: publicTheme.color.muted }}>
               <li><Link href="/" className="hover:underline">Home</Link></li>
               <li aria-hidden>/</li>
               <li><Link href="/services" className="hover:underline">Services</Link></li>
               <li aria-hidden>/</li>
-              <li style={{ color: brand.text }} aria-current="page">{svc.title.split(' ')[0]} {svc.title.split(' ')[1]}</li>
+              <li style={{ color: publicTheme.color.text }} aria-current="page">{svc.title.split(' ')[0]} {svc.title.split(' ')[1]}</li>
             </ol>
           </nav>
 
           {/* Hero */}
           <section>
-            <p className="text-sm font-medium mb-3" style={{ color: brand.primary }}>
+            <p className="text-sm font-medium mb-3" style={{ color: publicTheme.color.primary }}>
               Logan &amp; South Brisbane
             </p>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ color: brand.text }}>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4" style={{ color: publicTheme.color.text }}>
               {svc.title}
             </h1>
-            <p className="text-lg font-medium mb-4" style={{ color: brand.primary }}>
+            <p className="text-lg font-medium mb-4" style={{ color: publicTheme.color.primary }}>
               {svc.tagline}
             </p>
-            <p className="text-base leading-relaxed" style={{ color: brand.muted }}>
+            <p className="text-base leading-relaxed" style={{ color: publicTheme.color.muted }}>
               {svc.description}
             </p>
           </section>
 
           {/* Inclusions */}
-          <section className={cx('rounded-2xl p-7', glass)}>
-            <h2 className="font-semibold text-lg mb-5" style={{ color: brand.text }}>
+          <section className={cx('rounded-2xl p-7', publicTheme.glass)}>
+            <h2 className="font-semibold text-lg mb-5" style={{ color: publicTheme.color.text }}>
               What&apos;s included
             </h2>
             <ul className="space-y-3">
@@ -232,21 +233,21 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
                 <li key={item} className="flex items-start gap-3">
                   <span
                     className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                    style={{ background: `${brand.primary}20`, color: brand.primary }}
+                    style={{ background: `${publicTheme.color.primary}20`, color: publicTheme.color.primary }}
                   >
                     <CheckIcon />
                   </span>
-                  <span className="text-sm" style={{ color: brand.text }}>{item}</span>
+                  <span className="text-sm" style={{ color: publicTheme.color.text }}>{item}</span>
                 </li>
               ))}
             </ul>
           </section>
 
           {/* Pricing hint + CTA */}
-          <section className={cx('rounded-3xl p-8 text-center', glassSoft)}>
-            <p className="text-sm mb-1" style={{ color: brand.muted }}>Starting from</p>
-            <p className="text-4xl font-bold mb-1" style={{ color: brand.text }}>${svc.from}</p>
-            <p className="text-xs mb-6" style={{ color: brand.muted }}>
+          <section className={cx('rounded-3xl p-8 text-center', publicTheme.glassSoft)}>
+            <p className="text-sm mb-1" style={{ color: publicTheme.color.muted }}>Starting from</p>
+            <p className="text-4xl font-bold mb-1" style={{ color: publicTheme.color.text }}>${svc.from}</p>
+            <p className="text-xs mb-6" style={{ color: publicTheme.color.muted }}>
               Final price is calculated in the quote builder based on your job scope.
             </p>
             <Link
@@ -254,11 +255,11 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
               data-track="service_detail_quote_click"
               data-track-label={svc.title}
               className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
-              style={{ background: brand.primary, color: '#fff' }}
+              style={{ background: publicTheme.color.primary, color: '#fff' }}
             >
               Get a free quote <ArrowRightIcon />
             </Link>
-            <p className="mt-4 text-xs" style={{ color: brand.muted }}>
+            <p className="mt-4 text-xs" style={{ color: publicTheme.color.muted }}>
               No payment until you review and confirm — price locked for 7 days.
             </p>
           </section>
@@ -266,8 +267,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           {/* Trust */}
           <section className="flex flex-wrap justify-center gap-x-8 gap-y-3">
             {['NDIS-Ready', 'Fully Insured', 'Vetted Crew', 'No Surprise Fees'].map((badge) => (
-              <span key={badge} className="flex items-center gap-1.5 text-sm" style={{ color: brand.muted }}>
-                <span style={{ color: brand.primary }}><CheckIcon /></span>
+              <span key={badge} className="flex items-center gap-1.5 text-sm" style={{ color: publicTheme.color.muted }}>
+                <span style={{ color: publicTheme.color.primary }}><CheckIcon /></span>
                 {badge}
               </span>
             ))}

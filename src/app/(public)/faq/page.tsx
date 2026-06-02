@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { brand, cx, glass, glassSoft } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';
+import { cx } from '@/app/ui/theme';
 
 function ArrowRightIcon() {
   return (
@@ -119,16 +120,16 @@ function FAQItem({ q, a }: { q: string; a: React.ReactNode }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between py-4 text-left gap-4"
       >
-        <span className="font-medium text-sm md:text-base" style={{ color: brand.text }}>{q}</span>
+        <span className="font-medium text-sm md:text-base" style={{ color: publicTheme.color.text }}>{q}</span>
         <span
           className="shrink-0 transition-transform duration-200"
-          style={{ color: brand.primary, transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          style={{ color: publicTheme.color.primary, transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
         >
           <ChevronDownIcon />
         </span>
       </button>
       {open && (
-        <p className="pb-4 text-sm leading-relaxed" style={{ color: brand.muted }}>
+        <p className="pb-4 text-sm leading-relaxed" style={{ color: publicTheme.color.muted }}>
           {a}
         </p>
       )}
@@ -170,13 +171,13 @@ export default function FAQPage() {
       <div className="mx-auto max-w-3xl space-y-12 pb-16 pt-4 px-6 md:px-8">
         {/* Header */}
         <section className="text-center">
-          <p className="text-sm font-medium" style={{ color: brand.primary }}>Got questions?</p>
-          <h1 className="mt-3 text-4xl md:text-5xl font-bold tracking-tight" style={{ color: brand.text }}>
+          <p className="text-sm font-medium" style={{ color: publicTheme.color.primary }}>Got questions?</p>
+          <h1 className="mt-3 text-4xl md:text-5xl font-bold tracking-tight" style={{ color: publicTheme.color.text }}>
             Frequently asked questions
           </h1>
-          <p className="mt-4 text-base md:text-lg max-w-xl mx-auto" style={{ color: brand.muted }}>
+          <p className="mt-4 text-base md:text-lg max-w-xl mx-auto" style={{ color: publicTheme.color.muted }}>
             Everything you need to know before booking. Can&apos;t find your answer?{' '}
-            <Link href="/contact" className="underline underline-offset-2" style={{ color: brand.primary }}>
+            <Link href="/contact" className="underline underline-offset-2" style={{ color: publicTheme.color.primary }}>
               Send us a message.
             </Link>
           </p>
@@ -185,10 +186,10 @@ export default function FAQPage() {
         {/* FAQ sections */}
         {faqs.map((section) => (
           <section key={section.category}>
-            <h2 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: brand.primary }}>
+            <h2 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: publicTheme.color.primary }}>
               {section.category}
             </h2>
-            <div className={cx('rounded-2xl px-6', glass)}>
+            <div className={cx('rounded-2xl px-6', publicTheme.glass)}>
               {section.items.map((item) => (
                 <FAQItem key={item.q} q={item.q} a={item.a} />
               ))}
@@ -197,23 +198,23 @@ export default function FAQPage() {
         ))}
 
         {/* CTA */}
-        <section className={cx('rounded-3xl p-8 text-center', glassSoft)}>
-          <h2 className="text-xl font-bold mb-2" style={{ color: brand.text }}>Still have questions?</h2>
-          <p className="text-sm mb-6" style={{ color: brand.muted }}>
+        <section className={cx('rounded-3xl p-8 text-center', publicTheme.glassSoft)}>
+          <h2 className="text-xl font-bold mb-2" style={{ color: publicTheme.color.text }}>Still have questions?</h2>
+          <p className="text-sm mb-6" style={{ color: publicTheme.color.muted }}>
             We&apos;re happy to talk through anything before you book.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link
               href="/contact"
               className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow hover:shadow-md transition-shadow"
-              style={{ background: brand.primary, color: '#fff' }}
+              style={{ background: publicTheme.color.primary, color: '#fff' }}
             >
               Contact us <ArrowRightIcon />
             </Link>
             <Link
               href="/services"
               className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold border-2 hover:bg-white/60 transition-colors"
-              style={{ borderColor: brand.primary, color: brand.primary }}
+              style={{ borderColor: publicTheme.color.primary, color: publicTheme.color.primary }}
             >
               Get a free quote <ArrowRightIcon />
             </Link>

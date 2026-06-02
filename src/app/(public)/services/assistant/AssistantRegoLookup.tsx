@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 import { useRegoLookup } from '@/app/ui/car/useRegoLookup';
 import { classifyVehicle } from '@/lib/rego/classify';
 import type { RegoState, VehicleCategory } from '@/lib/rego/types';
@@ -172,11 +172,11 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[17px] font-semibold leading-snug" style={{ color: brand.text }}>
+        <p className="text-[17px] font-semibold leading-snug" style={{ color: publicTheme.color.text }}>
           {question.prompt}
         </p>
         {question.hint && (
-          <p className="mt-1 text-[13px]" style={{ color: brand.muted }}>
+          <p className="mt-1 text-[13px]" style={{ color: publicTheme.color.muted }}>
             {question.hint}
           </p>
         )}
@@ -185,17 +185,17 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
       {detectedVehicle ? (
         <div
           className="rounded-2xl border px-4 py-4"
-          style={{ borderColor: brand.accent, background: 'rgba(15,61,46,0.04)' }}
+          style={{ borderColor: publicTheme.color.accent, background: 'rgba(15,61,46,0.04)' }}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: brand.accent }}>
+              <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: publicTheme.color.accent }}>
                 Vehicle Found
               </div>
-              <div className="mt-1 text-[18px] font-semibold" style={{ color: brand.text }}>
+              <div className="mt-1 text-[18px] font-semibold" style={{ color: publicTheme.color.text }}>
                 {detectedVehicle.make} {detectedVehicle.model}
               </div>
-              <div className="mt-1 text-[13px]" style={{ color: brand.muted }}>
+              <div className="mt-1 text-[13px]" style={{ color: publicTheme.color.muted }}>
                 {[
                   detectedVehicle.year,
                   detectedVehicle.bodyStyle,
@@ -204,11 +204,11 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
                 ].filter(Boolean).join(' • ')}
               </div>
               {detectedCategory && (
-                <div className="mt-2 rounded-xl px-3 py-2 text-[12px] font-medium" style={{ color: brand.accent, background: 'rgba(15,61,46,0.06)' }}>
+                <div className="mt-2 rounded-xl px-3 py-2 text-[12px] font-medium" style={{ color: publicTheme.color.accent, background: 'rgba(15,61,46,0.06)' }}>
                   Vehicle type set to {categoryLabel}. Next step: choose your detailing package.
                 </div>
               )}
-              <div className="mt-2 text-[12px]" style={{ color: brand.muted }}>
+              <div className="mt-2 text-[12px]" style={{ color: publicTheme.color.muted }}>
                 {sourceLabel}{speedLabel ? ` · ${speedLabel}` : ''}
               </div>
             </div>
@@ -217,7 +217,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
               type="button"
               onClick={handleReset}
               className="rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-black/5"
-              style={{ borderColor: brand.border, color: brand.muted }}
+              style={{ borderColor: publicTheme.color.border, color: publicTheme.color.muted }}
             >
               Change
             </button>
@@ -232,8 +232,8 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
               autoCapitalize="characters"
               className="flex-1 rounded-2xl border px-4 py-3 text-[14px] font-semibold uppercase tracking-wider outline-none transition-all focus:ring-2"
               style={{
-                borderColor: brand.border,
-                color: brand.text,
+                borderColor: publicTheme.color.border,
+                color: publicTheme.color.text,
                 boxShadow: 'none',
               }}
               placeholder="Enter rego (e.g. ABC123)"
@@ -250,7 +250,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
 
             <select
               className="rounded-2xl border px-3 py-3 text-[14px] outline-none transition-all focus:ring-2"
-              style={{ borderColor: brand.border, color: brand.text, background: brand.card }}
+              style={{ borderColor: publicTheme.color.border, color: publicTheme.color.text, background: publicTheme.color.card }}
               value={state}
               onChange={(e) => setState(e.target.value as RegoState)}
               disabled={loading}
@@ -268,7 +268,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
             onClick={handleLookup}
             disabled={loading || !rego.trim()}
             className="w-full rounded-2xl py-3 text-[14px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-40"
-            style={{ background: brand.primary }}
+            style={{ background: publicTheme.color.primary }}
           >
             {loading ? 'Looking up vehicle...' : 'Look up vehicle'}
           </button>
@@ -276,7 +276,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
           {loading && (
             <div
               className="rounded-2xl px-3 py-2 text-[12px]"
-              style={{ background: 'rgba(15,61,46,0.05)', color: brand.muted }}
+              style={{ background: 'rgba(15,61,46,0.05)', color: publicTheme.color.muted }}
             >
               Checking rego and matching your vehicle type. Repeat lookups now use saved results when available.
             </div>
@@ -301,12 +301,12 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
           {showManualFallback && (
             <div
               className="rounded-2xl border px-3 py-3 space-y-2"
-              style={{ borderColor: brand.border, background: 'rgba(15,61,46,0.03)' }}
+              style={{ borderColor: publicTheme.color.border, background: 'rgba(15,61,46,0.03)' }}
             >
-              <div className="text-[12px] font-semibold" style={{ color: brand.text }}>
+              <div className="text-[12px] font-semibold" style={{ color: publicTheme.color.text }}>
                 Can&apos;t find your vehicle by rego?
               </div>
-              <div className="text-[11px] leading-snug" style={{ color: brand.muted }}>
+              <div className="text-[11px] leading-snug" style={{ color: publicTheme.color.muted }}>
                 You can continue by choosing your vehicle type manually. Pricing is
                 indicative only — if the vehicle we see on the day doesn&apos;t match
                 the selected type, we may adjust the quote before work begins.
@@ -315,7 +315,7 @@ export function AssistantRegoLookup({ question, answers, onAnswer }: Props) {
                 type="button"
                 onClick={handleManualFallback}
                 className="w-full rounded-2xl border py-2.5 text-[13px] font-medium transition-colors hover:bg-black/5"
-                style={{ borderColor: brand.border, color: brand.muted }}
+                style={{ borderColor: publicTheme.color.border, color: publicTheme.color.muted }}
               >
                 Continue without rego lookup
               </button>

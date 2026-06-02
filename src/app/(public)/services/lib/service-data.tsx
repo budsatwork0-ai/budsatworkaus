@@ -6,7 +6,7 @@ import type {
   StoreyRow, Context, NdisManagementType,
 } from '../types';
 import { WindowIcon, CleanIcon, LawnIcon, TruckIcon, CarIcon, ShoeIcon } from '../utils/icons';
-import { ACCENT } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 
 /* =========================
    SERVICES
@@ -631,8 +631,8 @@ export const COMM_PRESETS: Record<
 export const NDIS_ACCENT = '#6d28d9';
 
 export const CONTEXT_OPTIONS: { key: Context; label: string; activeColor: string }[] = [
-  { key: 'home', label: 'Home', activeColor: ACCENT },
-  { key: 'commercial', label: 'Commercial', activeColor: ACCENT },
+  { key: 'home', label: 'Home', activeColor: publicTheme.color.primary },
+  { key: 'commercial', label: 'Commercial', activeColor: publicTheme.color.primary },
   { key: 'ndis', label: 'NDIS', activeColor: NDIS_ACCENT },
 ];
 

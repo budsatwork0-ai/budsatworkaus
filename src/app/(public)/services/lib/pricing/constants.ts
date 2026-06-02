@@ -1,6 +1,6 @@
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 
-export const ACCENT = brand.primary;
+export const ACCENT = publicTheme.color.primary;
 export const glass =
   'bg-white/75 backdrop-blur-2xl border border-black/10 shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 

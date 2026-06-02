@@ -3,16 +3,11 @@
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
-import { brand } from '../theme';
+import { publicTheme } from '@/lib/design-system/themes';
 import { MARKETING_SERVICE_LIST } from '@/lib/marketing-services';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
-const BRAND = {
-  ...brand,
-  onDark: '#F8FCF9',
-  mutedOnDark: 'rgba(248,252,249,0.82)',
-  subtleOnDark: 'rgba(248,252,249,0.62)',
-};
+const BRAND = publicTheme.color;
 
 // ─── Rotating headline words ───────────────────────────────────────────────────
 const ROTATING_WORDS = ['home', 'garden', 'car', 'yard', 'laundry', 'bins', 'delivery', 'shoes'];

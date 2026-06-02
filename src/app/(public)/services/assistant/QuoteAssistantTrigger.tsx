@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 import { M } from '../utils/motion';
 import type { Context } from '../types';
 
@@ -33,7 +33,7 @@ export function QuoteAssistantTrigger({ onOpen, visible, context }: Props) {
             aria-label="Open quote assistant"
             className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.97] sm:gap-2 sm:px-4 sm:py-2.5 sm:text-[12px]"
             style={{
-              background: brand.primary,
+              background: publicTheme.color.primary,
               boxShadow: '0 4px 14px rgba(15,61,46,0.25)',
             }}
           >

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 import { M } from '../utils/motion';
 import { AssistantQuestion } from './AssistantQuestion';
 import { AssistantPriceBanner } from './AssistantPriceBanner';
@@ -35,7 +35,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
           style={{
             height: 6,
             width: i < current ? 20 : 6,
-            background: i < current ? brand.accent : brand.border,
+            background: i < current ? publicTheme.color.accent : publicTheme.color.border,
           }}
         />
       ))}
@@ -113,16 +113,16 @@ export function QuoteAssistantPanel({ assistant }: Props) {
             {/* Header */}
             <div
               className="flex items-start justify-between px-5 py-4"
-              style={{ borderBottom: `1px solid ${brand.border}` }}
+              style={{ borderBottom: `1px solid ${publicTheme.color.border}` }}
             >
               <div className="flex-1">
                 <div
                   className="text-[11px] font-semibold uppercase tracking-widest"
-                  style={{ color: brand.accent }}
+                  style={{ color: publicTheme.color.accent }}
                 >
                   {headerLabel}
                 </div>
-                <div className="mt-0.5 text-[13px]" style={{ color: brand.muted }}>
+                <div className="mt-0.5 text-[13px]" style={{ color: publicTheme.color.muted }}>
                   {headerSub}
                 </div>
                 {!inServicePick && assistant.totalSteps > 0 && (
@@ -139,7 +139,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                 onClick={assistant.handlers.onClose}
                 aria-label="Close assistant"
                 className="ml-4 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm transition-colors hover:bg-black/5"
-                style={{ color: brand.muted }}
+                style={{ color: publicTheme.color.muted }}
               >
                 ✕
               </button>
@@ -175,14 +175,14 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                 <div className="space-y-3 text-center">
                   <div
                     className="mx-auto flex h-14 w-14 items-center justify-center rounded-full text-2xl"
-                    style={{ background: brand.accentSoft }}
+                    style={{ background: publicTheme.color.accentSoft }}
                   >
                     ✓
                   </div>
-                  <p className="text-[17px] font-semibold" style={{ color: brand.text }}>
+                  <p className="text-[17px] font-semibold" style={{ color: publicTheme.color.text }}>
                     Your quote is ready
                   </p>
-                  <p className="text-[13px]" style={{ color: brand.muted }}>
+                  <p className="text-[13px]" style={{ color: publicTheme.color.muted }}>
                     {contextIntro.complete}
                   </p>
                 </div>
@@ -192,7 +192,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
             {/* Footer */}
             <div
               className="px-5 py-4 space-y-3"
-              style={{ borderTop: `1px solid ${brand.border}` }}
+              style={{ borderTop: `1px solid ${publicTheme.color.border}` }}
             >
               {/* Live estimate */}
               {assistant.liveEstimate && (
@@ -205,7 +205,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                   <button
                     onClick={assistant.handlers.onBack}
                     className="flex-shrink-0 text-[13px] font-medium underline underline-offset-2 transition-opacity hover:opacity-70"
-                    style={{ color: brand.muted }}
+                    style={{ color: publicTheme.color.muted }}
                   >
                     Back
                   </button>
@@ -215,7 +215,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                   <button
                     onClick={assistant.handlers.onHandoff}
                     className="flex-1 rounded-2xl py-3 text-[14px] font-semibold text-white transition-all active:scale-[0.98]"
-                    style={{ background: brand.primary }}
+                    style={{ background: publicTheme.color.primary }}
                   >
                     Review & confirm quote →
                   </button>
@@ -224,7 +224,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
                     onClick={assistant.handlers.onNext}
                     disabled={!assistant.canAdvance}
                     className="flex-1 rounded-2xl py-3 text-[14px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-40"
-                    style={{ background: brand.primary }}
+                    style={{ background: publicTheme.color.primary }}
                   >
                     Next
                   </button>
@@ -235,7 +235,7 @@ export function QuoteAssistantPanel({ assistant }: Props) {
               <button
                 onClick={assistant.handlers.onDismiss}
                 className="block w-full text-center text-[12px] transition-opacity hover:opacity-70"
-                style={{ color: brand.muted }}
+                style={{ color: publicTheme.color.muted }}
               >
                 Skip assistant — I'll do it myself
               </button>

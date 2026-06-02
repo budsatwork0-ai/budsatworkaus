@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { brand } from '@/app/ui/theme';
+import { publicTheme } from '@/lib/design-system/themes';;
 import type { AssistantAnswers, AssistantAnswerId } from './types';
 
 interface Props {
@@ -68,19 +68,19 @@ export function AssistantRegoBanner({ answers, onChange, onAnswer }: Props) {
   return (
     <div
       className="flex items-center justify-between gap-3 rounded-2xl border px-3 py-2"
-      style={{ borderColor: brand.accent, background: 'rgba(15,61,46,0.04)' }}
+      style={{ borderColor: publicTheme.color.accent, background: 'rgba(15,61,46,0.04)' }}
       aria-label="Selected vehicle"
     >
       <div className="min-w-0 flex-1">
         <div
           className="text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: brand.accent }}
+          style={{ color: publicTheme.color.accent }}
         >
           Vehicle
         </div>
         <div
           className="mt-0.5 truncate text-[13px] font-semibold"
-          style={{ color: brand.text }}
+          style={{ color: publicTheme.color.text }}
           title={descriptor}
         >
           {plate ? `${plate} · ${descriptor}` : descriptor}
@@ -90,7 +90,7 @@ export function AssistantRegoBanner({ answers, onChange, onAnswer }: Props) {
         type="button"
         onClick={handleChange}
         className="flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors hover:bg-black/5"
-        style={{ borderColor: brand.border, color: brand.muted }}
+        style={{ borderColor: publicTheme.color.border, color: publicTheme.color.muted }}
       >
         Change
       </button>
