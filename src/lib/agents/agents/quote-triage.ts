@@ -24,6 +24,23 @@ Output strict JSON only, matching this shape:
   "reason": string                // 1-2 sentences explaining the estimate
 }`;
 
+/** How many days without a new submitted quote triggers a staleness warning. */
+const DEFAULT_STALE_DAYS = 3;
+
+interface StatusCount {
+  status: string;
+  count: number;
+}
+
+interface DiagnosticPayload {
+  status_counts: StatusCount[];
+  submitted_total: number;
+  submitted_already_triaged: number;
+  submitted_awaiting_triage: number;
+  newest_submitted_at: string | null;
+  stale_warning: string | null;
+}
+
 export const quoteTriageAgent: AgentDefinition = {
   id: 'quote-triage',
   name: 'Quote Triage',
@@ -44,8 +61,17 @@ export const quoteTriageAgent: AgentDefinition = {
       .limit(10);
 
     if (error) throw new Error(`fetch quotes: ${error.message}`);
+
+    // ── Diagnostic query ────────────────────────────────────────────────────
+    // Always run this so operators can distinguish 'nothing to do' from
+    // 'data pipeline broken' even after hundreds of successful runs.
+    const diagnostic = await buildDiagnostic(ctx);
+
     if (!pending || pending.length === 0) {
-      return { summary: 'No new quote requests to triage.' };
+      return {
+        summary: buildNoWorkSummary(diagnostic),
+        output: { triaged: 0, auto_send_eligible: 0, actions_proposed: 0, parse_failures: 0, diagnostic },
+      };
     }
 
     const autoSendThreshold =
@@ -162,8 +188,99 @@ Return triage JSON.`;
     }
 
     return {
-      summary: `Triaged ${triaged} quote(s) — ${autoEligibleCount} eligible for auto-send, ${actions - autoEligibleCount} requiring review.${parseFailures ? ` ${parseFailures} parse failure(s).` : ''}`,
-      output: { triaged, auto_send_eligible: autoEligibleCount, actions_proposed: actions, parse_failures: parseFailures },
+      summary: `Triaged ${triaged} quote(s) — ${autoEligibleCount} eligible for auto-send, ${actions - autoEligibleCount} requiring review.${parseFailures ? ` ${parseFailures} parse failure(s).` : ''}${diagnostic.stale_warning ? ` ⚠️ ${diagnostic.stale_warning}` : ''}`,
+      output: { triaged, auto_send_eligible: autoEligibleCount, actions_proposed: actions, parse_failures: parseFailures, diagnostic },
     };
   },
 };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function buildDiagnostic(ctx: AgentContext): Promise<DiagnosticPayload> {
+  // Count all quotes grouped by status
+  const { data: allRows } = await ctx.supabase
+    .from('quotes')
+    .select('status, agent_triaged_at, created_at');
+
+  const statusMap: Record<string, number> = {};
+  let submittedTotal = 0;
+  let submittedAlreadyTriaged = 0;
+  let newestSubmittedAt: string | null = null;
+
+  for (const row of allRows ?? []) {
+    const s = (row.status as string) ?? 'unknown';
+    statusMap[s] = (statusMap[s] ?? 0) + 1;
+
+    if (s === 'submitted') {
+      submittedTotal += 1;
+      if (row.agent_triaged_at) submittedAlreadyTriaged += 1;
+      const ca = row.created_at as string | null;
+      if (ca && (!newestSubmittedAt || ca > newestSubmittedAt)) {
+        newestSubmittedAt = ca;
+      }
+    }
+  }
+
+  const status_counts: StatusCount[] = Object.entries(statusMap).map(
+    ([status, count]) => ({ status, count }),
+  );
+
+  const staleDays = Number((ctx.config?.stale_warning_days as number) ?? DEFAULT_STALE_DAYS);
+  let stale_warning: string | null = null;
+  if (newestSubmittedAt) {
+    const ageMs = Date.now() - new Date(newestSubmittedAt).getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    if (ageDays >= staleDays) {
+      stale_warning = `No new submitted quotes in ${ageDays.toFixed(1)} days (threshold: ${staleDays}d) — check data pipeline.`;
+    }
+  } else if (submittedTotal === 0) {
+    stale_warning = `No submitted quotes found in the table at all — check data pipeline or lead sources.`;
+  }
+
+  return {
+    status_counts,
+    submitted_total: submittedTotal,
+    submitted_already_triaged: submittedAlreadyTriaged,
+    submitted_awaiting_triage: submittedTotal - submittedAlreadyTriaged,
+    newest_submitted_at: newestSubmittedAt,
+    stale_warning,
+  };
+}
+
+function buildNoWorkSummary(diagnostic: DiagnosticPayload): string {
+  const parts: string[] = [];
+
+  if (diagnostic.submitted_total === 0) {
+    const others = diagnostic.status_counts
+      .filter((s) => s.status !== 'submitted')
+      .map((s) => `${s.count} ${s.status}`)
+      .join(', ');
+    parts.push(
+      others
+        ? `No submitted quotes found (table contains: ${others}).`
+        : 'Quotes table appears empty — no rows found in any status.',
+    );
+  } else if (diagnostic.submitted_awaiting_triage === 0) {
+    parts.push(
+      `All ${diagnostic.submitted_total} submitted quote(s) are already triaged (agent_triaged_at set).`,
+    );
+  } else {
+    // Shouldn't normally reach here, but be explicit.
+    parts.push(
+      `${diagnostic.submitted_awaiting_triage} submitted quote(s) awaiting triage but none were fetched.`,
+    );
+  }
+
+  if (diagnostic.stale_warning) {
+    parts.push(`⚠️ ${diagnostic.stale_warning}`);
+  }
+
+  const statusSummary = diagnostic.status_counts
+    .map((s) => `${s.status}:${s.count}`)
+    .join(', ');
+  if (statusSummary) {
+    parts.push(`Status breakdown — ${statusSummary}.`);
+  }
+
+  return parts.join(' ');
+}
