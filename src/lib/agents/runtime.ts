@@ -435,6 +435,26 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       const requires = !autoOk;
       if (requires) needsApproval = true;
 
+      // Dedup: for send_messenger and send_email, compute a stable identity and
+      // update the existing pending action instead of creating a duplicate.
+      const actionIdentity = computeActionIdentity(action);
+      if (requires && actionIdentity) {
+        const { data: existing } = await supabase
+          .from('agent_actions')
+          .select('id')
+          .eq('action_identity', actionIdentity)
+          .eq('status', 'pending')
+          .maybeSingle();
+        if (existing) {
+          await supabase
+            .from('agent_actions')
+            .update({ payload: action.payload, preview: action.preview, run_id: runId })
+            .eq('id', existing.id as string);
+          if (requires) needsApproval = true;
+          return;
+        }
+      }
+
       const { data: actionRow, error: actionInsertErr } = await supabase.from('agent_actions').insert({
         run_id: runId,
         agent_id: args.agentId,
@@ -445,9 +465,27 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         preview: action.preview,
         requires_approval: requires,
         status: requires ? 'pending' : 'approved',
+        action_identity: actionIdentity,
       }).select('id').single();
 
       if (actionInsertErr || !actionRow) {
+        // Concurrent insert with same identity — fetch and update the winner instead.
+        if (actionInsertErr?.code === '23505' && actionIdentity) {
+          const { data: winner } = await supabase
+            .from('agent_actions')
+            .select('id')
+            .eq('action_identity', actionIdentity)
+            .eq('status', 'pending')
+            .maybeSingle();
+          if (winner) {
+            await supabase
+              .from('agent_actions')
+              .update({ payload: action.payload, preview: action.preview, run_id: runId })
+              .eq('id', winner.id as string);
+            if (requires) needsApproval = true;
+            return;
+          }
+        }
         throw new Error(`Failed to record agent action: ${actionInsertErr?.message ?? 'missing inserted row'}`);
       }
 
@@ -984,6 +1022,31 @@ async function scheduleJobEffect(payload: Record<string, unknown>): Promise<void
   if (p.scheduled_time) update.scheduled_time = p.scheduled_time;
   const { error } = await supabase.from('orders').update(update).eq('id', p.order_id);
   if (error) throw new Error(`schedule_job: ${error.message}`);
+}
+
+/**
+ * Returns a stable string key that uniquely identifies a pending communication
+ * action for a given target. Used to prevent duplicate approval cards.
+ *
+ * Only computed for send_messenger and send_email. All other action types
+ * return null and bypass the dedup check entirely.
+ */
+function computeActionIdentity(action: ProposedAction): string | null {
+  if (action.action_type === 'send_messenger') {
+    const leadId = action.payload?.lead_id as string | undefined;
+    const convId = action.payload?.conversation_id as string | undefined;
+    if (!leadId) return null;
+    return `send_messenger:${leadId}:${convId ?? ''}`;
+  }
+  if (action.action_type === 'send_email') {
+    if (action.target_table && action.target_id) {
+      return `send_email:${action.target_table}:${action.target_id}`;
+    }
+    const to = (action.payload?.to as string | undefined)?.toLowerCase().trim();
+    if (!to) return null;
+    return `send_email:${to}:${((action.payload?.subject as string | undefined) ?? '').toLowerCase().trim()}`;
+  }
+  return null;
 }
 
 async function flagForReviewEffect(action: AgentActionEffectRow): Promise<void> {
