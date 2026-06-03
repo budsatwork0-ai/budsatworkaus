@@ -737,10 +737,12 @@ export async function executeApprovedAction(actionId: string): Promise<void> {
  */
 type AgentActionEffectRow = {
   id: string;
+  agent_id: string;
   action_type: string;
   target_table: string | null;
   target_id: string | null;
   payload: Record<string, unknown>;
+  preview: string | null;
 };
 
 async function dispatchEffect(action: AgentActionEffectRow): Promise<void> {
@@ -756,9 +758,9 @@ async function dispatchEffect(action: AgentActionEffectRow): Promise<void> {
     case 'schedule_job':
       return scheduleJobEffect(action.payload);
     case 'flag_for_review':
-      return flagForReviewEffect(action.payload);
+      return flagForReviewEffect(action);
     case 'ux_fix_required':
-      return flagForReviewEffect(action.payload);
+      return flagForReviewEffect(action);
     case 'update_service_price':
       return updateServicePriceEffect(action.payload);
     case 'write_theme_file':
@@ -984,19 +986,23 @@ async function scheduleJobEffect(payload: Record<string, unknown>): Promise<void
   if (error) throw new Error(`schedule_job: ${error.message}`);
 }
 
-async function flagForReviewEffect(payload: Record<string, unknown>): Promise<void> {
-  // "flag for review" actions don't need to do anything when approved —
-  // the human has already seen them in the approval queue. We mark them
-  // executed for auditability. If you have an /alerts table you'd like
-  // these to land in, drop them in here.
+async function flagForReviewEffect(action: AgentActionEffectRow): Promise<void> {
   const supabase = adminClient();
+  const p = action.payload;
+
   const { error } = await supabase.from('agent_alerts').insert({
-    payload,
-    created_at: new Date().toISOString(),
+    action_id: action.id,
+    agent_id: action.agent_id ?? null,
+    source_agent: (p.source as string | undefined) ?? action.agent_id ?? null,
+    severity: (p.severity as string | undefined) ?? null,
+    title: (p.title as string | undefined) ?? action.preview ?? null,
+    message: (p.message as string | undefined) ?? action.preview ?? null,
+    payload: p,
   });
-  // Silently ignore "relation does not exist" if you haven't created
-  // agent_alerts yet — the flag was already visible in the dashboard.
-  if (error && !/relation .* does not exist/.test(error.message)) {
+
+  if (error) {
+    // action_id unique violation = already inserted (double-approval). Safe to ignore.
+    if (error.code === '23505') return;
     throw new Error(`flag_for_review: ${error.message}`);
   }
 }
