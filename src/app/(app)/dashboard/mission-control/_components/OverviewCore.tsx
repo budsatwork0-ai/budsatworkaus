@@ -540,6 +540,393 @@ function deriveVerdict(approval: BudOsQueueItem['approval']): VerdictResult {
 
 /* ── 3. action queue ─────────────────────────────────────────────────────── */
 
+const APPROVAL_ACTION_TYPES = new Set([
+  'send_email',
+  'send_messenger',
+  'approve_repair_plan',
+  'approve_ux_evolution_plan',
+  'approve_deployment_plan',
+  'run_improvement_pipeline',
+  'flag_for_review',
+]);
+
+type QueueBucket = 'approval' | 'operational' | 'observation' | 'watch';
+
+function classifyQueueItem(item: BudOsQueueItem): QueueBucket {
+  if (item.approval && APPROVAL_ACTION_TYPES.has(item.approval.action_type)) return 'approval';
+  if (item.source === 'bud_insight' || item.source === 'ux_evolution') return 'observation';
+  if (item.group === 'watch_items') return 'watch';
+  if (item.source === 'agent_health') return 'operational';
+  if (item.approval) return 'approval';
+  return 'operational';
+}
+
+function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function deriveDeduplicateKey(item: BudOsQueueItem): string {
+  const approval = item.approval;
+  if (!approval) {
+    return `${item.source}:${item.agent_id ?? ''}:${normalizeTitle(item.title)}`;
+  }
+  const at = approval.action_type;
+  const p = approval.payload ?? {};
+  if (at === 'send_email') {
+    const recipient = String(p['to'] ?? p['recipient'] ?? p['email'] ?? '').toLowerCase().trim();
+    const subject = normalizeTitle(String(p['subject'] ?? item.title));
+    const ref = String(p['quote_id'] ?? p['lead_id'] ?? p['order_id'] ?? '');
+    return `send_email:${ref}:${recipient}:${subject}`;
+  }
+  if (at === 'flag_for_review') {
+    return `flag_for_review:${approval.source_agent ?? ''}:${approval.affected_area ?? ''}:${normalizeTitle(item.title)}`;
+  }
+  if (approval.target_table && approval.target_id) {
+    return `${at}:${approval.target_table}:${approval.target_id}`;
+  }
+  return item.id;
+}
+
+type DedupedQueueItem = {
+  item: BudOsQueueItem;
+  duplicateCount: number;
+  duplicateIds: string[];
+};
+
+function deduplicateQueueBucket(items: BudOsQueueItem[]): DedupedQueueItem[] {
+  const groups = new Map<string, BudOsQueueItem[]>();
+  for (const it of items) {
+    const key = deriveDeduplicateKey(it);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(it);
+    } else {
+      groups.set(key, [it]);
+    }
+  }
+  return Array.from(groups.values()).map((group) => {
+    const representative = group.reduce((latest, cur) =>
+      new Date(cur.created_at).getTime() > new Date(latest.created_at).getTime() ? cur : latest,
+    );
+    return {
+      item: representative,
+      duplicateCount: group.length,
+      duplicateIds: group.map((i) => i.id),
+    };
+  });
+}
+
+function QueueItemRow({
+  item,
+  active,
+  investigating,
+  duplicateCount,
+  onSelect,
+  onApprove,
+  onReject,
+  onInvestigate,
+}: {
+  item: BudOsQueueItem;
+  active: boolean;
+  investigating: boolean;
+  duplicateCount: number;
+  onSelect: (item: BudOsQueueItem) => void;
+  onApprove: (item: BudOsQueueItem) => void;
+  onReject: (item: BudOsQueueItem) => void;
+  onInvestigate: (item: BudOsQueueItem) => void;
+}) {
+  const weight = SEVERITY_TONE[item.severity];
+  const approval = item.approval;
+  const notReady = approval
+    ? approval.readiness !== 'ready' || approval.truth_label === 'Blocked' || approval.truth_label === 'Archived'
+    : false;
+  const plan = approval?.proposed_plan ?? [];
+  const files = approval?.affected_files ?? [];
+  const description = approval?.full_description ?? '';
+  const isImprovementApproval = approval?.action_type === 'run_improvement_pipeline';
+  const hasDetail = plan.length > 0 || files.length > 0 || description.length > 60 || isImprovementApproval;
+  return (
+    <li>
+      {/* Row */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onSelect(item)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(item); }}
+        className={`group flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left transition ${
+          active ? 'bg-sky-500/[0.04]' : 'hover:bg-white/[0.025]'
+        }`}
+      >
+        <span className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${weight.tone}`}>
+          {weight.label}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-white">{item.title}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-white/55">{item.detail}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+            {item.agent_name && <span>{item.agent_name}</span>}
+            {item.agent_name && <span>·</span>}
+            <span>{item.status}</span>
+            {approval && (
+              <>
+                <span>·</span>
+                <span className={`rounded-full border px-1.5 py-px font-semibold ${APPROVAL_TRUTH_TONE[approval.truth_label]}`}>
+                  {approval.truth_label}
+                </span>
+              </>
+            )}
+            {approval && (
+              <>
+                <span>·</span>
+                <span className={notReady ? 'text-amber-300/80' : 'text-emerald-300/80'}>
+                  {approval.readiness_summary}
+                </span>
+              </>
+            )}
+            {duplicateCount > 1 && (
+              <>
+                <span>·</span>
+                <span className="rounded border border-white/15 bg-white/[0.04] px-1.5 py-px text-white/50">
+                  +{duplicateCount - 1} similar
+                </span>
+              </>
+            )}
+            {hasDetail && !active && (
+              <span className="text-sky-400/60">· click to expand</span>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col gap-1.5">
+          {approval ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — expand for details.'); return; }
+                onApprove(item);
+              }}
+              disabled={notReady}
+              className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Approve
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onInvestigate(item); }}
+              disabled={investigating}
+              className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
+            >
+              {investigating ? 'Working…' : 'Investigate'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expansion drawer */}
+      {active && hasDetail && (
+        <div className="border-t border-white/[0.05] bg-black/20 px-5 py-4 space-y-5">
+
+          {/* ── 1. The idea ── */}
+          {description && description !== item.title && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">The idea</p>
+              <p className="text-sm leading-relaxed text-white/80">{description}</p>
+            </div>
+          )}
+
+          {/* ── 2. Improvement evidence metadata ── */}
+          {isImprovementApproval && approval && (() => {
+            const conf = approval.confidence != null
+              ? `${Math.round(approval.confidence * 100)}%`
+              : null;
+            const risk = approval.risk_level;
+            const riskWeight = risk ? SEVERITY_TONE[risk as keyof typeof SEVERITY_TONE] : null;
+            const agentLabel = approval.source_agent ?? approval.affected_area ?? null;
+            const pr = approval.linked_pr;
+            return (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-2">Evidence summary</p>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Confidence</dt>
+                    <dd className={conf ? 'font-medium text-white/80' : 'text-white/30 italic'}>{conf ?? 'Not provided'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Risk level</dt>
+                    <dd>
+                      {riskWeight
+                        ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${riskWeight.tone}`}>{riskWeight.label}</span>
+                        : <span className="text-white/30 italic">Not provided</span>
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Expected impact</dt>
+                    <dd className="text-white/30 italic">Not provided</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Affected agent</dt>
+                    <dd className={agentLabel ? 'font-medium text-white/80' : 'text-white/30 italic'}>{agentLabel ?? 'Not provided'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Why approval required</dt>
+                    <dd className="text-white/30 italic">Not provided</dd>
+                  </div>
+                  {pr && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Pull request</dt>
+                      <dd>
+                        <a
+                          href={pr}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-sky-400 underline-offset-2 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {pr}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            );
+          })()}
+
+          {/* ── 3. What it actually does ── */}
+          {(plan.length > 0 || files.length > 0) && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">What it actually does</p>
+              {plan.length > 0 && (
+                <ol className="space-y-1.5 mb-2">
+                  {plan.map((step, i) => (
+                    <li key={i} className="flex gap-2.5 text-sm text-white/75">
+                      <span className="mt-px shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[10px] font-semibold tabular-nums text-white/40">{i + 1}</span>
+                      <span className="leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="text-[11px] text-white/35 self-center mr-1">Files:</span>
+                  {files.map((f) => (
+                    <span key={f} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-sky-300/80">{f}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── 4. Verdict ── */}
+          {approval && (() => {
+            const verdict = deriveVerdict(approval);
+            return (
+              <div className={`rounded-xl border px-4 py-3 ${verdict.containerTone}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Verdict</p>
+                  <span className={`rounded-full border px-2 py-px text-[10px] font-semibold uppercase tracking-wider ${verdict.chipTone}`}>
+                    {verdict.label}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-white/75">{verdict.reason}</p>
+              </div>
+            );
+          })()}
+
+          {/* ── 5. Decision buttons ── */}
+          {approval && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — see the verdict above.'); return; }
+                  onApprove(item);
+                }}
+                disabled={notReady}
+                className="flex-1 rounded-lg border border-emerald-400/40 bg-emerald-500/10 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => onReject(item)}
+                className="flex-1 rounded-lg border border-red-400/30 bg-red-500/[0.06] py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+          {!approval && (
+            <button
+              onClick={() => onInvestigate(item)}
+              disabled={investigating}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
+            >
+              {investigating ? 'Working…' : 'Ask Bud to investigate and propose a fix'}
+            </button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+type QueueSubSectionHandlers = {
+  selectedId: string | null;
+  investigatingIds: Set<string>;
+  onSelect: (item: BudOsQueueItem) => void;
+  onApprove: (item: BudOsQueueItem) => void;
+  onReject: (item: BudOsQueueItem) => void;
+  onInvestigate: (item: BudOsQueueItem) => void;
+};
+
+function QueueSubSection({
+  title,
+  description,
+  count,
+  countTone,
+  items,
+  selectedId,
+  investigatingIds,
+  onSelect,
+  onApprove,
+  onReject,
+  onInvestigate,
+}: {
+  title: string;
+  description: string;
+  count: number;
+  countTone: string;
+  items: DedupedQueueItem[];
+} & QueueSubSectionHandlers) {
+  return (
+    <div>
+      <header className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">{title}</h3>
+          <p className="mt-0.5 text-xs text-white/40">{description}</p>
+        </div>
+        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${countTone}`}>
+          {count}
+        </span>
+      </header>
+      <ul className="divide-y divide-white/[0.05]">
+        {items.map((di) => (
+          <QueueItemRow
+            key={di.item.id}
+            item={di.item}
+            active={di.item.id === selectedId}
+            investigating={investigatingIds.has(di.item.id)}
+            duplicateCount={di.duplicateCount}
+            onSelect={onSelect}
+            onApprove={onApprove}
+            onReject={onReject}
+            onInvestigate={onInvestigate}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ActionQueue({
   queue,
   selectedId,
@@ -557,251 +944,64 @@ function ActionQueue({
   onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
 }) {
-  const items = queue.slice(0, 10);
+  const approvals    = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'approval')).slice(0, 10);
+  const operational  = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'operational')).slice(0, 10);
+  const observations = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'observation')).slice(0, 10);
+  const watchItems   = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'watch')).slice(0, 10);
+  const isEmpty = approvals.length + operational.length + observations.length + watchItems.length === 0;
+
+  const handlers: QueueSubSectionHandlers = {
+    selectedId, investigatingIds, onSelect, onApprove, onReject, onInvestigate,
+  };
+
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02]">
-      <header className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3">
-        <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Needs a decision</h3>
-          <p className="mt-0.5 text-xs text-white/40">Real tasks, approvals and failures. Ranked by severity.</p>
-        </div>
-        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-white/65">
-          {queue.length} open
-        </span>
-      </header>
-      <ul className="divide-y divide-white/[0.05]">
-        {items.length === 0 && (
-          <li className="px-5 py-8 text-center text-sm text-white/45">No action items. Bud is on watch.</li>
-        )}
-        {items.map((item) => {
-          const active = item.id === selectedId;
-          const investigating = investigatingIds.has(item.id);
-          const weight = SEVERITY_TONE[item.severity];
-          const approval = item.approval;
-          const notReady = approval
-            ? approval.readiness !== 'ready' || approval.truth_label === 'Blocked' || approval.truth_label === 'Archived'
-            : false;
-          const plan = approval?.proposed_plan ?? [];
-          const files = approval?.affected_files ?? [];
-          const description = approval?.full_description ?? '';
-          const isImprovementApproval = approval?.action_type === 'run_improvement_pipeline';
-          const hasDetail = plan.length > 0 || files.length > 0 || description.length > 60 || isImprovementApproval;
-          return (
-            <li key={item.id}>
-              {/* Row */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(item)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(item); }}
-                className={`group flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left transition ${
-                  active ? 'bg-sky-500/[0.04]' : 'hover:bg-white/[0.025]'
-                }`}
-              >
-                <span className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${weight.tone}`}>
-                  {weight.label}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white">{item.title}</p>
-                  <p className="mt-1 line-clamp-1 text-xs text-white/55">{item.detail}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
-                    {item.agent_name && <span>{item.agent_name}</span>}
-                    {item.agent_name && <span>·</span>}
-                    <span>{item.status}</span>
-                    {approval && (
-                      <>
-                        <span>·</span>
-                        <span className={`rounded-full border px-1.5 py-px font-semibold ${APPROVAL_TRUTH_TONE[approval.truth_label]}`}>
-                          {approval.truth_label}
-                        </span>
-                      </>
-                    )}
-                    {approval && (
-                      <>
-                        <span>·</span>
-                        <span className={notReady ? 'text-amber-300/80' : 'text-emerald-300/80'}>
-                          {approval.readiness_summary}
-                        </span>
-                      </>
-                    )}
-                    {hasDetail && !active && (
-                      <span className="text-sky-400/60">· click to expand</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col gap-1.5">
-                  {approval ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — expand for details.'); return; }
-                        onApprove(item);
-                      }}
-                      disabled={notReady}
-                      className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Approve
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onInvestigate(item); }}
-                      disabled={investigating}
-                      className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
-                    >
-                      {investigating ? 'Working…' : 'Investigate'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Expansion drawer */}
-              {active && hasDetail && (
-                <div className="border-t border-white/[0.05] bg-black/20 px-5 py-4 space-y-5">
-
-                  {/* ── 1. The idea ── */}
-                  {description && description !== item.title && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">The idea</p>
-                      <p className="text-sm leading-relaxed text-white/80">{description}</p>
-                    </div>
-                  )}
-
-                  {/* ── 2. Improvement evidence metadata ── */}
-                  {isImprovementApproval && approval && (() => {
-                    const conf = approval.confidence != null
-                      ? `${Math.round(approval.confidence * 100)}%`
-                      : null;
-                    const risk = approval.risk_level;
-                    const riskWeight = risk ? SEVERITY_TONE[risk as keyof typeof SEVERITY_TONE] : null;
-                    const agentLabel = approval.source_agent ?? approval.affected_area ?? null;
-                    const pr = approval.linked_pr;
-                    return (
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-2">Evidence summary</p>
-                        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
-                          <div>
-                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Confidence</dt>
-                            <dd className={conf ? 'font-medium text-white/80' : 'text-white/30 italic'}>{conf ?? 'Not provided'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Risk level</dt>
-                            <dd>
-                              {riskWeight
-                                ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${riskWeight.tone}`}>{riskWeight.label}</span>
-                                : <span className="text-white/30 italic">Not provided</span>
-                              }
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Expected impact</dt>
-                            <dd className="text-white/30 italic">Not provided</dd>
-                          </div>
-                          <div>
-                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Affected agent</dt>
-                            <dd className={agentLabel ? 'font-medium text-white/80' : 'text-white/30 italic'}>{agentLabel ?? 'Not provided'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Why approval required</dt>
-                            <dd className="text-white/30 italic">Not provided</dd>
-                          </div>
-                          {pr && (
-                            <div>
-                              <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Pull request</dt>
-                              <dd>
-                                <a
-                                  href={pr}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="truncate text-sky-400 underline-offset-2 hover:underline"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {pr}
-                                </a>
-                              </dd>
-                            </div>
-                          )}
-                        </dl>
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── 3. What it actually does ── */}
-                  {(plan.length > 0 || files.length > 0) && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">What it actually does</p>
-                      {plan.length > 0 && (
-                        <ol className="space-y-1.5 mb-2">
-                          {plan.map((step, i) => (
-                            <li key={i} className="flex gap-2.5 text-sm text-white/75">
-                              <span className="mt-px shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[10px] font-semibold tabular-nums text-white/40">{i + 1}</span>
-                              <span className="leading-relaxed">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-                      {files.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          <span className="text-[11px] text-white/35 self-center mr-1">Files:</span>
-                          {files.map((f) => (
-                            <span key={f} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-sky-300/80">{f}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ── 4. Verdict ── */}
-                  {approval && (() => {
-                    const verdict = deriveVerdict(approval);
-                    return (
-                      <div className={`rounded-xl border px-4 py-3 ${verdict.containerTone}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Verdict</p>
-                          <span className={`rounded-full border px-2 py-px text-[10px] font-semibold uppercase tracking-wider ${verdict.chipTone}`}>
-                            {verdict.label}
-                          </span>
-                        </div>
-                        <p className="text-sm leading-relaxed text-white/75">{verdict.reason}</p>
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── 5. Decision buttons ── */}
-                  {approval && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          if (notReady) { toast.error(approval.readiness_summary || 'Not ready to approve — see the verdict above.'); return; }
-                          onApprove(item);
-                        }}
-                        disabled={notReady}
-                        className="flex-1 rounded-lg border border-emerald-400/40 bg-emerald-500/10 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => onReject(item)}
-                        className="flex-1 rounded-lg border border-red-400/30 bg-red-500/[0.06] py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                  {!approval && (
-                    <button
-                      onClick={() => onInvestigate(item)}
-                      disabled={investigating}
-                      className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
-                    >
-                      {investigating ? 'Working…' : 'Ask Bud to investigate and propose a fix'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+    <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05]">
+      {isEmpty ? (
+        <div className="px-5 py-8 text-center text-sm text-white/45">No action items. Bud is on watch.</div>
+      ) : (
+        <>
+          {approvals.length > 0 && (
+            <QueueSubSection
+              title="Needs approval"
+              description="Actions awaiting your decision."
+              count={approvals.length}
+              countTone="border-yellow-300/25 bg-yellow-300/[0.06] text-yellow-200"
+              items={approvals}
+              {...handlers}
+            />
+          )}
+          {operational.length > 0 && (
+            <QueueSubSection
+              title="Operational issues"
+              description="Broken or failing agents that need attention."
+              count={operational.length}
+              countTone="border-red-400/30 bg-red-500/[0.06] text-red-300"
+              items={operational}
+              {...handlers}
+            />
+          )}
+          {observations.length > 0 && (
+            <QueueSubSection
+              title="Observations"
+              description="Insights and system observations."
+              count={observations.length}
+              countTone="border-sky-400/25 bg-sky-500/[0.06] text-sky-300"
+              items={observations}
+              {...handlers}
+            />
+          )}
+          {watchItems.length > 0 && (
+            <QueueSubSection
+              title="Watch list"
+              description="Agents on watch — monitor for continued issues."
+              count={watchItems.length}
+              countTone="border-amber-400/25 bg-amber-500/[0.06] text-amber-300"
+              items={watchItems}
+              {...handlers}
+            />
+          )}
+        </>
+      )}
     </section>
   );
 }
