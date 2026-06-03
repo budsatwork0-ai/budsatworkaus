@@ -224,7 +224,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           </section>
 
           {/* Inclusions */}
-          <section className={cx('rounded-2xl p-7', publicTheme.glass)}>
+          <section data-cursor-card className={cx('rounded-2xl p-7', publicTheme.glass)}>
             <h2 className="font-semibold text-lg mb-5" style={{ color: publicTheme.color.text }}>
               What&apos;s included
             </h2>
@@ -244,7 +244,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           </section>
 
           {/* Pricing hint + CTA */}
-          <section className={cx('rounded-3xl p-8 text-center', publicTheme.glassSoft)}>
+          <section data-cursor-card className={cx('rounded-3xl p-8 text-center', publicTheme.glassSoft)}>
             <p className="text-sm mb-1" style={{ color: publicTheme.color.muted }}>Starting from</p>
             <p className="text-4xl font-bold mb-1" style={{ color: publicTheme.color.text }}>${svc.from}</p>
             <p className="text-xs mb-6" style={{ color: publicTheme.color.muted }}>

@@ -9,6 +9,7 @@ import Header from '../ui/Header';          // use exact filename casing for Hea
 import { Footer } from '@/components/Footer';
 import { CookieBanner } from '@/components/CookieBanner';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
+import { PublicCursorFollower } from '@/components/PublicCursorFollower';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,10 +18,13 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       style={{ background: brand.bg, color: brand.text }}
     >
       <Header />
-      <main className="px-4 md:px-8 pt-8 md:pt-10 pb-20 md:pb-10">{children}</main>
+      <main data-public-cursor-root className="px-4 md:px-8 pt-8 md:pt-10 pb-20 md:pb-10">
+        {children}
+      </main>
       <Footer />
       <CookieBanner />
       <FeedbackWidget />
+      <PublicCursorFollower />
     </div>
   );
 }
