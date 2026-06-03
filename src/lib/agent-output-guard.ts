@@ -24,7 +24,7 @@ function isEmptyOutput(value: unknown): boolean {
   if (
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    Object.keys(value as object).length === 0
+    Object.keys(value as Record<string, unknown>).length === 0
   ) {
     return true;
   }
