@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marketing Studio — Insights Preview</title>
+<style>
+  :root{
+    --bg:#F6FBF7; --card:#FFFFFF; --border:#D7E7DD;
+    --primary:#0F3D2E; --accent:#1C7C54; --accentSoft:#DDF3E4;
+    --surface:#F1F7F3; --surfaceAlt:#EAF6EE; --text:#12261E; --muted:#4C6157; --focus:#8BC8A8;
+    --amber:#B45309; --amberSoft:#FEF3C7; --blue:#0369A1; --blueSoft:#E0F2FE;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  h1.title{font-size:24px;font-weight:800;color:var(--primary);margin-top:6px;max-width:680px}
+  .sub{color:var(--muted);font-size:14px;margin-top:6px;max-width:680px}
+  .glass{background:rgba(255,255,255,.82);backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,.07);
+    box-shadow:0 10px 30px rgba(2,6,23,.06)}
+  /* tabs */
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.05);
+    border-radius:16px;padding:5px;margin:22px 0 20px}
+  .tab{border:0;background:transparent;padding:9px 16px;border-radius:11px;font-size:13px;font-weight:600;
+    color:var(--muted);cursor:pointer;transition:.15s}
+  .tab:hover{color:var(--text)}
+  .tab.active{background:var(--accent);color:#fff;box-shadow:0 6px 16px rgba(28,124,84,.28)}
+  /* kpi */
+  .grid{display:grid;gap:14px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .kpi{border-radius:22px;padding:18px}
+  .kpi .k-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .kpi .k-val{font-size:30px;font-weight:800;margin-top:10px;letter-spacing:-.5px}
+  .pill{display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;font-weight:700;
+    padding:4px 10px;border-radius:999px}
+  .pill.up{background:var(--accentSoft);color:var(--accent)}
+  .pill.down{background:#FEE2E2;color:#B91C1C}
+  .pill.flat{background:var(--surface);color:var(--muted)}
+  /* section */
+  section.card{border-radius:24px;padding:18px 18px 20px;margin-top:18px}
+  .s-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+  .s-title{font-size:15px;font-weight:700;color:var(--text)}
+  .s-sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .s-right{font-size:12px;color:var(--muted);white-space:nowrap}
+  /* channel chips */
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 13px;font-size:12px;
+    font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+  .chip.on{background:var(--accentSoft);border-color:var(--focus);color:var(--accent)}
+  /* brief */
+  .brief{background:linear-gradient(135deg,var(--surfaceAlt),#fff);border:1px solid var(--border);
+    border-radius:20px;padding:16px 18px}
+  .brief .bj{font-size:13px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+  .shot{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:14px}
+  .shot .n{flex:0 0 22px;height:22px;border-radius:999px;background:var(--accent);color:#fff;font-size:12px;
+    font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .say{margin-top:14px;padding:12px 14px;border-radius:14px;background:#fff;border:1px dashed var(--focus);
+    font-size:14px;font-style:italic;color:var(--text)}
+  /* pod */
+  .pod{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .agent{border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff}
+  .agent .av{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;color:#fff;font-size:15px}
+  .agent .an{font-size:14px;font-weight:700;margin-top:10px}
+  .agent .ar{font-size:12px;color:var(--muted);margin-top:2px}
+  .status{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:999px}
+  .status.live{background:var(--accentSoft);color:var(--accent)}
+  .status.review{background:var(--amberSoft);color:var(--amber)}
+  .dot{width:7px;height:7px;border-radius:999px;background:currentColor}
+  /* queue */
+  .q-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+  .q-row:first-child{border-top:0}
+  .q-thumb{flex:0 0 46px;height:46px;border-radius:12px;background:var(--surface);display:flex;
+    align-items:center;justify-content:center;font-size:20px}
+  .q-main{flex:1;min-width:0}
+  .q-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .badge.draft{background:var(--surface);color:var(--muted)}
+  .badge.sched{background:var(--blueSoft);color:var(--blue)}
+  .badge.pub{background:var(--accentSoft);color:var(--accent)}
+  .btn{border:0;border-radius:11px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;box-shadow:0 6px 14px rgba(28,124,84,.25)}
+  .btn.ghost{background:#fff;border:1px solid var(--border);color:var(--text)}
+  /* campaign */
+  .camp{border:1px solid var(--border);border-radius:18px;padding:16px;background:linear-gradient(135deg,#fff,var(--surface))}
+  .camp .ct{font-size:16px;font-weight:800;color:var(--primary)}
+  .camp .chook{font-size:14px;color:var(--accent);font-weight:600;font-style:italic;margin-top:4px}
+  .bar{height:8px;border-radius:999px;background:var(--surface);margin-top:14px;overflow:hidden}
+  .bar > i{display:block;height:100%;background:var(--accent);border-radius:999px}
+  /* log strip */
+  .logrow{display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end}
+  .field label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.08em;margin-bottom:5px}
+  .field input{width:100%;border:1px solid var(--border);border-radius:11px;padding:9px 11px;font-size:14px;
+    color:var(--text);background:#fff}
+  .field input:focus{outline:2px solid var(--focus);border-color:var(--focus)}
+  .cols2{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
+  .preview-banner{background:var(--primary);color:#fff;font-size:12px;font-weight:600;text-align:center;
+    padding:7px;border-radius:10px;margin-bottom:18px;letter-spacing:.02em}
+  @media(max-width:860px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .pod{grid-template-columns:1fr}
+    .cols2{grid-template-columns:1fr}
+    .logrow{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:430px){
+    .kpis{grid-template-columns:1fr}
+    h1.title{font-size:21px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="preview-banner">PREVIEW MOCKUP · This is how the Marketing Studio tab would sit inside /dashboard/insights · not yet live</div>
+
+  <div class="eyebrow">Insights Workspace</div>
+  <h1 class="title">Marketing Studio</h1>
+  <p class="sub">Your agent marketing team — Stanley Henry and The Attention Seeker — building premium content from real jobs, and the numbers that prove it's working.</p>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <button class="tab">Bud Leads</button>
+    <button class="tab">Overview</button>
+    <button class="tab">Reports</button>
+    <button class="tab">Visitors</button>
+    <button class="tab active">Marketing Studio</button>
+  </div>
+
+  <!-- scoreboard -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+    <div>
+      <div class="s-title">Scoreboard · last 7 days</div>
+      <div class="s-sub">The four numbers the whole team optimises for.</div>
+    </div>
+    <div class="chips" id="chanChips">
+      <button class="chip on" data-c="combined">All channels</button>
+      <button class="chip" data-c="ig">Instagram</button>
+      <button class="chip" data-c="tt">TikTok</button>
+      <button class="chip" data-c="fb">Facebook</button>
+      <button class="chip" data-c="gbp">Google</button>
+    </div>
+  </div>
+
+  <div class="grid kpis">
+    <div class="kpi glass">
+      <div class="k-label">Views</div>
+      <div class="k-val" id="kv-views">8,420</div>
+      <span class="pill up" id="kp-views">▲ 34% vs prev 7d</span>
+    </div>
+    <div class="kpi glass">
+      <div class="k-label">Engagements</div>
+      <div class="k-val" id="kv-eng">612</div>
+      <span class="pill up" id="kp-eng">▲ 21% · 7.3% rate</span>
+    </div>
+    <div class="kpi glass">
+      <div class="k-label">Content Published</div>
+      <div class="k-val" id="kv-pub">11</div>
+      <span class="pill up" id="kp-pub">▲ 11-day streak</span>
+    </div>
+    <div class="kpi glass">
+      <div class="k-label">Followers</div>
+      <div class="k-val" id="kv-fol">1,284</div>
+      <span class="pill up" id="kp-fol">▲ +63 this week</span>
+    </div>
+  </div>
+
+  <div class="cols2" style="margin-top:18px">
+    <!-- left column -->
+    <div>
+      <!-- capture brief -->
+      <section class="card glass">
+        <div class="s-head">
+          <div>
+            <div class="s-title">Today's Capture Brief</div>
+            <div class="s-sub">From the Field Producer — what to film on the job today.</div>
+          </div>
+          <div class="s-right">Fri 30 May · auto 06:30</div>
+        </div>
+        <div class="brief">
+          <div class="bj">Window clean · Springwood</div>
+          <div class="shot"><span class="n">1</span><span>One slow pan of the worst glass <strong>before</strong> you touch it.</span></div>
+          <div class="shot"><span class="n">2</span><span>The squeegee pull — one clean stroke, top to bottom.</span></div>
+          <div class="shot"><span class="n">3</span><span>The reveal: same window, sun coming through, sparkling.</span></div>
+          <div class="say">"Streak-free or we come back free — that's the Buds promise."</div>
+        </div>
+      </section>
+
+      <!-- content queue -->
+      <section class="card glass">
+        <div class="s-head">
+          <div>
+            <div class="s-title">Content Queue</div>
+            <div class="s-sub">Drafts from the team. One tap to approve and publish.</div>
+          </div>
+          <div class="s-right">3 awaiting you</div>
+        </div>
+
+        <div class="q-row">
+          <div class="q-thumb">🎬</div>
+          <div class="q-main">
+            <div class="q-title">IG Reel · Springwood window before/after</div>
+            <div class="q-meta">Stanley Henry · premium cut · 5 hashtags</div>
+          </div>
+          <span class="badge draft">Draft</span>
+          <button class="btn primary" onclick="approve(this)">Approve</button>
+        </div>
+
+        <div class="q-row">
+          <div class="q-thumb">📱</div>
+          <div class="q-main">
+            <div class="q-title">TikTok · "POV: your windows haven't seen sun in years"</div>
+            <div class="q-meta">The Attention Seeker · trending hook</div>
+          </div>
+          <span class="badge draft">Draft</span>
+          <button class="btn primary" onclick="approve(this)">Approve</button>
+        </div>
+
+        <div class="q-row">
+          <div class="q-thumb">⭐</div>
+          <div class="q-main">
+            <div class="q-title">FB + Group post · 5-star review from Daisy Hill</div>
+            <div class="q-meta">Reviews agent → Content Agent · social proof</div>
+          </div>
+          <span class="badge draft">Draft</span>
+          <button class="btn primary" onclick="approve(this)">Approve</button>
+        </div>
+
+        <div class="q-row">
+          <div class="q-thumb">📍</div>
+          <div class="q-main">
+            <div class="q-title">Google Business · "Window cleaning in Logan"</div>
+            <div class="q-meta">SEO Meta agent · suburb-keyworded</div>
+          </div>
+          <span class="badge sched">Scheduled</span>
+          <button class="btn ghost">Edit</button>
+        </div>
+
+        <div class="q-row">
+          <div class="q-thumb">✅</div>
+          <div class="q-main">
+            <div class="q-title">IG · Underwood gutter clean reveal</div>
+            <div class="q-meta">Published yesterday · 1.9k views</div>
+          </div>
+          <span class="badge pub">Published</span>
+          <button class="btn ghost">Stats</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- right column -->
+    <div>
+      <!-- the pod -->
+      <section class="card glass">
+        <div class="s-head">
+          <div>
+            <div class="s-title">The Pod</div>
+            <div class="s-sub">Your marketing team. Reports to Bud.</div>
+          </div>
+        </div>
+        <div class="pod">
+          <div class="agent">
+            <div class="av" style="background:#0F3D2E">SH</div>
+            <div class="an">Stanley Henry</div>
+            <div class="ar">Creative Director — premium ads &amp; brand voice</div>
+            <span class="status review"><span class="dot"></span>Review · 1 brief ready</span>
+          </div>
+          <div class="agent">
+            <div class="av" style="background:#1C7C54">AS</div>
+            <div class="an">The Attention Seeker</div>
+            <div class="ar">Growth &amp; distribution — reach, hooks, followers</div>
+            <span class="status live"><span class="dot"></span>Live · scheduling</span>
+          </div>
+          <div class="agent">
+            <div class="av" style="background:#3F7D5C">FP</div>
+            <div class="an">Field Producer</div>
+            <div class="ar">Daily capture brief from today's jobs</div>
+            <span class="status live"><span class="dot"></span>Ran 06:30</span>
+          </div>
+          <div class="agent">
+            <div class="av" style="background:#5B8A72">CA</div>
+            <div class="an">Content Agent</div>
+            <div class="ar">Drafts posts per channel from footage</div>
+            <span class="status review"><span class="dot"></span>3 drafts queued</span>
+          </div>
+          <div class="agent">
+            <div class="av" style="background:#7BA98F">SK</div>
+            <div class="an">Scoreboard Keeper</div>
+            <div class="ar">Tracks the numbers, flags what's working</div>
+            <span class="status live"><span class="dot"></span>Synced</span>
+          </div>
+          <div class="agent">
+            <div class="av" style="background:#9CC2AE">CW</div>
+            <div class="an">Competitor Watcher</div>
+            <div class="ar">Watches local rivals' pages &amp; offers</div>
+            <span class="status live"><span class="dot"></span>Watching</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- campaign -->
+      <section class="card glass">
+        <div class="s-head">
+          <div>
+            <div class="s-title">Campaigns</div>
+            <div class="s-sub">First real test against your July booking.</div>
+          </div>
+        </div>
+        <div class="camp">
+          <div class="ct">Streak-Free July</div>
+          <div class="chook">"Streak-free or we come back free"</div>
+          <div class="s-sub" style="margin-top:8px">Window cleans · 8–11 July · build the week solid before & after the booking.</div>
+          <div class="bar"><i style="width:35%"></i></div>
+          <div class="note">Ramp phase · 4 of 12 posts shipped · 1 booking confirmed</div>
+        </div>
+      </section>
+
+      <!-- log numbers -->
+      <section class="card glass">
+        <div class="s-head">
+          <div>
+            <div class="s-title">Log Today's Numbers</div>
+            <div class="s-sub">Manual for now. Platform APIs auto-fill this later.</div>
+          </div>
+        </div>
+        <div class="logrow">
+          <div class="field"><label>Views</label><input id="in-views" type="number" placeholder="0"></div>
+          <div class="field"><label>Engagements</label><input id="in-eng" type="number" placeholder="0"></div>
+          <div class="field"><label>Followers</label><input id="in-fol" type="number" placeholder="0"></div>
+          <div class="field"><label>Channel</label><input value="Instagram" readonly></div>
+          <button class="btn primary" onclick="logNums()">Save</button>
+        </div>
+        <div class="note" id="logNote">Content Published is counted automatically from the queue — no typing needed.</div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  // channel filter — swaps demo numbers so the scoreboard feels real
+  const data = {
+    combined:{v:'8,420',vp:'▲ 34% vs prev 7d',e:'612',ep:'▲ 21% · 7.3% rate',pub:'11',pp:'▲ 11-day streak',f:'1,284',fp:'▲ +63 this week'},
+    ig:{v:'3,910',vp:'▲ 28% vs prev 7d',e:'301',ep:'▲ 18% · 7.7% rate',pub:'4',pp:'▲ 4 this week',f:'742',fp:'▲ +29 this week'},
+    tt:{v:'3,180',vp:'▲ 61% vs prev 7d',e:'214',ep:'▲ 40% · 6.7% rate',pub:'3',pp:'▲ best reach',f:'318',fp:'▲ +24 this week'},
+    fb:{v:'980',vp:'▲ 9% vs prev 7d',e:'71',ep:'▼ 4% · 7.2% rate',pub:'3',pp:'▲ steady',f:'164',fp:'▲ +7 this week'},
+    gbp:{v:'350',vp:'▲ 12% vs prev 7d',e:'26',ep:'▲ high intent',pub:'1',pp:'local search',f:'60',fp:'+3 saves'}
+  };
+  const chips=document.getElementById('chanChips');
+  chips.addEventListener('click',e=>{
+    const b=e.target.closest('.chip'); if(!b)return;
+    [...chips.children].forEach(c=>c.classList.remove('on')); b.classList.add('on');
+    const d=data[b.dataset.c];
+    document.getElementById('kv-views').textContent=d.v;
+    document.getElementById('kp-views').textContent=d.vp;
+    document.getElementById('kv-eng').textContent=d.e;
+    document.getElementById('kp-eng').textContent=d.ep;
+    document.getElementById('kv-pub').textContent=d.pub;
+    document.getElementById('kp-pub').textContent=d.pp;
+    document.getElementById('kv-fol').textContent=d.f;
+    document.getElementById('kp-fol').textContent=d.fp;
+  });
+  function approve(btn){
+    const row=btn.closest('.q-row');
+    const badge=row.querySelector('.badge');
+    badge.className='badge pub'; badge.textContent='Published';
+    btn.outerHTML='<button class="btn ghost">Stats</button>';
+  }
+  function logNums(){
+    const v=document.getElementById('in-views').value||'0';
+    document.getElementById('logNote').textContent='Saved ✓ '+v+' views logged for Instagram today. Scoreboard Keeper will recompute deltas overnight.';
+    document.getElementById('logNote').style.color='#1C7C54';
+  }
+</script>
+</body>
+</html>

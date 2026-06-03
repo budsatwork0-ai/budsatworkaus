@@ -20,6 +20,7 @@ type ActionRow = {
   payload?: Record<string, unknown> | null;
   task_id?: string | null;
   bud_tasks?: BudApprovalTaskRow | BudApprovalTaskRow[] | null;
+  truth_label?: ApprovalTruthLabel | null;
 };
 
 type AgentRow = {
@@ -203,6 +204,7 @@ function payloadHasDiffOrPr(payload: Record<string, unknown> | null | undefined,
 }
 
 export function classifyApprovalTruth(approval: ActionRow, nowMs = Date.now()): ApprovalTruthLabel {
+  if (approval.truth_label) return approval.truth_label;
   if (approval.status === 'archived') return 'Archived';
   if (approval.status === 'blocked') return 'Blocked';
   if (approval.status !== 'pending') return 'Archived';
@@ -260,12 +262,33 @@ const NOISE_PHRASES = [
   '0 issues', '0 records', '0 items', '0 alerts', '0 matches',
   'completed with no', 'ran successfully with no', 'nothing to report',
   'no recent completed', 'proposed 0', 'checked 0', 'wrote 0', 'sent 0',
+  // Customer-reply and communication agent no-op exits
+  'no unanswered', 'no actionable inbound',
 ];
 
 function isUsefulSummary(summary: string | null): boolean {
   if (!summary || summary.trim().length < 40) return false;
   const s = summary.toLowerCase();
   return !NOISE_PHRASES.some((p) => s.includes(p));
+}
+
+/**
+ * Returns true when an agent has run at least `minRuns` times successfully
+ * in a row but never produced a useful summary — indicating it is executing
+ * but doing no real work. Surfaced as a 'watch' health label, not 'broken'.
+ *
+ * "Useful" is intentionally the same bar as isUsefulSummary so the two
+ * signals stay in sync: once a run produces a non-noise summary (e.g.
+ * "Drafted 1 Messenger reply") the agent is no longer considered stalled.
+ */
+export function isStalledAgent(
+  runs: Array<{ status: string; summary: string | null }>,
+  minRuns = 25,
+): boolean {
+  const recent = runs.slice(0, 50);
+  if (recent.length < minRuns) return false;
+  if (!recent.slice(0, minRuns).every((r) => r.status === 'succeeded')) return false;
+  return !recent.slice(0, minRuns).some((r) => isUsefulSummary(r.summary));
 }
 
 export function hasParseFailure(run: RunRow): boolean {
@@ -682,13 +705,13 @@ export function computeMissionControlHealth({
 
   const deployment = computeDeploymentState(github);
   const lastMemory = memory[0] ?? null;
-  const pendingBudApprovals = budApprovals.filter((approval) => approval.status === 'pending').length;
   const pendingAgentActions = actions.filter((action) => action.status === 'pending').length;
   const truthLabels = budApprovals.map((approval) => classifyApprovalTruth(approval));
   const actionableBudApprovals = truthLabels.filter((label) => label === 'Actionable').length;
   const manualBudApprovals = truthLabels.filter((label) => label === 'Needs manual review').length;
   const archivedBudApprovals = truthLabels.filter((label) => label === 'Archived').length;
   const blockedBudApprovals = truthLabels.filter((label) => label === 'Blocked').length;
+  const pendingBudApprovals = actionableBudApprovals + manualBudApprovals;
   const actionableAgentActions = actions.filter((action) => action.status === 'pending').length;
   const memoryState = {
     connected: memory.length > 0,
@@ -771,6 +794,7 @@ export function scoreAgentHealth(
   const validOutputRuns = succeededRuns.filter(validateOutput);
   const usefulSummaryRuns = succeededRuns.filter((r) => isUsefulSummary(r.summary));
   const output_useful = usefulSummaryRuns.length > 0 || validOutputRuns.length > 0;
+  const stalled = isStalledAgent(runs);
 
   // Only flag repeated_failures when the 3 most recent runs all failed — prevents
   // an agent with old failures + recent successes from being labelled 'broken'.
@@ -788,7 +812,10 @@ export function scoreAgentHealth(
     reasons.push(`${parseFailures.length} parse failure(s) detected`);
   }
 
-  if (!output_useful && succeededRuns.length > 0) {
+  if (stalled) {
+    score -= 20;
+    reasons.push(`Agent stalled: ${Math.min(runs.length, 50)} successful runs with no useful output, actions, or approvals`);
+  } else if (!output_useful && succeededRuns.length > 0) {
     score -= 20;
     reasons.push('No actionable output from succeeded runs');
   }

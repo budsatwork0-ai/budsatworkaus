@@ -2,9 +2,50 @@ import { createClient } from '@supabase/supabase-js';
 import { Suspense } from 'react';
 import { MissionControlClient } from './MissionControlClient';
 import { computeMissionControlHealth } from '@/lib/bud/health';
-import { buildBudOsActionQueue } from '@/lib/bud/os-view-model';
+import { buildBudOsActionQueue, buildAgentImpactMap } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
+import type { ApprovalTruthLabel } from '@/lib/bud/health';
+import type { BudApprovalItem } from '@/lib/bud/types';
+
+type BudApprovalTruthRow = {
+  id: string;
+  task_id: string | null;
+  action_type: string;
+  status: BudApprovalItem['status'];
+  created_at: string;
+  archived_at: string | null;
+  archive_reason: string | null;
+  blocked_reason: string | null;
+  task_status: string | null;
+  risk_level: string | null;
+  linked_pr: string | null;
+  truth_label: ApprovalTruthLabel;
+};
+
+type BudTaskContextRow = {
+  id: string;
+  status: string;
+  description: string;
+  source_agent: string | null;
+  risk_level: string | null;
+  confidence: number | null;
+  linked_pr: string | null;
+  raw_input: Record<string, unknown> | null;
+};
+
+function buildApprovalPayload(row: BudApprovalTruthRow, task: BudTaskContextRow | null): Record<string, unknown> {
+  return {
+    ...((task?.raw_input ?? {}) as Record<string, unknown>),
+    action_type: row.action_type,
+    truth_label: row.truth_label,
+    task_status: row.task_status,
+    risk_level: row.risk_level,
+    linked_pr: row.linked_pr,
+    archive_reason: row.archive_reason,
+    blocked_reason: row.blocked_reason,
+  };
+}
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,6 +60,7 @@ async function loadData() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const today = now.toISOString().slice(0, 10);
+  const since30d = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
 
   // 13 queries — 11 agent/ops queries + 2 lightweight business snapshot queries
   const [
@@ -56,9 +98,11 @@ async function loadData() {
     supabase.from('bud_activity_feed')
       .select('id, event_type, narrative, actor, target, metadata, created_at')
       .order('created_at', { ascending: false }).limit(50),
-    supabase.from('bud_approval_queue')
-      .select('id, task_id, action_type, payload, status, requested_by, reviewed_by, reviewed_at, notes, created_at, bud_tasks(id, status, description, source_agent, risk_level, confidence, linked_pr)')
-      .in('status', ['pending', 'archived', 'blocked']).order('created_at', { ascending: false }).limit(120),
+    supabase.from('v_bud_approval_truth')
+      .select('id, task_id, action_type, status, created_at, archived_at, archive_reason, blocked_reason, task_status, risk_level, linked_pr, truth_label')
+      .in('truth_label', ['Actionable', 'Needs manual review', 'Blocked', 'Archived'])
+      .order('created_at', { ascending: false })
+      .limit(120),
     supabase.from('bud_tasks')
       .select('id, source_agent, target_agent, status, confidence, risk_level, description, autonomy_level, linked_issue, linked_pr, linked_deployment, linked_memory_note, created_at, updated_at')
       .in('status', [
@@ -91,6 +135,21 @@ async function loadData() {
     memory = data ?? [];
   } catch {}
 
+  // Agent impact telemetry — actions and succeeded outputs in the last 30 days.
+  // Wrapped in try/catch so missing tables never break the page.
+  let impactActionRows: Array<{ agent_id: string | null; status: string }> = [];
+  let impactOutputRows: Array<{ agent_id: string | null }> = [];
+  try {
+    const [actionsImpactRes, outputsImpactRes] = await Promise.all([
+      supabase.from('agent_actions').select('agent_id, status').gte('created_at', since30d),
+      supabase.from('agent_runs').select('agent_id').eq('status', 'succeeded').gte('started_at', since30d),
+    ]);
+    impactActionRows = (actionsImpactRes.data ?? []) as typeof impactActionRows;
+    impactOutputRows = (outputsImpactRes.data ?? []) as typeof impactOutputRows;
+  } catch { /* agent_actions or agent_runs table may not be available */ }
+
+  const agentImpact = buildAgentImpactMap({ actionRows: impactActionRows, outputRows: impactOutputRows });
+
   // Latest run per agent (confidence score + last run time) — view added in migration 076.
   // Wrapped in try/catch so the page still loads before the migration is applied.
   const latestRuns: Record<string, { confidence_score: number | null; finished_at: string | null }> = {};
@@ -109,7 +168,57 @@ async function loadData() {
   const agents = agentsRes.data ?? [];
   const runs   = runsRes.data ?? [];
   const actions = actionsRes.data ?? [];
-  const budApprovals = (budApprovalsRes.data ?? []) as import('@/lib/bud/types').BudApprovalItem[];
+  const approvalTruthRows = (budApprovalsRes.data ?? []) as BudApprovalTruthRow[];
+  const approvalTaskIds = Array.from(
+    new Set(approvalTruthRows.map((row) => row.task_id).filter((id): id is string => Boolean(id))),
+  );
+  let approvalTaskContext: BudTaskContextRow[] = [];
+  if (approvalTaskIds.length > 0) {
+    const { data } = await supabase
+      .from('bud_tasks')
+      .select('id, status, description, source_agent, risk_level, confidence, linked_pr, raw_input')
+      .in('id', approvalTaskIds);
+    approvalTaskContext = (data ?? []) as BudTaskContextRow[];
+  }
+  const approvalTaskById = new Map(approvalTaskContext.map((task) => [task.id, task]));
+  const budApprovals = approvalTruthRows.map((row) => {
+    const task = row.task_id ? approvalTaskById.get(row.task_id) ?? null : null;
+    return {
+      id: row.id,
+      task_id: row.task_id,
+      action_type: row.action_type,
+      payload: buildApprovalPayload(row, task),
+      status: row.status,
+      requested_by: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      notes: null,
+      archived_at: row.archived_at,
+      archive_reason: row.archive_reason,
+      blocked_reason: row.blocked_reason,
+      created_at: row.created_at,
+      truth_label: row.truth_label,
+      bud_tasks: task
+        ? {
+            id: task.id,
+            status: task.status,
+            description: task.description,
+            source_agent: task.source_agent,
+            risk_level: task.risk_level,
+            confidence: task.confidence,
+            linked_pr: task.linked_pr,
+          }
+        : {
+            id: row.task_id,
+            status: row.task_status,
+            description: null,
+            source_agent: null,
+            risk_level: row.risk_level,
+            confidence: null,
+            linked_pr: row.linked_pr,
+          },
+    };
+  }) as Array<BudApprovalItem & { bud_tasks?: unknown }>;
   // Merge general events with targeted success/failure lookups; deduplicate by id.
   const githubMerged = [
     ...(githubRes.data ?? []),
@@ -134,6 +243,7 @@ async function loadData() {
       payload: a.payload,
       task_id: a.task_id,
       bud_tasks: (a as { bud_tasks?: unknown }).bud_tasks as never,
+      truth_label: a.truth_label,
     })),
     tasks: budTasks, changeRequests, github: githubData,
     insights: insightsRes.data ?? [], memory,
@@ -210,6 +320,7 @@ async function loadData() {
     latestRuns,
     devOs,
     businessSnapshot,
+    agentImpact,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     commandState,
     budOs: {

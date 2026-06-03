@@ -28,6 +28,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { coerceLeadSource } from '@/lib/leads/source';
+import { deriveReplyChannel } from '@/lib/leads/reply-channel';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,6 +125,16 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (existing?.data?.id) {
+    // Patch PSID if it was null at initial ingest — ensures Customer Reply can
+    // draft a send_messenger reply even if the first ingest missed the PSID.
+    // Conditional (.is null) so re-delivery is a safe no-op.
+    if (source === 'messenger' && body.sender_psid) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (client as any).from('leads')
+        .update({ messenger_psid: body.sender_psid })
+        .eq('id', existing.data.id)
+        .is('messenger_psid', null);
+    }
     // Optional: still record the message if message_body is present + new.
     if (body.message_body) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,12 +144,18 @@ export async function POST(req: NextRequest) {
         channel: source,
         body: body.message_body,
         external_id: body.external_id,
+        external_sender_id: body.sender_psid ?? null,
         author_label: body.customer_name ?? 'Customer',
-        metadata: body.metadata ?? {},
+        metadata: {
+          ...(body.metadata ?? {}),
+          sender_psid: body.sender_psid ?? null,
+        },
       });
     }
     return NextResponse.json({ lead_id: existing.data.id, deduped: true });
   }
+
+  const replyChannel = deriveReplyChannel(source, body.customer_email, body.customer_phone);
 
   // Insert the new lead.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,6 +171,9 @@ export async function POST(req: NextRequest) {
       source,
       external_ref: body.external_id,
       response_status: 'awaiting_response',
+      reply_channel: replyChannel,
+      ...(source === 'messenger' ? { messenger_psid: body.sender_psid ?? null } : {}),
+      ...(source === 'instagram' ? { instagram_user_id: body.sender_psid ?? null } : {}),
     })
     .select('id')
     .single();
@@ -173,6 +193,7 @@ export async function POST(req: NextRequest) {
       channel: source,
       body: body.message_body,
       external_id: body.external_id,
+      external_sender_id: body.sender_psid ?? null,
       author_label: body.customer_name ?? 'Customer',
       metadata: {
         ...(body.metadata ?? {}),

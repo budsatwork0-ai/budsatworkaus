@@ -50,15 +50,15 @@ function classify(row, nowMs = Date.now()) {
   return 'Actionable';
 }
 
-function archiveReason(row) {
+export function blockedReason(row) {
   const task = Array.isArray(row.bud_tasks) ? row.bud_tasks[0] : row.bud_tasks;
   if (['archived', 'completed'].includes(task?.status ?? '')) {
-    return `Archived stale approval: linked task is ${task.status}.`;
+    return `Blocked historical approval: linked task is ${task.status}.`;
   }
-  return 'Archived stale high-risk approval: no PR, diff, patch, or linked pull request proof.';
+  return 'Blocked historical approval: stale high-risk approval without PR, diff, patch, or linked pull request proof.';
 }
 
-function summarize(rows) {
+export function summarize(rows) {
   const counts = {
     actionable_pending: 0,
     needs_manual_review: 0,
@@ -75,6 +75,22 @@ function summarize(rows) {
     if (label === 'Archived') counts.archived_stale += 1;
   }
   return counts;
+}
+
+export function cleanupProjection(rows, now = new Date().toISOString()) {
+  const candidates = rows.filter((row) => row.status === 'pending' && classify(row) === 'Blocked');
+  const candidateIds = new Set(candidates.map((row) => row.id));
+  const projected = rows.map((row) => {
+    if (!candidateIds.has(row.id)) return row;
+    const next = {
+      ...row,
+      status: 'blocked',
+      blocked_reason: row.blocked_reason ?? blockedReason(row),
+    };
+    if ('blocked_at' in row) next.blocked_at = row.blocked_at ?? now;
+    return next;
+  });
+  return { candidates, projected };
 }
 
 function printCounts(title, counts, pendingAgentActions) {
@@ -109,36 +125,33 @@ async function main() {
   if (agentError) throw new Error(`Failed to count pending agent actions: ${agentError.message}`);
 
   const before = summarize(approvals ?? []);
-  const candidates = (approvals ?? []).filter((row) => classify(row) === 'Blocked');
-  const candidateIds = candidates.map((row) => row.id);
-  const projected = (approvals ?? []).map((row) => (
-    candidateIds.includes(row.id)
-      ? { ...row, status: 'archived', archived_at: new Date().toISOString(), archive_reason: archiveReason(row) }
-      : row
-  ));
+  const { candidates, projected } = cleanupProjection(approvals ?? []);
 
   printCounts('Before', before, pendingAgentActions ?? 0);
-  console.log(`Candidates to archive: ${candidates.length}`);
+  console.log(`Dry-run count: ${candidates.length}`);
+  console.log(`Candidates to block: ${candidates.length}`);
   for (const row of candidates.slice(0, 20)) {
-    console.log(`  ${row.id} ${row.action_type} - ${archiveReason(row)}`);
+    console.log(`  ${row.id} ${row.action_type} - ${blockedReason(row)}`);
   }
   if (candidates.length > 20) console.log(`  ...${candidates.length - 20} more`);
 
   if (apply && candidates.length > 0) {
-    const archivedAt = new Date().toISOString();
+    const blockedAt = new Date().toISOString();
+    let applied = 0;
     for (const row of candidates) {
       const { error: updateError } = await supabase
         .from('bud_approval_queue')
         .update({
-          status: 'archived',
-          archived_at: archivedAt,
-          archive_reason: archiveReason(row),
-          blocked_reason: null,
+          status: 'blocked',
+          blocked_at: blockedAt,
+          blocked_reason: row.blocked_reason ?? blockedReason(row),
         })
         .eq('id', row.id)
         .eq('status', 'pending');
-      if (updateError) throw new Error(`Failed to archive ${row.id}: ${updateError.message}`);
+      if (updateError) throw new Error(`Failed to block ${row.id}: ${updateError.message}`);
+      applied++;
     }
+    console.log(`Applied count: ${applied}`);
     const { data: afterRows, error: afterError } = await supabase
       .from('bud_approval_queue')
       .select('id, task_id, action_type, payload, status, created_at, bud_tasks(id, status, risk_level, linked_pr)')
@@ -149,11 +162,14 @@ async function main() {
     return;
   }
 
+  console.log('Applied count: 0');
   printCounts(apply ? 'After' : 'Projected after dry-run', summarize(projected), pendingAgentActions ?? 0);
-  if (!apply) console.log('Dry run only. Re-run with --apply after migration 080 is applied.');
+  if (!apply) console.log('Dry run only. Re-run with --apply after migration 083 is applied.');
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

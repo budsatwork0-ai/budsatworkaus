@@ -23,7 +23,13 @@ import { toast } from 'sonner';
 import { relativeTime } from './_utils';
 import type { MissionControlHealth } from '@/lib/bud/health';
 import type { BudActivityEvent } from '@/lib/bud/types';
-import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
+import type { BudOsQueueItem, AgentImpactMap } from '@/lib/bud/os-view-model';
+import {
+  deriveAgentBizValue,
+  deriveAgentDisplayStatus,
+  type AgentBizValue,
+  type AgentStatusDerived,
+} from '@/lib/bud/os-view-model';
 import { deriveGlobalTruth, type GlobalTruthState } from '@/lib/bud/overview-v2';
 import type { BusinessSnapshotData } from '../MissionControlClient';
 
@@ -74,11 +80,25 @@ const APPROVAL_TRUTH_TONE: Record<NonNullable<BudOsQueueItem['approval']>['truth
   'Needs manual review': 'border-amber-400/35 bg-amber-500/[0.08] text-amber-300',
 };
 
+const VALUE_TONE: Record<AgentBizValue, string> = {
+  high:   'border-emerald-400/40 bg-emerald-500/10 text-emerald-300',
+  medium: 'border-amber-400/30 bg-amber-500/[0.08] text-amber-300',
+  low:    'border-white/10 bg-white/[0.03] text-white/35',
+};
+
+const AGENT_STATUS_TONE: Record<AgentStatusDerived, string> = {
+  healthy:  'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300',
+  watch:    'border-amber-400/35 bg-amber-500/[0.08] text-amber-300',
+  failing:  'border-red-400/40 bg-red-500/[0.08] text-red-300',
+  disabled: 'border-white/15 bg-white/[0.03] text-white/35',
+};
+
 /* ── props ───────────────────────────────────────────────────────────────── */
 
 type Props = {
   commandState: MissionControlHealth;
   businessSnapshot: BusinessSnapshotData;
+  agentImpact?: AgentImpactMap;
   queue: BudOsQueueItem[];
   activity: BudActivityEvent[];
   selectedId: string | null;
@@ -94,6 +114,7 @@ type Props = {
 export function OverviewCore({
   commandState,
   businessSnapshot,
+  agentImpact,
   queue,
   activity,
   selectedId,
@@ -107,23 +128,22 @@ export function OverviewCore({
 
   return (
     <div className="space-y-5">
+      <SectionLabel label="Business" badge="Active" />
+      <BusinessSnapshot snapshot={businessSnapshot} />
       <SectionLabel label="Runtime" badge="Active" />
       <StateAndAsk truth={truth} commandState={commandState} />
       <Vitals commandState={commandState} />
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <ActionQueue
-          queue={queue}
-          selectedId={selectedId}
-          investigatingIds={investigatingIds}
-          onSelect={onSelect}
-          onApprove={onApprove}
-          onReject={onReject}
-          onInvestigate={onInvestigate}
-        />
-        <ActivityFeed activity={activity} />
-      </div>
-      <SectionLabel label="Business" badge="Read Only" />
-      <BusinessSnapshot snapshot={businessSnapshot} />
+      <ActionQueue
+        queue={queue}
+        selectedId={selectedId}
+        investigatingIds={investigatingIds}
+        onSelect={onSelect}
+        onApprove={onApprove}
+        onReject={onReject}
+        onInvestigate={onInvestigate}
+      />
+      <AgentValue agents={commandState.agents} agentImpact={agentImpact} />
+      <ActivityFeed activity={activity} />
       <NextAction commandState={commandState} queue={queue} />
       <SectionLabel label="Reports" badge="Report" />
       <Deployment commandState={commandState} activity={activity} />
@@ -132,6 +152,15 @@ export function OverviewCore({
 }
 
 /* ── 1. platform state + Ask Bud ─────────────────────────────────────────── */
+
+const QUICK_COMMANDS: Array<{ label: string; command: string }> = [
+  { label: 'Investigate Customer Reply',  command: 'Investigate customer reply failures' },
+  { label: 'Review pending approvals',    command: 'Review pending approvals' },
+  { label: 'Investigate stalled agents',  command: 'Investigate stalled agents' },
+  { label: 'Audit Messenger leads',       command: 'Audit Messenger leads' },
+  { label: 'Check quote follow-ups',      command: 'Review quote follow-up pipeline' },
+  { label: 'Improve Mission Control UX',  command: 'Improve Mission Control UX' },
+];
 
 function StateAndAsk({
   truth,
@@ -144,12 +173,14 @@ function StateAndAsk({
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState('');
   const [response, setResponse] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  async function ask() {
-    const text = draft.trim();
+  async function ask(override?: string) {
+    const text = (override !== undefined ? override : draft).trim();
     if (!text) return;
     setBusy(true);
     setResponse(null);
+    setErrorMsg(null);
     try {
       const res = await fetch('/api/bud/command', {
         method: 'POST',
@@ -159,9 +190,11 @@ function StateAndAsk({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error ?? 'Bud could not answer');
       setResponse(body?.bud_response?.message ?? 'Bud accepted the request.');
-      setDraft('');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Bud could not answer');
+      if (override === undefined) setDraft('');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Bud could not answer';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -194,8 +227,23 @@ function StateAndAsk({
         {/* ask bud */}
         <div className="flex flex-col gap-3">
           <label htmlFor="core-ask" className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
-            Ask Bud — creates a real task you can approve below
+            Ask Bud
           </label>
+          <p className="text-[11px] leading-relaxed text-white/40">
+            Ask Bud creates a tracked task. Some commands may require approval before action.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_COMMANDS.map((cmd) => (
+              <button
+                key={cmd.label}
+                onClick={() => void ask(cmd.command)}
+                disabled={busy}
+                className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-white/55 transition hover:border-white/15 hover:bg-white/[0.06] hover:text-white/75 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {cmd.label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
             <input
               id="core-ask"
@@ -213,7 +261,10 @@ function StateAndAsk({
               {busy ? 'Working…' : 'Ask'}
             </button>
           </div>
-          {response && (
+          {errorMsg && (
+            <p className="rounded-lg border border-red-400/25 bg-red-500/[0.06] p-3 text-xs leading-relaxed text-red-300">{errorMsg}</p>
+          )}
+          {!errorMsg && response && (
             <p className="rounded-lg border border-white/[0.08] bg-black/25 p-3 text-xs leading-relaxed text-white/75">{response}</p>
           )}
         </div>
@@ -533,7 +584,8 @@ function ActionQueue({
           const plan = approval?.proposed_plan ?? [];
           const files = approval?.affected_files ?? [];
           const description = approval?.full_description ?? '';
-          const hasDetail = plan.length > 0 || files.length > 0 || description.length > 60;
+          const isImprovementApproval = approval?.action_type === 'run_improvement_pipeline';
+          const hasDetail = plan.length > 0 || files.length > 0 || description.length > 60 || isImprovementApproval;
           return (
             <li key={item.id}>
               {/* Row */}
@@ -614,7 +666,66 @@ function ActionQueue({
                     </div>
                   )}
 
-                  {/* ── 2. What it actually does ── */}
+                  {/* ── 2. Improvement evidence metadata ── */}
+                  {isImprovementApproval && approval && (() => {
+                    const conf = approval.confidence != null
+                      ? `${Math.round(approval.confidence * 100)}%`
+                      : null;
+                    const risk = approval.risk_level;
+                    const riskWeight = risk ? SEVERITY_TONE[risk as keyof typeof SEVERITY_TONE] : null;
+                    const agentLabel = approval.source_agent ?? approval.affected_area ?? null;
+                    const pr = approval.linked_pr;
+                    return (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-2">Evidence summary</p>
+                        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Confidence</dt>
+                            <dd className={conf ? 'font-medium text-white/80' : 'text-white/30 italic'}>{conf ?? 'Not provided'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Risk level</dt>
+                            <dd>
+                              {riskWeight
+                                ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${riskWeight.tone}`}>{riskWeight.label}</span>
+                                : <span className="text-white/30 italic">Not provided</span>
+                              }
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Expected impact</dt>
+                            <dd className="text-white/30 italic">Not provided</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Affected agent</dt>
+                            <dd className={agentLabel ? 'font-medium text-white/80' : 'text-white/30 italic'}>{agentLabel ?? 'Not provided'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Why approval required</dt>
+                            <dd className="text-white/30 italic">Not provided</dd>
+                          </div>
+                          {pr && (
+                            <div>
+                              <dt className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Pull request</dt>
+                              <dd>
+                                <a
+                                  href={pr}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate text-sky-400 underline-offset-2 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {pr}
+                                </a>
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── 3. What it actually does ── */}
                   {(plan.length > 0 || files.length > 0) && (
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35 mb-1.5">What it actually does</p>
@@ -639,7 +750,7 @@ function ActionQueue({
                     </div>
                   )}
 
-                  {/* ── 3. Verdict ── */}
+                  {/* ── 4. Verdict ── */}
                   {approval && (() => {
                     const verdict = deriveVerdict(approval);
                     return (
@@ -655,7 +766,7 @@ function ActionQueue({
                     );
                   })()}
 
-                  {/* ── Decision buttons ── */}
+                  {/* ── 5. Decision buttons ── */}
                   {approval && (
                     <div className="flex gap-2">
                       <button
@@ -695,7 +806,97 @@ function ActionQueue({
   );
 }
 
-/* ── 4. live activity ────────────────────────────────────────────────────── */
+/* ── 4. agent value ──────────────────────────────────────────────────────── */
+
+const VALUE_LABEL: Record<AgentBizValue, string> = { high: 'High', medium: 'Medium', low: 'Low' };
+const STATUS_LABEL: Record<AgentStatusDerived, string> = {
+  healthy: 'Healthy', watch: 'Watch', failing: 'Failing', disabled: 'Disabled',
+};
+
+function AgentValue({
+  agents,
+  agentImpact,
+}: {
+  agents: MissionControlHealth['agents'];
+  agentImpact?: AgentImpactMap;
+}) {
+  type Classified = MissionControlHealth['agents'][number] & {
+    bizValue: AgentBizValue;
+    displayStatus: AgentStatusDerived;
+  };
+
+  const classified: Classified[] = agents
+    .map((a) => ({ ...a, bizValue: deriveAgentBizValue(a.id), displayStatus: deriveAgentDisplayStatus(a) }))
+    .sort((a, b) => {
+      const order: Record<AgentBizValue, number> = { high: 0, medium: 1, low: 2 };
+      return order[a.bizValue] - order[b.bizValue];
+    });
+
+  const featured = classified.filter((a) => a.bizValue !== 'low');
+  const low = classified.filter((a) => a.bizValue === 'low');
+  const lowNeedAttention = low.filter((a) => a.displayStatus === 'failing' || a.displayStatus === 'watch');
+
+  return (
+    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+      <header className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Agent value</h3>
+          <p className="mt-0.5 text-xs text-white/40">High-value agents drive core business operations.</p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-white/65">
+          {agents.length} agents
+        </span>
+      </header>
+      <ul className="divide-y divide-white/[0.05]">
+        {featured.length === 0 && (
+          <li className="px-5 py-6 text-center text-sm text-white/40">No agents classified as high or medium value.</li>
+        )}
+        {featured.map((agent) => (
+          <li key={agent.id} className="flex items-center gap-3 px-5 py-3">
+            <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${VALUE_TONE[agent.bizValue]}`}>
+              {VALUE_LABEL[agent.bizValue]}
+            </span>
+            <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${AGENT_STATUS_TONE[agent.displayStatus]}`}>
+              {STATUS_LABEL[agent.displayStatus]}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{agent.name}</span>
+            <div className="flex shrink-0 items-center gap-4 text-xs tabular-nums text-white/50">
+              <span>{agent.last_run_at ? relativeTime(agent.last_run_at) : 'Never'}</span>
+              <span className={agent.failures_7d > 0 ? 'text-red-300/80' : ''}>{agent.failures_7d} err</span>
+              {(() => {
+                const imp = agentImpact?.[agent.id];
+                if (!imp) return <span className="italic text-white/30">–</span>;
+                return (
+                  <>
+                    <span title="Successful outputs (30d)">{imp.outputs_last_30d} out</span>
+                    <span title="Actions proposed (30d)" className="hidden sm:inline">{imp.actions_last_30d} act</span>
+                    <span title="Actions approved (30d)" className="hidden md:inline">{imp.approvals_last_30d} appr</span>
+                  </>
+                );
+              })()}
+            </div>
+            <span className="hidden xl:block shrink-0 max-w-[200px] truncate text-xs text-white/40">
+              {agent.recommended_action}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.05] px-5 py-2.5">
+        <span className="text-[11px] italic text-white/30">out = succeeded runs · act = actions proposed · appr = actions approved · quotes/leads/jobs — Not available</span>
+        {low.length > 0 && (
+          <span className="text-[11px] text-white/40">
+            {low.length} low-value agents
+            {lowNeedAttention.length > 0 && (
+              <span className="ml-1.5 text-amber-300/70">· {lowNeedAttention.length} need attention</span>
+            )}
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ── 5. live activity ────────────────────────────────────────────────────── */
 
 function ActivityFeed({ activity }: { activity: BudActivityEvent[] }) {
   const items = activity.slice(0, 12);

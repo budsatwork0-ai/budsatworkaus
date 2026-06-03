@@ -16,7 +16,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import type { BudActivityEvent } from '@/lib/bud/types';
 import type { MissionControlHealth } from '@/lib/bud/health';
-import type { BudOsQueueItem } from '@/lib/bud/os-view-model';
+import type { BudOsQueueItem, AgentImpactMap } from '@/lib/bud/os-view-model';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewCore } from './_components/OverviewCore';
 import { AgentHierarchy } from './_components/AgentHierarchy';
@@ -44,6 +44,7 @@ type Props = {
   budActivity?: BudActivityEvent[];
   commandState: MissionControlHealth;
   businessSnapshot: BusinessSnapshotData;
+  agentImpact?: AgentImpactMap;
   budOs: {
     actionQueue: BudOsQueueItem[];
   };
@@ -72,6 +73,7 @@ export function MissionControlClient({
   latestRuns = {},
   commandState,
   businessSnapshot,
+  agentImpact,
   budOs,
   budActivity = [],
   devOs,
@@ -131,10 +133,6 @@ export function MissionControlClient({
           metadata: row.metadata ?? {},
           created_at: row.created_at,
         }, ...prev].slice(0, 20));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bud_approval_queue' }, () => {
-        if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
-        refreshDebounceRef.current = setTimeout(() => router.refresh(), 10_000);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bud_tasks' }, () => {
         if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
@@ -289,6 +287,7 @@ export function MissionControlClient({
             <OverviewCore
               commandState={commandState}
               businessSnapshot={businessSnapshot}
+              agentImpact={agentImpact}
               queue={queue}
               activity={liveActivity}
               selectedId={selectedId}

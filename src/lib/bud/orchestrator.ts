@@ -7,6 +7,7 @@
  * Node.js only — all functions receive a Supabase admin client.
  */
 
+import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BudTask, BudActivityEvent, BudActivityEventType, AutonomyLevel } from './types';
 import { getDefaultAutonomyLevel, requiresApproval } from './autonomy';
@@ -83,6 +84,38 @@ export async function updateBudTask(
 
 // ── Approval queue ────────────────────────────────────────────────────────────
 
+const IMPROVEMENT_APPROVAL_ACTION = 'run_improvement_pipeline';
+
+export function computeApprovalIdentity(params: {
+  action_type: string;
+  payload: Record<string, unknown>;
+}): string | null {
+  if (params.action_type !== IMPROVEMENT_APPROVAL_ACTION) return null;
+
+  const signalId = params.payload.signal_id;
+  const fingerprint = params.payload.fingerprint;
+  const taskId = params.payload.task_id;
+  const key =
+    typeof signalId === 'string' && signalId.trim() ? `signal:${signalId.trim()}`
+    : typeof fingerprint === 'string' && fingerprint.trim() ? `fingerprint:${fingerprint.trim()}`
+    : typeof taskId === 'string' && taskId.trim() ? `task:${taskId.trim()}`
+    : null;
+
+  return key ? `${params.action_type}:${key}` : null;
+}
+
+function mergeApprovalPayload(
+  existing: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown>,
+  observedAt: string,
+): Record<string, unknown> {
+  return {
+    ...(existing ?? {}),
+    ...incoming,
+    last_observed_at: observedAt,
+  };
+}
+
 export async function queueApproval(
   supabase: SupabaseClient,
   params: {
@@ -92,12 +125,49 @@ export async function queueApproval(
     requested_by?: string;
   },
 ): Promise<string> {
+  const approvalIdentity = computeApprovalIdentity({
+    action_type: params.action_type,
+    payload: params.payload,
+  });
+
+  if (approvalIdentity) {
+    const { data: existing } = await supabase
+      .from('bud_approval_queue')
+      .select('id, payload')
+      .eq('approval_identity', approvalIdentity)
+      .eq('status', 'pending')
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const now = new Date().toISOString();
+      const { data: updated, error: updateError } = await supabase
+        .from('bud_approval_queue')
+        .update({
+          payload: mergeApprovalPayload(
+            (existing as { payload?: Record<string, unknown> | null }).payload,
+            params.payload,
+            now,
+          ),
+          last_seen_at: now,
+        })
+        .eq('id', (existing as { id: string }).id)
+        .eq('status', 'pending')
+        .select('id')
+        .single();
+
+      if (updateError) throw new Error(`Failed to update queued approval: ${updateError.message}`);
+      return (updated?.id ?? (existing as { id: string }).id) as string;
+    }
+  }
+
   const { data, error } = await supabase
     .from('bud_approval_queue')
     .insert({
       task_id: params.task_id,
       action_type: params.action_type,
-      payload: params.payload,
+      payload: mergeApprovalPayload(null, params.payload, new Date().toISOString()),
+      approval_identity: approvalIdentity,
       status: 'pending',
       requested_by: params.requested_by ?? 'bud',
     })
@@ -544,6 +614,118 @@ export async function executeRepairPlan(
 
 // ── Improvement trigger ───────────────────────────────────────────────────────
 
+const ACTIVE_IMPROVEMENT_STATUSES = ['new', 'queued', 'executing'];
+
+function normalizeProblemIdentity(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\b\d+(?:\.\d+)?\b/g, '#')
+    .replace(/[^a-z0-9#/._-]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+export function computeImprovementFingerprint(params: {
+  signalType: string;
+  affectedArea?: string;
+  title: string;
+}): string {
+  const raw = [
+    params.signalType.trim().toLowerCase(),
+    (params.affectedArea ?? '').trim().toLowerCase(),
+    normalizeProblemIdentity(params.title),
+  ].join(':');
+
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+function observedCountFrom(params: {
+  title: string;
+  metadata?: Record<string, unknown>;
+}): number | null {
+  const candidates = [
+    params.metadata?.latest_observed_count,
+    params.metadata?.observed_count,
+    params.metadata?.failure_count,
+    params.metadata?.error_count,
+    params.metadata?.count,
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+
+  const match = params.title.match(/\b(\d+(?:\.\d+)?)\b/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mergeSignalMetadata(args: {
+  existingMetadata: unknown;
+  incomingMetadata?: Record<string, unknown>;
+  observedCount: number | null;
+  observedAt: string;
+}): Record<string, unknown> | null {
+  const existing = args.existingMetadata && typeof args.existingMetadata === 'object' && !Array.isArray(args.existingMetadata)
+    ? args.existingMetadata as Record<string, unknown>
+    : {};
+  const incoming = args.incomingMetadata ?? {};
+  const merged: Record<string, unknown> = {
+    ...existing,
+    ...incoming,
+    last_observed_at: args.observedAt,
+  };
+  if (args.observedCount != null) merged.latest_observed_count = args.observedCount;
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+async function updateExistingImprovementSignal(
+  supabase: SupabaseClient,
+  existing: Record<string, unknown>,
+  params: {
+    source: string;
+    signalType: string;
+    severity: string;
+    title: string;
+    description?: string;
+    affectedArea?: string;
+    proposedApproach?: string;
+    referenceFiles?: string[];
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  const now = new Date().toISOString();
+  const observedCount = observedCountFrom({ title: params.title, metadata: params.metadata });
+  const updates: Record<string, unknown> = {
+    severity: params.severity,
+    description: params.description ?? existing.description ?? null,
+    proposed_approach: params.proposedApproach ?? existing.proposed_approach ?? null,
+    reference_files: params.referenceFiles ?? existing.reference_files ?? null,
+    metadata: mergeSignalMetadata({
+      existingMetadata: existing.metadata,
+      incomingMetadata: params.metadata,
+      observedCount,
+      observedAt: now,
+    }),
+    updated_at: now,
+  };
+
+  if ('last_seen_at' in existing) updates.last_seen_at = now;
+  if ('occurrence_count' in existing) {
+    const current = typeof existing.occurrence_count === 'number' ? existing.occurrence_count : 0;
+    updates.occurrence_count = current + 1;
+  }
+
+  await supabase
+    .from('bud_improvement_signals')
+    .update(updates)
+    .eq('id', existing.id as string);
+}
+
 /**
  * Create an improvement signal from any source (Bud Observer output, admin
  * UX proposal, design insight, bud insight, or manual trigger) and immediately
@@ -568,6 +750,20 @@ export async function triggerImprovement(
     surface?: PipelineSurface;
   },
 ): Promise<{ signalId: string; executionId?: string; status: string; pipelineRunId?: string }> {
+  const fingerprint = computeImprovementFingerprint(params);
+  const { data: fingerprintMatch } = await supabase
+    .from('bud_improvement_signals')
+    .select('*')
+    .eq('fingerprint', fingerprint)
+    .in('status', ACTIVE_IMPROVEMENT_STATUSES)
+    .limit(1)
+    .maybeSingle();
+
+  if (fingerprintMatch) {
+    await updateExistingImprovementSignal(supabase, fingerprintMatch as Record<string, unknown>, params);
+    return { signalId: fingerprintMatch.id as string, status: 'deduplicated' };
+  }
+
   // Dedup layer 1: exact title match within 7 days
   const since7d = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
   const { data: existing } = await supabase
@@ -581,6 +777,10 @@ export async function triggerImprovement(
     .maybeSingle();
 
   if (existing) {
+    await supabase
+      .from('bud_improvement_signals')
+      .update({ fingerprint, updated_at: new Date().toISOString() })
+      .eq('id', existing.id as string);
     return { signalId: existing.id as string, status: 'deduplicated' };
   }
 
@@ -599,6 +799,10 @@ export async function triggerImprovement(
       .maybeSingle();
 
     if (areaMatch) {
+      await supabase
+        .from('bud_improvement_signals')
+        .update({ fingerprint, updated_at: new Date().toISOString() })
+        .eq('id', areaMatch.id as string);
       return { signalId: areaMatch.id as string, status: 'deduplicated' };
     }
   }
@@ -614,7 +818,13 @@ export async function triggerImprovement(
       affected_area: params.affectedArea ?? null,
       proposed_approach: params.proposedApproach ?? null,
       reference_files: params.referenceFiles ?? null,
-      metadata: params.metadata ?? null,
+      metadata: mergeSignalMetadata({
+        existingMetadata: null,
+        incomingMetadata: params.metadata,
+        observedCount: observedCountFrom({ title: params.title, metadata: params.metadata }),
+        observedAt: new Date().toISOString(),
+      }),
+      fingerprint,
       status: 'new',
     })
     .select('id')

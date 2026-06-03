@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateGlobalHealth } from '@/lib/bud/health';
+import { computeMissionControlHealth, evaluateGlobalHealth } from '@/lib/bud/health';
 
 const now = new Date('2026-05-19T00:00:00.000Z').toISOString();
 
@@ -85,5 +85,56 @@ describe('evaluateGlobalHealth', () => {
 
     expect(health.status).toBe('degraded');
     expect(health.bud_status).toBe('elevated');
+  });
+
+  it('uses approval truth labels for Mission Control approval counts', () => {
+    const health = computeMissionControlHealth({
+      agents: [{ id: 'competitor-scout', name: 'Competitor Scout', status: 'enabled' }],
+      runs: [],
+      actions: [{ id: 'agent-action-1', agent_id: 'competitor-scout', status: 'pending' }],
+      budApprovals: [
+        {
+          id: 'bud-actionable',
+          agent_id: null,
+          status: 'pending',
+          created_at: now,
+          payload: {},
+          truth_label: 'Actionable',
+        },
+        {
+          id: 'bud-manual',
+          agent_id: null,
+          status: 'pending',
+          created_at: now,
+          payload: {},
+          truth_label: 'Needs manual review',
+        },
+        {
+          id: 'bud-blocked',
+          agent_id: null,
+          status: 'pending',
+          created_at: now,
+          payload: {},
+          truth_label: 'Blocked',
+        },
+        {
+          id: 'bud-archived',
+          agent_id: null,
+          status: 'archived',
+          created_at: now,
+          payload: {},
+          truth_label: 'Archived',
+        },
+      ],
+    });
+
+    expect(health.approvals.pending_agent_actions).toBe(1);
+    expect(health.approvals.pending_bud_approvals).toBe(2);
+    expect(health.approvals.actionable_pending).toBe(2);
+    expect(health.approvals.needs_manual_review).toBe(1);
+    expect(health.approvals.blocked_historical).toBe(1);
+    expect(health.approvals.archived_stale).toBe(1);
+    expect(health.approvals.total_pending).toBe(3);
+    expect(health.counts.pending_approvals).toBe(3);
   });
 });

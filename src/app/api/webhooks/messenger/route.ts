@@ -27,13 +27,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { deriveReplyChannel } from '@/lib/leads/reply-channel';
 
 export const dynamic = 'force-dynamic';
 
 // ---------- config -----------------------------------------------------------
 
 const GRAPH_API_BASE = 'https://graph.facebook.com/v20.0';
-const GRAPH_FIELDS = 'first_name,last_name';
+// Messenger exposes first_name + last_name; Instagram exposes name only.
+const MESSENGER_GRAPH_FIELDS = 'first_name,last_name';
+const INSTAGRAM_GRAPH_FIELDS = 'name';
 
 // ---------- HMAC verification ------------------------------------------------
 
@@ -61,14 +64,19 @@ function verifyMetaSignature(rawBody: string, signatureHeader: string | null): b
 type GraphProfile = {
   first_name?: string;
   last_name?: string;
+  name?: string; // Instagram returns a single name field
 };
 
-async function fetchSenderProfile(psid: string): Promise<GraphProfile> {
+async function fetchSenderProfile(
+  psid: string,
+  source: 'messenger' | 'instagram',
+): Promise<GraphProfile> {
   const token = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
   if (!token) return {};
+  const fields = source === 'instagram' ? INSTAGRAM_GRAPH_FIELDS : MESSENGER_GRAPH_FIELDS;
   try {
     const res = await fetch(
-      `${GRAPH_API_BASE}/${psid}?fields=${GRAPH_FIELDS}&access_token=${token}`,
+      `${GRAPH_API_BASE}/${psid}?fields=${fields}&access_token=${token}`,
       { cache: 'no-store' }
     );
     if (!res.ok) return {};
@@ -76,6 +84,11 @@ async function fetchSenderProfile(psid: string): Promise<GraphProfile> {
   } catch {
     return {};
   }
+}
+
+function nameFromProfile(profile: GraphProfile): string | null {
+  if (profile.name) return profile.name.trim() || null;
+  return [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || null;
 }
 
 // ---------- Direct DB ingest (no self-fetch) ---------------------------------
@@ -87,6 +100,7 @@ async function ingestEvent(event: {
   message_body: string;
   page_id: string | null;
   timestamp: number | null;
+  source: 'messenger' | 'instagram';
 }): Promise<void> {
   const client = createServiceClientSafe();
   if (!client) {
@@ -99,30 +113,45 @@ async function ingestEvent(event: {
   const existing = await db
     .from('leads')
     .select('id')
-    .eq('source', 'messenger')
+    .eq('source', event.source)
     .eq('external_ref', event.external_id)
     .maybeSingle();
 
   if (existing?.data?.id) {
+    // Patch PSID if the lead was created before messenger_psid was added, or if
+    // the PSID was absent from the initial ingest payload. Conditional update —
+    // only fires when the column is NULL so it is safe to run on every message.
+    if (event.source === 'messenger' && event.sender_psid) {
+      await db.from('leads')
+        .update({ messenger_psid: event.sender_psid })
+        .eq('id', existing.data.id)
+        .is('messenger_psid', null);
+    }
     await db.from('lead_conversations').insert({
       lead_id: existing.data.id,
       direction: 'inbound',
-      channel: 'messenger',
+      channel: event.source,
       body: event.message_body,
       external_id: event.external_id,
+      external_sender_id: event.sender_psid,
       author_label: event.customer_name ?? 'Customer',
       metadata: { sender_psid: event.sender_psid, page_id: event.page_id, timestamp: event.timestamp },
     });
     return;
   }
 
+  const replyChannel = deriveReplyChannel(event.source, null, null);
+
   const { data: lead, error } = await db
     .from('leads')
     .insert({
       customer_name: event.customer_name,
-      source: 'messenger',
+      source: event.source,
       external_ref: event.external_id,
       response_status: 'awaiting_response',
+      reply_channel: replyChannel,
+      ...(event.source === 'messenger' ? { messenger_psid: event.sender_psid } : {}),
+      ...(event.source === 'instagram' ? { instagram_user_id: event.sender_psid } : {}),
     })
     .select('id')
     .single();
@@ -135,9 +164,10 @@ async function ingestEvent(event: {
   await db.from('lead_conversations').insert({
     lead_id: lead.id,
     direction: 'inbound',
-    channel: 'messenger',
+    channel: event.source,
     body: event.message_body,
     external_id: event.external_id,
+    external_sender_id: event.sender_psid,
     author_label: event.customer_name ?? 'Customer',
     metadata: { sender_psid: event.sender_psid, page_id: event.page_id, timestamp: event.timestamp },
   });
@@ -187,9 +217,13 @@ export async function POST(req: NextRequest) {
     return new NextResponse('invalid json', { status: 400 });
   }
 
-  // FB sends object='page' for Messenger events. Ignore everything else
-  // (Instagram webhooks share the same app and send object='instagram').
-  if (fbPayload.object !== 'page') {
+  // FB sends object='page' for Messenger, object='instagram' for Instagram DMs.
+  // Both use the same entry.messaging[] shape — only the source tag differs.
+  const source =
+    fbPayload.object === 'instagram' ? 'instagram' :
+    fbPayload.object === 'page'      ? 'messenger' : null;
+
+  if (!source) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -205,11 +239,8 @@ export async function POST(req: NextRequest) {
 
       const mid = ev.message?.mid ?? `${psid}_${ev.timestamp ?? Date.now()}`;
 
-      const profile = await fetchSenderProfile(psid);
-      const customerName = [profile.first_name, profile.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim() || null;
+      const profile = await fetchSenderProfile(psid, source);
+      const customerName = nameFromProfile(profile);
 
       ingests.push(
         ingestEvent({
@@ -219,6 +250,7 @@ export async function POST(req: NextRequest) {
           message_body: text,
           page_id: entry.id ?? null,
           timestamp: ev.timestamp ?? null,
+          source,
         })
       );
     }

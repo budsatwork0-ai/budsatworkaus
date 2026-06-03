@@ -20,6 +20,7 @@
 
 import type { AgentDefinition, AgentContext } from '../types';
 import { triggerImprovement } from '@/lib/bud/orchestrator';
+import { isStalledAgent } from '@/lib/bud/health';
 
 const DEFAULT_OBSERVER_BUDGET_MS = 210_000;
 const LLM_TIMEOUT_MS = 75_000;
@@ -200,6 +201,27 @@ export const budObserverAgent: AgentDefinition = {
       .map(([id, r]) => ({ id, ...r }))
       .slice(0, 3);
 
+    // ── 7. Stalled agents: succeeded runs with no useful output ───────────────
+    // Deterministic check — no LLM required. triggerImprovement handles dedup.
+    const { data: recentSucceededRuns } = await ctx.supabase
+      .from('agent_runs')
+      .select('agent_id, status, summary, started_at')
+      .eq('status', 'succeeded')
+      .gte('started_at', since7d)
+      .order('started_at', { ascending: false })
+      .limit(500);
+
+    const runsByAgentId: Record<string, Array<{ status: string; summary: string | null }>> = {};
+    for (const run of recentSucceededRuns ?? []) {
+      const id = run.agent_id as string;
+      if (!runsByAgentId[id]) runsByAgentId[id] = [];
+      runsByAgentId[id].push({ status: run.status as string, summary: run.summary as string | null });
+    }
+
+    const stalledAgents = Object.entries(runsByAgentId)
+      .filter(([, agentRuns]) => isStalledAgent(agentRuns))
+      .map(([agentId, agentRuns]) => ({ agentId, runCount: agentRuns.length }));
+
     // ── Build data snapshot for LLM ───────────────────────────────────────────
     const snapshot = {
       ux_proposals: (uxProposals ?? []).map((p) => ({
@@ -220,6 +242,10 @@ export const budObserverAgent: AgentDefinition = {
       })),
       conversion_signals: conversionSignals.slice(0, 5),
       error_spikes: spikeAgents,
+      stalled_agents: stalledAgents.map(({ agentId, runCount }) => ({
+        id: agentId,
+        succeeded_no_output: runCount,
+      })),
     };
 
     const prompt = `Analyse this Buds At Work platform health snapshot and identify the top improvement opportunities.
@@ -329,6 +355,38 @@ Return the JSON as described in your system instructions.`;
       }
     }
 
+    // ── Trigger stalled-agent signals (deterministic, fingerprinted) ─────────
+    // These bypass the LLM — the stall is observable from run data alone.
+    // triggerImprovement deduplicates on fingerprint(stalled_agent:agentId:title)
+    // so repeated observer runs cannot spam the improvement queue.
+    for (const { agentId, runCount } of stalledAgents) {
+      if (shouldStop(`stalled:${agentId}`)) break;
+      try {
+        const result = await withTimeout(
+          `trigger_stall:${agentId}`,
+          triggerImprovement(ctx.supabase, {
+            source: 'observer',
+            signalType: 'stalled_agent',
+            severity: 'medium',
+            title: `Agent stalled — ${agentId}`,
+            description: `${agentId} completed ${runCount} recent runs successfully but produced 0 actions, approvals, outbound messages, or tasks. The agent is executing but delivering no customer value.`,
+            affectedArea: agentId,
+            proposedApproach: `Audit ${agentId} input data, filter conditions, and reply_channel routing. Verify expected source data exists and passes all guards.`,
+            referenceFiles: [`src/lib/agents/agents/${agentId}.ts`],
+            metadata: { observer_run_id: ctx.runId, run_count: runCount, confidence: 0.9 },
+            requestedBy: 'bud-observer',
+          }),
+          Math.min(IMPROVEMENT_TIMEOUT_MS, Math.max(5_000, remainingMs() - MIN_EXIT_WINDOW_MS)),
+        );
+        if (result && result.status !== 'deduplicated') {
+          triggered.push(`[medium/stalled] ${agentId} → ${result.status}`);
+          ctx.log(`bud-observer: stalled signal triggered for ${agentId}`, result);
+        }
+      } catch (err) {
+        ctx.log(`bud-observer: stall trigger failed for ${agentId}`, { err: String(err) });
+      }
+    }
+
     // ── Propose action for signals that need human review ─────────────────────
     const reviewNeeded = [
       ...signals.filter((s) => s.confidence < MIN_CONFIDENCE || s.severity === 'critical'),
@@ -353,7 +411,7 @@ Return the JSON as described in your system instructions.`;
     const autoTriggered = triggered.length;
 
     return {
-      summary: `Bud Observer found ${total} signal(s). Auto-triggered ${autoTriggered} improvement(s). ${skippedForTimeout.length} skipped for runtime safety. ${observerSummary.slice(0, 200)}`,
+      summary: `Bud Observer found ${total} signal(s)${stalledAgents.length > 0 ? `, ${stalledAgents.length} stalled agent(s)` : ''}. Auto-triggered ${autoTriggered} improvement(s). ${skippedForTimeout.length} skipped for runtime safety. ${observerSummary.slice(0, 200)}`,
       output: {
         status: total > 0 ? 'success' : 'partial',
         summary: `Found ${total} improvement opportunities, triggered ${autoTriggered} autonomously.`,

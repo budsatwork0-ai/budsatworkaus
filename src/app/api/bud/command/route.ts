@@ -8,6 +8,10 @@ import type { BudCommandIntent } from '@/lib/bud/command';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function normalizeCommand(input: string): string {
+  return input.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function adminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -84,26 +88,24 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as { command?: string };
-  const command = body.command?.trim();
-  if (!command) {
+  const raw = body.command?.trim();
+  if (!raw) {
     return NextResponse.json({ error: 'command required' }, { status: 400 });
   }
 
+  // Normalize before classification so the stored description (= dedup key)
+  // is consistent regardless of input casing or spacing.
+  const command = normalizeCommand(raw);
   const classified = classifyBudCommand(command);
   const supabase = adminClient();
 
   try {
     const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const [taskRes, approvalRes, failedRunRes, activeAgentRes] = await Promise.all([
-      supabase.from('bud_tasks').select('id', { count: 'exact', head: true }).in('status', ['pending', 'in_progress', 'awaiting_approval']),
-      supabase.from('bud_approval_queue').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('agent_runs').select('id', { count: 'exact', head: true }).gte('started_at', since24h).eq('status', 'failed'),
-      supabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'enabled'),
-    ]);
 
-    // Dedup: if there's already an open task for this same command in the last 24h,
-    // return it instead of spawning another. Prevents stale "waiting" thoughts from
-    // accumulating when the user clicks "Fix with Bud" multiple times.
+    // Dedup check FIRST — before system context reads and Haiku — so duplicate
+    // submissions don't accumulate pending tasks or incur unnecessary LLM calls.
+    // Previously only fired when both task AND approval existed; now fires for
+    // any open task, covering non-approval-gated intents (investigate, review, audit).
     const { data: existingTask } = await supabase
       .from('bud_tasks')
       .select('id, status')
@@ -115,26 +117,32 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    const { data: existingApproval } = existingTask
-      ? await supabase
-          .from('bud_approval_queue')
-          .select('id')
-          .eq('task_id', existingTask.id)
-          .eq('status', 'pending')
-          .maybeSingle()
-      : { data: null };
+    if (existingTask) {
+      const { data: existingApproval } = await supabase
+        .from('bud_approval_queue')
+        .select('id')
+        .eq('task_id', existingTask.id)
+        .eq('status', 'pending')
+        .maybeSingle();
 
-    if (existingTask && existingApproval) {
       return NextResponse.json({
         ok: true,
         task_id: existingTask.id,
         intent: classified.intent,
-        approval_id: existingApproval.id,
-        status: 'awaiting_approval',
-        bud_response: null,
+        approval_id: existingApproval?.id ?? null,
+        status: existingApproval ? 'awaiting_approval' : existingTask.status,
+        bud_response: { message: 'This task is already tracked — returning existing task.' },
         deduplicated: true,
       });
     }
+
+    // No duplicate — fetch system context, then create the task and call Haiku in parallel.
+    const [taskRes, approvalRes, failedRunRes, activeAgentRes] = await Promise.all([
+      supabase.from('bud_tasks').select('id', { count: 'exact', head: true }).in('status', ['pending', 'in_progress', 'awaiting_approval']),
+      supabase.from('bud_approval_queue').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('agent_runs').select('id', { count: 'exact', head: true }).gte('started_at', since24h).eq('status', 'failed'),
+      supabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'enabled'),
+    ]);
 
     const [task, budResponse] = await Promise.all([
       createBudTask(supabase, {

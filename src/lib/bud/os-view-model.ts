@@ -57,6 +57,8 @@ export type BudOsApprovalDetail = {
   source_agent: string | null;
   requested_at: string;
   truth_label: ApprovalTruthLabel;
+  affected_area: string | null;
+  signal_type: string | null;
 };
 
 export type BudOsQueueItem = {
@@ -487,6 +489,8 @@ function buildApprovalDetailFromBudApproval(args: {
     source_agent: task?.source_agent ?? null,
     requested_at: args.approval.created_at,
     truth_label: args.truthLabel,
+    affected_area: signalArea,
+    signal_type: (payload['signal_type'] as string | undefined) ?? null,
   };
 }
 
@@ -534,7 +538,92 @@ function buildApprovalDetailFromAgentAction(args: { action: ActionRow }): BudOsA
     source_agent: args.action.agent_id,
     requested_at: args.action.created_at,
     truth_label: 'Needs manual review',
+    affected_area: null,
+    signal_type: null,
   };
+}
+
+/* ── agent impact telemetry ──────────────────────────────────────────────── */
+
+export type AgentImpactEntry = {
+  actions_last_30d: number;
+  approvals_last_30d: number;
+  outputs_last_30d: number;
+};
+
+export type AgentImpactMap = Record<string, AgentImpactEntry>;
+
+export function buildAgentImpactMap(args: {
+  actionRows: Array<{ agent_id: string | null; status: string }>;
+  outputRows: Array<{ agent_id: string | null }>;
+}): AgentImpactMap {
+  const map: Record<string, { actions: number; approvals: number; outputs: number }> = {};
+
+  for (const row of args.actionRows) {
+    const id = row.agent_id;
+    if (!id) continue;
+    if (!map[id]) map[id] = { actions: 0, approvals: 0, outputs: 0 };
+    map[id].actions += 1;
+    if (row.status === 'approved' || row.status === 'executed') {
+      map[id].approvals += 1;
+    }
+  }
+
+  for (const row of args.outputRows) {
+    const id = row.agent_id;
+    if (!id) continue;
+    if (!map[id]) map[id] = { actions: 0, approvals: 0, outputs: 0 };
+    map[id].outputs += 1;
+  }
+
+  const result: AgentImpactMap = {};
+  for (const [id, counts] of Object.entries(map)) {
+    result[id] = {
+      actions_last_30d: counts.actions,
+      approvals_last_30d: counts.approvals,
+      outputs_last_30d: counts.outputs,
+    };
+  }
+  return result;
+}
+
+/* ── agent value classification ──────────────────────────────────────────── */
+
+export const HIGH_VALUE_AGENT_IDS = new Set([
+  'quote-triage', 'customer-reply', 'scheduling',
+  'lead-scorer', 'reviews', 'cash-flow-forecaster',
+]);
+
+export const MEDIUM_VALUE_AGENT_IDS = new Set([
+  'reconciliation', 'stripe-dispute-manager', 'lapsed-win-back',
+  'crew-briefing', 'phone-transcriber', 'applicant-screener',
+  'crew-coach', 'ndis-compliance', 'ndis-plan-matcher',
+  'price-optimizer', 'seo-meta', 'whs-safety-reminder',
+]);
+
+export type AgentBizValue = 'high' | 'medium' | 'low';
+export type AgentStatusDerived = 'healthy' | 'watch' | 'failing' | 'disabled';
+
+export function deriveAgentBizValue(agentId: string): AgentBizValue {
+  if (HIGH_VALUE_AGENT_IDS.has(agentId)) return 'high';
+  if (MEDIUM_VALUE_AGENT_IDS.has(agentId)) return 'medium';
+  return 'low';
+}
+
+export function deriveAgentDisplayStatus(agent: {
+  configured_status: string;
+  lifecycle: string;
+  health: { label: string; score: number };
+}): AgentStatusDerived {
+  if (
+    agent.configured_status === 'disabled' ||
+    agent.lifecycle === 'dormant' ||
+    agent.lifecycle === 'retired' ||
+    agent.health.label === 'inactive'
+  ) return 'disabled';
+  if (agent.health.label === 'broken' || agent.health.label === 'needs_repair') return 'failing';
+  if (agent.health.label === 'watch' || agent.health.score < 60) return 'watch';
+  return 'healthy';
 }
 
 export function buildBudOsActionQueue(args: {
@@ -586,7 +675,9 @@ export function buildBudOsActionQueue(args: {
       payload: approval.payload,
       task_id: approval.task_id,
       bud_tasks: task,
+      truth_label: approval.truth_label,
     });
+    if (truthLabel !== 'Actionable' && truthLabel !== 'Needs manual review') continue;
     // Skip autonomous Bud self-investigation approvals — these are created by the
     // Bud cron investigating itself, which causes an infinite loop. They have both
     // source_agent='bud' AND requested_by='bud'. User-triggered "Fix with Bud"
@@ -595,7 +686,7 @@ export function buildBudOsActionQueue(args: {
     if (task?.source_agent === 'bud' && (approval.requested_by === 'bud' || !approval.requested_by)) continue;
     const repairSession = approval.task_id ? sessionByTask.get(approval.task_id) : undefined;
     const detail = buildApprovalDetailFromBudApproval({ approval: annotated, repairSession, truthLabel });
-    const group: BudOsQueueGroup = truthLabel === 'Archived' ? 'completed_actions' : 'needs_approval';
+    const group: BudOsQueueGroup = 'needs_approval';
     items.push({
       id: `bud-approval:${approval.id}`,
       source: 'bud_approval',
@@ -603,11 +694,9 @@ export function buildBudOsActionQueue(args: {
       task_id: approval.task_id,
       group,
       title: task?.description ?? approval.action_type,
-      detail: truthLabel === 'Archived'
-        ? `Archived stale Bud approval for ${approval.action_type}.`
-        : truthLabel === 'Blocked'
-          ? `Blocked historical Bud approval for ${approval.action_type}.`
-          : `Bud needs approval for ${approval.action_type}.`,
+      detail: truthLabel === 'Needs manual review'
+        ? `Bud needs manual review for ${approval.action_type}.`
+        : `Bud needs approval for ${approval.action_type}.`,
       severity: severityFrom(task?.risk_level),
       status: approval.status,
       agent_id: task?.source_agent ?? null,

@@ -10,7 +10,13 @@ type InsertCapture = {
   row: Record<string, unknown>;
 };
 
+type UpdateCapture = {
+  table: string;
+  row: Record<string, unknown>;
+};
+
 let inserted: InsertCapture[] = [];
+let updated: UpdateCapture[] = [];
 let existingLeadId: string | null = null;
 
 function makeClient() {
@@ -60,6 +66,10 @@ function makeClient() {
               cb({ data: null, error: null }),
           };
         },
+        update(row: Record<string, unknown>) {
+          updated.push({ table: ctx.table, row });
+          return chain;
+        },
       };
 
       return chain;
@@ -77,6 +87,7 @@ let routeModule: typeof import('@/app/api/leads/messenger/route');
 
 beforeEach(async () => {
   inserted = [];
+  updated = [];
   existingLeadId = null;
   process.env.MESSENGER_INGEST_SECRET = 'test-secret';
   routeModule = await import('@/app/api/leads/messenger/route');
@@ -168,6 +179,65 @@ describe('POST /api/leads/messenger', () => {
     expect(leadInsert!.row.source).toBe('instagram');
   });
 
+  it('sets reply_channel=messenger on messenger leads', async () => {
+    const req = postRequest({
+      external_id: 'm_rc1',
+      sender_psid: 'PSID_rc',
+      message_body: 'hey',
+    });
+    await routeModule.POST(req);
+    const lead = inserted.find((i) => i.table === 'leads');
+    expect(lead!.row.reply_channel).toBe('messenger');
+  });
+
+  it('sets messenger_psid on messenger leads', async () => {
+    const req = postRequest({
+      external_id: 'm_psid1',
+      sender_psid: 'PSID_stored',
+      message_body: 'test',
+    });
+    await routeModule.POST(req);
+    const lead = inserted.find((i) => i.table === 'leads');
+    expect(lead!.row.messenger_psid).toBe('PSID_stored');
+    expect(lead!.row.instagram_user_id).toBeUndefined();
+  });
+
+  it('sets reply_channel=instagram and instagram_user_id on instagram leads', async () => {
+    const req = postRequest({
+      external_id: 'ig_rc1',
+      sender_psid: 'IGSID_stored',
+      source: 'instagram',
+      message_body: 'hi ig',
+    });
+    await routeModule.POST(req);
+    const lead = inserted.find((i) => i.table === 'leads');
+    expect(lead!.row.reply_channel).toBe('instagram');
+    expect(lead!.row.instagram_user_id).toBe('IGSID_stored');
+    expect(lead!.row.messenger_psid).toBeUndefined();
+  });
+
+  it('sets external_sender_id on the conversation', async () => {
+    const req = postRequest({
+      external_id: 'm_ext_sender',
+      sender_psid: 'PSID_conv',
+      message_body: 'conversation test',
+    });
+    await routeModule.POST(req);
+    const conv = inserted.find((i) => i.table === 'lead_conversations');
+    expect(conv!.row.external_sender_id).toBe('PSID_conv');
+  });
+
+  it('still stores sender_psid in metadata (backwards compat)', async () => {
+    const req = postRequest({
+      external_id: 'm_meta_compat',
+      sender_psid: 'PSID_meta',
+      message_body: 'compat test',
+    });
+    await routeModule.POST(req);
+    const conv = inserted.find((i) => i.table === 'lead_conversations');
+    expect((conv!.row.metadata as Record<string, unknown>).sender_psid).toBe('PSID_meta');
+  });
+
   it('rejects source values other than messenger/instagram', async () => {
     const req = postRequest({
       external_id: 'sms_1',
@@ -175,6 +245,66 @@ describe('POST /api/leads/messenger', () => {
     });
     const res = await routeModule.POST(req);
     expect(res.status).toBe(400);
+  });
+
+  // ── Phase 8C: idempotency path PSID fix ─────────────────────────────────────
+
+  it('idempotency branch patches messenger_psid on the lead when it was missing', async () => {
+    existingLeadId = 'lead_existing_psid';
+    const req = postRequest({
+      external_id: 'm_followup',
+      sender_psid: 'PSID_PATCH',
+      message_body: 'follow-up message',
+    });
+    const res = await routeModule.POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.deduped).toBe(true);
+
+    const leadUpdate = updated.find((u) => u.table === 'leads');
+    expect(leadUpdate).toBeTruthy();
+    expect(leadUpdate!.row.messenger_psid).toBe('PSID_PATCH');
+  });
+
+  it('idempotency branch does not patch messenger_psid when sender_psid is absent', async () => {
+    existingLeadId = 'lead_existing_nopsid';
+    const req = postRequest({
+      external_id: 'm_followup_nopsid',
+      message_body: 'message without psid',
+    });
+    await routeModule.POST(req);
+
+    const leadUpdate = updated.find((u) => u.table === 'leads');
+    expect(leadUpdate).toBeUndefined();
+  });
+
+  it('idempotency conversation includes external_sender_id', async () => {
+    existingLeadId = 'lead_existing_conv';
+    const req = postRequest({
+      external_id: 'm_conv_check',
+      sender_psid: 'PSID_CONV',
+      message_body: 'checking conversation fields',
+    });
+    await routeModule.POST(req);
+
+    const conv = inserted.find((i) => i.table === 'lead_conversations');
+    expect(conv).toBeTruthy();
+    expect(conv!.row.external_sender_id).toBe('PSID_CONV');
+  });
+
+  it('idempotency conversation preserves metadata.sender_psid for backwards compat', async () => {
+    existingLeadId = 'lead_existing_meta';
+    const req = postRequest({
+      external_id: 'm_meta_check',
+      sender_psid: 'PSID_META',
+      message_body: 'checking metadata compat',
+    });
+    await routeModule.POST(req);
+
+    const conv = inserted.find((i) => i.table === 'lead_conversations');
+    expect(conv).toBeTruthy();
+    expect((conv!.row.metadata as Record<string, unknown>).sender_psid).toBe('PSID_META');
   });
 });
 

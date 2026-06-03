@@ -85,6 +85,7 @@ export type BudApprovalItem = {
   archive_reason?: string | null;
   blocked_reason?: string | null;
   created_at: string;
+  truth_label?: 'Actionable' | 'Blocked' | 'Archived' | 'Needs manual review';
 };
 
 export type BudChangeRequest = {

@@ -747,6 +747,8 @@ async function dispatchEffect(action: AgentActionEffectRow): Promise<void> {
   switch (action.action_type) {
     case 'send_email':
       return sendEmailEffect(action);
+    case 'send_messenger':
+      return sendMessengerEffect(action);
     case 'send_sms':
       return sendSmsEffect(action.payload);
     case 'create_quote':
@@ -856,6 +858,61 @@ async function sendEmailEffect(action: AgentActionEffectRow): Promise<void> {
         subject: p.subject,
         to: p.to,
       },
+      created_at: now,
+    });
+  }
+}
+
+async function sendMessengerEffect(action: AgentActionEffectRow): Promise<void> {
+  const token = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error('send_messenger: MESSENGER_PAGE_ACCESS_TOKEN is not configured');
+  }
+
+  const p = action.payload as {
+    messenger_psid?: string;
+    drafted_message?: string;
+    lead_id?: string;
+    conversation_id?: string;
+    customer_name?: string | null;
+  };
+
+  if (!p.messenger_psid) throw new Error('send_messenger: missing messenger_psid in payload');
+  if (!p.drafted_message) throw new Error('send_messenger: missing drafted_message in payload');
+
+  const res = await fetch('https://graph.facebook.com/v20.0/me/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      recipient: { id: p.messenger_psid },
+      message: { text: p.drafted_message },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`send_messenger: Graph API ${res.status}: ${errText}`);
+  }
+
+  if (p.lead_id) {
+    const supabase = adminClient();
+    const now = new Date().toISOString();
+    await supabase
+      .from('leads')
+      .update({ first_response_at: now })
+      .eq('id', p.lead_id)
+      .is('first_response_at', null);
+    await supabase.from('lead_conversations').insert({
+      lead_id: p.lead_id,
+      direction: 'outbound',
+      channel: 'messenger',
+      body: p.drafted_message,
+      external_sender_id: null,
+      author_label: 'Customer Reply agent',
+      metadata: { agent_action_id: action.id, messenger_psid: p.messenger_psid },
       created_at: now,
     });
   }
