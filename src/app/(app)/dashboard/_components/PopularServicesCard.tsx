@@ -1,0 +1,55 @@
+'use client';
+
+import Link from 'next/link';
+import { StatusPill } from './StatusPill';
+
+export type PopularService = {
+  name: string;
+  status: 'Active' | 'Offline';
+  price: string;
+  shade: 'dark' | 'mid' | 'soft';
+};
+
+export function PopularServicesCard({ services }: { services: PopularService[] }) {
+  return (
+    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-6 py-7 shadow-[0_18px_48px_rgba(15,61,46,0.07)] sm:px-8">
+      <h2 className="text-[27px] font-extrabold leading-tight text-[#17392b]">Popular services</h2>
+      <div className="mt-6 divide-y divide-[#e2ebe5]">
+        {services.map((service) => (
+          <div key={service.name} className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-4 py-4 first:pt-0">
+            <span className={`grid h-[60px] w-[60px] place-items-center rounded-[18px] text-white ${iconBg(service.shade)}`}>
+              <ServiceIcon />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[20px] font-extrabold text-[#273f34]">{service.name}</p>
+              <StatusPill tone={service.status === 'Active' ? 'green' : 'red'}>{service.status}</StatusPill>
+            </div>
+            <p className="text-[19px] font-extrabold text-[#273f34]">{service.price}</p>
+          </div>
+        ))}
+      </div>
+      <Link
+        href="/dashboard/insights?tab=marketing"
+        className="mt-6 flex h-[54px] items-center justify-center rounded-[18px] border border-[#dfe9e2] text-[17px] font-semibold text-[#839188] transition hover:bg-[#f4faf6]"
+      >
+        All services
+      </Link>
+    </section>
+  );
+}
+
+function iconBg(shade: PopularService['shade']) {
+  if (shade === 'dark') return 'bg-[#1f5a3f]';
+  if (shade === 'mid') return 'bg-[#4fa46c]';
+  return 'bg-[#8aa092]';
+}
+
+function ServiceIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 11V7a3 3 0 0 1 6 0v4" />
+      <rect x="7" y="11" width="10" height="9" rx="2" />
+      <path d="M18 7h2M19 4v6M4 6h2M5 3v6" />
+    </svg>
+  );
+}

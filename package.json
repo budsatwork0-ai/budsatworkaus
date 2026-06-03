@@ -9,6 +9,7 @@
     "build:turbopack": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test": "playwright test",
     "test:ui": "playwright test --ui",

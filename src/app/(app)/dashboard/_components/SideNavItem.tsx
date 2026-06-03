@@ -9,7 +9,6 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { dashboardTheme } from '@/lib/design-system/themes';
 
 export default function SideNavItem({
   href,
@@ -42,21 +41,20 @@ export default function SideNavItem({
       <Link
         href={href}
         title={!showLabel ? label : undefined}
-        className={`group flex items-center rounded-2xl border transition-all ${
-          nested ? 'gap-2.5 px-3 py-2 ml-2' : 'gap-3 px-3 py-2.5'
-        } ${showLabel ? '' : 'justify-center px-0 py-2.5'} ${
-          active ? 'shadow-[0_6px_18px_rgba(28,124,84,.28)]' : 'hover:bg-white/75 hover:shadow-sm'
+        className={`group flex items-center rounded-[18px] border transition-all ${
+          nested ? 'gap-2.5 px-3 py-2 ml-2' : 'gap-3 px-4 py-3'
+        } ${showLabel ? '' : 'justify-center px-0 py-3'} ${
+          active ? 'shadow-[0_10px_24px_rgba(60,130,89,.20)]' : 'hover:bg-white/70'
         }`}
         style={{
-          borderColor: active ? dashboardTheme.color.accent : 'transparent',
-          background: active ? dashboardTheme.color.accent : 'transparent',
+          borderColor: active ? '#3c8259' : 'transparent',
+          background: active ? '#3c8259' : 'transparent',
         }}
       >
         <motion.span
-          className={`grid place-items-center rounded-[10px] shrink-0 ${nested ? 'h-6 w-6' : 'h-7 w-7'}`}
+          className={`grid place-items-center shrink-0 ${nested ? 'h-6 w-6' : 'h-7 w-7'}`}
           style={{
-            background: active ? 'rgba(255,255,255,.22)' : 'rgba(15,61,46,.08)',
-            color: active ? '#fff' : dashboardTheme.color.primary,
+            color: active ? '#fff' : '#7c9085',
           }}
           layout
         >
@@ -64,8 +62,8 @@ export default function SideNavItem({
         </motion.span>
         {showLabel && (
           <span
-            className={`${nested ? 'text-[13px]' : 'text-[13.5px]'} font-semibold`}
-            style={{ color: active ? '#fff' : dashboardTheme.color.muted }}
+            className={`${nested ? 'text-[14px]' : 'text-[18px]'} font-semibold`}
+            style={{ color: active ? '#fff' : '#7b8d83' }}
           >
             {label}
           </span>
@@ -74,7 +72,7 @@ export default function SideNavItem({
         {showLabel && showBadge && !badgeHref && (
           <span
             className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono"
-            style={{ background: '#10b981', color: '#fff' }}
+            style={{ background: '#fee2e2', color: '#ef6b68' }}
           >
             {badge! > 99 ? '99+' : badge}
           </span>
@@ -85,7 +83,7 @@ export default function SideNavItem({
         <Link
           href={badgeHref}
           className="absolute right-3 top-1/2 -translate-y-1/2 z-10 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold font-mono transition hover:opacity-80"
-          style={{ background: '#10b981', color: '#fff' }}
+          style={{ background: '#fee2e2', color: '#ef6b68' }}
         >
           {badge! > 99 ? '99+' : badge}
         </Link>
