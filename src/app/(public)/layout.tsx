@@ -9,7 +9,7 @@ import Header from '../ui/Header';          // use exact filename casing for Hea
 import { Footer } from '@/components/Footer';
 import { CookieBanner } from '@/components/CookieBanner';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
-import { PublicCursorFollower } from '@/components/PublicCursorFollower';
+import { PublicLeafCursorFollower } from '@/components/PublicLeafCursorFollower';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,7 +24,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <Footer />
       <CookieBanner />
       <FeedbackWidget />
-      <PublicCursorFollower />
+      <PublicLeafCursorFollower />
     </div>
   );
 }
