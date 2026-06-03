@@ -12,59 +12,71 @@ type AvatarLead = {
 export function OverviewCard({
   customers,
   revenue,
+  customerDelta,
+  revenueDelta,
   newLeadsCount,
   leads,
 }: {
   customers: string;
   revenue: string;
+  customerDelta: string;
+  revenueDelta: string;
   newLeadsCount: number;
   leads: AvatarLead[];
 }) {
   return (
-    <section className="rounded-[26px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
-      <div className="mb-3 flex items-center justify-between gap-4">
+    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
+      <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-[18px] font-extrabold leading-tight text-[#17392b]">Overview</h2>
-        <span className="rounded-full border border-[#dfe9e2] bg-[#fbfdfb] px-3 py-1 text-[12px] font-bold text-[#839188]">Live data</span>
+        <select className="h-9 rounded-full border border-[#dfe9e2] bg-white px-4 text-[13px] font-semibold text-[#839188] outline-none">
+          <option>Last month</option>
+          <option>This month</option>
+          <option>Last quarter</option>
+        </select>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <MetricCard
           label="Customers"
           value={customers}
-          subtitle="Total customer records"
+          subtitle="vs last month"
+          delta={customerDelta}
+          deltaTone="red"
           icon={<UserIcon />}
         />
         <MetricCard
           label="Revenue · MTD"
           value={revenue}
-          subtitle={revenue === '$0' ? 'No revenue recorded' : 'Completed jobs this month'}
+          subtitle="vs last month"
+          delta={revenueDelta}
+          deltaTone="green"
           icon={<WalletIcon />}
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-3 py-2.5">
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-extrabold text-[#17392b]">{newLeadsCount} new leads this week</h3>
-          <p className="text-[12px] font-semibold text-[#87968d]">Unique live leads and quote enquiries</p>
+      <div className="mt-4">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-[17px] font-extrabold text-[#17392b]">{newLeadsCount} new leads this week!</h3>
+          <p className="text-[13px] font-medium text-[#87968d]">Send a welcome message to all new customers.</p>
         </div>
-        {leads.length > 0 ? (
-          <div className="flex shrink-0 items-center -space-x-2">
-            {leads.map((lead) => (
-              <Link key={`${lead.name}-${lead.initials}`} href="/dashboard/customers" className="group" title={lead.name}>
-                <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#f4faf6] bg-[#dfdfe1] text-[12px] font-bold text-[#666a68] transition group-hover:bg-[#d6eadb]">
-                  {lead.initials}
-                </span>
-              </Link>
-            ))}
-            <Link href="/dashboard/customers" className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#f4faf6] bg-white text-[#7d8d84] shadow-sm" aria-label="View customers">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          {leads.map((lead) => (
+            <Link key={`${lead.name}-${lead.initials}`} href="/dashboard/customers" className="group text-center">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-[#dfdfe1] text-base font-bold text-[#666a68] transition group-hover:bg-[#d6eadb]">
+                {lead.initials}
+              </span>
+              <span className="mt-1 block max-w-12 truncate text-[12px] font-medium text-[#7d8d84]">{lead.name}</span>
+            </Link>
+          ))}
+          <Link href="/dashboard/customers" className="text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-[#dfe9e2] bg-white text-[#7d8d84] shadow-sm">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
-            </Link>
-          </div>
-        ) : (
-          <Link href="/dashboard/customers" className="shrink-0 text-[12px] font-bold text-[#3c8259]">View customers</Link>
-        )}
+            </span>
+            <span className="mt-1 block text-[12px] font-medium text-[#7d8d84]">View all</span>
+          </Link>
+        </div>
       </div>
     </section>
   );

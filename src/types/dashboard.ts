@@ -358,33 +358,6 @@ export type PartnerReferralSnapshot = {
   }>;
 };
 
-export type DashboardOverview = {
-  customerCount: number;
-  newLeadsThisWeek: number;
-  revenueMTD: number;
-  revenueHistory: Array<{ label: string; value: number; date: string }>;
-  jobsToday: JobRecord[];
-  quotesAwaitingReview: DashboardQuote[];
-  applicantsAwaitingApproval: number;
-  alertCount: number;
-  popularServices: Array<{ name: string; amount: number; count?: number }>;
-  recentFeedback: Array<{
-    id: string;
-    customer: string;
-    service: string;
-    quote: string;
-    rating: number;
-    created_at: string;
-  }>;
-  jobsCompleted: number;
-  dataLineage: Array<{
-    widget: string;
-    query: string;
-    table: string;
-    fallback: string;
-  }>;
-};
-
 export function normalizeQuoteStatus(status: string): string {
   if (status === 'pending') return 'submitted';
   if (status === 'approved') return 'finalized';
@@ -428,7 +401,6 @@ export type DashboardLead = {
 };
 
 export type DashboardData = {
-  overview?: DashboardOverview;
   metrics: DashboardMetrics;
   moneyFlow: MoneyFlowData;
   receivables: ReceivableRecord[];

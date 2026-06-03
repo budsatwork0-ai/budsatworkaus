@@ -118,7 +118,6 @@ export type PayoutRecord = {
 };
 
 export type DashboardData = {
-  overview?: DashboardOverview;
   metrics: DashboardMetrics;
   moneyFlow: {
     overview: {
@@ -310,33 +309,6 @@ export type DashboardData = {
   lastUpdated: string;
 };
 
-type DashboardOverview = {
-  customerCount: number;
-  newLeadsThisWeek: number;
-  revenueMTD: number;
-  revenueHistory: Array<{ label: string; value: number; date: string }>;
-  jobsToday: JobRecord[];
-  quotesAwaitingReview: DashboardData['quotes'];
-  applicantsAwaitingApproval: number;
-  alertCount: number;
-  popularServices: Array<{ name: string; amount: number; count?: number }>;
-  recentFeedback: Array<{
-    id: string;
-    customer: string;
-    service: string;
-    quote: string;
-    rating: number;
-    created_at: string;
-  }>;
-  jobsCompleted: number;
-  dataLineage: Array<{
-    widget: string;
-    query: string;
-    table: string;
-    fallback: string;
-  }>;
-};
-
 type LabourAcceptanceStatus = 'accepted' | 'pending' | 'missing';
 
 type CrewAssignmentRecord = {
@@ -377,20 +349,6 @@ type PartnerReferralEventRecord = {
   session_id: string | null;
   created_at: string;
   event_data: Record<string, unknown> | null;
-};
-
-type RatingRecord = {
-  id: string;
-  rating: number;
-  comment: string | null;
-  created_at: string;
-  orders: {
-    customer_name: string | null;
-    service_type: string | null;
-  } | Array<{
-    customer_name: string | null;
-    service_type: string | null;
-  }> | null;
 };
 
 // Map order status to receivable status
@@ -623,142 +581,6 @@ function createEmptyDailySeries(now: Date) {
   return points;
 }
 
-function buildRevenueHistory(now: Date, completedOrders: Order[]) {
-  const points: Array<{ label: string; value: number; date: string }> = [];
-
-  for (let offset = 13; offset >= 0; offset -= 1) {
-    const day = new Date(now);
-    day.setHours(0, 0, 0, 0);
-    day.setDate(day.getDate() - offset);
-    const dateKey = day.toISOString().slice(0, 10);
-    const value = completedOrders
-      .filter((order) => (order.completed_at || order.created_at || '').slice(0, 10) === dateKey)
-      .reduce((sum, order) => sum + (order.final_price || 0), 0);
-
-    points.push({
-      label: day.toLocaleDateString('en-AU', { weekday: 'short' }),
-      value,
-      date: dateKey,
-    });
-  }
-
-  return points;
-}
-
-function dedupeQuotes(quotes: DashboardQuoteRecord[]) {
-  const seen = new Set<string>();
-  const deduped: DashboardData['quotes'] = [];
-
-  for (const quote of quotes) {
-    const signature = [
-      quote.id,
-      (quote.customer_name || '').trim().toLowerCase(),
-      quote.service_type || '',
-      Math.round(effectiveQuoteTotal(quote) * 100),
-      (quote.created_at || '').slice(0, 10),
-    ].join('|');
-
-    if (seen.has(signature)) continue;
-    seen.add(signature);
-    deduped.push(quote);
-  }
-
-  return deduped;
-}
-
-function getDashboardOverview({
-  now,
-  customerCount,
-  fallbackCustomerCount,
-  leads,
-  quotes,
-  jobs,
-  revenueMTD,
-  allCompletedOrders,
-  applicantsAwaitingApproval,
-  alertCount,
-  popularServices,
-  ratings,
-  jobsCompleted,
-}: {
-  now: Date;
-  customerCount: number | null;
-  fallbackCustomerCount: number;
-  leads: NonNullable<DashboardData['leads']>;
-  quotes: DashboardQuoteRecord[];
-  jobs: JobRecord[];
-  revenueMTD: number;
-  allCompletedOrders: Order[];
-  applicantsAwaitingApproval: number;
-  alertCount: number;
-  popularServices: Array<{ service: string; amount: number; count?: number }>;
-  ratings: RatingRecord[];
-  jobsCompleted: number;
-}): DashboardOverview {
-  const todayKey = now.toISOString().slice(0, 10);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const dedupedQuotes = dedupeQuotes(quotes);
-  const quotesAwaitingReview = dedupedQuotes
-    .filter((quote) => ['submitted', 'in_review'].includes(normalizeQuoteStatus(quote.status)))
-    .slice(0, 6);
-  const newLeadsThisWeek = [
-    ...dedupedQuotes.map((quote) => ({ id: `quote-${quote.id}`, created_at: quote.created_at })),
-    ...leads.map((lead) => ({ id: `lead-${lead.id}`, created_at: lead.created_at })),
-  ].filter((entry, index, source) => {
-    if (source.findIndex((candidate) => candidate.id === entry.id) !== index) return false;
-    return new Date(entry.created_at).getTime() >= sevenDaysAgo.getTime();
-  }).length;
-
-  const recentFeedback = ratings
-    .filter((rating) => rating.comment && rating.comment.trim().length > 0)
-    .map((rating) => {
-      const order = Array.isArray(rating.orders) ? rating.orders[0] : rating.orders;
-      return {
-        id: rating.id,
-        customer: order?.customer_name || 'Customer',
-        service: order?.service_type ? SERVICE_LABELS[order.service_type] || order.service_type : 'Service',
-        quote: rating.comment?.trim() || '',
-        rating: rating.rating,
-        created_at: rating.created_at,
-      };
-    })
-    .slice(0, 3);
-
-  return {
-    customerCount: customerCount ?? fallbackCustomerCount,
-    newLeadsThisWeek,
-    revenueMTD,
-    revenueHistory: buildRevenueHistory(now, allCompletedOrders),
-    jobsToday: jobs
-      .filter((job) => job.scheduledDate === todayKey)
-      .sort((left, right) => `${left.scheduledDate}T${left.scheduledTime || '23:59:59'}`.localeCompare(`${right.scheduledDate}T${right.scheduledTime || '23:59:59'}`))
-      .slice(0, 5),
-    quotesAwaitingReview,
-    applicantsAwaitingApproval,
-    alertCount,
-    popularServices: popularServices.slice(0, 5).map((service) => ({
-      name: service.service,
-      amount: service.amount,
-      count: service.count,
-    })),
-    recentFeedback,
-    jobsCompleted,
-    dataLineage: [
-      { widget: 'Overview customers', query: 'customers count, fallback unique live names', table: 'customers, orders, quotes, leads', fallback: '0 if no live customer identifiers exist' },
-      { widget: 'Overview new leads', query: 'quotes/leads created in last 7 days, deduped by id', table: 'quotes, leads', fallback: '0' },
-      { widget: 'Overview revenue MTD', query: 'sum final_price for completed orders this month', table: 'orders', fallback: '$0 / No revenue recorded' },
-      { widget: 'Revenue chart', query: '14-day daily sum of completed order final_price', table: 'orders', fallback: 'Zero-value chart with No revenue recorded state' },
-      { widget: 'Action Centre jobs', query: 'scheduled non-cancelled/non-completed orders where scheduled_date is today', table: 'orders', fallback: 'No jobs scheduled today' },
-      { widget: 'Action Centre quotes', query: 'deduped quotes with submitted/in_review normalized status', table: 'quotes', fallback: 'No quotes awaiting review' },
-      { widget: 'Action Centre applicants', query: 'intake applicants excluding community partner roles', table: 'applicants', fallback: '0' },
-      { widget: 'Action Centre alerts', query: 'active admin alerts minus dismissed ids', table: 'orders, payables, admin alert state', fallback: '0' },
-      { widget: 'Popular services', query: 'sum completed order final_price by service_type this month', table: 'orders', fallback: 'No services recorded' },
-      { widget: 'Recent feedback', query: 'latest ratings with comments joined to orders', table: 'ratings, orders', fallback: 'No recent feedback yet' },
-      { widget: 'Jobs completed', query: 'completed orders this month', table: 'orders', fallback: '0' },
-    ],
-  };
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const isSummary = searchParams.get('scope') === 'summary';
@@ -800,8 +622,6 @@ export async function GET(request: Request) {
       applicantsResult,
       alertState,
       leadsResult,
-      customersCountResult,
-      ratingsResult,
     ] = await Promise.all([
       // All non-cancelled orders for receivables (join customers for address)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -906,26 +726,6 @@ export async function GET(request: Request) {
         .limit(200)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((r: any) => r, () => ({ data: [], error: null }))),
-
-      // Customer count for the dashboard overview. Falls back to unique
-      // names from live jobs/quotes/leads if the customers table is unavailable.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((client as any)
-        .from('customers')
-        .select('id', { count: 'exact', head: true })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .then((r: any) => r, () => ({ data: null, count: null, error: null }))),
-
-      // Recent customer ratings. Optional because newer deployments may have
-      // no ratings yet; the UI must show an honest empty state.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((client as any)
-        .from('ratings')
-        .select('id, rating, comment, created_at, orders(customer_name, service_type)')
-        .order('created_at', { ascending: false })
-        .limit(5)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .then((r: any) => r, () => ({ data: [], error: null }))),
     ]);
 
     // Handle errors
@@ -954,22 +754,10 @@ export async function GET(request: Request) {
     }> = crewResult?.data || [];
     const quotesData: DashboardQuoteRecord[] = quotesResult?.data || [];
     const partnerReferralEvents: PartnerReferralEventRecord[] = partnerReferralEventsResult?.data || [];
-    const leadsData = (leadsResult?.data ?? []) as NonNullable<DashboardData['leads']>;
-    const ratingsData: RatingRecord[] = ratingsResult?.data || [];
     const communityRoles = new Set(['Quality partner', 'Sponsor', 'Innovation partner']);
     const applicantCount = (applicantsResult?.data || []).filter(
       (a: { role?: string }) => !communityRoles.has(a.role || '')
     ).length;
-    const fallbackCustomerNames = new Set<string>();
-    for (const order of orders) {
-      if (order.customer_name) fallbackCustomerNames.add(order.customer_name.trim().toLowerCase());
-    }
-    for (const quote of quotesData) {
-      if (quote.customer_name) fallbackCustomerNames.add(quote.customer_name.trim().toLowerCase());
-    }
-    for (const lead of leadsData) {
-      if (lead.customer_name) fallbackCustomerNames.add(lead.customer_name.trim().toLowerCase());
-    }
 
     const partnerReferralMap = new Map<string, {
       partner: string;
@@ -1149,19 +937,16 @@ export async function GET(request: Request) {
       : 0;
 
     // Calculate revenue by service type
-    const revenueByServiceMap = new Map<string, { amount: number; count: number }>();
+    const revenueByServiceMap = new Map<string, number>();
     completedOrders.forEach(order => {
       const service = order.service_type || 'other';
-      const current = revenueByServiceMap.get(service) || { amount: 0, count: 0 };
-      current.amount += order.final_price || 0;
-      current.count += 1;
-      revenueByServiceMap.set(service, current);
+      const current = revenueByServiceMap.get(service) || 0;
+      revenueByServiceMap.set(service, current + (order.final_price || 0));
     });
     const revenueByService = Array.from(revenueByServiceMap.entries())
-      .map(([service, value]) => ({
+      .map(([service, amount]) => ({
         service: SERVICE_LABELS[service] || service,
-        amount: value.amount,
-        count: value.count,
+        amount,
       }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -1683,24 +1468,7 @@ export async function GET(request: Request) {
       },
     };
 
-    const overview = getDashboardOverview({
-      now,
-      customerCount: typeof customersCountResult?.count === 'number' ? customersCountResult.count : null,
-      fallbackCustomerCount: fallbackCustomerNames.size,
-      leads: leadsData,
-      quotes: quotesData,
-      jobs,
-      revenueMTD: totalRevenue,
-      allCompletedOrders,
-      applicantsAwaitingApproval: applicantCount,
-      alertCount: alertsFeed.length,
-      popularServices: revenueByService,
-      ratings: ratingsData,
-      jobsCompleted: completedOrders.length,
-    });
-
     const data: DashboardData = {
-      overview,
       metrics,
       moneyFlow: isSummary ? {
         overview: {
@@ -1818,7 +1586,7 @@ export async function GET(request: Request) {
       quotes: quotesData,
       // Lead-table rows (un-quoted, channel-ingested). Safe to be empty —
       // the Bud Leads adapter handles missing/empty arrays cleanly.
-      leads: leadsData,
+      leads: (leadsResult?.data ?? []) as DashboardData['leads'],
       partnerReferrals: isSummary ? [] : partnerReferrals,
       applicantCount,
       lastUpdated: now.toISOString(),
