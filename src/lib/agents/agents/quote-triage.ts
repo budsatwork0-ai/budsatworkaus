@@ -126,7 +126,13 @@ Return triage JSON.`;
         requiresApproval: !autoEligible,
         confidence: parsed.confidence,
         risk_level: parsed.ndis || parsed.estimated_aud > autoSendThreshold ? 'medium' : 'low',
-        preview: `Quote ${parsed.service} for ${q.customer_name} at ${q.service_address ?? 'unknown address'} — AUD $${parsed.estimated_aud}`,
+        preview: [
+          'Quote email',
+          parsed.service,
+          parsed.estimated_aud ? `$${parsed.estimated_aud}` : null,
+          q.service_address ? q.service_address.split(',')[0]?.trim().slice(0, 30) : null,
+          `quote ${q.id.slice(0, 6)}`,
+        ].filter(Boolean).join(' · '),
         payload: {
           to: q.customer_email,
           subject: `Your quote from Buds At Work`,

@@ -53,6 +53,16 @@ type FlagTarget = {
 
 type Target = DraftTarget | FlagTarget;
 
+function shortId(uuid: string): string {
+  return uuid.slice(0, 6);
+}
+
+function msgSnippet(body: string | null, maxLen = 45): string | null {
+  if (!body) return null;
+  const t = body.replace(/\s+/g, ' ').trim();
+  return t.length > maxLen ? `'${t.slice(0, maxLen)}…'` : `'${t}'`;
+}
+
 export const customerReplyAgent: AgentDefinition = {
   id: 'customer-reply',
   name: 'Customer Reply',
@@ -189,7 +199,11 @@ export const customerReplyAgent: AgentDefinition = {
           action_type: 'send_messenger',
           target_table: 'leads',
           target_id: target.lead.id,
-          preview: `Messenger reply to ${target.lead.customer_name ?? target.lead.messenger_psid}`,
+          preview: [
+            `Messenger reply to ${target.lead.customer_name ?? target.lead.messenger_psid}`,
+            `lead ${shortId(target.lead.id)}`,
+            msgSnippet(target.conv.body),
+          ].filter(Boolean).join(' · '),
           payload: {
             lead_id: target.lead.id,
             conversation_id: target.conv.id,
@@ -205,7 +219,11 @@ export const customerReplyAgent: AgentDefinition = {
           action_type: 'send_email',
           target_table: 'leads',
           target_id: target.lead.id,
-          preview: `Reply to ${target.lead.customer_name ?? target.lead.customer_email}`,
+          preview: [
+            `Email reply to ${target.lead.customer_name ?? target.lead.customer_email}`,
+            `lead ${shortId(target.lead.id)}`,
+            msgSnippet(target.conv.body),
+          ].filter(Boolean).join(' · '),
           payload: {
             to: target.lead.customer_email,
             subject: 'Re: your message',
