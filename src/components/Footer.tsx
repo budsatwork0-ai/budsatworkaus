@@ -30,6 +30,7 @@ export function Footer() {
 
   return (
     <footer
+      data-cursor-exclude
       className="mt-auto border-t backdrop-blur-sm"
       style={{
         borderColor: brand.border,

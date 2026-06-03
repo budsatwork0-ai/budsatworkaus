@@ -5,6 +5,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { publicTheme } from '@/lib/design-system/themes';
 import { MARKETING_SERVICE_LIST } from '@/lib/marketing-services';
+import OpportunityNetworkCursor, {
+  type OpportunityNetworkCursorHandle,
+} from './OpportunityNetworkCursor';
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const BRAND = publicTheme.color;
@@ -152,6 +155,7 @@ function SectionH2({ children, center = false }: { children: React.ReactNode; ce
 // ─── Homepage ────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const [heroIn, setHeroIn] = useState(false);
+  const opportunityNetworkRef = useRef<OpportunityNetworkCursorHandle>(null);
   useEffect(() => { const t = setTimeout(() => setHeroIn(true), 60); return () => clearTimeout(t); }, []);
 
   const [wordIndex, setWordIndex] = useState(0);
@@ -159,6 +163,14 @@ export default function HomePage() {
     const id = setInterval(() => setWordIndex(i => (i + 1) % ROTATING_WORDS.length), 2600);
     return () => clearInterval(id);
   }, []);
+
+  const getHoverPoint = (event: React.MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  };
 
   // Signal to the floating CTA widget to hide when the page's own CTA is visible
   const ctaSectionRef = useRef<HTMLDivElement>(null);
@@ -183,6 +195,7 @@ export default function HomePage() {
 
       {/* ════════════════════════════════════════════════ HERO — full-screen video ══ */}
       <section
+        data-cursor-exclude
         className="relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10"
         style={{
           minHeight: '100svh',
@@ -370,7 +383,8 @@ export default function HomePage() {
 
       {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
       {/* Clean white below the hero — no overlap, no floating band */}
-      <div className="relative">
+      <div data-cursor-zone className="relative overflow-hidden">
+        <OpportunityNetworkCursor ref={opportunityNetworkRef} />
 
         {/* Very subtle background tint */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
@@ -402,7 +416,7 @@ export default function HomePage() {
           </div>
         </FadeUp>
 
-        <div className="mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
+        <div className="relative z-10 mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
 
           {/* ── Services grid ─────────────────────────────────────────── */}
           <section>
@@ -512,6 +526,7 @@ export default function HomePage() {
               <motion.div className="mt-6" whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
                 <Link
                   href="/about"
+                  onMouseEnter={(event) => opportunityNetworkRef.current?.clusterTeam(getHoverPoint(event))}
                   className="inline-flex items-center gap-2 text-[14px] font-semibold hover:opacity-75 transition-opacity"
                   style={{ color: BRAND.primary }}
                 >
@@ -610,6 +625,7 @@ export default function HomePage() {
                       href="/services"
                       data-track="final_quote_click"
                       data-track-label="Homepage final quote"
+                      onMouseEnter={(event) => opportunityNetworkRef.current?.burstQuote(getHoverPoint(event))}
                       className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-[15px] font-semibold shadow-xl transition-shadow hover:shadow-2xl"
                       style={{ background: BRAND.accent, color: '#fff' }}
                     >
@@ -621,6 +637,7 @@ export default function HomePage() {
                       href="/get-involved"
                       data-track="donation_interest_click"
                       data-track-label="Homepage join or donate"
+                      onMouseEnter={(event) => opportunityNetworkRef.current?.clusterTeam(getHoverPoint(event))}
                       className="inline-flex rounded-full px-8 py-4 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
                       style={{ borderColor: 'rgba(221,243,228,0.24)', color: BRAND.onDark }}
                     >
