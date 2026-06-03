@@ -25,7 +25,7 @@ export type CircuitBreakerResult =
   | { circuitOpen: true; result: AgentResult };
 
 /** Status values that count as a failure for circuit-breaking purposes. */
-const FAILURE_STATUSES = new Set(['failed', 'failed_no_output']);
+const FAILURE_STATUSES = new Set<string>(['failed', 'failed_no_output']);
 
 async function countRecentFailures(
   agentName: string,
