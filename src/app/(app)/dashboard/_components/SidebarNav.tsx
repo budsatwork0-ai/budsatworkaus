@@ -68,33 +68,33 @@ export function SidebarNav({
     <motion.aside
       animate={{ width: sidebarOpen ? 320 : 96 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="hidden h-[calc(100vh-32px)] shrink-0 flex-col gap-4 overflow-y-auto px-4 py-5 md:flex"
+      className="hidden h-[calc(100vh-24px)] shrink-0 flex-col gap-3 overflow-y-auto px-3 py-4 md:flex"
     >
       <button
         type="button"
-        className="flex items-center gap-3 rounded-[22px] px-1 py-2 text-left"
+        className="flex items-center gap-3 rounded-[22px] px-1 py-1.5 text-left"
         onClick={onToggleSidebar}
         aria-label="Toggle sidebar"
       >
-        <span className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[18px] bg-[#3c8259] text-white shadow-[0_14px_32px_rgba(60,130,89,0.22)]">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-[#3c8259] text-white shadow-[0_14px_32px_rgba(60,130,89,0.22)]">
           <LeafLogo />
         </span>
         {sidebarOpen ? (
           <span className="min-w-0 leading-tight">
-            <span className="block truncate text-[17px] font-bold text-[#17392b]">Buds At Work</span>
+            <span className="block truncate text-[16px] font-bold text-[#17392b]">Buds At Work</span>
             <span className="block text-xs font-medium text-[#7f9187]">Business OS</span>
           </span>
         ) : null}
       </button>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {groups.map((group) => {
           if (group.adminOnly && !isAdmin) return null;
           const isCollapsed = collapsed.has(group.id);
 
           if (!sidebarOpen) {
             return (
-              <div key={group.id} className="space-y-2">
+              <div key={group.id} className="space-y-1">
                 {group.items.map((entry) => (
                   <SideNavItem
                     key={entry.href}
@@ -110,11 +110,11 @@ export function SidebarNav({
           }
 
           return (
-            <div key={group.id} className="space-y-1.5">
+            <div key={group.id} className="space-y-1">
               <button
                 type="button"
                 onClick={() => onToggleGroup(group.id)}
-                className="flex w-full items-center gap-2 px-2.5 pb-1 pt-2 text-[13px] font-bold uppercase tracking-[0.12em] text-[#a1b0a8]"
+                className="flex w-full items-center gap-2 px-2.5 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#a1b0a8]"
               >
                 <span className="truncate text-left">{group.label}</span>
                 <svg
@@ -130,7 +130,7 @@ export function SidebarNav({
                 </svg>
               </button>
               {!isCollapsed ? (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {group.items.map((entry) => (
                     <SideNavItem
                       key={entry.href}
@@ -148,7 +148,7 @@ export function SidebarNav({
         })}
       </div>
 
-      <div className="mt-auto rounded-[24px] border border-white/70 bg-white/55 px-3 py-3 shadow-[0_10px_30px_rgba(15,61,46,0.05)]">
+      <div className="mt-auto rounded-[24px] border border-white/70 bg-white/55 px-3 py-2.5 shadow-[0_10px_30px_rgba(15,61,46,0.05)]">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#d9dcde] text-sm font-bold text-[#3a3d3b]">
             {userInitials}

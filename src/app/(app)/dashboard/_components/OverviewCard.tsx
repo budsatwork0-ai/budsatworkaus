@@ -25,17 +25,17 @@ export function OverviewCard({
   leads: AvatarLead[];
 }) {
   return (
-    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-6 py-7 shadow-[0_18px_48px_rgba(15,61,46,0.07)] sm:px-8 lg:px-9">
-      <div className="mb-7 flex items-center justify-between gap-4">
-        <h2 className="text-[28px] font-extrabold leading-tight text-[#17392b]">Overview</h2>
-        <select className="h-11 rounded-full border border-[#dfe9e2] bg-white px-5 text-[16px] font-semibold text-[#839188] outline-none">
+    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h2 className="text-[18px] font-extrabold leading-tight text-[#17392b]">Overview</h2>
+        <select className="h-9 rounded-full border border-[#dfe9e2] bg-white px-4 text-[13px] font-semibold text-[#839188] outline-none">
           <option>Last month</option>
           <option>This month</option>
           <option>Last quarter</option>
         </select>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <MetricCard
           label="Customers"
           value={customers}
@@ -54,25 +54,27 @@ export function OverviewCard({
         />
       </div>
 
-      <div className="mt-8">
-        <h3 className="text-[23px] font-extrabold text-[#17392b]">{newLeadsCount} new leads this week!</h3>
-        <p className="text-[17px] font-medium text-[#87968d]">Send a welcome message to all new customers.</p>
-        <div className="mt-3 flex flex-wrap items-end gap-5">
+      <div className="mt-4">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className="text-[17px] font-extrabold text-[#17392b]">{newLeadsCount} new leads this week!</h3>
+          <p className="text-[13px] font-medium text-[#87968d]">Send a welcome message to all new customers.</p>
+        </div>
+        <div className="mt-2 flex flex-wrap items-end gap-3">
           {leads.map((lead) => (
             <Link key={`${lead.name}-${lead.initials}`} href="/dashboard/customers" className="group text-center">
-              <span className="grid h-[76px] w-[76px] place-items-center rounded-full bg-[#dfdfe1] text-xl font-bold text-[#666a68] transition group-hover:bg-[#d6eadb]">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-[#dfdfe1] text-base font-bold text-[#666a68] transition group-hover:bg-[#d6eadb]">
                 {lead.initials}
               </span>
-              <span className="mt-2 block max-w-[76px] truncate text-[16px] font-medium text-[#7d8d84]">{lead.name}</span>
+              <span className="mt-1 block max-w-12 truncate text-[12px] font-medium text-[#7d8d84]">{lead.name}</span>
             </Link>
           ))}
           <Link href="/dashboard/customers" className="text-center">
-            <span className="grid h-[76px] w-[76px] place-items-center rounded-full border border-[#dfe9e2] bg-white text-[#7d8d84] shadow-sm">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-[#dfe9e2] bg-white text-[#7d8d84] shadow-sm">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
             </span>
-            <span className="mt-2 block text-[16px] font-medium text-[#7d8d84]">View all</span>
+            <span className="mt-1 block text-[12px] font-medium text-[#7d8d84]">View all</span>
           </Link>
         </div>
       </div>

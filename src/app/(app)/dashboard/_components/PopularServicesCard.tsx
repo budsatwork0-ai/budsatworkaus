@@ -12,25 +12,25 @@ export type PopularService = {
 
 export function PopularServicesCard({ services }: { services: PopularService[] }) {
   return (
-    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-6 py-7 shadow-[0_18px_48px_rgba(15,61,46,0.07)] sm:px-8">
-      <h2 className="text-[27px] font-extrabold leading-tight text-[#17392b]">Popular services</h2>
-      <div className="mt-6 divide-y divide-[#e2ebe5]">
+    <section className="max-h-[320px] overflow-hidden rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
+      <h2 className="text-[18px] font-extrabold leading-tight text-[#17392b]">Popular services</h2>
+      <div className="mt-3 divide-y divide-[#e2ebe5]">
         {services.map((service) => (
-          <div key={service.name} className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-4 py-4 first:pt-0">
-            <span className={`grid h-[60px] w-[60px] place-items-center rounded-[18px] text-white ${iconBg(service.shade)}`}>
+          <div key={service.name} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 py-2.5 first:pt-0">
+            <span className={`grid h-10 w-10 place-items-center rounded-[14px] text-white ${iconBg(service.shade)}`}>
               <ServiceIcon />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[20px] font-extrabold text-[#273f34]">{service.name}</p>
+              <p className="truncate text-[15px] font-extrabold text-[#273f34]">{service.name}</p>
               <StatusPill tone={service.status === 'Active' ? 'green' : 'red'}>{service.status}</StatusPill>
             </div>
-            <p className="text-[19px] font-extrabold text-[#273f34]">{service.price}</p>
+            <p className="text-[15px] font-extrabold text-[#273f34]">{service.price}</p>
           </div>
         ))}
       </div>
       <Link
         href="/dashboard/insights?tab=marketing"
-        className="mt-6 flex h-[54px] items-center justify-center rounded-[18px] border border-[#dfe9e2] text-[17px] font-semibold text-[#839188] transition hover:bg-[#f4faf6]"
+        className="mt-3 flex h-10 items-center justify-center rounded-[18px] border border-[#dfe9e2] text-[14px] font-semibold text-[#839188] transition hover:bg-[#f4faf6]"
       >
         All services
       </Link>

@@ -53,12 +53,12 @@ export default function DashboardHome() {
   const todayKey = new Date().toISOString().split('T')[0];
 
   const todayJobs = useMemo(
-    () => jobs.filter((job) => job.scheduledDate === todayKey).sort(compareJobs).slice(0, 4),
+    () => jobs.filter((job) => job.scheduledDate === todayKey).sort(compareJobs).slice(0, 2),
     [jobs, todayKey],
   );
 
   const reviewQuotes = useMemo(
-    () => quotes.filter((quote) => ['submitted', 'in_review'].includes(normalizeQuoteStatus(quote.status))).slice(0, 4),
+    () => quotes.filter((quote) => ['submitted', 'in_review'].includes(normalizeQuoteStatus(quote.status))).slice(0, 2),
     [quotes],
   );
 
@@ -141,14 +141,14 @@ export default function DashboardHome() {
   const jobsCompleted = metrics.operationsSnapshot.jobsCompleted || jobs.filter((job) => job.status === 'completed').length;
 
   return (
-    <div className="grid gap-6 px-1 pb-10 sm:px-3">
-      <div className="text-[16px] font-semibold text-[#7f9187]">
+    <div className="grid gap-4 px-1 pb-4 sm:px-2">
+      <div className="text-[13px] font-semibold text-[#7f9187]">
         <span className="mr-2 text-[#3c8259]">✣</span>
         Live business overview. Sample visual data is used only where revenue/service history is empty.
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="grid gap-6 xl:col-span-8">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="grid gap-4 xl:col-span-8">
           <OverviewCard
             customers={formatCount(customersCount)}
             revenue={formatCompactCurrency(metrics.goals.currentRevenue || moneyFlow.overview.revenueThisMonth)}
@@ -160,16 +160,16 @@ export default function DashboardHome() {
 
           <RevenueChartCard points={revenuePoints} />
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <TodayScheduleCard jobs={todayJobs} />
             <QuotesReviewCard quotes={reviewQuotes} />
           </div>
         </div>
 
-        <aside className="grid content-start gap-6 xl:col-span-4">
+        <aside className="grid content-start gap-4 xl:col-span-4">
           <PopularServicesCard services={services} />
           <RecentFeedbackCard feedback={feedback} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <MiniKpi label="Jobs completed" value={String(jobsCompleted)} />
             <MiniKpi label="Quotes awaiting review" value={String(reviewQuotes.length)} />
           </div>
@@ -181,14 +181,14 @@ export default function DashboardHome() {
 
 function DashboardLoading() {
   return (
-    <div className="grid gap-6 px-1 pb-10 sm:px-3 xl:grid-cols-12">
-      <div className="grid gap-6 xl:col-span-8">
-        <div className="h-[410px] animate-pulse rounded-[30px] bg-white/80" />
-        <div className="h-[390px] animate-pulse rounded-[30px] bg-white/80" />
+    <div className="grid gap-4 px-1 pb-4 sm:px-2 xl:grid-cols-12">
+      <div className="grid gap-4 xl:col-span-8">
+        <div className="h-[220px] animate-pulse rounded-[30px] bg-white/80" />
+        <div className="h-[260px] animate-pulse rounded-[30px] bg-white/80" />
       </div>
-      <div className="grid content-start gap-6 xl:col-span-4">
-        <div className="h-[560px] animate-pulse rounded-[30px] bg-white/80" />
-        <div className="h-[290px] animate-pulse rounded-[30px] bg-white/80" />
+      <div className="grid content-start gap-4 xl:col-span-4">
+        <div className="h-[320px] animate-pulse rounded-[30px] bg-white/80" />
+        <div className="h-[240px] animate-pulse rounded-[30px] bg-white/80" />
       </div>
     </div>
   );
@@ -196,23 +196,23 @@ function DashboardLoading() {
 
 function TodayScheduleCard({ jobs }: { jobs: JobRecord[] }) {
   return (
-    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-6 py-6 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
+    <section className="max-h-[170px] overflow-hidden rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[24px] font-extrabold text-[#17392b]">Today&apos;s schedule</h2>
-        <Link href="/dashboard/schedule?view=day" className="text-sm font-bold text-[#3c8259]">Open</Link>
+        <h2 className="text-[18px] font-extrabold text-[#17392b]">Today&apos;s schedule</h2>
+        <Link href="/dashboard/schedule?view=day" className="text-[13px] font-bold text-[#3c8259]">Open</Link>
       </div>
-      <div className="mt-5 space-y-3">
+      <div className="mt-3 space-y-2">
         {jobs.length === 0 ? (
-          <p className="rounded-[20px] bg-[#f4faf6] px-4 py-4 text-sm font-semibold text-[#7f9187]">No jobs scheduled today.</p>
+          <p className="rounded-[20px] bg-[#f4faf6] px-3 py-3 text-sm font-semibold text-[#7f9187]">No jobs scheduled today.</p>
         ) : (
           jobs.map((job) => (
-            <Link key={job.id} href="/dashboard/schedule?view=day" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-4 py-4">
+            <Link key={job.id} href="/dashboard/schedule?view=day" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate text-base font-extrabold text-[#273f34]">{job.customer}</p>
-                <p className="truncate text-sm font-semibold text-[#87968d]">{job.service}</p>
+                <p className="truncate text-[14px] font-extrabold text-[#273f34]">{job.customer}</p>
+                <p className="truncate text-[12px] font-semibold text-[#87968d]">{job.service}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-sm font-extrabold text-[#273f34]">{job.scheduledTime || 'TBD'}</p>
+                <p className="text-[13px] font-extrabold text-[#273f34]">{job.scheduledTime || 'TBD'}</p>
                 <StatusPill tone={job.status === 'completed' ? 'green' : 'neutral'}>{job.status.replace('_', ' ')}</StatusPill>
               </div>
             </Link>
@@ -225,22 +225,22 @@ function TodayScheduleCard({ jobs }: { jobs: JobRecord[] }) {
 
 function QuotesReviewCard({ quotes }: { quotes: DashboardQuote[] }) {
   return (
-    <section className="rounded-[30px] border border-[#dfe9e2] bg-white px-6 py-6 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
+    <section className="max-h-[170px] overflow-hidden rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[24px] font-extrabold text-[#17392b]">Quotes awaiting review</h2>
-        <Link href="/dashboard/quotes?workspace=review" className="text-sm font-bold text-[#3c8259]">Open</Link>
+        <h2 className="text-[18px] font-extrabold text-[#17392b]">Quotes awaiting review</h2>
+        <Link href="/dashboard/quotes?workspace=review" className="text-[13px] font-bold text-[#3c8259]">Open</Link>
       </div>
-      <div className="mt-5 space-y-3">
+      <div className="mt-3 space-y-2">
         {quotes.length === 0 ? (
-          <p className="rounded-[20px] bg-[#f4faf6] px-4 py-4 text-sm font-semibold text-[#7f9187]">No quotes are waiting for review.</p>
+          <p className="rounded-[20px] bg-[#f4faf6] px-3 py-3 text-sm font-semibold text-[#7f9187]">No quotes are waiting for review.</p>
         ) : (
           quotes.map((quote) => (
-            <Link key={quote.id} href="/dashboard/quotes?workspace=review" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-4 py-4">
+            <Link key={quote.id} href="/dashboard/quotes?workspace=review" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate text-base font-extrabold text-[#273f34]">{quote.customer_name || 'New customer'}</p>
-                <p className="truncate text-sm font-semibold text-[#87968d]">{quote.service_type || 'Service quote'}</p>
+                <p className="truncate text-[14px] font-extrabold text-[#273f34]">{quote.customer_name || 'New customer'}</p>
+                <p className="truncate text-[12px] font-semibold text-[#87968d]">{quote.service_type || 'Service quote'}</p>
               </div>
-              <p className="shrink-0 text-base font-extrabold text-[#273f34]">{formatCurrency(Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0))}</p>
+              <p className="shrink-0 text-[14px] font-extrabold text-[#273f34]">{formatCurrency(Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0))}</p>
             </Link>
           ))
         )}
@@ -251,9 +251,9 @@ function QuotesReviewCard({ quotes }: { quotes: DashboardQuote[] }) {
 
 function MiniKpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[24px] border border-[#dfe9e2] bg-white px-5 py-5 shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
-      <p className="text-[34px] font-extrabold leading-none text-[#17392b]">{value}</p>
-      <p className="mt-2 text-sm font-bold text-[#839188]">{label}</p>
+    <div className="rounded-[24px] border border-[#dfe9e2] bg-white px-4 py-3 shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
+      <p className="text-[26px] font-extrabold leading-none text-[#17392b]">{value}</p>
+      <p className="mt-1 text-[12px] font-bold text-[#839188]">{label}</p>
     </div>
   );
 }
