@@ -169,6 +169,32 @@ export function MissionControlClient({
     }
   }
 
+  async function approveAll(items: BudOsQueueItem[]) {
+    const agentItems = items.filter((i) => i.source === 'agent_action');
+    if (!agentItems.length) return;
+    const ids = agentItems.map((i) => i.source_id);
+    try {
+      const res = await fetch('/api/agents/actions/bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? 'Bulk approval failed');
+      const { approved = 0, failed = [] } = json as { approved: number; failed: { id: string; error: string }[] };
+      for (const item of agentItems) actionedIdsRef.current.add(item.id);
+      setQueue((prev) => prev.filter((e) => !agentItems.some((i) => i.id === e.id)));
+      if (failed.length > 0) {
+        toast.error(`Approved ${approved}, ${failed.length} failed`);
+      } else {
+        toast.success(`Approved ${approved} action${approved !== 1 ? 's' : ''}`);
+      }
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bulk approval failed');
+    }
+  }
+
   async function reject(item: BudOsQueueItem, notes = '') {
     try {
       const url = item.source === 'agent_action'
@@ -294,6 +320,7 @@ export function MissionControlClient({
               investigatingIds={investigatingIds}
               onSelect={(item) => setSelectedId(item.id)}
               onApprove={(item) => void approve(item)}
+              onBulkApprove={(items) => void approveAll(items)}
               onReject={(item) => void reject(item)}
               onInvestigate={(item) => void investigate(item)}
             />

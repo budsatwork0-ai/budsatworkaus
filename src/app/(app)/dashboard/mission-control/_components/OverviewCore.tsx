@@ -20,6 +20,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { isDangerousAction } from '@/lib/bud/autonomy';
 import { relativeTime } from './_utils';
 import type { MissionControlHealth } from '@/lib/bud/health';
 import type { BudActivityEvent } from '@/lib/bud/types';
@@ -107,6 +108,7 @@ type Props = {
   onApprove: (item: BudOsQueueItem) => void;
   onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
+  onBulkApprove: (items: BudOsQueueItem[]) => void;
 };
 
 /* ── component ───────────────────────────────────────────────────────────── */
@@ -123,6 +125,7 @@ export function OverviewCore({
   onApprove,
   onReject,
   onInvestigate,
+  onBulkApprove,
 }: Props) {
   const truth = deriveGlobalTruth(commandState);
 
@@ -141,6 +144,7 @@ export function OverviewCore({
         onApprove={onApprove}
         onReject={onReject}
         onInvestigate={onInvestigate}
+        onBulkApprove={onBulkApprove}
       />
       <AgentValue agents={commandState.agents} agentImpact={agentImpact} />
       <ActivityFeed activity={activity} />
@@ -869,6 +873,48 @@ function QueueItemRow({
   );
 }
 
+// ── Bulk approval helpers ─────────────────────────────────────────────────────
+
+type BulkGroup = {
+  key: string;
+  actionType: string;
+  items: BudOsQueueItem[];
+  label: string;
+};
+
+function friendlyActionLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    send_messenger: 'Messenger draft',
+    send_email:     'quote email',
+  };
+  return labels[actionType] ?? actionType.replace(/_/g, ' ');
+}
+
+function computeBulkGroups(dedupedItems: DedupedQueueItem[]): BulkGroup[] {
+  const groups = new Map<string, { actionType: string; items: BudOsQueueItem[] }>();
+  for (const di of dedupedItems) {
+    const item = di.item;
+    if (item.source !== 'agent_action' || !item.approval) continue;
+    if (item.approval.readiness !== 'ready') continue;
+    const rl = item.approval.risk_level ?? 'medium';
+    if (['high', 'critical'].includes(rl)) continue;
+    if (isDangerousAction(item.approval.action_type)) continue;
+    const key = `${item.approval.action_type}:${item.approval.source_agent ?? ''}:${rl}`;
+    if (!groups.has(key)) groups.set(key, { actionType: item.approval.action_type, items: [] });
+    groups.get(key)!.items.push(item);
+  }
+  return Array.from(groups.entries())
+    .filter(([, g]) => g.items.length >= 2)
+    .map(([key, g]) => ({
+      key,
+      actionType: g.actionType,
+      items: g.items,
+      label: `${g.items.length} ${friendlyActionLabel(g.actionType)}${g.items.length !== 1 ? 's' : ''}`,
+    }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 type QueueSubSectionHandlers = {
   selectedId: string | null;
   investigatingIds: Set<string>;
@@ -876,6 +922,7 @@ type QueueSubSectionHandlers = {
   onApprove: (item: BudOsQueueItem) => void;
   onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
+  onBulkApprove: (items: BudOsQueueItem[]) => void;
 };
 
 function QueueSubSection({
@@ -890,6 +937,7 @@ function QueueSubSection({
   onApprove,
   onReject,
   onInvestigate,
+  onBulkApprove,
 }: {
   title: string;
   description: string;
@@ -897,16 +945,47 @@ function QueueSubSection({
   countTone: string;
   items: DedupedQueueItem[];
 } & QueueSubSectionHandlers) {
+  const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
+  const bulkGroups = computeBulkGroups(items);
+
   return (
     <div>
-      <header className="flex items-center justify-between border-b border-white/[0.05] px-5 py-3">
-        <div>
+      <header className="flex items-start justify-between border-b border-white/[0.05] px-5 py-3 gap-3">
+        <div className="min-w-0">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">{title}</h3>
           <p className="mt-0.5 text-xs text-white/40">{description}</p>
         </div>
-        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${countTone}`}>
-          {count}
-        </span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {bulkGroups.map((group) =>
+            confirmingKey === group.key ? (
+              <span key={group.key} className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { onBulkApprove(group.items); setConfirmingKey(null); }}
+                  className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
+                >
+                  Confirm: approve {group.label}
+                </button>
+                <button
+                  onClick={() => setConfirmingKey(null)}
+                  className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-white/50 transition hover:text-white/75"
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                key={group.key}
+                onClick={() => setConfirmingKey(group.key)}
+                className="rounded-md border border-emerald-400/20 bg-emerald-500/[0.07] px-2.5 py-1 text-[11px] font-medium text-emerald-300/80 transition hover:border-emerald-400/35 hover:bg-emerald-500/15 hover:text-emerald-300"
+              >
+                Approve {group.label}
+              </button>
+            )
+          )}
+          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${countTone}`}>
+            {count}
+          </span>
+        </div>
       </header>
       <ul className="divide-y divide-white/[0.05]">
         {items.map((di) => (
@@ -935,6 +1014,7 @@ function ActionQueue({
   onApprove,
   onReject,
   onInvestigate,
+  onBulkApprove,
 }: {
   queue: BudOsQueueItem[];
   selectedId: string | null;
@@ -943,6 +1023,7 @@ function ActionQueue({
   onApprove: (item: BudOsQueueItem) => void;
   onReject: (item: BudOsQueueItem) => void;
   onInvestigate: (item: BudOsQueueItem) => void;
+  onBulkApprove: (items: BudOsQueueItem[]) => void;
 }) {
   const approvals    = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'approval')).slice(0, 10);
   const operational  = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'operational')).slice(0, 10);
@@ -951,7 +1032,7 @@ function ActionQueue({
   const isEmpty = approvals.length + operational.length + observations.length + watchItems.length === 0;
 
   const handlers: QueueSubSectionHandlers = {
-    selectedId, investigatingIds, onSelect, onApprove, onReject, onInvestigate,
+    selectedId, investigatingIds, onSelect, onApprove, onReject, onInvestigate, onBulkApprove,
   };
 
   return (
