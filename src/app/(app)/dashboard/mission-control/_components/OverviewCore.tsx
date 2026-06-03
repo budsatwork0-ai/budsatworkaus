@@ -1089,7 +1089,6 @@ function ActionQueue({
 
 /* ── 4. agent value ──────────────────────────────────────────────────────── */
 
-const VALUE_LABEL: Record<AgentBizValue, string> = { high: 'High', medium: 'Medium', low: 'Low' };
 const STATUS_LABEL: Record<AgentStatusDerived, string> = {
   healthy: 'Healthy', watch: 'Watch', failing: 'Failing', disabled: 'Disabled',
 };
@@ -1101,21 +1100,82 @@ function AgentValue({
   agents: MissionControlHealth['agents'];
   agentImpact?: AgentImpactMap;
 }) {
+  const [showDisabled, setShowDisabled] = useState(false);
+
   type Classified = MissionControlHealth['agents'][number] & {
     bizValue: AgentBizValue;
     displayStatus: AgentStatusDerived;
   };
 
-  const classified: Classified[] = agents
-    .map((a) => ({ ...a, bizValue: deriveAgentBizValue(a.id), displayStatus: deriveAgentDisplayStatus(a) }))
-    .sort((a, b) => {
-      const order: Record<AgentBizValue, number> = { high: 0, medium: 1, low: 2 };
-      return order[a.bizValue] - order[b.bizValue];
-    });
+  const all: Classified[] = agents.map((a) => ({
+    ...a,
+    bizValue: deriveAgentBizValue(a.id),
+    displayStatus: deriveAgentDisplayStatus(a),
+  }));
 
-  const featured = classified.filter((a) => a.bizValue !== 'low');
-  const low = classified.filter((a) => a.bizValue === 'low');
-  const lowNeedAttention = low.filter((a) => a.displayStatus === 'failing' || a.displayStatus === 'watch');
+  const needsAttention = all.filter(
+    (a) => a.displayStatus !== 'disabled' && a.displayStatus === 'failing',
+  );
+  const attentionIds = new Set(needsAttention.map((a) => a.id));
+
+  const byActivity = (a: Classified, b: Classified) =>
+    (b.pending_approvals - a.pending_approvals) || (b.runs_7d - a.runs_7d);
+
+  const activeHigh = all
+    .filter((a) => a.bizValue === 'high' && a.displayStatus !== 'disabled' && !attentionIds.has(a.id))
+    .sort(byActivity);
+
+  const activeSupport = all
+    .filter((a) => a.bizValue === 'medium' && a.displayStatus !== 'disabled' && !attentionIds.has(a.id))
+    .sort(byActivity);
+
+  const disabled = all.filter((a) => a.displayStatus === 'disabled');
+
+  const lowActive = all.filter(
+    (a) => a.bizValue === 'low' && a.displayStatus !== 'disabled' && !attentionIds.has(a.id),
+  );
+
+  const watchCount = all.filter((a) => a.displayStatus === 'watch').length;
+
+  const anyRows = needsAttention.length + activeHigh.length + activeSupport.length > 0;
+
+  function AgentRow({ agent }: { agent: Classified }) {
+    const imp = agentImpact?.[agent.id];
+    return (
+      <li className="flex items-center gap-3 px-5 py-3">
+        <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${AGENT_STATUS_TONE[agent.displayStatus]}`}>
+          {STATUS_LABEL[agent.displayStatus]}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{agent.name}</span>
+        <div className="flex shrink-0 items-center gap-4 text-xs tabular-nums text-white/50">
+          <span>{agent.last_run_at ? relativeTime(agent.last_run_at) : 'Never'}</span>
+          {agent.failures_7d > 0 && (
+            <span className="text-red-300/80">{agent.failures_7d} err</span>
+          )}
+          {agent.pending_approvals > 0 && (
+            <span className="text-yellow-200/80">{agent.pending_approvals} pending</span>
+          )}
+          {imp ? (
+            <>
+              <span title="Successful outputs (30d)">{imp.outputs_last_30d} out</span>
+              <span title="Actions proposed (30d)" className="hidden sm:inline">{imp.actions_last_30d} act</span>
+              <span title="Actions approved (30d)" className="hidden md:inline">{imp.approvals_last_30d} appr</span>
+            </>
+          ) : (
+            <span className="italic text-white/30">–</span>
+          )}
+        </div>
+      </li>
+    );
+  }
+
+  function SectionLabel({ label, tone = 'text-white/35' }: { label: string; tone?: string }) {
+    return (
+      <li className="border-b border-white/[0.04] bg-white/[0.015] px-5 py-1.5">
+        <span className={`text-[9px] font-semibold uppercase tracking-[0.15em] ${tone}`}>{label}</span>
+      </li>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02]">
@@ -1124,53 +1184,69 @@ function AgentValue({
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Agent value</h3>
           <p className="mt-0.5 text-xs text-white/40">High-value agents drive core business operations.</p>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-white/65">
-          {agents.length} agents
-        </span>
-      </header>
-      <ul className="divide-y divide-white/[0.05]">
-        {featured.length === 0 && (
-          <li className="px-5 py-6 text-center text-sm text-white/40">No agents classified as high or medium value.</li>
-        )}
-        {featured.map((agent) => (
-          <li key={agent.id} className="flex items-center gap-3 px-5 py-3">
-            <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${VALUE_TONE[agent.bizValue]}`}>
-              {VALUE_LABEL[agent.bizValue]}
+        <div className="flex items-center gap-2">
+          {watchCount > 0 && (
+            <span className="rounded-full border border-amber-400/25 bg-amber-500/[0.06] px-2 py-0.5 text-[11px] font-medium text-amber-300/80">
+              {watchCount} watch
             </span>
-            <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${AGENT_STATUS_TONE[agent.displayStatus]}`}>
-              {STATUS_LABEL[agent.displayStatus]}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{agent.name}</span>
-            <div className="flex shrink-0 items-center gap-4 text-xs tabular-nums text-white/50">
-              <span>{agent.last_run_at ? relativeTime(agent.last_run_at) : 'Never'}</span>
-              <span className={agent.failures_7d > 0 ? 'text-red-300/80' : ''}>{agent.failures_7d} err</span>
-              {(() => {
-                const imp = agentImpact?.[agent.id];
-                if (!imp) return <span className="italic text-white/30">–</span>;
-                return (
-                  <>
-                    <span title="Successful outputs (30d)">{imp.outputs_last_30d} out</span>
-                    <span title="Actions proposed (30d)" className="hidden sm:inline">{imp.actions_last_30d} act</span>
-                    <span title="Actions approved (30d)" className="hidden md:inline">{imp.approvals_last_30d} appr</span>
-                  </>
-                );
-              })()}
-            </div>
-            <span className="hidden xl:block shrink-0 max-w-[200px] truncate text-xs text-white/40">
-              {agent.recommended_action}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.05] px-5 py-2.5">
-        <span className="text-[11px] italic text-white/30">out = succeeded runs · act = actions proposed · appr = actions approved · quotes/leads/jobs — Not available</span>
-        {low.length > 0 && (
-          <span className="text-[11px] text-white/40">
-            {low.length} low-value agents
-            {lowNeedAttention.length > 0 && (
-              <span className="ml-1.5 text-amber-300/70">· {lowNeedAttention.length} need attention</span>
-            )}
+          )}
+          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-white/65">
+            {agents.length} agents
           </span>
+        </div>
+      </header>
+
+      {!anyRows ? (
+        <p className="px-5 py-6 text-center text-sm text-white/40">No active agents to display.</p>
+      ) : (
+        <ul className="divide-y divide-white/[0.05]">
+          {needsAttention.length > 0 && (
+            <>
+              <SectionLabel label="Needs attention" tone="text-red-400/70" />
+              {needsAttention.map((a) => <AgentRow key={a.id} agent={a} />)}
+            </>
+          )}
+          {activeHigh.length > 0 && (
+            <>
+              <SectionLabel label="Active" />
+              {activeHigh.map((a) => <AgentRow key={a.id} agent={a} />)}
+            </>
+          )}
+          {activeSupport.length > 0 && (
+            <>
+              <SectionLabel label="Support" />
+              {activeSupport.map((a) => <AgentRow key={a.id} agent={a} />)}
+            </>
+          )}
+        </ul>
+      )}
+
+      <div className="border-t border-white/[0.05] px-5 py-2.5 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <span className="text-[11px] italic text-white/30">out = succeeded runs · act = actions proposed · appr = actions approved</span>
+          <div className="flex items-center gap-3 text-[11px] text-white/40">
+            {lowActive.length > 0 && <span>{lowActive.length} low-value</span>}
+            {disabled.length > 0 && (
+              <button
+                onClick={() => setShowDisabled((v) => !v)}
+                className="text-white/40 underline-offset-2 hover:text-white/60 hover:underline transition"
+              >
+                {disabled.length} disabled {showDisabled ? '▲' : '▼'}
+              </button>
+            )}
+          </div>
+        </div>
+        {showDisabled && disabled.length > 0 && (
+          <ul className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.05] bg-white/[0.02]">
+            {disabled.map((a) => (
+              <li key={a.id} className="flex items-center justify-between px-4 py-1.5">
+                <span className="text-xs text-white/40">{a.name}</span>
+                <span className="text-[11px] tabular-nums text-white/25">
+                  {a.last_run_at ? relativeTime(a.last_run_at) : 'Never'}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </section>
