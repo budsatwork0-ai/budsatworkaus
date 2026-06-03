@@ -35,8 +35,8 @@ export function TopBar({
   const router = useRouter();
 
   return (
-    <header className="sticky top-0 z-30 px-3 pt-2 sm:px-4 sm:pt-3 lg:px-5">
-      <div className="flex min-h-[58px] items-center gap-3 rounded-[22px] bg-[#eaf3ed]/86 px-3 py-2 backdrop-blur md:min-h-[66px] md:px-4">
+    <header className="sticky top-0 z-30 px-2.5 pt-1.5 sm:px-3 lg:px-4">
+      <div className="flex min-h-[52px] items-center gap-2.5 rounded-[20px] bg-[#eaf3ed]/86 px-3 py-1.5 backdrop-blur md:min-h-[56px] md:px-3">
         <button
           onClick={onOpenMobileMenu}
           className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#74877c] shadow-sm md:hidden"
@@ -47,14 +47,14 @@ export function TopBar({
           </svg>
         </button>
 
-        <h1 className="shrink-0 text-[26px] font-extrabold leading-none text-[#17392b] sm:text-[28px]">
+        <h1 className="shrink-0 text-[22px] font-extrabold leading-none text-[#17392b] sm:text-[24px]">
           {title}
         </h1>
 
         <button
           type="button"
           onClick={onOpenCommandPalette}
-          className="hidden h-11 min-w-0 max-w-[560px] flex-1 items-center gap-3 rounded-full bg-white px-5 text-left text-[15px] font-medium text-[#a7b2ab] shadow-[inset_0_0_0_1px_rgba(15,61,46,0.04)] lg:flex"
+          className="hidden h-9 min-w-0 max-w-[560px] flex-1 items-center gap-2.5 rounded-full bg-white px-4 text-left text-[13px] font-medium text-[#a7b2ab] shadow-[inset_0_0_0_1px_rgba(15,61,46,0.04)] lg:flex"
         >
           <svg className="h-5 w-5 shrink-0 text-[#9dacA4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" />
@@ -79,7 +79,7 @@ export function TopBar({
           <div className="relative">
             <button
               onClick={onToggleNewDropdown}
-              className="h-10 rounded-full bg-[#3c8259] px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(60,130,89,0.20)] transition hover:bg-[#346f4d] sm:h-11 sm:px-6"
+              className="h-9 rounded-full bg-[#3c8259] px-4 text-[13px] font-bold text-white shadow-[0_12px_28px_rgba(60,130,89,0.20)] transition hover:bg-[#346f4d]"
             >
               Create
             </button>
@@ -120,7 +120,7 @@ export function TopBar({
             type="button"
             onClick={onOpenShortcuts}
             title="Keyboard shortcuts (?)"
-            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm sm:grid sm:h-11 sm:w-11"
+            className="hidden h-9 w-9 place-items-center rounded-full bg-white text-[#74877c] shadow-sm sm:grid"
             aria-label="Keyboard shortcuts"
           >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -131,7 +131,7 @@ export function TopBar({
 
           <details className="group relative">
             <summary className="list-none">
-              <div className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-[#dddfe0] text-sm font-bold text-[#4b4d4c] shadow-sm sm:h-11 sm:w-11">
+              <div className="grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-[#dddfe0] text-[13px] font-bold text-[#4b4d4c] shadow-sm">
                 {userInitials}
               </div>
             </summary>

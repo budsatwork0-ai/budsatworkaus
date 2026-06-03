@@ -41,9 +41,9 @@ export default function SideNavItem({
       <Link
         href={href}
         title={!showLabel ? label : undefined}
-        className={`group flex min-h-10 items-center rounded-[18px] border transition-all ${
-          nested ? 'ml-2 gap-2.5 px-3 py-1.5' : 'gap-3 px-3 py-2'
-        } ${showLabel ? '' : 'justify-center px-0 py-2'} ${
+        className={`group flex min-h-9 items-center rounded-[15px] border transition-all ${
+          nested ? 'ml-2 gap-2 px-2.5 py-1' : 'gap-2.5 px-2.5 py-1.5'
+        } ${showLabel ? '' : 'justify-center px-0 py-1.5'} ${
           active ? 'shadow-[0_10px_24px_rgba(60,130,89,.20)]' : 'hover:bg-white/70'
         }`}
         style={{
@@ -52,7 +52,7 @@ export default function SideNavItem({
         }}
       >
         <motion.span
-          className={`grid place-items-center shrink-0 ${nested ? 'h-5 w-5' : 'h-6 w-6'}`}
+          className={`grid place-items-center shrink-0 ${nested ? 'h-5 w-5' : 'h-5 w-5'}`}
           style={{
             color: active ? '#fff' : '#7c9085',
           }}
@@ -62,7 +62,7 @@ export default function SideNavItem({
         </motion.span>
         {showLabel && (
           <span
-            className={`${nested ? 'text-[13px]' : 'text-[15px]'} font-semibold`}
+            className={`${nested ? 'text-[12px]' : 'text-[13px]'} font-semibold`}
             style={{ color: active ? '#fff' : '#7b8d83' }}
           >
             {label}

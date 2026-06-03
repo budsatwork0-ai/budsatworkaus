@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_DASHBOARD_GOALS } from '@/lib/automations';
 import type {
   DashboardData,
+  DashboardOverview,
   DashboardMetrics,
   DashboardAlert,
   DashboardCrewMember,
@@ -18,6 +19,7 @@ import type {
 
 type UseDashboardDataResult = {
   metrics: DashboardMetrics;
+  overview: DashboardOverview | null;
   moneyFlow: MoneyFlowData;
   receivables: ReceivableRecord[];
   payables: PayableRecord[];
@@ -145,6 +147,7 @@ function writeCache(data: DashboardData, full = false) {
 export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDashboardDataResult {
   const isFull = scope === 'full';
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<MoneyFlowData>(defaultMoneyFlow);
   const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
   const [payables, setPayables] = useState<PayableRecord[]>([]);
@@ -163,6 +166,7 @@ export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDash
   const [error, setError] = useState<string | null>(null);
 
   function applyData(data: DashboardData) {
+    setOverview(data.overview || null);
     setMetrics(data.metrics);
     setMoneyFlow(data.moneyFlow || defaultMoneyFlow);
     setReceivables(data.receivables);
@@ -231,6 +235,7 @@ export function useDashboardData(scope: 'summary' | 'full' = 'summary'): UseDash
 
   return {
     metrics: metrics ?? defaultMetrics,
+    overview,
     moneyFlow,
     receivables,
     payables,
