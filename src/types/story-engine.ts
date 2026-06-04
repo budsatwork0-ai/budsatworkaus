@@ -4,6 +4,15 @@ export type OpportunityStatus = 'new' | 'in_development' | 'published' | 'passed
 export type OpportunitySourceType = 'journal' | 'character' | 'arc' | 'open_thread' | 'chapter' | 'manual' | 'milestone';
 export type OpportunitySection = 'surfaced' | 'tension_map' | 'missed_moments';
 
+export interface ScoreBreakdown {
+  human_impact:            number;
+  business_significance:   number;
+  emotional_tension:       number;
+  transformation_potential: number;
+  content_potential:       number;
+  reasons:                 string[];
+}
+
 export interface StoryOpportunity {
   id: string;
   title: string;
@@ -24,8 +33,29 @@ export interface StoryOpportunity {
   detection_reason: string | null;
   confidence_score: number | null;
   source_hash: string | null;
+  // Story Score (Phase 2H.5)
+  story_score: number | null;
+  score_breakdown: ScoreBreakdown | null;
+  score_reason: string | null;
+  scored_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type StorySortKey = 'story_score' | 'newest' | 'priority';
+
+export const STORY_SCORE_TIERS: Array<{
+  min: number; max: number; label: string; bg: string; fg: string;
+}> = [
+  { min: 90, max: 100, label: 'Exceptional', bg: '#ECFDF5', fg: '#047857' },
+  { min: 75, max:  89, label: 'Strong',      bg: '#EFF6FF', fg: '#1D4ED8' },
+  { min: 60, max:  74, label: 'Good',        bg: '#F0FDF4', fg: '#15803D' },
+  { min: 40, max:  59, label: 'Moderate',    bg: '#FFFBEB', fg: '#B45309' },
+  { min:  0, max:  39, label: 'Weak',        bg: '#FEF2F2', fg: '#B91C1C' },
+];
+
+export function getScoreTier(score: number) {
+  return STORY_SCORE_TIERS.find((t) => score >= t.min && score <= t.max) ?? STORY_SCORE_TIERS[4];
 }
 
 export type DetectionSummary = {

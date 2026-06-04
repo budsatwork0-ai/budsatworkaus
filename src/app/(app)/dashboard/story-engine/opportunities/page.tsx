@@ -13,6 +13,9 @@ import {
   SUGGESTED_PLATFORMS,
   DRAFT_STATUS_STYLES,
   DRAFT_STATUSES,
+  STORY_SCORE_TIERS,
+  getScoreTier,
+  type StorySortKey,
   type StoryOpportunity,
   type OpportunityStatus,
   type OpportunitySection,
@@ -96,6 +99,8 @@ export default function StoryOpportunitiesPage() {
   const [activeSection, setActiveSection] = useState<OpportunitySection>('surfaced');
   const [creating, setCreating] = useState(false);
   const [detecting, setDetecting] = useState(false);
+  const [scoring, setScoring] = useState(false);
+  const [sortKey, setSortKey] = useState<StorySortKey>('story_score');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,6 +154,25 @@ export default function StoryOpportunitiesPage() {
     }
   }
 
+  async function scoreAllOpportunities() {
+    setScoring(true);
+    try {
+      const res = await fetch('/api/story-opportunities/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score_all: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Scoring failed'); return; }
+      toast.success(`Scored ${data.scored} ${data.scored === 1 ? 'opportunity' : 'opportunities'}`);
+      await load();
+    } catch {
+      toast.error('Scoring failed — check connection');
+    } finally {
+      setScoring(false);
+    }
+  }
+
   const sectionOpps = opps.filter((o) => o.section === activeSection);
   const sectionCounts = OPP_SECTIONS.reduce<Record<string, number>>((acc, s) => {
     acc[s.key] = opps.filter((o) => o.section === s.key).length;
@@ -157,10 +181,20 @@ export default function StoryOpportunitiesPage() {
 
   const currentSectionDef = OPP_SECTIONS.find((s) => s.key === activeSection)!;
 
-  // Group visible opps by status
+  function sortItems(items: StoryOpportunity[]): StoryOpportunity[] {
+    if (sortKey === 'story_score') {
+      return [...items].sort((a, b) => (b.story_score ?? -1) - (a.story_score ?? -1));
+    }
+    if (sortKey === 'newest') {
+      return [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+    return [...items].sort((a, b) => a.priority - b.priority);
+  }
+
+  // Group visible opps by status, sorted within each group
   const grouped = STATUS_ORDER.map((status) => ({
     status,
-    items: sectionOpps.filter((o) => o.status === status).sort((a, b) => a.priority - b.priority),
+    items: sortItems(sectionOpps.filter((o) => o.status === status)),
   })).filter((g) => g.items.length > 0);
 
   const newCount = sectionOpps.filter((o) => o.status === 'new').length;
@@ -173,6 +207,15 @@ export default function StoryOpportunitiesPage() {
         description="Content-worthy story moments. Detect from real business data or capture manually. Triage and develop into content."
         actions={
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={scoreAllOpportunities}
+              disabled={scoring}
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
+              style={{ background: '#F0FDF4', color: '#047857' }}
+            >
+              {scoring ? 'Scoring…' : 'Score All'}
+            </button>
             <button
               type="button"
               onClick={runDetection}
@@ -222,6 +265,35 @@ export default function StoryOpportunitiesPage() {
             </span>
           )}
         </p>
+      </div>
+
+      {/* Sort controls */}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: dashboardTheme.color.muted }}>
+          Sort:
+        </span>
+        {(['story_score', 'newest', 'priority'] as StorySortKey[]).map((key) => {
+          const labels: Record<StorySortKey, string> = {
+            story_score: 'Story Score',
+            newest:      'Newest',
+            priority:    'Priority',
+          };
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSortKey(key)}
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+              style={
+                sortKey === key
+                  ? { background: dashboardTheme.color.primary, color: '#fff' }
+                  : { background: '#F1F5F9', color: dashboardTheme.color.muted }
+              }
+            >
+              {labels[key]}
+            </button>
+          );
+        })}
       </div>
 
       {/* New opportunity form */}
@@ -390,6 +462,18 @@ function OppCard({
                   Auto-detected
                 </span>
               )}
+              {opp.story_score !== null && opp.story_score !== undefined && (() => {
+                const tier = getScoreTier(opp.story_score);
+                return (
+                  <span
+                    className="rounded-full px-2.5 py-0.5 text-[10px] font-bold"
+                    style={{ background: tier.bg, color: tier.fg }}
+                    title={opp.score_reason ?? ''}
+                  >
+                    {opp.story_score} · {tier.label}
+                  </span>
+                );
+              })()}
             </div>
             {!expanded && opp.content_angle && (
               <p className="mt-1 text-sm truncate" style={{ color: dashboardTheme.color.muted }}>
