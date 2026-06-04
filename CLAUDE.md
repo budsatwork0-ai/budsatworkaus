@@ -193,6 +193,22 @@ This saves the rule to CLAUDE.md, the vault, and the Continuous Learning Loop in
 
 ---
 
+## Growth & Marketing Constitution
+
+The permanent north star for all Growth & Marketing work lives at:
+
+```
+docs/constitution/growth-marketing-constitution.md
+```
+
+**Before any Growth & Marketing feature, page, agent, automation, workflow, campaign, report, or
+implementation begins — read the Constitution and confirm the work is justified by it.**
+
+Reference it in planning prompts, implementation prompts, and code reviews.
+It is the highest-authority document for all Growth & Marketing decisions.
+
+---
+
 ## graphify
 
 Knowledge graph at `graphify-out/`. Rules:

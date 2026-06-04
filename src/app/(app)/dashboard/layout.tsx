@@ -23,7 +23,11 @@ const quotesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const moneyIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22" /><path d="M17 5H9.5a3.5 3.5 0 000 7H14.5a3.5 3.5 0 010 7H6" /></svg>;
 const customersIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>;
 const crewIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>;
-const insightsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>;
+const growthHqIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
+const storyEngineIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
+const contentStudioIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>;
+const researchLabIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v11l-4 7h14l-4-7V3" /></svg>;
+const contentVaultIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>;
 const settingsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
 const ndisIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /><line x1="19" y1="11" x2="23" y2="11" /></svg>;
 const missionIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="8" /><line x1="12" y1="16" x2="12" y2="22" /><line x1="2" y1="12" x2="8" y2="12" /><line x1="16" y1="12" x2="22" y2="12" /></svg>;
@@ -31,7 +35,6 @@ const alertsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const leadsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z" /></svg>;
 const marketingIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 11-5.8-1.6" /></svg>;
 const reportsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
-const visitorsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
 const jobsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>;
 const pipelinesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="14" rx="1" /><rect x="15" y="3" width="6" height="9" rx="1" /></svg>;
 const paymentsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>;
@@ -56,6 +59,14 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/ndis': 'NDIS Organisations',
   '/dashboard/mission-control': 'Bud OS',
   '/dashboard/design': 'Design System',
+  '/dashboard/growth-hq': 'Growth HQ',
+  '/dashboard/story-engine': 'Story Engine',
+  '/dashboard/content-studio': 'Content Studio',
+  '/dashboard/research-lab': 'Research Lab',
+  '/dashboard/marketing': 'Marketing Studio',
+  '/dashboard/leads': 'Bud Leads',
+  '/dashboard/reports': 'Reports',
+  '/dashboard/content-vault': 'Content Vault',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -95,11 +106,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/alerts',     label: 'Alerts',    icon: alertsIcon },
     ] },
     { id: 'growth', label: 'Growth & marketing', items: [
-      { href: '/dashboard/insights',                  label: 'Insights',         icon: insightsIcon },
-      { href: '/dashboard/insights?tab=leads',        label: 'Bud Leads',        icon: leadsIcon },
-      { href: '/dashboard/insights?tab=marketing',    label: 'Marketing Studio', icon: marketingIcon },
-      { href: '/dashboard/reports',                   label: 'Reports',          icon: reportsIcon },
-      { href: '/dashboard/insights?tab=visitors',     label: 'Visitors',         icon: visitorsIcon },
+      { href: '/dashboard/growth-hq',       label: 'Growth HQ',        icon: growthHqIcon },
+      { href: '/dashboard/story-engine',    label: 'Story Engine',     icon: storyEngineIcon },
+      { href: '/dashboard/content-studio',  label: 'Content Studio',   icon: contentStudioIcon },
+      { href: '/dashboard/research-lab',    label: 'Research Lab',     icon: researchLabIcon },
+      { href: '/dashboard/marketing',       label: 'Marketing Studio', icon: marketingIcon },
+      { href: '/dashboard/leads',           label: 'Bud Leads',        icon: leadsIcon },
+      { href: '/dashboard/reports',         label: 'Reports',          icon: reportsIcon },
+      { href: '/dashboard/content-vault',   label: 'Content Vault',    icon: contentVaultIcon },
     ] },
     { id: 'work', label: 'Work', items: [
       { href: '/dashboard/schedule',  label: 'Schedule',     icon: scheduleIcon,  badgeKey: 'schedule' },
