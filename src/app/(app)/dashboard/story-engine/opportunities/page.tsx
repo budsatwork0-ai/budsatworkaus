@@ -1216,8 +1216,11 @@ function DraftEditor({
         />
       </div>
 
+      {/* Safety review */}
+      <ReviewPanel draftId={draft.id} />
+
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={save}
@@ -1253,6 +1256,344 @@ function DraftEditor({
         })}
         {draft.generation_tokens ? ` · ${draft.generation_tokens.toLocaleString()} tokens` : ''}
       </p>
+    </div>
+  );
+}
+
+// ─── Review panel (safety & approval layer for a draft) ──────────────────────
+
+const REVIEW_STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
+  pending_review:    { bg: '#F1F5F9', fg: '#475569', label: 'Pending Review' },
+  changes_required:  { bg: '#FFFBEB', fg: '#B45309', label: 'Changes Required' },
+  approved:          { bg: '#ECFDF5', fg: '#047857', label: 'Approved' },
+  rejected:          { bg: '#FEF2F2', fg: '#B91C1C', label: 'Rejected' },
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  privacy:  'Privacy',
+  brand:    'Brand',
+  factual:  'Factual',
+  consent:  'Consent',
+};
+
+const SEVERITY_STYLES: Record<string, { dot: string; text: string }> = {
+  blocker: { dot: '#B91C1C', text: '#B91C1C' },
+  warning: { dot: '#B45309', text: '#B45309' },
+  info:    { dot: '#1D4ED8', text: '#475569' },
+};
+
+interface ReviewFinding {
+  category: string;
+  severity: string;
+  message:  string;
+}
+
+interface StoryReview {
+  id: string;
+  draft_id: string;
+  review_status: string;
+  safety_score: number;
+  consent_verified: boolean;
+  privacy_checked: boolean;
+  factual_accuracy_checked: boolean;
+  brand_alignment_checked: boolean;
+  findings: ReviewFinding[];
+  reviewer_notes: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const bg  = score >= 80 ? '#ECFDF5' : score >= 50 ? '#FFFBEB' : '#FEF2F2';
+  const fg  = score >= 80 ? '#047857' : score >= 50 ? '#B45309' : '#B91C1C';
+  return (
+    <span
+      className="rounded-full px-2.5 py-0.5 text-xs font-bold"
+      style={{ background: bg, color: fg }}
+    >
+      {score}/100
+    </span>
+  );
+}
+
+function ReviewPanel({ draftId }: { draftId: string }) {
+  const [reviews, setReviews]     = useState<StoryReview[]>([]);
+  const [running, setRunning]     = useState(false);
+  const [loadingR, setLoadingR]   = useState(true);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  const latest = reviews[0] ?? null;
+
+  const findings: ReviewFinding[] = Array.isArray(latest?.findings) ? latest.findings : [];
+
+  const hasApproved = reviews.some(
+    (r) =>
+      r.review_status === 'approved' &&
+      r.consent_verified &&
+      r.privacy_checked &&
+      r.factual_accuracy_checked &&
+      r.brand_alignment_checked,
+  );
+
+  const loadReviews = useCallback(async () => {
+    setLoadingR(true);
+    try {
+      const res = await fetch(`/api/story-reviews?draft_id=${draftId}`);
+      if (!res.ok) throw new Error('Failed');
+      const json = await res.json();
+      const loaded: StoryReview[] = json.reviews ?? [];
+      setReviews(loaded);
+      setNotesDraft(loaded[0]?.reviewer_notes ?? '');
+    } catch {
+      // silent — secondary panel
+    } finally {
+      setLoadingR(false);
+    }
+  }, [draftId]);
+
+  useEffect(() => { loadReviews(); }, [loadReviews]);
+
+  async function runReview() {
+    setRunning(true);
+    try {
+      const res = await fetch('/api/story-reviews/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft_id: draftId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Review failed'); return; }
+      await loadReviews();
+      toast.success('Safety review complete');
+    } catch {
+      toast.error('Review failed — check connection');
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function updateStatus(newStatus: string) {
+    if (!latest) return;
+    try {
+      const res = await fetch(`/api/story-reviews/${latest.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_status: newStatus }),
+      });
+      if (!res.ok) { toast.error('Failed to update status'); return; }
+      await loadReviews();
+      toast.success(`Marked as ${REVIEW_STATUS_STYLES[newStatus]?.label ?? newStatus}`);
+    } catch {
+      toast.error('Failed to update review');
+    }
+  }
+
+  async function saveNote() {
+    if (!latest) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/story-reviews/${latest.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewer_notes: notesDraft }),
+      });
+      if (!res.ok) { toast.error('Failed to save notes'); return; }
+      await loadReviews();
+    } catch {
+      toast.error('Failed to save notes');
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  // Group findings by category
+  const byCategory: Record<string, ReviewFinding[]> = {};
+  for (const f of findings) {
+    if (!byCategory[f.category]) byCategory[f.category] = [];
+    byCategory[f.category].push(f);
+  }
+
+  return (
+    <div
+      className="mt-4 rounded-[20px] border p-4"
+      style={{ background: '#FAFBFD', borderColor: 'rgba(0,0,0,0.07)' }}
+    >
+      {/* Panel header */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p
+          className="text-[10px] font-semibold uppercase tracking-[0.1em]"
+          style={{ color: dashboardTheme.color.muted }}
+        >
+          Safety Review
+        </p>
+        {latest && <ScoreBadge score={latest.safety_score} />}
+        {latest && (() => {
+          const st = REVIEW_STATUS_STYLES[latest.review_status];
+          return st ? (
+            <span
+              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+              style={{ background: st.bg, color: st.fg }}
+            >
+              {st.label}
+            </span>
+          ) : null;
+        })()}
+        <button
+          type="button"
+          onClick={runReview}
+          disabled={running}
+          className="ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+          style={{ background: dashboardTheme.color.primary }}
+        >
+          {running ? 'Running…' : latest ? 'Re-run Review' : 'Run Safety Review'}
+        </button>
+      </div>
+
+      {/* Loading */}
+      {loadingR && (
+        <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>Loading reviews…</p>
+      )}
+
+      {/* No review yet */}
+      {!loadingR && !latest && (
+        <p className="text-xs" style={{ color: dashboardTheme.color.muted }}>
+          No safety review yet. Run one before publishing.
+        </p>
+      )}
+
+      {/* Latest review detail */}
+      {!loadingR && latest && (
+        <>
+          {/* Check badges */}
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {[
+              { key: 'privacy_checked',          label: 'Privacy'  },
+              { key: 'consent_verified',         label: 'Consent'  },
+              { key: 'factual_accuracy_checked', label: 'Factual'  },
+              { key: 'brand_alignment_checked',  label: 'Brand'    },
+            ].map(({ key, label }) => {
+              const passed = (latest as unknown as Record<string, boolean>)[key];
+              return (
+                <span
+                  key={key}
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={
+                    passed
+                      ? { background: '#ECFDF5', color: '#047857' }
+                      : { background: '#FEF2F2', color: '#B91C1C' }
+                  }
+                >
+                  {passed ? '✓' : '✕'} {label}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Findings grouped by category */}
+          {findings.length > 0 && (
+            <div className="mb-3 space-y-2">
+              {Object.entries(byCategory).map(([cat, catFindings]) => (
+                <div key={cat}>
+                  <p
+                    className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em]"
+                    style={{ color: dashboardTheme.color.muted }}
+                  >
+                    {CATEGORY_LABELS[cat] ?? cat}
+                  </p>
+                  <ul className="space-y-1">
+                    {catFindings.map((f, i) => {
+                      const sty = SEVERITY_STYLES[f.severity] ?? SEVERITY_STYLES.info;
+                      return (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span
+                            className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ background: sty.dot }}
+                          />
+                          <span className="text-xs leading-5" style={{ color: sty.text }}>
+                            {f.message}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {findings.length === 0 && (
+            <p className="mb-3 text-xs" style={{ color: '#047857' }}>
+              No issues found in this review pass.
+            </p>
+          )}
+
+          {/* Reviewer notes textarea */}
+          <div className="mb-3">
+            <label
+              className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.1em]"
+              style={{ color: dashboardTheme.color.muted }}
+            >
+              Reviewer Notes
+            </label>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onBlur={saveNote}
+              disabled={savingNote}
+              rows={3}
+              className="w-full resize-y rounded-xl border bg-white px-3 py-2 text-xs leading-5"
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
+              placeholder="Add human review notes here…"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => updateStatus('changes_required')}
+              disabled={latest.review_status === 'changes_required'}
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
+              style={{ background: '#FFFBEB', color: '#B45309' }}
+            >
+              Changes Required
+            </button>
+            <button
+              type="button"
+              onClick={() => updateStatus('approved')}
+              disabled={latest.review_status === 'approved'}
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
+              style={{ background: '#ECFDF5', color: '#047857' }}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={() => updateStatus('rejected')}
+              disabled={latest.review_status === 'rejected'}
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
+              style={{ background: '#FEF2F2', color: '#B91C1C' }}
+            >
+              Reject
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Content Studio gate */}
+      {!hasApproved && (
+        <div
+          className="mt-3 rounded-xl px-3 py-2.5"
+          style={{ background: '#F1F5F9', borderLeft: '3px solid #CBD5E1' }}
+        >
+          <p className="text-xs font-medium" style={{ color: dashboardTheme.color.muted }}>
+            Needs approval before Content Studio
+          </p>
+        </div>
+      )}
     </div>
   );
 }
