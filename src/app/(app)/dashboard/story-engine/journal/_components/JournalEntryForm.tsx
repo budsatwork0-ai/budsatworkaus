@@ -21,7 +21,7 @@ type Props = {
 const ALL_RATINGS: ContentPotentialRating[] = ['none', 'low', 'medium', 'high'];
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('en-CA');
 }
 
 function buildDraft(initial?: JournalEntry): JournalEntryDraft {
