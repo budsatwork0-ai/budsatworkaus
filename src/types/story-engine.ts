@@ -1,7 +1,7 @@
 // ─── Story Opportunities ──────────────────────────────────────────────────────
 
 export type OpportunityStatus = 'new' | 'in_development' | 'published' | 'passed';
-export type OpportunitySourceType = 'journal' | 'character' | 'arc' | 'open_thread' | 'chapter' | 'manual' | 'milestone';
+export type OpportunitySourceType = 'journal' | 'character' | 'arc' | 'open_thread' | 'chapter' | 'manual' | 'milestone' | 'internal_system_milestone';
 export type OpportunitySection = 'surfaced' | 'tension_map' | 'missed_moments';
 
 export interface ScoreBreakdown {
@@ -82,6 +82,7 @@ export const OPP_SOURCE_LABELS: Record<OpportunitySourceType, string> = {
   chapter:     'Chapter',
   manual:      'Manual',
   milestone:   'Business Milestone',
+  internal_system_milestone: 'Internal System Milestone',
 };
 
 export const OPP_SECTIONS: { key: OpportunitySection; label: string; description: string }[] = [

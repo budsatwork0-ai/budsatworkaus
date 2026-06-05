@@ -30,7 +30,7 @@ import {
 const CHARACTER_OPTIONS = ['Jackson Taylor', 'Silvan', 'Buds At Work'];
 
 const SOURCE_TYPES: OpportunitySourceType[] = [
-  'manual', 'journal', 'arc', 'open_thread', 'chapter', 'character', 'milestone',
+  'manual', 'journal', 'arc', 'open_thread', 'chapter', 'character', 'milestone', 'internal_system_milestone',
 ];
 
 function formatTimestamp(iso: string) {

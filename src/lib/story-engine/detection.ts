@@ -7,6 +7,7 @@
 // Server-only: must only be imported from API routes or server components.
 
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 import type { DetectionSummary, OpportunitySection } from '@/types/story-engine';
 
 // ─── Internal insert shape ────────────────────────────────────────────────────
@@ -75,6 +76,14 @@ async function detectJournalHighPotential(
         || entry.wins?.trim()?.slice(0, 300)
         || 'See journal entry for full context.';
 
+      const exposure = classifyOpportunityExposure({
+        title: `Journal ${formatDateAU(entry.entry_date)} — High potential`,
+        source_type: 'journal',
+        content_angle: angle,
+        notes: entry.tags?.length ? `Tags: ${entry.tags.join(', ')}` : '',
+      });
+      if (exposure === 'internal_system_milestone') continue;
+
       result.opps.push({
         title:              `Journal ${formatDateAU(entry.entry_date)} — High potential`,
         source_type:        'journal',
@@ -126,6 +135,14 @@ async function detectJournalMediumPotential(
       const angle = entry.content_potential_notes?.trim()
         || entry.wins?.trim()?.slice(0, 300)
         || 'See journal entry for full context.';
+
+      const exposure = classifyOpportunityExposure({
+        title: `Journal ${formatDateAU(entry.entry_date)} — Medium potential`,
+        source_type: 'journal',
+        content_angle: angle,
+        notes: entry.tags?.length ? `Tags: ${entry.tags.join(', ')}` : '',
+      });
+      if (exposure === 'internal_system_milestone') continue;
 
       result.opps.push({
         title:              `Journal ${formatDateAU(entry.entry_date)} — Medium potential`,
@@ -379,6 +396,17 @@ async function detectBudOsFirstAction(
 
     const action = data[0];
     const preview = action.preview?.trim()?.slice(0, 200) ?? 'An automated action was executed in the real world.';
+    const contentAngle = `The automation layer did something real. Agent: ${action.agent_id ?? 'unknown'}, action: ${action.action_type ?? 'unknown'}. Preview: "${preview}". This is the moment the system stopped being a prototype.`;
+    const notes = `Agent: ${action.agent_id ?? 'unknown'}, type: ${action.action_type ?? 'unknown'}`;
+
+    if (classifyOpportunityExposure({
+      title: 'Bud OS first real-world action executed',
+      source_type: 'milestone',
+      content_angle: contentAngle,
+      notes,
+    }) === 'internal_system_milestone') {
+      return result;
+    }
 
     result.opps.push({
       title:              'Bud OS first real-world action executed',
@@ -386,13 +414,13 @@ async function detectBudOsFirstAction(
       source_ref_id:      action.id,
       related_arc_id:     null,
       related_characters: ['Buds At Work'],
-      content_angle:      `The automation layer did something real. Agent: ${action.agent_id ?? 'unknown'}, action: ${action.action_type ?? 'unknown'}. Preview: "${preview}". This is the moment the system stopped being a prototype.`,
+      content_angle:      contentAngle,
       suggested_format:   'Long-form video',
       suggested_platform: 'LinkedIn',
       priority:           2,
       status:             'new',
       section:            'tension_map',
-      notes:              `Agent: ${action.agent_id ?? 'unknown'}, type: ${action.action_type ?? 'unknown'}`,
+      notes,
       is_auto_detected:   true,
       detection_rule:     'bud_os_first_action',
       detection_reason:   `First executed agent_action found (agent: ${action.agent_id ?? 'unknown'}, action: ${action.action_type ?? 'unknown'})`,

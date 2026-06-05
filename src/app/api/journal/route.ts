@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
     // Full-text-style search across key narrative fields via ilike
     query = query.or(
       [
+        `raw_capture.ilike.%${search}%`,
         `wins.ilike.%${search}%`,
         `challenges.ilike.%${search}%`,
         `customer_activity.ilike.%${search}%`,
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
 
   const insert = {
     entry_date:               body.entry_date,
+    raw_capture:              body.raw_capture ?? null,
     wins:                     body.wins ?? null,
     challenges:               body.challenges ?? null,
     customer_activity:        body.customer_activity ?? null,
@@ -89,6 +91,10 @@ export async function POST(req: NextRequest) {
     tags:                     body.tags ?? [],
     content_potential_rating: body.content_potential_rating ?? 'none',
     arc_connections:          body.arc_connections ?? [],
+    suggested_story_bible_note: body.suggested_story_bible_note ?? null,
+    suggested_character_timeline_entry: body.suggested_character_timeline_entry ?? null,
+    suggested_arc_update:     body.suggested_arc_update ?? null,
+    suggested_open_thread_update: body.suggested_open_thread_update ?? null,
   };
 
   const { data, error } = await (client as any)

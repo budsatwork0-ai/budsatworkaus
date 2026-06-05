@@ -3,6 +3,7 @@
 // Evaluates real fields on StoryOpportunity — never invents signals.
 
 import type { ScoreBreakdown, StoryOpportunity } from '@/types/story-engine';
+import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 
 export interface ScoringResult {
   story_score:      number;
@@ -246,6 +247,21 @@ function scoreContentPotential(opp: StoryOpportunity): { score: number; reasons:
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function evaluateOpportunity(opp: StoryOpportunity): ScoringResult {
+  if (classifyOpportunityExposure(opp) === 'internal_system_milestone') {
+    return {
+      story_score: 0,
+      score_breakdown: {
+        human_impact: 0,
+        business_significance: 0,
+        emotional_tension: 0,
+        transformation_potential: 0,
+        content_potential: 0,
+        reasons: ['Internal system milestone — not public content without customer, lead, revenue, participant, employment, community, or visible public milestone impact'],
+      },
+      score_reason: 'Internal system milestone — not public content.',
+    };
+  }
+
   const humanResult       = scoreHumanImpact(opp);
   const businessResult    = scoreBusinessSignificance(opp);
   const tensionResult     = scoreEmotionalTension(opp);

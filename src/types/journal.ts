@@ -3,6 +3,7 @@ export type ContentPotentialRating = 'none' | 'low' | 'medium' | 'high';
 export interface JournalEntry {
   id: string;
   entry_date: string; // ISO date YYYY-MM-DD
+  raw_capture: string | null;
   wins: string | null;
   challenges: string | null;
   customer_activity: string | null;
@@ -16,6 +17,10 @@ export interface JournalEntry {
   tags: string[];
   content_potential_rating: ContentPotentialRating;
   arc_connections: string[];
+  suggested_story_bible_note: string | null;
+  suggested_character_timeline_entry: string | null;
+  suggested_arc_update: string | null;
+  suggested_open_thread_update: string | null;
   story_opportunity_created: boolean;
   created_at: string;
   updated_at: string;
@@ -42,10 +47,10 @@ export const JOURNAL_SECTIONS = [
 export type JournalSectionKey = (typeof JOURNAL_SECTIONS)[number]['key'];
 
 export const CONTENT_POTENTIAL_LABELS: Record<ContentPotentialRating, string> = {
-  none:   'None',
-  low:    'Low',
-  medium: 'Medium',
-  high:   'High — story opportunity',
+  none:   'None = private/internal only',
+  low:    'Low = useful record, probably not content',
+  medium: 'Medium = possible post/story later',
+  high:   'High = strong public story candidate',
 };
 
 export const CONTENT_POTENTIAL_STYLES: Record<ContentPotentialRating, { bg: string; fg: string }> = {

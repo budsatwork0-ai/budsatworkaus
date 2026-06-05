@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const section = searchParams.get('section') ?? '';
   const status  = searchParams.get('status') ?? '';
+  const includeInternal = searchParams.get('include_internal') === 'true';
 
   let query = (client as any)
     .from('story_opportunities')
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   if (section) query = query.eq('section', section);
   if (status)  query = query.eq('status', status);
+  if (!includeInternal) query = query.neq('source_type', 'internal_system_milestone');
 
   const { data, error } = await query;
 

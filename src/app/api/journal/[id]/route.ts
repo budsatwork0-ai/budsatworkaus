@@ -49,10 +49,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   const update: Record<string, unknown> = {};
   const updatable: (keyof JournalEntryDraft)[] = [
-    'entry_date', 'wins', 'challenges', 'customer_activity', 'silvan_updates',
+    'entry_date', 'raw_capture', 'wins', 'challenges', 'customer_activity', 'silvan_updates',
     'business_progress', 'bud_os_progress', 'memorable_moments', 'lessons_learned',
     'content_potential_notes', 'media_references', 'tags', 'content_potential_rating',
-    'arc_connections',
+    'arc_connections', 'suggested_story_bible_note', 'suggested_character_timeline_entry',
+    'suggested_arc_update', 'suggested_open_thread_update',
   ];
   for (const key of updatable) {
     if (key in body) update[key] = body[key] ?? null;

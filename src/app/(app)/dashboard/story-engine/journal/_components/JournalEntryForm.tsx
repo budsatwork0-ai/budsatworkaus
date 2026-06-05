@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { dashboardTheme } from '@/lib/design-system/themes';
+import { organiseJournalCapture } from '@/lib/story/journal-autofill';
 import {
   JOURNAL_SECTIONS,
   CONTENT_POTENTIAL_LABELS,
@@ -27,6 +28,7 @@ function todayDate() {
 function buildDraft(initial?: JournalEntry): JournalEntryDraft {
   return {
     entry_date:               initial?.entry_date ?? todayDate(),
+    raw_capture:              initial?.raw_capture ?? '',
     wins:                     initial?.wins ?? '',
     challenges:               initial?.challenges ?? '',
     customer_activity:        initial?.customer_activity ?? '',
@@ -40,6 +42,10 @@ function buildDraft(initial?: JournalEntry): JournalEntryDraft {
     tags:                     initial?.tags ?? [],
     content_potential_rating: initial?.content_potential_rating ?? 'none',
     arc_connections:          initial?.arc_connections ?? [],
+    suggested_story_bible_note: initial?.suggested_story_bible_note ?? '',
+    suggested_character_timeline_entry: initial?.suggested_character_timeline_entry ?? '',
+    suggested_arc_update:     initial?.suggested_arc_update ?? '',
+    suggested_open_thread_update: initial?.suggested_open_thread_update ?? '',
   };
 }
 
@@ -63,6 +69,15 @@ export default function JournalEntryForm({ mode, initial }: Props) {
 
   function removeTag(tag: string) {
     update('tags', draft.tags.filter((t) => t !== tag));
+  }
+
+  function organiseEntry() {
+    if (!draft.raw_capture?.trim()) {
+      toast.error('Write what happened first');
+      return;
+    }
+    setDraft((d) => organiseJournalCapture(d));
+    toast.success('Entry organised. Review the suggestions before saving.');
   }
 
   async function save() {
@@ -124,6 +139,36 @@ export default function JournalEntryForm({ mode, initial }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="rounded-[20px] border border-black/5 bg-white/90 p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="flex items-center justify-between gap-3">
+          <label
+            className="block text-sm font-semibold"
+            style={{ color: dashboardTheme.color.primary }}
+          >
+            Write what happened
+          </label>
+          <button
+            type="button"
+            onClick={organiseEntry}
+            className="rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            style={{ background: dashboardTheme.color.primary }}
+          >
+            Organise entry
+          </button>
+        </div>
+        <textarea
+          value={draft.raw_capture ?? ''}
+          onChange={(e) => update('raw_capture', e.target.value)}
+          rows={9}
+          placeholder="Write one messy paragraph. The organiser will split it into sections, tags, content potential, and suggested story signals for review."
+          className="mt-3 w-full resize-y rounded-xl border px-3 py-3 text-sm leading-6"
+          style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
+        />
+        <p className="mt-2 text-xs" style={{ color: dashboardTheme.color.muted }}>
+          Raw capture is preserved. Organised fields are suggestions until you review and save.
+        </p>
+      </div>
+
       {/* Date + metadata row */}
       <div className="rounded-[20px] border border-black/5 bg-white/90 p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -164,11 +209,9 @@ export default function JournalEntryForm({ mode, initial }: Props) {
                 );
               })}
             </div>
-            {draft.content_potential_rating !== 'none' && (
-              <p className="mt-1.5 text-[11px]" style={{ color: ratingStyle.fg }}>
-                {CONTENT_POTENTIAL_LABELS[draft.content_potential_rating]}
-              </p>
-            )}
+            <p className="mt-1.5 text-[11px]" style={{ color: ratingStyle.fg }}>
+              {CONTENT_POTENTIAL_LABELS[draft.content_potential_rating]}
+            </p>
           </div>
         </div>
 
@@ -213,6 +256,20 @@ export default function JournalEntryForm({ mode, initial }: Props) {
             </div>
           )}
         </div>
+
+        <div className="mt-4">
+          <label className="block text-xs font-semibold mb-1.5 uppercase tracking-[0.1em]" style={{ color: dashboardTheme.color.muted }}>
+            Suggested Arc Connections
+          </label>
+          <textarea
+            value={draft.arc_connections.join('\n')}
+            onChange={(e) => update('arc_connections', e.target.value.split(/\n|,/).map((v) => v.trim()).filter(Boolean))}
+            rows={3}
+            placeholder="One suggested arc per line"
+            className="w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-6"
+            style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
+          />
+        </div>
       </div>
 
       {/* 10 journal sections */}
@@ -240,6 +297,37 @@ export default function JournalEntryForm({ mode, initial }: Props) {
           </div>
         );
       })}
+
+      <div className="rounded-[20px] border border-black/5 bg-white/90 p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+        <div className="mb-4">
+          <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.primary }}>
+            Suggested Story Updates
+          </p>
+          <p className="mt-1 text-xs" style={{ color: dashboardTheme.color.muted }}>
+            Review-only notes. Saving this journal entry will not update the canonical Story Bible, Characters, Arcs, or Open Threads.
+          </p>
+        </div>
+        {([
+          ['suggested_story_bible_note', 'Suggested Story Bible note'],
+          ['suggested_character_timeline_entry', 'Suggested Character Timeline entry'],
+          ['suggested_arc_update', 'Suggested Arc update'],
+          ['suggested_open_thread_update', 'Suggested Open Thread update'],
+        ] as const).map(([key, label]) => (
+          <div key={key} className="mt-4 first:mt-0">
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-[0.1em]" style={{ color: dashboardTheme.color.muted }}>
+              {label}
+            </label>
+            <textarea
+              value={(draft[key] as string | null) ?? ''}
+              onChange={(e) => update(key, e.target.value)}
+              rows={2}
+              placeholder="Suggested update for Jackson to approve later"
+              className="w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-6"
+              style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* Action bar */}
       <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-[20px] border border-black/5 bg-white/95 px-5 py-4 shadow-[0_8px_32px_rgba(15,23,42,0.10)] backdrop-blur">

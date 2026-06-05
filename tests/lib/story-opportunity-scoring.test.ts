@@ -181,7 +181,37 @@ describe('story opportunity scoring calibration', () => {
     }));
 
     expect(result.score_breakdown.human_impact).toBe(0);
-    expect(result.score_breakdown.business_significance).toBe(2);
+    expect(result.score_breakdown.business_significance).toBe(0);
+  });
+
+  it('classifies internal system events as non-public opportunities', () => {
+    for (const phrase of [
+      'The automation layer changed the crew theme colour.',
+      'write_theme_file updated the internal design system.',
+      'A dashboard UI component was changed by an agent action log.',
+    ]) {
+      const result = evaluateOpportunity(opportunity({
+        title: 'Internal system update',
+        source_type: 'milestone',
+        content_angle: phrase,
+      }));
+
+      expect(result.story_score).toBe(0);
+      expect(result.score_reason).toBe('Internal system milestone — not public content.');
+    }
+  });
+
+  it('allows system milestones when they connect to customer impact', () => {
+    const result = evaluateOpportunity(opportunity({
+      title: 'Bud OS customer test',
+      source_type: 'milestone',
+      content_angle: 'We spent 9 months building Bud OS. Now we are testing whether it can help us get customers.',
+      suggested_format: 'LinkedIn post',
+      suggested_platform: 'LinkedIn',
+    }));
+
+    expect(result.story_score).toBeGreaterThan(0);
+    expect(result.score_reason).not.toBe('Internal system milestone — not public content.');
   });
 
   it('recognises first lead and inquiry milestones', () => {
@@ -211,7 +241,7 @@ describe('story opportunity scoring calibration', () => {
       ['First employee', 43, 'Moderate'],
       ['First $1,000 month', 40, 'Moderate'],
       ['First lead', 34, 'Weak'],
-      ['Theme colour change', 5, 'Weak'],
+      ['Theme colour change', 0, 'Weak'],
     ]);
 
     expect(ranked[0].breakdown).toMatchObject({

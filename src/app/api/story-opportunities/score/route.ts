@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { evaluateOpportunity } from '@/lib/story/opportunity-scoring';
+import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 import type { StoryOpportunity } from '@/types/story-engine';
 
 export async function POST(req: NextRequest) {
@@ -48,9 +49,11 @@ export async function POST(req: NextRequest) {
   for (const opp of opps as StoryOpportunity[]) {
     try {
       const result = evaluateOpportunity(opp);
+      const exposure = classifyOpportunityExposure(opp);
       const { error: updateErr } = await (client as any)
         .from('story_opportunities')
         .update({
+          source_type:     exposure === 'internal_system_milestone' ? 'internal_system_milestone' : opp.source_type,
           story_score:     result.story_score,
           score_breakdown: result.score_breakdown,
           score_reason:    result.score_reason,
