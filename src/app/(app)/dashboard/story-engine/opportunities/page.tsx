@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { WorkbenchHeader, WorkbenchTabs } from '../../components/Workbench';
 import { dashboardTheme } from '@/lib/design-system/themes';
@@ -583,6 +584,13 @@ function OppCard({
           {/* Quick status transitions */}
           {opp.status !== 'published' && opp.status !== 'passed' && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link
+                href={`/dashboard/content-studio/ideas?opportunity_id=${opp.id}`}
+                className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                style={{ background: '#ECFDF5', color: '#047857' }}
+              >
+                Capture content idea
+              </Link>
               {opp.status === 'new' && (
                 <button type="button" onClick={() => quickStatus('in_development')} disabled={saving}
                   className="rounded-xl px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"

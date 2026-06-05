@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { WorkbenchHeader } from '../components/Workbench';
 import { dashboardTheme } from '@/lib/design-system/themes';
 
@@ -8,6 +9,8 @@ type Section = {
   description: string;
   owner: string;
   phase: 3;
+  status: 'live' | 'deferred';
+  href?: string;
   rule?: string;
   subsections?: string[];
 };
@@ -15,33 +18,41 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     title: 'Ideas',
-    description: 'Ideas enter from three sources: story-sourced (from Story Opportunities and journal entries), research-sourced (from Research Lab Adaptation Workspace), and manual capture. Each idea tracks platform fit, format, hook, and arc connection.',
-    owner: 'Jackson Taylor — agent: idea-generator [surface candidates only]; Jackson creates the record',
+    description: 'Ideas enter from Story Opportunities, Research Lab context, or manual capture. Each idea tracks platform fit, format, hook, arc connection, priority, and notes.',
+    owner: 'Jackson Taylor — manual capture and opportunity conversion only',
     phase: 3,
+    status: 'live',
+    href: '/dashboard/content-studio/ideas',
     rule: 'No idea enters production without a story arc connection or a direct acquisition purpose.',
     subsections: ['Story-Sourced Ideas', 'Research-Sourced Ideas', 'Manual Capture', 'Idea Status Board'],
   },
   {
     title: 'Scripts',
-    description: 'Scripts are developed from approved ideas. Structure: Hook (first 3 seconds) → Setup → Core Moment → Close. AI-assisted drafting is available. No script enters production without Jackson\'s explicit approval.',
-    owner: 'Jackson Taylor — agent: script-drafter [draft only, pending until approved]',
+    description: 'Scripts are written manually from content ideas. Structure: Hook → Setup → Core Moment → Close / CTA. Approved scripts can enter the Production Board.',
+    owner: 'Jackson Taylor — manual writing only',
     phase: 3,
+    status: 'live',
+    href: '/dashboard/content-studio/scripts',
     rule: 'A draft script is not canonical. Approval is a named, deliberate step — not a passive default.',
-    subsections: ['In Draft', 'Ready to Shoot', 'Script Generator (AI-assisted)'],
+    subsections: ['Draft Scripts', 'Approved Scripts', 'Archived Scripts'],
   },
   {
     title: 'Production Board',
-    description: 'Kanban view of content in production. Cards move from To Film → In Edit → Ready to Publish → Published. Each card links to its approved script. No agent advances a Production Board card — status advance is human-only.',
-    owner: 'Jackson Taylor — no agent modifies card status',
+    description: 'Manual Kanban view of content in production. Cards move from To Film → In Edit → Ready to Publish → Published. Each card links to an approved script.',
+    owner: 'Jackson Taylor — manual status movement only',
     phase: 3,
+    status: 'live',
+    href: '/dashboard/content-studio/production',
     subsections: ['To Film', 'In Edit', 'Ready to Publish', 'Published'],
   },
   {
     title: 'Asset Library',
-    description: 'Organised links to footage, photos, graphics, and testimonials. Assets are linked, not stored in-app. Assets involving customers or crew require a consent field confirmed before they appear in any content workflow.',
-    owner: 'Jackson Taylor — consent gate enforced at record level for customer/crew assets',
+    description: 'Manual library for footage, photos, graphics, testimonials, and other linked assets. Assets are links or file paths only; denied consent blocks production use.',
+    owner: 'Jackson Taylor — manual link and consent management only',
     phase: 3,
-    rule: 'Unconfirmed consent assets are invisible to all content workflows and agent processing.',
+    status: 'live',
+    href: '/dashboard/content-studio/assets',
+    rule: 'Assets with denied consent are not selectable for production use. Unknown and pending consent are visually flagged.',
     subsections: ['Footage (linked)', 'Customer-Approved Photos', 'Graphics + Overlays', 'Text + Video Testimonials'],
   },
 ];
@@ -50,6 +61,11 @@ const PHASE_STYLE = {
   bg: '#F0FDF4',
   fg: '#15803D',
   label: 'Phase 3',
+};
+
+const STATUS_STYLE: Record<Section['status'], { bg: string; fg: string; label: string }> = {
+  live:     { bg: '#ECFDF5', fg: '#047857', label: 'Live' },
+  deferred: { bg: '#F1F5F9', fg: '#475569', label: 'Deferred' },
 };
 
 export default function ContentStudioPage() {
@@ -92,18 +108,36 @@ function ConstitutionNote() {
 }
 
 function SectionCard({ section }: { section: Section }) {
+  const status = STATUS_STYLE[section.status];
+  const actionLabel = section.title === 'Ideas'
+    ? 'Open Ideas'
+    : section.title === 'Scripts'
+    ? 'Open Scripts'
+    : section.title === 'Production Board'
+    ? 'Open Board'
+    : section.title === 'Asset Library'
+    ? 'Open Assets'
+    : 'Open';
   return (
     <div className="flex flex-col gap-3 rounded-[24px] border border-black/5 bg-white/90 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-base font-semibold" style={{ color: dashboardTheme.color.primary }}>
           {section.title}
         </h2>
-        <span
-          className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold"
-          style={{ background: PHASE_STYLE.bg, color: PHASE_STYLE.fg }}
-        >
-          {PHASE_STYLE.label}
-        </span>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+            style={{ background: status.bg, color: status.fg }}
+          >
+            {status.label}
+          </span>
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+            style={{ background: PHASE_STYLE.bg, color: PHASE_STYLE.fg }}
+          >
+            {PHASE_STYLE.label}
+          </span>
+        </div>
       </div>
 
       <p className="text-sm leading-6" style={{ color: dashboardTheme.color.muted }}>
@@ -133,6 +167,16 @@ function SectionCard({ section }: { section: Section }) {
             </span>
           ))}
         </div>
+      )}
+
+      {section.href && (
+        <Link
+          href={section.href}
+          className="inline-flex w-fit rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+          style={{ background: dashboardTheme.color.primary, color: '#fff' }}
+        >
+          {actionLabel}
+        </Link>
       )}
 
       <p className="mt-auto pt-2 text-[11px] font-mono border-t border-black/5" style={{ color: dashboardTheme.color.muted, opacity: 0.65 }}>

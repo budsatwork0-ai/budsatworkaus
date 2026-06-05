@@ -12,13 +12,11 @@ export interface ScoringResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function searchText(opp: StoryOpportunity): string {
+function storyText(opp: StoryOpportunity): string {
   return [
     opp.title,
     opp.content_angle,
     opp.notes,
-    opp.detection_reason ?? '',
-    opp.detection_rule ?? '',
   ].join(' ');
 }
 
@@ -30,7 +28,7 @@ function has(text: string, pattern: RegExp): boolean {
 // How directly does this story involve and affect real people?
 
 function scoreHumanImpact(opp: StoryOpportunity): { score: number; reasons: string[] } {
-  const text  = searchText(opp);
+  const text  = storyText(opp);
   const reasons: string[] = [];
   let score = 0;
 
@@ -38,7 +36,7 @@ function scoreHumanImpact(opp: StoryOpportunity): { score: number; reasons: stri
   if (has(text, /\b(ndis|participant|support\s+worker|disability\s+support|independent\s+living|carer)\b/i)) {
     score = 25;
     reasons.push('Involves NDIS participant or support worker');
-  } else if (has(text, /\b(employment|employed|job\s+offer|hired|new\s+job|livelihood|income\s+source)\b/i)) {
+  } else if (has(text, /\b(employment\s+outcome|employed|job\s+offer|new\s+job|livelihood|income\s+source)\b/i)) {
     score = 22;
     reasons.push('Employment or livelihood outcome');
   } else if (
@@ -50,7 +48,7 @@ function scoreHumanImpact(opp: StoryOpportunity): { score: number; reasons: stri
   } else if (has(text, /\b(customer|client)\b/i)) {
     score = 12;
     reasons.push('Customer or client involvement');
-  } else if (has(text, /\b(crew|team\s+member|staff\s+member|employee|worker)\b/i)) {
+  } else if (has(text, /\b(crew\s+member|crew\s+worker|team\s+member|staff\s+member|employee|worker)\b/i)) {
     score = 7;
     reasons.push('Crew or team member story');
   }
@@ -68,7 +66,7 @@ function scoreHumanImpact(opp: StoryOpportunity): { score: number; reasons: stri
 // How significant is this moment to Buds At Work as a business?
 
 function scoreBusinessSignificance(opp: StoryOpportunity): { score: number; reasons: string[] } {
-  const text  = searchText(opp);
+  const text  = storyText(opp);
   const reasons: string[] = [];
   let score = 0;
 
@@ -76,9 +74,18 @@ function scoreBusinessSignificance(opp: StoryOpportunity): { score: number; reas
   if (has(text, /\b(first\s+recurring|first\s+subscription|first\s+repeat\s+customer|first\s+return)\b/i)) {
     score = 20;
     reasons.push('First recurring or subscription customer');
-  } else if (has(text, /\b(first\s+(customer|client|sale|order|booking|revenue|payment))\b/i)) {
+  } else if (has(text, /\b(first\s+(customer|client|sale|order|booking|revenue|payment|commercial\s+contract|contract))\b/i)) {
     score = 18;
     reasons.push('First customer / first sale / first booking');
+  } else if (has(text, /\b(first\s+(lead|inquiry|enquiry))\b/i)) {
+    score = 16;
+    reasons.push('First lead or inquiry');
+  } else if (has(text, /\b(first\s+\$?1,?000\s+month|first\s+thousand(?:-|\s)dollar\s+month)\b/i)) {
+    score = 18;
+    reasons.push('First meaningful revenue month');
+  } else if (has(text, /\b(first\s+(employee|hire|staff\s+member|crew\s+member))\b/i)) {
+    score = 14;
+    reasons.push('First team growth milestone');
   } else if (has(text, /\b(recurring|subscription|repeat\s+customer|retention)\b/i)) {
     score = 16;
     reasons.push('Recurring or subscription business');
@@ -117,15 +124,11 @@ function scoreBusinessSignificance(opp: StoryOpportunity): { score: number; reas
 // Is there conflict, stakes, or dramatic weight worth exploring?
 
 function scoreEmotionalTension(opp: StoryOpportunity): { score: number; reasons: string[] } {
-  const text  = searchText(opp);
+  const text  = storyText(opp);
   const reasons: string[] = [];
   let score = 0;
 
-  // tension_map section means the opportunity was explicitly filed as tension
-  if (opp.section === 'tension_map') {
-    score = 15;
-    reasons.push('Filed in Tension Map — explicit tension story');
-  } else if (has(text, /\b(struggle|conflict|crisis|broke|failed|rejected|lost\s+the|nearly|almost\s+quit|fell\s+apart)\b/i)) {
+  if (has(text, /\b(struggle|conflict|crisis|broke|failed|rejected|lost\s+the|nearly|almost\s+quit|fell\s+apart)\b/i)) {
     score = 11;
     reasons.push('Strong tension or conflict signal in content');
   } else if (has(text, /\b(challenge|difficult|hard\s+time|problem|worry|worried|risk|setback|behind)\b/i)) {
@@ -136,6 +139,12 @@ function scoreEmotionalTension(opp: StoryOpportunity): { score: number; reasons:
     reasons.push('Mild tension or uncertainty signal');
   }
 
+  // Section placement is a supporting editorial signal, not dominant evidence.
+  if (opp.section === 'tension_map') {
+    score = Math.min(score + 3, 15);
+    reasons.push('Filed in Tension Map — supporting tension signal');
+  }
+
   return { score: Math.min(score, 15), reasons };
 }
 
@@ -143,7 +152,7 @@ function scoreEmotionalTension(opp: StoryOpportunity): { score: number; reasons:
 // Does this story have a clear before/after or growth arc?
 
 function scoreTransformationPotential(opp: StoryOpportunity): { score: number; reasons: string[] } {
-  const text  = searchText(opp);
+  const text  = storyText(opp);
   const reasons: string[] = [];
   let score = 0;
 
@@ -163,12 +172,23 @@ function scoreTransformationPotential(opp: StoryOpportunity): { score: number; r
   } else if (has(text, /\b(growth|grew|expanding|scaled|doubled|breakthrough)\b/i)) {
     score = 13;
     reasons.push('Business growth or breakthrough');
+  } else if (has(text, /\b(first\s+solo\s+job|solo\s+job|took\s+responsibility|without\s+needing\s+rescue)\b/i)) {
+    score = 13;
+    reasons.push('Crew capability growth');
+  } else if (has(text, /\b(first\s+employee|first\s+hire|founder-only|real\s+crew\s+member)\b/i)) {
+    score = 13;
+    reasons.push('Team growth from founder-only work');
   } else if (has(text, /\b(first\s+real|first\s+time|no\s+longer\s+a\s+prototype|became\s+real|went\s+live)\b/i)) {
     score = 9;
     reasons.push('System or product became real / went live');
   } else if (has(text, /\bfirst\b/i) && opp.source_type === 'milestone') {
     score = 7;
     reasons.push('First milestone — beginning of a journey');
+  } else if (has(text, /\b(theme|colour|color|style|design|config|configuration)\b/i) &&
+             has(text, /\b(changed|updated|modified|adjusted|update)\b/i) &&
+             !has(text, /\b(customer|client|participant|crew\s+member|employee)\b/i)) {
+    score = 1;
+    reasons.push('Configuration or style update');
   } else if (has(text, /\b(improve|improved|better|upgrade|update|refine)\b/i)) {
     score = 4;
     reasons.push('Improvement or refinement');
@@ -208,7 +228,7 @@ function scoreContentPotential(opp: StoryOpportunity): { score: number; reasons:
   }
 
   // Social proof = inherently shareable
-  const text = searchText(opp);
+  const text = storyText(opp);
   if (has(text, /\b(review|testimonial|feedback|five[\s\-]?star|referral)\b/i)) {
     score += 4;
     reasons.push('Social proof — inherently shareable');
