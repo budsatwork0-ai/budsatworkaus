@@ -3,6 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useOpenMessaging } from '../hooks/useMessagingHub';
 import { dashboardTheme } from '@/lib/design-system/themes';
 
 type PipelineStage = 'intake' | 'verify' | 'paperwork' | 'induct' | 'ready';
@@ -184,6 +185,7 @@ function ModalShell({
 
 export function CrewPipelineView() {
   const router = useRouter();
+  const openMessaging = useOpenMessaging();
   const [pipeline, setPipeline] = useState<PipelinePerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -708,6 +710,19 @@ export function CrewPipelineView() {
                             >
                               Send message
                             </a>
+                          )}
+                          {(person.employeeId || person.applicantId) && (
+                            <button
+                              onClick={() => openMessaging({
+                                entity_type: 'crew',
+                                entity_id: (person.employeeId ?? person.applicantId) as string,
+                                display_name: person.fullName,
+                              })}
+                              className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
+                              style={{ borderColor: '#D1FAE5', background: '#ECFDF5', color: '#065F46' }}
+                            >
+                              Internal note
+                            </button>
                           )}
                           {person.canRequestDocs && requestDocsHref && (
                             <a

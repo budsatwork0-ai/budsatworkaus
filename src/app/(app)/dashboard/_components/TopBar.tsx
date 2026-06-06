@@ -16,6 +16,7 @@ export function TopBar({
   onToggleNewDropdown,
   onCreateOrder,
   onCreateSubscription,
+  onOpenMessaging,
   onSignOut,
   onBadgesUpdate,
 }: {
@@ -29,6 +30,7 @@ export function TopBar({
   onToggleNewDropdown: () => void;
   onCreateOrder: () => void;
   onCreateSubscription: () => void;
+  onOpenMessaging: () => void;
   onSignOut: () => void;
   onBadgesUpdate: (badges: Record<NavBadgeKey, number>) => void;
 }) {
@@ -113,6 +115,17 @@ export function TopBar({
               ) : null}
             </AnimatePresence>
           </div>
+
+          <button
+            type="button"
+            onClick={onOpenMessaging}
+            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm sm:grid sm:h-11 sm:w-11"
+            aria-label="Open messaging"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
 
           <NotificationCenter onBadgesUpdate={onBadgesUpdate} />
 

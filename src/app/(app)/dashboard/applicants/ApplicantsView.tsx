@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { dashboardTheme } from '@/lib/design-system/themes';
+import { useOpenMessaging } from '../hooks/useMessagingHub';
 
 const glass = 'bg-white/80 backdrop-blur-2xl border border-black/8 shadow-[0_10px_30px_rgba(2,6,23,0.08)] rounded-2xl';
 
@@ -82,6 +83,7 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [activating, setActivating] = useState<string | null>(null);
   const [group, setGroup] = useState<GroupFilter>(() => sanitizeGroup(initialGroup));
+  const openMessaging = useOpenMessaging();
 
   useEffect(() => {
     setGroup(sanitizeGroup(initialGroup));
@@ -458,6 +460,17 @@ export function ApplicantsView({ initialGroup }: { initialGroup?: string | null 
                             Open onboarding
                           </Link>
                         )}
+                        <button
+                          onClick={() => openMessaging({
+                            entity_type: 'applicant',
+                            entity_id: a.id,
+                            display_name: a.full_name,
+                          })}
+                          className="text-xs px-2 py-1 rounded-lg border"
+                          style={{ borderColor: '#D1FAE5', background: '#ECFDF5', color: '#065F46' }}
+                        >
+                          Message
+                        </button>
                       </div>
                     </td>
                   </tr>

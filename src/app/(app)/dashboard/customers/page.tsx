@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useOpenMessaging } from '../hooks/useMessagingHub';
 import { dashboardTheme } from '@/lib/design-system/themes';
 import { WorkbenchHeader, WorkbenchQueue, WorkbenchStatGrid, WorkbenchTabs } from '../components/Workbench';
 import { useTabbedNav } from '../hooks/useTabbedNav';
@@ -41,6 +42,7 @@ function CustomerPageContent() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Customer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const openMessaging = useOpenMessaging();
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', region: '', default_address: '' });
 
@@ -345,7 +347,15 @@ function CustomerPageContent() {
                 <p className="text-xs uppercase tracking-wide text-slate-500">Customer</p>
                 <h2 className="text-lg font-semibold">{selected.full_name}</h2>
               </div>
-              <button onClick={() => setSelected(null)} className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-slate-500">Close</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openMessaging({ entity_type: 'customer', entity_id: selected.id, display_name: selected.full_name })}
+                  className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-slate-500 hover:bg-slate-50"
+                >
+                  Message
+                </button>
+                <button onClick={() => setSelected(null)} className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-slate-500">Close</button>
+              </div>
             </div>
             <div className="px-6 pb-6 space-y-4 text-sm">
               {selected.email && <div className="flex justify-between gap-4"><span className="text-slate-500">Email</span><span className="text-right">{selected.email}</span></div>}
