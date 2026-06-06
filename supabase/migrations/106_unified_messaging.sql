@@ -79,31 +79,11 @@ alter table public.messages enable row level security;
 -- conversations
 create policy "conversations_admin_all" on public.conversations
   for all to authenticated
-  using (
-    exists (
-      select 1 from public.employees e
-      where e.user_id = auth.uid() and e.role = 'admin'
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.employees e
-      where e.user_id = auth.uid() and e.role = 'admin'
-    )
-  );
+  using (public.get_user_role() = 'admin')
+  with check (public.get_user_role() = 'admin');
 
 -- messages
 create policy "messages_admin_all" on public.messages
   for all to authenticated
-  using (
-    exists (
-      select 1 from public.employees e
-      where e.user_id = auth.uid() and e.role = 'admin'
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.employees e
-      where e.user_id = auth.uid() and e.role = 'admin'
-    )
-  );
+  using (public.get_user_role() = 'admin')
+  with check (public.get_user_role() = 'admin');
