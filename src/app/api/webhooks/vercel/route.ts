@@ -165,19 +165,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   } catch { /* non-fatal */ }
 
-  // Dedup: skip if we already have a queued signal for this branch in the last hour
-  const since1h = new Date(Date.now() - 3600_000).toISOString();
+  // Dedup: skip if any signal for this branch was created or processed in the last 24h.
+  // We check all terminal statuses (rejected, completed) in addition to active ones —
+  // the original 1h / active-only window allowed the feedback loop where a rejected
+  // signal immediately allowed a new one on the next commit push (~12 min cycle).
+  const since24h = new Date(Date.now() - 86_400_000).toISOString();
   const { data: existing } = await supabase
     .from('bud_improvement_signals')
     .select('id')
     .eq('signal_type', 'vercel_build_failure')
     .ilike('title', `%${branch}%`)
-    .in('status', ['new', 'queued', 'executing'])
-    .gte('created_at', since1h)
+    .in('status', ['new', 'queued', 'executing', 'completed', 'rejected'])
+    .gte('created_at', since24h)
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'duplicate signal in last hour' });
+    return NextResponse.json({ ok: true, skipped: true, reason: 'branch already attempted in last 24h' });
   }
 
   // Create a repair signal — the pipeline cron will pick this up and fix it

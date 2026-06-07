@@ -19,6 +19,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadLocalSchema, scanAllPatches } from './schema-guard';
 import {
   createBranch,
   createIssue,
@@ -37,7 +38,7 @@ import { scoreVisualCompliance, type VisualScore } from './visual-scorer';
 import { isUiFile } from './design-constitution';
 import { preflightPatches } from './preflight';
 import { sensitiveFilesIn } from './sensitive-paths';
-import { runBrowserTests, formatBrowserSummary, type BrowserTestResult } from './browser-executor';
+import { runBrowserTests, type BrowserTestResult } from './browser-executor';
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
 import { getDefaultAutonomyLevel } from './autonomy';
@@ -93,13 +94,30 @@ function buildToolchainNotes(): string {
       ? '- Zod v' + zodMajor + ': `z.record(...)` requires TWO arguments — `z.record(z.string(), z.unknown())`. The single-argument form `z.record(z.unknown())` is the Zod v3 API and FAILS to compile.'
       : '- Zod v' + zodMajor + ': `z.record(valueSchema)` takes a single argument.';
 
+  // Load the known table list from the generated types so the model knows what
+  // exists before it generates code. Fail-open: if the file can't be read we
+  // just omit the list rather than crashing the executor.
+  let knownTablesLine = '';
+  try {
+    const schema = loadLocalSchema();
+    if (schema.size > 0) {
+      knownTablesLine =
+        '- Supabase tables that exist in `Database.public.Tables` (the ONLY tables ' +
+        'usable with `createServiceClient()`): ' +
+        [...schema.keys()].sort().join(', ') +
+        '. NEVER reference any other table — it will resolve to `never` and FAIL the type check.';
+    }
+  } catch { /* fail-open */ }
+
   return [
     "TOOLCHAIN — the repo's installed versions. Generated code MUST match these or CI fails:",
     zodLine,
     '- Next.js ' + nextMajor + ' / React ' + reactMajor + ', TypeScript strict, `moduleResolution: "bundler"`.',
     '- Path alias `@/*` maps to `src/*`. Server Supabase client: `createServiceClient()` (synchronous) from `@/lib/supabase/server` — `createClient` is NOT exported.',
     '- Vitest test files live under `tests/` (that directory is EXCLUDED from the typecheck). Do NOT place `*.test.ts` files under `src/` — they get type-checked and break CI.',
-  ].join('\n');
+    '- Agent files live at `src/lib/agents/agents/{agent-id}.ts`. The directory `src/agents/` does NOT exist — any file placed there will introduce a new untracked directory and WILL fail CI.',
+    knownTablesLine,
+  ].filter(Boolean).join('\n');
 }
 
 const TOOLCHAIN_NOTES = buildToolchainNotes();
@@ -364,7 +382,7 @@ Return ONLY a JSON array of strings: ["path/to/file.ts", ...]`,
 async function searchImprovementHistory(
   supabase: SupabaseClient,
   signalType: string,
-  affectedArea: string,
+  _affectedArea: string,
 ): Promise<string> {
   const { data: learnings } = await supabase
     .from('bud_improvement_learnings')
@@ -662,6 +680,24 @@ Return ONLY valid JSON:
     return { executionId, status: 'blocked', blockedReason: 'surgical_limit' };
   }
 
+  // Guard: reject patches that target directories known to not exist in this repo.
+  // `src/agents/` is the most common hallucination — the real path is `src/lib/agents/agents/`.
+  const BANNED_PATH_PREFIXES = ['src/agents/'];
+  const bannedPaths = patches.map((p) => p.file).filter((f) =>
+    BANNED_PATH_PREFIXES.some((prefix) => f.startsWith(prefix)),
+  );
+  if (bannedPaths.length > 0) {
+    const note = `Patch targets non-existent directory: ${bannedPaths.join(', ')}. Agent files belong in src/lib/agents/agents/.`;
+    await log(supabase, executionId, patchStep, 'warn', note, { banned_paths: bannedPaths });
+    await finishStep(supabase, patchStep, 'blocked', { note, banned_paths: bannedPaths });
+    await updateExecution(supabase, executionId, { status: 'blocked', finished_at: new Date().toISOString() });
+    await writeLearning(supabase, executionId, typedSignal, 'blocked', note);
+    await emitStage(supabase, pipelineRunId, 'generate', 'rejected', { reason: note });
+    await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
+    await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+    return { executionId, status: 'blocked', blockedReason: 'banned_path' };
+  }
+
   if (patches.length === 0) {
     const note = patchNote || 'LLM determined no file changes are needed.';
     await log(supabase, executionId, patchStep, 'info', `No patches generated: ${note}`);
@@ -673,6 +709,38 @@ Return ONLY valid JSON:
     await emitStage(supabase, pipelineRunId, 'reject', 'rejected', { reason: note });
     await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     return { executionId, status: 'blocked', blockedReason: 'no_patches' };
+  }
+
+  // ── SCHEMA GUARD ──────────────────────────────────────────────────────────────
+  // Validate all patches against src/types/database.ts before any branch is
+  // created. Catches .from('nonexistent_table') and .insert({ unknown_col })
+  // that would fail tsc strict-mode with 'never' type errors at CI time.
+  // Fail-open: loadLocalSchema() returns an empty map if the file can't be read,
+  // in which case scanAllPatches() returns no violations and we proceed normally.
+  {
+    const dbSchema = loadLocalSchema();
+    const schemaViolations = scanAllPatches(patches, dbSchema);
+    if (schemaViolations.length > 0) {
+      const detail = schemaViolations
+        .map((v) => `  • ${v.file}: ${v.message}`)
+        .join('\n');
+      const note =
+        `Schema guard blocked ${schemaViolations.length} violation(s) — ` +
+        `patch references tables or columns absent from Database.public.Tables:\n${detail}`;
+      await log(supabase, executionId, patchStep, 'warn', note,
+        { schema_violations: schemaViolations });
+      await finishStep(supabase, patchStep, 'blocked',
+        { note, schema_violations: schemaViolations });
+      await updateExecution(supabase, executionId,
+        { status: 'blocked', diff_summary: note, finished_at: new Date().toISOString() });
+      await writeLearning(supabase, executionId, typedSignal, 'blocked', note);
+      await emitStage(supabase, pipelineRunId, 'generate', 'rejected',
+        { reason: 'schema_guard', violations: schemaViolations.length });
+      await emitStage(supabase, pipelineRunId, 'reject', 'rejected',
+        { reason: note.slice(0, 200) });
+      await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
+      return { executionId, status: 'blocked', blockedReason: 'schema_violation' };
+    }
   }
 
   // ── PRE-FLIGHT (shadow mode) ─────────────────────────────────────────────────
