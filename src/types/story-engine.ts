@@ -40,6 +40,8 @@ export interface StoryOpportunity {
   scored_at: string | null;
   created_at: string;
   updated_at: string;
+  // Computed by GET /api/story-opportunities — not stored in DB
+  draft_count?: number;
 }
 
 export type StorySortKey = 'story_score' | 'newest' | 'priority';

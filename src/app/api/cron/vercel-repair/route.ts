@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkQuarantine } from '@/lib/bud/repair-quarantine';
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -59,6 +60,33 @@ export async function GET(req: NextRequest) {
       await supabase.from('bud_improvement_signals').update({ status: 'stale' }).eq('id', signal.id);
       results.push(`${signal.title} → stale (no actionable error content)`);
       continue;
+    }
+
+    // Quarantine check: if this branch has already failed repair recently, skip execution.
+    // The affected_area field stores the branch name for vercel_build_failure signals.
+    const branch = signal.affected_area as string | null;
+    if (branch) {
+      const quarantine = await checkQuarantine(supabase, branch);
+      if (quarantine.blocked) {
+        if (quarantine.abandoned) {
+          await supabase.from('bud_improvement_signals').update({ status: 'stale' }).eq('id', signal.id);
+          try {
+            await supabase.from('bud_activity_feed').insert({
+              event_type: 'error',
+              narrative: `Branch ${branch} abandoned after ${quarantine.attemptCount} failed repair attempts — signal marked stale. Fresh branch from main required.`,
+              actor: 'vercel_repair_cron',
+              target: branch,
+              metadata: { signal_id: signal.id, quarantine_status: 'abandoned', attempt_count: quarantine.attemptCount },
+            });
+          } catch { /* non-fatal */ }
+          results.push(`${signal.title} → stale (branch abandoned after ${quarantine.attemptCount} attempts)`);
+          continue;
+        }
+        // blocked_for_repair — leave as queued, retry after window expires
+        const until = quarantine.blockedUntil;
+        results.push(`${signal.title} → skipped (branch quarantined until ${until})`);
+        continue;
+      }
     }
 
     try {

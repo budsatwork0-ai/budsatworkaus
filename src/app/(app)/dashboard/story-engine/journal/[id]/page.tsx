@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { use } from 'react';
 import { WorkbenchHeader } from '../../../components/Workbench';
 import JournalEntryForm from '../_components/JournalEntryForm';
+import SuggestionsApplyPanel from '../_components/SuggestionsApplyPanel';
 import { dashboardTheme } from '@/lib/design-system/themes';
 import type { JournalEntry } from '@/types/journal';
 
@@ -65,6 +66,7 @@ export default function JournalEntryPage({
       )}
 
       {entry && <JournalEntryForm mode="edit" initial={entry} />}
+      {entry && <SuggestionsApplyPanel entry={entry} />}
     </div>
   );
 }

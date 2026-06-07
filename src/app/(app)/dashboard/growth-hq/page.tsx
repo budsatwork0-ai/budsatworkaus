@@ -70,6 +70,9 @@ interface GrowthHQData {
   leadPulse: LeadPulse;
   trends: Trend[];
   nextAction: NextAction | null;
+  journalToday: boolean;
+  journalCount: number;
+  aiDraftCount: number;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -260,6 +263,46 @@ function PipelineSection({ pipeline }: { pipeline: Pipeline }) {
   );
 }
 
+// ── Section: Founder Journal ──────────────────────────────────────────────────
+
+function JournalSection({ journalToday, journalCount }: { journalToday: boolean; journalCount: number }) {
+  return (
+    <Card>
+      <SectionHeader title="Founder Journal" href="/dashboard/story-engine/journal" />
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          {journalToday ? (
+            <>
+              <p className="text-sm font-semibold" style={{ color: '#047857' }}>
+                Captured today ✓
+              </p>
+              <p className="mt-1 text-xs" style={{ color: dashboardTheme.color.muted }}>
+                {journalCount} {journalCount === 1 ? 'entry' : 'entries'} total
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium" style={{ color: dashboardTheme.color.muted }}>
+                No capture yet today
+              </p>
+              <p className="mt-1 text-xs" style={{ color: dashboardTheme.color.muted }}>
+                {journalCount} {journalCount === 1 ? 'entry' : 'entries'} total
+              </p>
+            </>
+          )}
+        </div>
+        <Link
+          href="/dashboard/story-engine/journal"
+          className="shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
+          style={{ background: dashboardTheme.color.primary }}
+        >
+          {journalToday ? 'View entry →' : '+ Capture now'}
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
 // ── Section: Active Campaigns ─────────────────────────────────────────────────
 
 function CampaignsSection({ campaigns }: { campaigns: Campaign[] }) {
@@ -438,6 +481,7 @@ export default function GrowthHQPage() {
             <ChapterSection     chapter={data.chapter} />
             <OpportunitySection opportunity={data.topOpportunity} />
             <PipelineSection    pipeline={data.pipeline} />
+            <JournalSection     journalToday={data.journalToday} journalCount={data.journalCount} />
             <CampaignsSection   campaigns={data.activeCampaigns} />
             <LeadPulseSection   leadPulse={data.leadPulse} />
             <TrendWatchSection  trends={data.trends} />

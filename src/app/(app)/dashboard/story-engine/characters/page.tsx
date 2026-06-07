@@ -179,14 +179,7 @@ function CharacterCard({ character, onSaved }: CharacterCardProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {isSilvan && (
-              <span
-                className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                style={{ background: '#FEF2F2', color: '#B91C1C' }}
-              >
-                Consent gate
-              </span>
-            )}
+            {isSilvan && <ConsentBadge status={character.consent_status ?? null} />}
             {!editing && (
               <button
                 type="button"
@@ -201,21 +194,8 @@ function CharacterCard({ character, onSaved }: CharacterCardProps) {
         </div>
       </div>
 
-      {/* Silvan consent sensitivity banner */}
-      {isSilvan && (
-        <div
-          className="mx-5 mt-4 rounded-xl border px-4 py-3"
-          style={{ background: '#FEF2F2', borderColor: 'rgba(239,68,68,0.2)' }}
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: '#B91C1C' }}>
-            Consent sensitivity — read before editing
-          </p>
-          <p className="mt-1 text-sm leading-6" style={{ color: '#991B1B' }}>
-            Silvan's profile requires explicit consent before any content use. Record consent status accurately.
-            Do not use Silvan's story in content without confirming consent applies to that specific context.
-          </p>
-        </div>
-      )}
+      {/* Silvan consent status banner */}
+      {isSilvan && <ConsentBanner status={character.consent_status ?? null} notes={character.consent_notes ?? null} />}
 
       {/* Fields */}
       <div className="flex flex-col gap-4 p-5">
@@ -311,9 +291,77 @@ function CharacterCard({ character, onSaved }: CharacterCardProps) {
       <div className="border-t border-black/5 px-5 py-3">
         <p className="text-[11px] font-mono" style={{ color: dashboardTheme.color.muted, opacity: 0.65 }}>
           Last updated {formatTimestamp(character.updated_at)}
-          {isSilvan && ' · Consent gate enforced at record level'}
+          {isSilvan && ` · Consent: ${character.consent_status ?? 'not recorded'}`}
         </p>
       </div>
+    </div>
+  );
+}
+
+// ─── Consent UI helpers ───────────────────────────────────────────────────────
+
+const CONSENT_BADGE: Record<string, { bg: string; fg: string; label: string }> = {
+  granted:  { bg: '#ECFDF5', fg: '#047857', label: 'Consent granted' },
+  pending:  { bg: '#FFFBEB', fg: '#B45309', label: 'Consent pending' },
+  denied:   { bg: '#FEF2F2', fg: '#B91C1C', label: 'Consent denied' },
+};
+
+function ConsentBadge({ status }: { status: string | null }) {
+  const style = status ? (CONSENT_BADGE[status] ?? { bg: '#F1F5F9', fg: '#64748B', label: status }) : { bg: '#FEF2F2', fg: '#B91C1C', label: 'Consent not recorded' };
+  return (
+    <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: style.bg, color: style.fg }}>
+      {style.label}
+    </span>
+  );
+}
+
+const CONSENT_BANNER: Record<string, { bg: string; border: string; heading: string; headingColor: string; body: string; bodyColor: string }> = {
+  granted: {
+    bg: '#F0FDF4', border: 'rgba(16,185,129,0.2)',
+    heading: 'Consent granted',
+    headingColor: '#065F46',
+    body: 'Silvan has provided consent for inclusion in Buds At Work content. AI may suggest Silvan-related story updates and include his character profile in draft context. All public-facing drafts still require safety review. Content must respect what_to_show and what_to_protect boundaries. Private journal entries must never be directly quoted.',
+    bodyColor: '#047857',
+  },
+  pending: {
+    bg: '#FFFBEB', border: 'rgba(245,158,11,0.25)',
+    heading: 'Consent pending — profile excluded from drafts',
+    headingColor: '#B45309',
+    body: "Silvan's profile will not be included in AI draft context until consent is confirmed. Update consent_status to \"granted\" once confirmed.",
+    bodyColor: '#92400E',
+  },
+  denied: {
+    bg: '#FEF2F2', border: 'rgba(239,68,68,0.2)',
+    heading: 'Consent denied — profile blocked from all content workflows',
+    headingColor: '#B91C1C',
+    body: "Silvan's profile is excluded from all draft generation and content workflows. Do not reference Silvan in published content.",
+    bodyColor: '#991B1B',
+  },
+};
+
+const DEFAULT_CONSENT_BANNER = {
+  bg: '#FEF2F2', border: 'rgba(239,68,68,0.2)',
+  heading: 'Consent not recorded',
+  headingColor: '#B91C1C',
+  body: "Record consent status before using Silvan's story in any content.",
+  bodyColor: '#991B1B',
+};
+
+function ConsentBanner({ status, notes }: { status: string | null; notes: string | null }) {
+  const style = status ? (CONSENT_BANNER[status] ?? DEFAULT_CONSENT_BANNER) : DEFAULT_CONSENT_BANNER;
+  return (
+    <div className="mx-5 mt-4 rounded-xl border px-4 py-3" style={{ background: style.bg, borderColor: style.border }}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: style.headingColor }}>
+        {style.heading}
+      </p>
+      <p className="mt-1 text-sm leading-6" style={{ color: style.bodyColor }}>
+        {style.body}
+      </p>
+      {notes && (
+        <p className="mt-2 text-[11px] font-mono" style={{ color: style.headingColor, opacity: 0.75 }}>
+          {notes}
+        </p>
+      )}
     </div>
   );
 }
@@ -330,7 +378,7 @@ function NoAINote() {
         Manual editing only — No AI may generate or modify character profiles.
       </p>
       <p className="mt-1 text-xs" style={{ color: '#047857' }}>
-        Owner: Jackson Taylor. No public exposure. Silvan's profile requires consent confirmation before any content use.
+        Owner: Jackson Taylor. No public exposure. All public-facing drafts involving real people must pass safety review before publishing.
       </p>
     </div>
   );

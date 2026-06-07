@@ -24,6 +24,8 @@ export async function GET() {
     trendsRes,
     journalTodayRes,
     leadsRes,
+    journalCountRes,
+    aiDraftRes,
   ] = await Promise.all([
     (db as any)
       .from('story_chapters')
@@ -75,6 +77,16 @@ export async function GET() {
       .from('leads')
       .select('id,response_status,temperature')
       .gte('created_at', sevenDaysAgo),
+    (db as any)
+      .from('founder_journal_entries')
+      .select('id', { count: 'exact', head: true }),
+    // AI-generated drafts in 'draft' status created in the last 48h, awaiting human review.
+    (db as any)
+      .from('story_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_ai_generated', true)
+      .eq('status', 'draft')
+      .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()),
   ]);
 
   const ideas      = ideasRes.data      ?? [];
@@ -97,14 +109,15 @@ export async function GET() {
   };
 
   // Deterministic next action — first matching rule wins
-  const hasJournalToday      = !!journalTodayRes.data;
-  const hasNewOpportunity    = !!topOpportunityRes.data;
-  const hasApprovedScript    = scripts.some((s: any) => s.status === 'approved');
+  const hasJournalToday       = !!journalTodayRes.data;
+  const hasNewOpportunity     = !!topOpportunityRes.data;
+  const hasApprovedScript     = scripts.some((s: any) => s.status === 'approved');
   const activeProductionCount = production.filter((p: any) =>
     ['to_film', 'in_edit', 'ready_to_publish'].includes(p.status),
   ).length;
-  const hasReadyToPublish    = production.some((p: any) => p.status === 'ready_to_publish');
-  const hasReadyQueueItem    = queueItems.some((q: any) => q.status === 'ready');
+  const hasReadyToPublish     = production.some((p: any) => p.status === 'ready_to_publish');
+  const hasReadyQueueItem     = queueItems.some((q: any) => q.status === 'ready');
+  const aiDraftCount          = aiDraftRes.count ?? 0;
 
   let nextAction: { label: string; href: string; reason: string } | null = null;
 
@@ -113,6 +126,12 @@ export async function GET() {
       label:  "Write today's Founder Journal entry.",
       href:   '/dashboard/story-engine/journal/new',
       reason: 'No journal entry recorded for today.',
+    };
+  } else if (aiDraftCount > 0) {
+    nextAction = {
+      label:  `Review ${aiDraftCount} AI draft suggestion${aiDraftCount !== 1 ? 's' : ''}.`,
+      href:   '/dashboard/story-engine/opportunities',
+      reason: `${aiDraftCount} AI-generated draft${aiDraftCount !== 1 ? 's' : ''} from recent captures are waiting for your review.`,
     };
   } else if (hasNewOpportunity && ideas.length === 0) {
     nextAction = {
@@ -142,5 +161,8 @@ export async function GET() {
     leadPulse,
     trends:         trendsRes.data      ?? [],
     nextAction,
+    journalToday:   !!journalTodayRes.data,
+    journalCount:   journalCountRes.count ?? 0,
+    aiDraftCount,
   });
 }

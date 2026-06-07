@@ -7,6 +7,7 @@ import { WorkbenchHeader } from '../../components/Workbench';
 import { dashboardTheme } from '@/lib/design-system/themes';
 import { CONTENT_POTENTIAL_STYLES, CONTENT_POTENTIAL_LABELS } from '@/types/journal';
 import type { ContentPotentialRating } from '@/types/journal';
+import QuickCaptureWidget from './_components/QuickCaptureWidget';
 
 type EntryListItem = {
   id: string;
@@ -90,6 +91,9 @@ export default function JournalListPage() {
           </Link>
         }
       />
+
+      {/* Quick Capture */}
+      <QuickCaptureWidget onSaved={fetchEntries} />
 
       {/* Filters */}
       <div className="rounded-[20px] border border-black/5 bg-white/90 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">

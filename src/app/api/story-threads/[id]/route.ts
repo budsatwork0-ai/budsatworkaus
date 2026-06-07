@@ -4,7 +4,7 @@ import { getAuthUser } from '@/lib/auth';
 
 const UPDATABLE = [
   'title', 'description', 'related_arc_id', 'related_characters',
-  'status', 'opened_date', 'closed_date',
+  'status', 'opened_date', 'closed_date', 'progress_notes',
 ] as const;
 
 type RouteParams = { params: Promise<{ id: string }> };

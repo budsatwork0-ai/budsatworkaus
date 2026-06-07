@@ -275,6 +275,7 @@ export default function JournalEntryForm({ mode, initial }: Props) {
       {/* 10 journal sections */}
       {JOURNAL_SECTIONS.map((section) => {
         const value = (draft[section.key as keyof JournalEntryDraft] as string | null) ?? '';
+        const isSilvanSection = section.key === 'silvan_updates';
         return (
           <div
             key={section.key}
@@ -294,6 +295,11 @@ export default function JournalEntryForm({ mode, initial }: Props) {
               className="w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-6"
               style={{ borderColor: dashboardTheme.color.border, color: dashboardTheme.color.text }}
             />
+            {isSilvanSection && (
+              <p className="mt-2 text-[11px]" style={{ color: dashboardTheme.color.muted }}>
+                Private record — journal entries are never directly quoted in public content. Consent: granted.
+              </p>
+            )}
           </div>
         );
       })}

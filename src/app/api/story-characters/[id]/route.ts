@@ -10,6 +10,7 @@ const UPDATABLE_FIELDS = [
   'what_to_show',
   'what_to_protect',
   'active_story_threads',
+  'timeline_notes',
   'consent_status',
   'consent_notes',
 ] as const;

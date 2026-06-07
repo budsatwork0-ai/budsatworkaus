@@ -41,6 +41,12 @@ import { sensitiveFilesIn } from './sensitive-paths';
 import { runBrowserTests, type BrowserTestResult } from './browser-executor';
 import { generateEmbedding } from './embedding';
 import { writeMemory } from '@/lib/memory/write';
+import {
+  recordFailedAttempt,
+  clearQuarantine,
+  extractFailingFileFromLog,
+  verifyErrorResolved,
+} from './repair-quarantine';
 import { getDefaultAutonomyLevel } from './autonomy';
 import { emitStage, emitArtifact, runDebate, finalizePipelineRun } from '@/lib/pipeline/engine';
 import type { DebateResult } from '@/lib/pipeline/engine';
@@ -760,6 +766,39 @@ Return ONLY valid JSON:
     }
   }
 
+  // ── PRE-PUSH VERIFICATION (Vercel build fixes only) ──────────────────────────
+  // Before touching the branch: run a heuristic check that the known error from
+  // the original build failure is not still present in the proposed patches.
+  // This catches repeat mistakes (wrong import name, missing export) before we burn
+  // a CI run. Warn-only — the real gate is still CI.
+  if (isVercelBuildFix) {
+    try {
+      const previousError = typedSignal.description ?? '';
+      const errorStillPresent = verifyErrorResolved(patches, previousError);
+      if (errorStillPresent) {
+        await log(supabase, executionId, patchStep, 'warn',
+          `Pre-push check: ${errorStillPresent} (heuristic — CI is the authoritative gate)`,
+          { heuristic: true, issue: errorStillPresent });
+      }
+
+      // Verify the patch targets at least one file mentioned in the error
+      const errorFilesInSignal = (typedSignal.reference_files ?? []) as string[];
+      const errorFilesInText = (previousError.match(/\b(src\/[\w/.-]+\.tsx?)\b/g) ?? []);
+      const mentionedFiles = Array.from(new Set([...errorFilesInSignal, ...errorFilesInText]));
+      if (mentionedFiles.length > 0) {
+        const patchedFiles = patches.map((p) => p.file);
+        const anyTargeted = mentionedFiles.some((f) => patchedFiles.includes(f));
+        if (!anyTargeted) {
+          await log(supabase, executionId, patchStep, 'warn',
+            `Pre-push check: patches don't target any error-referenced files. Expected one of [${mentionedFiles.slice(0, 3).join(', ')}], got [${patchedFiles.slice(0, 3).join(', ')}]`,
+            { heuristic: true, mentioned_files: mentionedFiles, patched_files: patchedFiles });
+        }
+      }
+    } catch {
+      // Fail-open — heuristic errors must never block a repair attempt
+    }
+  }
+
   // Create branch and write patches.
   // For Vercel build failures: push to the EXISTING failing branch, not a new one.
   let branchName: string;
@@ -935,18 +974,82 @@ If a referenced module/symbol is missing, create it within this patch set.`;
       { reason: `CI ${workflowResult!.conclusion}` });
     await finalizePipelineRun(supabase, pipelineRunId, { verdict: 'rejected' });
     try { await deleteBranch(branchName); } catch { /* best-effort */ }
+
+    // ── QUARANTINE: record failed attempt ────────────────────────────────────
+    // Only track quarantine for Vercel build fixes — these are the repair branches
+    // that can get stuck in a retry loop. General improvement branches create a
+    // new branch each time so there's no loop to prevent.
+    let quarantineAbandoned = false;
+    if (isVercelBuildFix) {
+      try {
+        const { file: failingFile, line: failingLine } = extractFailingFileFromLog(ciFailureLog ?? '');
+        const q = await recordFailedAttempt(supabase, {
+          branch: branchName,
+          commitSha: (typedSignal.metadata?.commit_sha as string | undefined) ?? null,
+          deploymentId: (typedSignal.metadata?.deployment_id as string | undefined) ?? null,
+          errorText: ciFailureLog?.slice(0, 2000) ?? null,
+          failingFile,
+          failingLine,
+          sourceAgent: 'improvement-executor',
+          rejectionReason: `CI ${workflowResult!.conclusion}`,
+        });
+        quarantineAbandoned = q.abandoned;
+
+        if (q.abandoned) {
+          await log(supabase, executionId, validateStep, 'error',
+            `Branch ${branchName} quarantined as ABANDONED after ${q.attemptCount} failed repair attempts. `
+            + `No further autonomous repair will be attempted. Fresh branch from main required.`,
+            { quarantine_status: 'abandoned', attempt_count: q.attemptCount });
+          // Create a special GitHub issue so the team knows a fresh branch is needed
+          try {
+            await createIssue(
+              `[Bud] Branch abandoned: ${branchName}`,
+              [
+                `## Branch abandoned after ${q.attemptCount} repair attempts`,
+                '',
+                `**Branch:** \`${branchName}\` (deleted)`,
+                `**Signal:** ${typedSignal.title}`,
+                `**Attempt count:** ${q.attemptCount}`,
+                '',
+                '### Next step',
+                'Create a fresh branch from `main` and apply the minimal intended change manually.',
+                'Do not re-push to this branch — it is quarantined for 24 hours.',
+                '',
+                '### Last error',
+                '```',
+                (ciFailureLog ?? 'unavailable').slice(0, 1200),
+                '```',
+              ].join('\n'),
+              ['bud', 'bud-improvement', 'ci-failed', 'quarantine-abandoned'],
+            );
+          } catch { /* GitHub may not be configured */ }
+        }
+      } catch (qErr) {
+        // Quarantine recording is non-fatal — the signal still gets rejected below
+        await log(supabase, executionId, validateStep, 'warn', `Quarantine recording failed (non-fatal): ${qErr}`);
+      }
+    }
+
     try {
-      await createIssue(
-        `[Bud] CI failed on improvement branch: ${typedSignal.title}`,
-        `## Improvement attempt failed CI\n**Signal:** ${typedSignal.title}\n**Branch:** \`${branchName}\` (deleted)\n**CI:** ${workflowResult!.conclusion}\n${ciRunUrl ? `**Run:** ${ciRunUrl}` : ''}\n\nFiles attempted:\n${appliedFiles.map((f) => `- \`${f}\``).join('\n')}`,
-        ['bud', 'bud-improvement', 'ci-failed'],
-      );
-    } catch { /* GitHub may not be configured */ }
-    await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
-    await writeLearning(supabase, executionId, typedSignal, 'blocked',
-      `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back.`
-      + (ciFailureLog ? ` Errors: ${ciFailureLog.replace(/\s+/g, ' ').slice(0, 300)}` : ''));
-    await supabase.from('bud_improvement_signals').update({ status: 'rejected' }).eq('id', typedSignal.id);
+      const ciFailureNote = `CI ${workflowResult!.conclusion} on branch ${branchName} — rolled back.`
+        + (ciFailureLog ? ` Errors: ${ciFailureLog.replace(/\s+/g, ' ').slice(0, 300)}` : '');
+
+      if (!quarantineAbandoned) {
+        // Standard CI failure — open an issue so the team can investigate
+        await createIssue(
+          `[Bud] CI failed on improvement branch: ${typedSignal.title}`,
+          `## Improvement attempt failed CI\n**Signal:** ${typedSignal.title}\n**Branch:** \`${branchName}\` (deleted)\n**CI:** ${workflowResult!.conclusion}\n${ciRunUrl ? `**Run:** ${ciRunUrl}` : ''}\n\nFiles attempted:\n${appliedFiles.map((f) => `- \`${f}\``).join('\n')}`,
+          ['bud', 'bud-improvement', 'ci-failed'],
+        );
+      }
+      await updateExecution(supabase, executionId, { status: 'failed', finished_at: new Date().toISOString() });
+      await writeLearning(supabase, executionId, typedSignal, 'blocked',
+        quarantineAbandoned
+          ? `Branch ${branchName} abandoned after repeated CI failures. Fresh branch from main required. ${ciFailureNote}`
+          : ciFailureNote);
+      await supabase.from('bud_improvement_signals').update({ status: 'rejected' }).eq('id', typedSignal.id);
+    } catch { /* non-fatal — already rolling back */ }
+
     return { executionId, status: 'failed' };
   }
 
@@ -1234,6 +1337,12 @@ If a referenced module/symbol is missing, create it within this patch set.`;
   }
 
   // ── FINALISE ──────────────────────────────────────────────────────────────────
+  // Clear quarantine if this was a successful Vercel build fix — the branch is
+  // no longer broken, so future signals for it should not be blocked.
+  if (isVercelBuildFix && existingBranchForFix) {
+    clearQuarantine(supabase, existingBranchForFix).catch(() => { /* non-fatal */ });
+  }
+
   const finalStatus = autoMerged ? 'recovered' : 'patching';
   await updateExecution(supabase, executionId, {
     status: finalStatus,

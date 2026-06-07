@@ -157,6 +157,15 @@ function checkConsent(draft: StoryDraft): ReviewFinding[] {
       'No hashtags set. Consider adding hashtags to improve discoverability.'));
   }
 
+  // Silvan boundary check.
+  // Consent is granted — this is informational, not a blocker.
+  // Verify content respects what_to_show / what_to_protect boundaries before approving.
+  const combined = [draft.hook, draft.body, draft.close].filter(Boolean).join(' ');
+  if (/\bsilvan\b/i.test(combined)) {
+    results.push(finding('consent', 'info',
+      'Content references Silvan — consent is granted. Before approving, confirm the content respects his what_to_show and what_to_protect boundaries and does not quote private journal entries directly.'));
+  }
+
   return results;
 }
 

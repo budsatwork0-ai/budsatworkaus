@@ -463,6 +463,14 @@ function OppCard({
                   Auto-detected
                 </span>
               )}
+              {(opp.draft_count ?? 0) > 0 && (
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                  style={{ background: '#F0FDF4', color: '#047857' }}
+                >
+                  ✦ {opp.draft_count} draft{opp.draft_count !== 1 ? 's' : ''}
+                </span>
+              )}
               {opp.story_score !== null && opp.story_score !== undefined && (() => {
                 const tier = getScoreTier(opp.story_score);
                 return (
@@ -529,9 +537,17 @@ function OppCard({
                 {opp.related_characters.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {opp.related_characters.map((c) => (
-                      <span key={c} className="rounded-full border px-2.5 py-1 text-[11px]"
-                        style={{ borderColor: 'rgba(15,61,46,0.12)', color: dashboardTheme.color.muted }}>
-                        {c}
+                      <span key={c} className="flex items-center gap-1">
+                        <span className="rounded-full border px-2.5 py-1 text-[11px]"
+                          style={{ borderColor: 'rgba(15,61,46,0.12)', color: dashboardTheme.color.muted }}>
+                          {c}
+                        </span>
+                        {c === 'Silvan' && (
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{ background: '#ECFDF5', color: '#047857' }}>
+                            Consent ✓
+                          </span>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -1703,7 +1719,7 @@ function NoAINote() {
       </p>
       <p className="mt-1 text-xs" style={{ color: '#047857' }}>
         Run Detection scans journal entries, orders, reviews, leads, subscriptions, and agent actions.
-        Each rule fires at most once per source record. All content angles are Jackson's to develop.
+        Each rule fires at most once per source record. All content angles are Jackson&apos;s to develop.
       </p>
     </div>
   );

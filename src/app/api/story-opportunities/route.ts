@@ -32,7 +32,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch opportunities' }, { status: 500 });
   }
 
-  return NextResponse.json({ opportunities: data ?? [] });
+  const opps = data ?? [];
+
+  // Attach draft_count to each opportunity in a single batch query.
+  if (opps.length > 0) {
+    const ids = opps.map((o: { id: string }) => o.id);
+    const { data: draftRows } = await (client as any)
+      .from('story_drafts')
+      .select('opportunity_id')
+      .in('opportunity_id', ids);
+
+    const countMap: Record<string, number> = {};
+    for (const row of (draftRows ?? [])) {
+      countMap[row.opportunity_id] = (countMap[row.opportunity_id] ?? 0) + 1;
+    }
+
+    return NextResponse.json({
+      opportunities: opps.map((o: { id: string }) => ({ ...o, draft_count: countMap[o.id] ?? 0 })),
+    });
+  }
+
+  return NextResponse.json({ opportunities: [] });
 }
 
 export async function POST(req: NextRequest) {

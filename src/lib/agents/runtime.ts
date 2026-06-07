@@ -291,6 +291,8 @@ export interface RunAgentResult {
   runId: string;
   status: AgentRunStatus | 'succeeded' | 'failed' | 'needs_approval';
   summary: string;
+  /** Total cost for this run in cents, including cache read/write tokens. */
+  costCents: number;
 }
 
 /**
@@ -549,18 +551,8 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         lineage,
         parentCumulativeCostCents: cumulativeCostCents,
       });
-      // The child's spend is already reflected because it inserts its
-      // own runs row; we approximate the lineage delta by re-reading the
-      // child's cost_cents. Cheaper than wiring a return value all the
-      // way through.
-      const { data: childRow } = await supabase
-        .from('agent_runs')
-        .select('cost_cents')
-        .eq('id', childResult.runId)
-        .single();
-      if (childRow?.cost_cents) {
-        cumulativeCostCents += childRow.cost_cents as number;
-      }
+      // costCents is now returned directly by runAgent — no extra DB read needed.
+      cumulativeCostCents += childResult.costCents;
       return childResult;
     },
 
@@ -585,12 +577,9 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       ),
     ]);
     const durationMs = Date.now() - startedAt;
-    const pricing = PRICING_PER_MTOK[llmModel] ?? { input: 0, output: 0 };
-    const costCents = Math.round(
-      ((inputTokens / 1_000_000) * pricing.input +
-        (outputTokens / 1_000_000) * pricing.output) *
-        100,
-    );
+    // runCostCents accumulates per-call inside ctx.llm(), including cache
+    // read/write tokens. Use it directly instead of recalculating from raw
+    // input/output counts, which would undercount by ignoring cache costs.
 
     // Post-run guardrail: intent-completion (and anything else hooked
     // into postAgentRun). Non-throwing — warnings land in logs.
@@ -637,7 +626,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         summary: result.summary,
         input_tokens: inputTokens,
         output_tokens: outputTokens,
-        cost_cents: costCents,
+        cost_cents: runCostCents,
         duration_ms: durationMs,
         finished_at: new Date().toISOString(),
         model: llmModel,
@@ -687,7 +676,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
           status:      finalStatus,
           summary:     result.summary,
           durationMs,
-          costCents,
+          costCents: runCostCents,
           findings:   output?.findings   as import('@/lib/memory/agents/types').AgentFinding[]   | undefined,
           tasks:      output?.tasks      as import('@/lib/memory/agents/types').AgentTask[]      | undefined,
           decisions:  output?.decisions  as import('@/lib/memory/agents/types').AgentDecision[]  | undefined,
@@ -696,7 +685,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       });
     }
 
-    return { runId, status: finalStatus, summary: result.summary };
+    return { runId, status: finalStatus, summary: result.summary, costCents: runCostCents };
   } catch (err) {
     const durationMs = Date.now() - startedAt;
     const msg = err instanceof Error ? err.message : String(err);
@@ -732,7 +721,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       });
     }
 
-    return { runId, status: 'failed', summary: msg };
+    return { runId, status: 'failed', summary: msg, costCents: runCostCents };
   }
 }
 

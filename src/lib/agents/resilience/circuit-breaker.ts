@@ -83,7 +83,10 @@ export async function getCircuitState(): Promise<{ state: CircuitState; resetsAt
 }
 
 export async function recordLlmSuccess(): Promise<void> {
-  _cache = null;
+  // Do not invalidate _cache unconditionally — the cached state is still
+  // accurate unless the circuit actually transitions (half_open → closed).
+  // Busting the cache on every success forces a DB read before every LLM
+  // call on multi-LLM agents, defeating the 20s TTL entirely.
   const { data } = await db()
     .from('bud_circuit_states')
     .select('state, probe_successes')
@@ -105,6 +108,9 @@ export async function recordLlmSuccess(): Promise<void> {
     updates.failure_streak = 0;
     updates.opens_at = null;
     updates.resets_at = null;
+    // State changed — bust the cache so the next getCircuitState() call
+    // returns 'closed' immediately rather than serving a stale 'half_open'.
+    _cache = null;
   }
 
   await db().from('bud_circuit_states').update(updates).eq('id', 'anthropic_api');

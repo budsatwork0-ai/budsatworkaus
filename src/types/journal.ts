@@ -21,6 +21,15 @@ export interface JournalEntry {
   suggested_character_timeline_entry: string | null;
   suggested_arc_update: string | null;
   suggested_open_thread_update: string | null;
+  // Suggestion tracking — managed by /api/journal/[id]/apply, not the edit form
+  suggestion_story_bible_status: 'pending' | 'applied' | 'skipped' | null;
+  suggestion_character_timeline_status: 'pending' | 'applied' | 'skipped' | null;
+  suggestion_arc_status: 'pending' | 'applied' | 'skipped' | null;
+  suggestion_open_thread_status: 'pending' | 'applied' | 'skipped' | null;
+  suggestion_story_bible_target: string | null;
+  suggestion_character_timeline_target: string | null;
+  suggestion_arc_target: string | null;
+  suggestion_open_thread_target: string | null;
   story_opportunity_created: boolean;
   created_at: string;
   updated_at: string;
@@ -28,7 +37,18 @@ export interface JournalEntry {
 
 export type JournalEntryDraft = Omit<
   JournalEntry,
-  'id' | 'story_opportunity_created' | 'created_at' | 'updated_at'
+  | 'id'
+  | 'story_opportunity_created'
+  | 'created_at'
+  | 'updated_at'
+  | 'suggestion_story_bible_status'
+  | 'suggestion_character_timeline_status'
+  | 'suggestion_arc_status'
+  | 'suggestion_open_thread_status'
+  | 'suggestion_story_bible_target'
+  | 'suggestion_character_timeline_target'
+  | 'suggestion_arc_target'
+  | 'suggestion_open_thread_target'
 >;
 
 export const JOURNAL_SECTIONS = [
