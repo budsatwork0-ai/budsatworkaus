@@ -30,8 +30,8 @@ export function budObserverHealthCheck(): HealthCheckResult {
     period_end: new Date().toISOString(),
     success_count: 1,
     failure_count: 0,
-    error_messages: [],
-    metadata: {},
+    error_messages: [] as string[],
+    metadata: {} as Record<string, unknown>,
   };
 
   const result = MinimalSnapshotSchema.safeParse(probe);
