@@ -36,7 +36,13 @@ export type ObserverResult =
 const MAX_LOG_LENGTH = 500;
 
 function truncate(input: unknown): string {
-  const s = JSON.stringify(input) ?? String(input);
+  let s: string;
+  try {
+    s = JSON.stringify(input);
+    if (typeof s !== 'string') s = String(input);
+  } catch {
+    s = String(input);
+  }
   return s.length > MAX_LOG_LENGTH ? s.slice(0, MAX_LOG_LENGTH) + '…[truncated]' : s;
 }
 
