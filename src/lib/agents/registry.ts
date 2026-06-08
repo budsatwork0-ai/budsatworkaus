@@ -77,6 +77,13 @@ import { browserAgent } from './agents/browser-agent';
 // Bud Observer — continuous monitoring + improvement signal generation
 import { budObserverAgent } from './agents/bud-observer';
 
+// Executive Agent Layer — strategic C-suite agents
+import { ceoAgent }         from './agents/ceo-agent';
+import { cooAgent }         from './agents/coo-agent';
+import { cmoAgent }         from './agents/cmo-agent';
+import { cfoAgent }         from './agents/cfo-agent';
+import { chiefOfStaffAgent } from './agents/chief-of-staff';
+
 // Marketing Studio pod — premium content team (Stanley Henry + The Attention Seeker)
 import { stanleyHenryAgent } from './agents/stanley-henry';
 import { attentionSeekerAgent } from './agents/attention-seeker';
@@ -130,6 +137,12 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [attentionSeekerAgent.id]:         attentionSeekerAgent,
   [fieldProducerAgent.id]:           fieldProducerAgent,
   [scoreboardKeeperAgent.id]:        scoreboardKeeperAgent,
+  // Executive Layer
+  [ceoAgent.id]:                     ceoAgent,
+  [cooAgent.id]:                     cooAgent,
+  [cmoAgent.id]:                     cmoAgent,
+  [cfoAgent.id]:                     cfoAgent,
+  [chiefOfStaffAgent.id]:            chiefOfStaffAgent,
 };
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);

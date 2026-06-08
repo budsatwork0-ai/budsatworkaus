@@ -285,6 +285,8 @@ export interface RunAgentArgs {
   lineage?: LineageEntry[];
   /** Cents already spent in the parent lineage. Internal use only. */
   parentCumulativeCostCents?: number;
+  /** When true: run analysis only — no DB writes, no proposeAction calls. */
+  dryRun?: boolean;
 }
 
 export interface RunAgentResult {
@@ -293,6 +295,8 @@ export interface RunAgentResult {
   summary: string;
   /** Total cost for this run in cents, including cache read/write tokens. */
   costCents: number;
+  /** Structured output returned by the agent's run() method, if any. */
+  output?: Record<string, unknown>;
 }
 
 /**
@@ -396,6 +400,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     runId,
     agentId: args.agentId,
     trigger: args.trigger,
+    dryRun: args.dryRun ?? false,
     input: args.input ?? {},
     config: agentConfig,
     intent,
@@ -685,7 +690,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
       });
     }
 
-    return { runId, status: finalStatus, summary: result.summary, costCents: runCostCents };
+    return { runId, status: finalStatus, summary: result.summary, costCents: runCostCents, output: result.output };
   } catch (err) {
     const durationMs = Date.now() - startedAt;
     const msg = err instanceof Error ? err.message : String(err);

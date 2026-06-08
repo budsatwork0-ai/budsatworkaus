@@ -8,7 +8,8 @@ export type AgentCategory =
   | 'ops'
   | 'hiring'
   | 'finance'
-  | 'compliance';
+  | 'compliance'
+  | 'executive';
 
 export type AgentAutonomy = 'auto' | 'review' | 'manual';
 export type AgentStatus = 'enabled' | 'paused' | 'disabled' | 'planned' | 'idle' | 'watch';
@@ -50,6 +51,8 @@ export interface AgentContext {
   runId: string;
   agentId: string;
   trigger: 'cron' | 'manual' | 'webhook' | 'event';
+  /** When true: run analysis and return proposed output, but skip all DB writes and proposeAction calls. */
+  dryRun: boolean;
   input: Record<string, unknown>;
   config: Record<string, unknown>;
   /** Obsidian-native memory: search, recall, write, findRelated. */
