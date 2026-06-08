@@ -34,7 +34,15 @@ Rules:
 - "confidence": 0–1. Be conservative — low confidence means medium/high risk.
 - "risk_level": low = minor config/content change; medium = process/spend change; high = pricing/hire/major change.
 - "evidence": bullet points of specific data points that support this decision.
+- Flag hot leads awaiting first response and pending approvals — these are operational blockers.
 - Be terse. Focus on what matters now.`;
+
+const topRiskOf = (ds: Array<{ risk_level: string }>): 'low' | 'medium' | 'high' =>
+  ds.some((d) => d.risk_level === 'high')   ? 'high'   :
+  ds.some((d) => d.risk_level === 'medium') ? 'medium' : 'low';
+
+const maxConfidenceOf = (ds: Array<{ confidence: number }>): number =>
+  ds.length > 0 ? Math.max(...ds.map((d) => d.confidence)) : 0.7;
 
 export const ceoAgent: AgentDefinition = {
   id: 'ceo-agent',
@@ -48,14 +56,18 @@ export const ceoAgent: AgentDefinition = {
     const since7d  = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
     const since30d = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
 
-    const [ordersRes, leadsRes, quotesRes, subsRes] = await Promise.all([
+    const [
+      ordersRes, leadsRes, quotesRes, subsRes,
+      storyOppsRes, approvalsRes,
+      ideasCountRes, scriptsCountRes, productionCountRes,
+    ] = await Promise.all([
       ctx.supabase
         .from('orders')
         .select('id, total_cents, status, created_at')
         .gte('created_at', since7d),
       ctx.supabase
         .from('leads')
-        .select('id, status, created_at')
+        .select('id, status, created_at, temperature, response_status')
         .gte('created_at', since7d),
       ctx.supabase
         .from('quotes')
@@ -65,37 +77,93 @@ export const ceoAgent: AgentDefinition = {
         .from('subscriptions')
         .select('id, status, plan_cents')
         .eq('status', 'active'),
+      ctx.supabase
+        .from('story_opportunities')
+        .select('id, story_score')
+        .eq('status', 'new'),
+      ctx.supabase
+        .from('bud_approval_queue')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
+      ctx.supabase
+        .from('content_ideas')
+        .select('id', { count: 'exact', head: true })
+        .neq('status', 'archived'),
+      ctx.supabase
+        .from('content_scripts')
+        .select('id', { count: 'exact', head: true })
+        .neq('status', 'archived'),
+      ctx.supabase
+        .from('content_production_cards')
+        .select('id', { count: 'exact', head: true })
+        .neq('status', 'published'),
     ]);
 
     const orders  = ordersRes.data ?? [];
-    const leads   = leadsRes.data ?? [];
+    const leads   = leadsRes.data  ?? [];
     const quotes  = quotesRes.data ?? [];
-    const subs    = subsRes.data ?? [];
+    const subs    = subsRes.data   ?? [];
+
+    const storyOpps          = storyOppsRes.data ?? [];
+    const approvalCount      = approvalsRes.count ?? 0;
+    const contentPipelineDepth =
+      (ideasCountRes.count ?? 0) +
+      (scriptsCountRes.count ?? 0) +
+      (productionCountRes.count ?? 0);
+
+    const hotLeadsAwaitingReply = leads.filter(
+      (l) => l.temperature === 'HOT' && l.response_status === 'awaiting_response',
+    ).length;
+
+    const topOpportunityScore = storyOpps.length > 0
+      ? Math.max(...storyOpps.map((o) => (o.story_score as number | null) ?? 0))
+      : null;
 
     const revenue7d = orders
       .filter((o) => o.status === 'completed' || o.status === 'paid')
       .reduce((s, o) => s + ((o.total_cents as number) / 100), 0);
-    const jobs7d = orders.length;
-    const leads7d = leads.length;
+    const jobs7d          = orders.length;
+    const leads7d         = leads.length;
     const convertedQuotes = quotes.filter((q) => q.status === 'accepted' || q.status === 'paid');
-    const conversionRate = quotes.length > 0 ? convertedQuotes.length / quotes.length : 0;
-    const avgJobValue = jobs7d > 0 ? revenue7d / jobs7d : 0;
+    const conversionRate  = quotes.length > 0 ? convertedQuotes.length / quotes.length : 0;
+    const avgJobValue     = jobs7d > 0 ? revenue7d / jobs7d : 0;
     const recurringMonthly = subs.reduce((s, r) => s + ((r.plan_cents as number) / 100), 0);
 
-    // Capture metrics snapshot
-    await ctx.supabase.from('executive_metrics_snapshots').insert({
-      revenue_7d_aud:   revenue7d,
-      jobs_7d:          jobs7d,
-      leads_7d:         leads7d,
-      conversion_rate:  conversionRate,
-      avg_job_value:    avgJobValue,
-      raw: {
-        quotes_7d: quotes.length,
-        converted_quotes_7d: convertedQuotes.length,
-        active_subscriptions: subs.length,
-        recurring_monthly_aud: recurringMonthly,
-      },
-    });
+    // Programmatic findings — guaranteed to surface key bottlenecks regardless of LLM output
+    const findings: string[] = [];
+    if (hotLeadsAwaitingReply > 0)
+      findings.push(`${hotLeadsAwaitingReply} hot lead(s) awaiting first response — immediate revenue risk.`);
+    if (approvalCount > 0)
+      findings.push(`${approvalCount} item(s) pending human approval.`);
+    if (contentPipelineDepth === 0)
+      findings.push('Content pipeline is empty — no ideas, scripts, or production cards in flight.');
+    else
+      findings.push(`Content pipeline: ${contentPipelineDepth} item(s) across ideas, scripts, and production.`);
+    if (topOpportunityScore !== null)
+      findings.push(`Top story opportunity score: ${topOpportunityScore}/100.`);
+    if (storyOpps.length > 0)
+      findings.push(`${storyOpps.length} new story opportunit${storyOpps.length === 1 ? 'y' : 'ies'} awaiting development.`);
+
+    // Capture metrics snapshot — skip in dry run
+    if (!ctx.dryRun) {
+      await ctx.supabase.from('executive_metrics_snapshots').insert({
+        revenue_7d_aud:  revenue7d,
+        jobs_7d:         jobs7d,
+        leads_7d:        leads7d,
+        conversion_rate: conversionRate,
+        avg_job_value:   avgJobValue,
+        raw: {
+          quotes_7d:                   quotes.length,
+          converted_quotes_7d:         convertedQuotes.length,
+          active_subscriptions:        subs.length,
+          recurring_monthly_aud:       recurringMonthly,
+          pending_approvals:           approvalCount,
+          hot_leads_awaiting_reply:    hotLeadsAwaitingReply,
+          top_story_opportunity_score: topOpportunityScore,
+          content_pipeline_depth:      contentPipelineDepth,
+        },
+      });
+    }
 
     // Fetch last 30-day context for trend comparison
     const { data: prevOrders } = await ctx.supabase
@@ -115,26 +183,61 @@ New leads: ${leads7d}
 Quote conversion: ${(conversionRate * 100).toFixed(1)}%
 Avg job value: A$${avgJobValue.toFixed(0)}
 Active subscriptions: ${subs.length} (A$${recurringMonthly.toFixed(0)}/mo recurring)
-New quotes issued: ${quotes.length}`;
+New quotes issued: ${quotes.length}
+Hot leads awaiting first reply: ${hotLeadsAwaitingReply}
+
+Growth & brand:
+Content pipeline items in flight: ${contentPipelineDepth} (ideas + scripts + production)
+Top story opportunity score: ${topOpportunityScore ?? 'none scored'}
+New story opportunities waiting: ${storyOpps.length}
+
+Operations:
+Pending approvals: ${approvalCount}`;
 
     let parsed: ExecutiveLlmOutput;
     try {
       const raw = await ctx.llm(prompt, { system: SYSTEM });
       parsed = JSON.parse(raw) as ExecutiveLlmOutput;
     } catch {
+      const fallbackSummary = findings[0]
+        ?? `A$${revenue7d.toFixed(0)} revenue, ${jobs7d} jobs, ${leads7d} leads this week.`;
       return {
-        summary: `CEO review: A$${revenue7d.toFixed(0)} revenue, ${jobs7d} jobs, ${leads7d} leads this week.`,
-        output: { revenue7d, jobs7d, leads7d, conversionRate, decisions: [] },
+        summary: `CEO review: ${fallbackSummary}`,
+        output: {
+          status:              'success',
+          summary:             fallbackSummary,
+          findings,
+          recommended_actions: [],
+          confidence:          0.7,
+          risk_level:          'low' as const,
+          revenue7d, jobs7d, leads7d, conversionRate,
+          hotLeadsAwaitingReply, approvalCount, contentPipelineDepth,
+          decisions: [],
+        },
       };
     }
 
+    const decisions = parsed.decisions ?? [];
+
     if (ctx.dryRun) {
+      const drySummary = findings.length > 0
+        ? `[DRY RUN] ${findings[0]} ${parsed.summary}`
+        : `[DRY RUN] ${parsed.summary}`;
       return {
-        summary: `[DRY RUN] ${parsed.summary}`,
+        summary: drySummary,
         output: {
-          dry_run: true,
-          metrics: { revenue7d, jobs7d, leads7d, conversionRate, avgJobValue },
-          proposed_decisions: parsed.decisions ?? [],
+          status:              'success',
+          summary:             drySummary,
+          dry_run:             true,
+          findings,
+          recommended_actions: decisions.map((d) => d.title),
+          confidence:          maxConfidenceOf(decisions),
+          risk_level:          topRiskOf(decisions),
+          metrics: {
+            revenue7d, jobs7d, leads7d, conversionRate, avgJobValue,
+            hotLeadsAwaitingReply, approvalCount, contentPipelineDepth, topOpportunityScore,
+          },
+          proposed_decisions: decisions,
         },
       };
     }
@@ -143,7 +246,7 @@ New quotes issued: ${quotes.length}`;
     let autoExecuted = 0;
     let queuedApprovals = 0;
 
-    for (const d of parsed.decisions ?? []) {
+    for (const d of decisions) {
       const row: InsertExecutiveDecision = {
         agent_id:        'ceo-agent',
         run_id:          ctx.runId,
@@ -168,7 +271,6 @@ New quotes issued: ${quotes.length}`;
           .eq('id', inserted?.id ?? '');
         autoExecuted++;
       } else {
-        // Queue for human approval via the existing approvals table
         await ctx.proposeAction({
           action_type:      'executive_decision',
           target_table:     'executive_decisions',
@@ -183,11 +285,10 @@ New quotes issued: ${quotes.length}`;
       }
     }
 
-    // Write run meta
     await ctx.supabase.from('executive_agent_runs_meta').insert({
       run_id:           ctx.runId,
       agent_id:         'ceo-agent',
-      decisions:        parsed.decisions?.length ?? 0,
+      decisions:        decisions.length,
       tasks:            0,
       auto_executed:    autoExecuted,
       queued_approvals: queuedApprovals,
@@ -196,13 +297,23 @@ New quotes issued: ${quotes.length}`;
     return {
       summary: parsed.summary,
       output: {
+        status:              'success',
+        summary:             parsed.summary,
+        findings:            [...findings, ...decisions.map((d) => d.title)],
+        recommended_actions: decisions.map((d) => d.expected_impact),
+        confidence:          maxConfidenceOf(decisions),
+        risk_level:          topRiskOf(decisions),
         revenue7d,
         jobs7d,
         leads7d,
         conversionRate,
-        decisions: parsed.decisions?.length ?? 0,
-        auto_executed: autoExecuted,
-        queued_approvals: queuedApprovals,
+        hotLeadsAwaitingReply,
+        contentPipelineDepth,
+        topOpportunityScore,
+        approvalCount,
+        decisions:           decisions.length,
+        auto_executed:       autoExecuted,
+        queued_approvals:    queuedApprovals,
       },
     };
   },
