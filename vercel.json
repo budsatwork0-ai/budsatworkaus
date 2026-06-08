@@ -107,6 +107,14 @@
     {
       "path": "/api/agents/cron?agent_id=field-producer",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/executive-review",
+      "schedule": "5 20 * * *"
+    },
+    {
+      "path": "/api/cron/executive-learning-review",
+      "schedule": "5 21 * * 0"
     }
   ]
 }
