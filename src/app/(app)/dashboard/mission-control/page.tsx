@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Suspense } from 'react';
 import { MissionControlClient } from './MissionControlClient';
+import type { QuarantineRow } from './_components/RepairQuarantineSection';
 import { computeMissionControlHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildAgentImpactMap } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
@@ -293,6 +294,17 @@ async function loadData() {
     jobs_today:  (todayJobsRes.data ?? []).length,
   };
 
+  // Repair quarantine — fetched separately to avoid disrupting the destructured Promise.all
+  let quarantineRows: QuarantineRow[] = [];
+  try {
+    const { data: qData } = await supabase
+      .from('bud_repair_quarantine')
+      .select('id, branch, commit_sha, deployment_id, error_text, failing_file, failing_line, source_agent, rejection_reason, attempt_count, status, blocked_until, updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(50);
+    quarantineRows = (qData ?? []) as QuarantineRow[];
+  } catch { /* table may not exist in older environments */ }
+
   let devOs: DevOsResponse = { sessions: [], agentStats: {}, totalSessions: 0, conventionCount: 0 };
   try {
     const [devOsRes, conventionRes] = await Promise.all([
@@ -326,6 +338,7 @@ async function loadData() {
     budOs: {
       actionQueue,
     },
+    quarantineRows,
   };
 }
 

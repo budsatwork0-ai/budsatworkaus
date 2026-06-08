@@ -23,6 +23,8 @@ import { AgentHierarchy } from './_components/AgentHierarchy';
 import { ImprovementsTab } from './_components/ImprovementsTab';
 import { DevTab } from './_components/DevTab';
 import { BridgeStatus } from './_components/BridgeStatus';
+import { RepairQuarantineSection } from './_components/RepairQuarantineSection';
+import type { QuarantineRow } from './_components/RepairQuarantineSection';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
 type AgentRow = {
@@ -49,6 +51,7 @@ type Props = {
     actionQueue: BudOsQueueItem[];
   };
   devOs: DevOsResponse;
+  quarantineRows?: QuarantineRow[];
 };
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
@@ -77,6 +80,7 @@ export function MissionControlClient({
   budOs,
   budActivity = [],
   devOs,
+  quarantineRows = [],
 }: Props) {
   const router = useRouter();
   const search = useSearchParams();
@@ -331,6 +335,9 @@ export function MissionControlClient({
           )}
           {tab === 'agents' && agents.length === 0 && (
             <p className="py-12 text-center text-sm text-white/40">No agents registered yet.</p>
+          )}
+          {tab === 'agents' && (
+            <RepairQuarantineSection rows={quarantineRows} />
           )}
 
           {tab === 'improvements' && <ImprovementsTab />}
