@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { WorkbenchHeader } from '../components/Workbench';
+import { WorkbenchHeader, WorkbenchTabs } from '../components/Workbench';
 import { dashboardTheme } from '@/lib/design-system/themes';
+import GrowthValidationView from './GrowthValidationView';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -775,7 +776,15 @@ function NextActionSection({ action }: { action: NextAction | null }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+type HQTab = 'hq' | 'validation';
+
+const HQ_TABS: Array<{ key: HQTab; label: string }> = [
+  { key: 'hq',         label: 'Growth HQ' },
+  { key: 'validation', label: 'Validation' },
+];
+
 export default function GrowthHQPage() {
+  const [activeTab,  setActiveTab]  = useState<HQTab>('hq');
   const [data,      setData]      = useState<GrowthHQData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [ideaStatus, setIdeaStatus] = useState<Record<string, IdeaCreateStatus>>({});
@@ -820,39 +829,51 @@ export default function GrowthHQPage() {
         description="What happened overnight, what needs your attention, and what to do next."
       />
 
-      {loadError && (
-        <div className="rounded-[20px] border border-red-100 bg-red-50 px-5 py-4">
-          <p className="text-sm text-red-700">Failed to load data. Refresh to try again.</p>
-        </div>
-      )}
+      <WorkbenchTabs
+        tabs={HQ_TABS}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
-      {!data && !loadError && <Skeleton />}
+      {activeTab === 'validation' && <GrowthValidationView />}
 
-      {data && (
+      {activeTab === 'hq' && (
         <>
-          <AgentFindingsSection
-            actions={data.agentActions}
-            events={data.recentPipelineEvents}
-            pendingCount={data.pendingActionsCount}
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChapterSection     chapter={data.chapter} />
-            <OpportunitySection
-              opportunity={data.topOpportunity}
-              topIdea={data.topIdea}
-              openCount={data.openOpportunitiesCount}
-            />
-            <PipelineSection    pipeline={data.pipeline} />
-            <JournalSection     journalToday={data.journalToday} journalCount={data.journalCount} />
-            <CampaignsSection   campaigns={data.activeCampaigns} />
-            <LeadPulseSection   leadPulse={data.leadPulse} />
-            <TrendWatchSection
-              trends={data.trends}
-              ideaStatus={ideaStatus}
-              onCreateIdea={createIdeaFromTrend}
-            />
-          </div>
-          <NextActionSection action={data.nextAction} />
+          {loadError && (
+            <div className="rounded-[20px] border border-red-100 bg-red-50 px-5 py-4">
+              <p className="text-sm text-red-700">Failed to load data. Refresh to try again.</p>
+            </div>
+          )}
+
+          {!data && !loadError && <Skeleton />}
+
+          {data && (
+            <>
+              <AgentFindingsSection
+                actions={data.agentActions}
+                events={data.recentPipelineEvents}
+                pendingCount={data.pendingActionsCount}
+              />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ChapterSection     chapter={data.chapter} />
+                <OpportunitySection
+                  opportunity={data.topOpportunity}
+                  topIdea={data.topIdea}
+                  openCount={data.openOpportunitiesCount}
+                />
+                <PipelineSection    pipeline={data.pipeline} />
+                <JournalSection     journalToday={data.journalToday} journalCount={data.journalCount} />
+                <CampaignsSection   campaigns={data.activeCampaigns} />
+                <LeadPulseSection   leadPulse={data.leadPulse} />
+                <TrendWatchSection
+                  trends={data.trends}
+                  ideaStatus={ideaStatus}
+                  onCreateIdea={createIdeaFromTrend}
+                />
+              </div>
+              <NextActionSection action={data.nextAction} />
+            </>
+          )}
         </>
       )}
     </div>

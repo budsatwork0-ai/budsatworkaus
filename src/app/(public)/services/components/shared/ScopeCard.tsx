@@ -50,10 +50,10 @@ export const ScopeCard = React.memo(function ScopeCard({
       aria-describedby={hookId}
       className={cls(
         glassCard(isActive),
-        'relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 transition-all',
+        'group relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 transition-all active:scale-[0.99]',
         isConfigOpen
           ? 'shadow-[0_20px_60px_rgba(2,6,23,0.18)] z-10'
-          : 'hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)]',
+          : 'hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)] hover:ring-emerald-200/70',
         'flex flex-col h-full min-w-0',
         className
       )}
@@ -141,8 +141,8 @@ export const ScopeCard = React.memo(function ScopeCard({
         {S.service !== 'yard' && (
         <svg
           aria-hidden
-          width="14"
-          height="14"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -150,8 +150,10 @@ export const ScopeCard = React.memo(function ScopeCard({
           strokeLinecap="round"
           strokeLinejoin="round"
           className={cls(
-            'shrink-0 self-center text-slate-400 transition-transform duration-200',
-            isConfigOpen && 'rotate-90'
+            'shrink-0 self-center transition-all duration-200',
+            isConfigOpen
+              ? 'rotate-90 text-emerald-600'
+              : 'text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-0.5'
           )}
         >
           <path d="M9 18l6-6-6-6" />
