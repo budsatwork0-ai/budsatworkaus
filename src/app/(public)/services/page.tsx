@@ -14,6 +14,7 @@ import {
   trackPublicAnalyticsEvent,
 } from '@/lib/analytics/public';
 import { trackFunnelStart, trackFunnelStepComplete, trackFunnelAbandon, trackFunnelSubmit } from '@/lib/analytics/behavior';
+import { trackFunnelEvent } from '@/lib/analytics/quote-funnel';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
 import StableMapSlot from '@/components/StableMapSlot';
@@ -525,6 +526,88 @@ function ServicesPageContent() {
       step3StartTsRef.current = null;
     }
   }, [S.step]);
+
+  // --- Funnel instrumentation refs (no state — never cause re-renders) ---
+  // Timestamp of when the active scope card was last opened.
+  const configOpenTsRef = useRef<number | null>(null);
+  // Per-scope count of wizard-param mutations while that card is open.
+  const configChangesRef = useRef<Record<string, number>>({});
+  // Serialised snapshot of config state at last check — used to detect diffs.
+  const prevConfigRef = useRef<string>('');
+  // Current-value mirrors updated every render — lets tracking effects read
+  // the latest service/context without listing them as effect dependencies
+  // (which would re-trigger card_expanded / config_started on unrelated changes).
+  const funnelServiceRef = useRef(S.service);
+  funnelServiceRef.current = S.service;
+  const funnelContextRef = useRef(S.context);
+  funnelContextRef.current = S.context;
+
+  // Fire card_expanded when a scope card opens; reset tracking state when it closes.
+  useEffect(() => {
+    if (!activeServiceId) {
+      prevConfigRef.current = '';
+      configOpenTsRef.current = null;
+      return;
+    }
+    configOpenTsRef.current = Date.now();
+    configChangesRef.current[activeServiceId] = 0;
+    prevConfigRef.current = '';
+    trackFunnelEvent('card_expanded', {
+      service: funnelServiceRef.current,
+      scope: activeServiceId,
+      context: funnelContextRef.current,
+    });
+  }, [activeServiceId]);
+
+  // Detect wizard-param mutations while a card is open.
+  // Fires config_started on the first change; increments change counter on each.
+  useEffect(() => {
+    if (!activeServiceId) return;
+    const fingerprint = JSON.stringify([
+      S.paramsByService,
+      S.cleaningAddons,
+      S.commercialCleaningType,
+      S.commPreset,
+      S.commFrequency,
+      S.winRows,
+      S.dumpRun,
+      S.dumpDelivery,
+      S.dumpTransport,
+      S.distanceKm,
+      S.laundryLoads,
+      S.laundryPerLoadAddOns,
+      S.laundryPerOrderAddOns,
+      S.laundryIroningItems,
+      S.sneakerTier,
+      S.sneakerPairCount,
+      S.sneakerTurnaround,
+      S.conditionLevel,
+      S.yardArea,
+    ]);
+    if (!prevConfigRef.current) {
+      // First run for this card open — establish baseline, don't count as a change.
+      prevConfigRef.current = fingerprint;
+      return;
+    }
+    if (prevConfigRef.current === fingerprint) return;
+    prevConfigRef.current = fingerprint;
+    const prev = configChangesRef.current[activeServiceId] ?? 0;
+    configChangesRef.current[activeServiceId] = prev + 1;
+    if (prev === 0) {
+      trackFunnelEvent('config_started', {
+        service: funnelServiceRef.current,
+        scope: activeServiceId,
+        context: funnelContextRef.current,
+      });
+    }
+  }, [
+    activeServiceId,
+    S.paramsByService, S.cleaningAddons, S.commercialCleaningType, S.commPreset, S.commFrequency,
+    S.winRows, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.distanceKm,
+    S.laundryLoads, S.laundryPerLoadAddOns, S.laundryPerOrderAddOns, S.laundryIroningItems,
+    S.sneakerTier, S.sneakerPairCount, S.sneakerTurnaround,
+    S.conditionLevel, S.yardArea,
+  ]);
 
   // --- Tracking: fire once when all required contact fields become valid (high-intent signal) ---
   const contactCompleteFiredRef = useRef(false);
@@ -1085,6 +1168,7 @@ function ServicesPageContent() {
 
   const selectService = (svc: ServiceType) => {
     trackQuoteEvent('service_selected', { service: svc, context: S.context });
+    trackFunnelEvent('service_selected', { service: svc, context: S.context });
     const defaultScope =
       svc === 'dump' ? 'dump_runs' :
       svc === 'windows' ? 'windows_full' :
@@ -1897,6 +1981,12 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         });
         trackQuoteSubmitted(effectiveTotal);
         trackFunnelSubmit(quote.id, S.service ?? undefined, effectiveTotal);
+        trackFunnelEvent('quote_submitted', {
+          service: S.service,
+          scope: S.scope,
+          context: S.context,
+          quote_submitted: true,
+        });
 
         if (isGuest) {
           setGuestSubmitSuccess({ quoteId: quote.id, email: S.email.trim() });
@@ -3202,6 +3292,16 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                             setHasInteractedStep2(true);
                           };
                           const onAdd = (key: string) => {
+                            const _funnelTimeSpent = configOpenTsRef.current !== null
+                              ? Math.round((Date.now() - configOpenTsRef.current) / 1000)
+                              : null;
+                            trackFunnelEvent('add_to_quote', {
+                              service: S.service,
+                              scope: key,
+                              context: S.context,
+                              time_spent_seconds: _funnelTimeSpent,
+                              config_changes: configChangesRef.current[activeServiceId ?? key] ?? 0,
+                            });
                             // If commercial cleaning and key is a niche, set the commercial type
                             if (S.context === 'commercial' && S.service === 'cleaning' && commercialNiches.includes(key as CommercialCleaningType)) {
                               setCommercialType(key as CommercialCleaningType);
