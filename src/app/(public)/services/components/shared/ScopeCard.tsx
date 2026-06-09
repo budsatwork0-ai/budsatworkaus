@@ -137,27 +137,34 @@ export const ScopeCard = React.memo(function ScopeCard({
             )}
           </div>
         )}
-        {/* Expand/collapse chevron — hidden for yard cards */}
+        {/* Expand affordance — text label + chevron, hidden for yard */}
         {S.service !== 'yard' && (
-        <svg
-          aria-hidden
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={cls(
-            'shrink-0 self-center transition-all duration-200',
-            isConfigOpen
-              ? 'rotate-90 text-emerald-600'
-              : 'text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-0.5'
-          )}
-        >
-          <path d="M9 18l6-6-6-6" />
-        </svg>
+          <span className="shrink-0 self-center flex items-center gap-1">
+            {!isConfigOpen && (
+              <span className="hidden sm:inline text-[11px] font-medium text-emerald-700 group-hover:text-emerald-800 transition-colors whitespace-nowrap">
+                View full checklist
+              </span>
+            )}
+            <svg
+              aria-hidden
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={cls(
+                'shrink-0 transition-all duration-200',
+                isConfigOpen
+                  ? 'rotate-90 text-emerald-600'
+                  : 'text-emerald-600 group-hover:translate-x-0.5'
+              )}
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </span>
         )}
       </div>
 
@@ -201,13 +208,14 @@ export const ScopeCard = React.memo(function ScopeCard({
           carSelector={carSelector}
           routeSlot={routeSlot}
         />
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="text-[11px] text-slate-600">
+        <div className="pt-2.5 mt-1 border-t border-black/[0.06] flex items-center justify-between flex-wrap gap-2">
+          <div className="text-[11px] text-slate-500">
             Builds a clear to-do list for our techs and your peace of mind.
           </div>
           {S.service !== 'yard' && (
             <button
               type="button"
+              data-card-interactive="true"
               onClick={(e) => {
                 e.stopPropagation();
                 onAdd(sc.key);
