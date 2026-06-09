@@ -44,6 +44,63 @@ const topRiskOf = (ds: Array<{ risk_level: string }>): 'low' | 'medium' | 'high'
 const maxConfidenceOf = (ds: Array<{ confidence: number }>): number =>
   ds.length > 0 ? Math.max(...ds.map((d) => d.confidence)) : 0.7;
 
+/** Synthesise 1–3 low-risk decisions from programmatic findings when the LLM returns none. */
+function buildFallbackDecisions(params: {
+  hotLeadsAwaitingReply: number;
+  approvalCount: number;
+  contentPipelineDepth: number;
+  storyOpps: Array<{ story_score: unknown }>;
+}): ExecutiveLlmOutput['decisions'] {
+  const out: ExecutiveLlmOutput['decisions'] = [];
+
+  if (params.approvalCount > 0) {
+    out.push({
+      title: 'Clear pending approval backlog',
+      reasoning: `${params.approvalCount} item(s) pending human approval are blocking agent progress.`,
+      evidence: [`Pending approvals: ${params.approvalCount}`],
+      confidence: 0.85,
+      risk_level: 'low',
+      expected_impact: 'Unblocks queued agent actions and keeps operations moving.',
+    });
+  }
+
+  if (params.hotLeadsAwaitingReply > 0 && out.length < 3) {
+    out.push({
+      title: 'Review and respond to hot leads',
+      reasoning: `${params.hotLeadsAwaitingReply} hot lead(s) awaiting first response represent immediate revenue risk.`,
+      evidence: [`Hot leads awaiting reply: ${params.hotLeadsAwaitingReply}`],
+      confidence: 0.9,
+      risk_level: 'low',
+      expected_impact: 'Reduces lead drop-off and increases conversion probability.',
+    });
+  }
+
+  if (params.storyOpps.length > 0 && out.length < 3) {
+    const topScore = Math.max(...params.storyOpps.map((o) => (o.story_score as number | null) ?? 0));
+    out.push({
+      title: 'Develop the top story opportunity into a content idea',
+      reasoning: `${params.storyOpps.length} new story opportunit${params.storyOpps.length === 1 ? 'y' : 'ies'} awaiting development (top score: ${topScore}/100).`,
+      evidence: [`New story opportunities: ${params.storyOpps.length}`, `Top score: ${topScore}/100`],
+      confidence: 0.8,
+      risk_level: 'low',
+      expected_impact: 'Advances brand storytelling and content pipeline.',
+    });
+  }
+
+  if (params.contentPipelineDepth === 0 && out.length < 3) {
+    out.push({
+      title: 'Seed the content pipeline with a new idea',
+      reasoning: 'Content pipeline is empty — no ideas, scripts, or production cards are in flight.',
+      evidence: ['Content pipeline depth: 0'],
+      confidence: 0.8,
+      risk_level: 'low',
+      expected_impact: 'Restarts brand content output.',
+    });
+  }
+
+  return out.slice(0, 3);
+}
+
 export const ceoAgent: AgentDefinition = {
   id: 'ceo-agent',
   name: 'CEO',
@@ -217,7 +274,10 @@ Pending approvals: ${approvalCount}`;
       };
     }
 
-    const decisions = parsed.decisions ?? [];
+    const llmDecisions = parsed.decisions ?? [];
+    const decisions = llmDecisions.length > 0 || findings.length === 0
+      ? llmDecisions
+      : buildFallbackDecisions({ hotLeadsAwaitingReply, approvalCount, contentPipelineDepth, storyOpps });
 
     if (ctx.dryRun) {
       const drySummary = findings.length > 0

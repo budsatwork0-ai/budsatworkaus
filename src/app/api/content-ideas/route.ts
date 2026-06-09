@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { scoreIdea } from '@/lib/story/idea-scoring';
+import { logPipelineEvent } from '@/lib/growth/pipeline-events';
 
 function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -72,9 +74,69 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'A content idea already exists for this opportunity' }, { status: 409 });
+    }
     console.error('[api/content-ideas] POST:', error.message);
     return NextResponse.json({ error: 'Failed to create content idea' }, { status: 500 });
   }
 
+  // ── Post-insert: score the idea ───────────────────────────────────────────────
+  // Fetch opportunity score if this idea is linked to one.
+  // Wrapped in try/catch — never blocks the 201 response.
+  if (data) {
+    scoreAndLogIdea(client as any, data).catch((err) =>
+      console.error('[api/content-ideas] POST scoring error (non-fatal):', err),
+    );
+  }
+
   return NextResponse.json(data, { status: 201 });
+}
+
+// ── Post-insert scoring helper ────────────────────────────────────────────────
+
+async function scoreAndLogIdea(client: any, idea: any): Promise<void> {
+  let opportunityScore: number | undefined;
+
+  if (idea.opportunity_id) {
+    const { data: opp } = await client
+      .from('story_opportunities')
+      .select('story_score, source_ref_id, source_type')
+      .eq('id', idea.opportunity_id)
+      .single();
+    opportunityScore = opp?.story_score ?? undefined;
+  }
+
+  const scoringResult = scoreIdea(
+    {
+      title:              idea.title,
+      platform_fit:       idea.platform_fit,
+      format:             idea.format,
+      hook:               idea.hook,
+      content_angle:      idea.content_angle,
+      notes:              idea.notes,
+      related_arc_id:     idea.related_arc_id,
+      related_characters: idea.related_characters ?? [],
+    },
+    opportunityScore,
+  );
+
+  await client
+    .from('content_ideas')
+    .update({
+      idea_score:      scoringResult.idea_score,
+      score_breakdown: scoringResult.score_breakdown,
+      score_reason:    scoringResult.score_reason,
+      scored_at:       new Date().toISOString(),
+    })
+    .eq('id', idea.id);
+
+  await logPipelineEvent(client, {
+    event_type:  'idea_scored',
+    source_type: 'idea',
+    source_id:   idea.id,
+    result_type: 'content_idea',
+    result_id:   idea.id,
+    metadata:    { idea_score: scoringResult.idea_score, opportunity_score: opportunityScore },
+  });
 }

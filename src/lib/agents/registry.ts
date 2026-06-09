@@ -90,6 +90,26 @@ import { attentionSeekerAgent } from './agents/attention-seeker';
 import { fieldProducerAgent } from './agents/field-producer';
 import { scoreboardKeeperAgent } from './agents/scoreboard-keeper';
 
+// Growth Department automation pipeline — Research Lab
+import { trendScoutAgent } from './agents/trend-scout';
+import { adaptationValidatorAgent } from './agents/adaptation-validator';
+
+// Growth Department — P2 Batch 1: staleness monitors
+import { arcMonitorAgent }         from './agents/arc-monitor';
+import { threadProgressAgent }     from './agents/thread-progress';
+import { productionMonitorAgent }  from './agents/production-monitor';
+
+// Growth Department — P2 Batch 2: asset matching + consent monitoring
+import { assetMatcherAgent }   from './agents/asset-matcher';
+import { consentMonitorAgent } from './agents/consent-monitor';
+
+// Growth Department — P2 Batch 3: Marketing Studio self-monitoring
+import { campaignReporterAgent } from './agents/campaign-reporter';
+import { cadenceMonitorAgent }   from './agents/cadence-monitor';
+
+// Growth Department — P2 Batch 4: Format Analyst
+import { formatAnalystAgent } from './agents/format-analyst';
+
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [quoteTriageAgent.id]:       quoteTriageAgent,
   [customerReplyAgent.id]:     customerReplyAgent,
@@ -137,6 +157,21 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [attentionSeekerAgent.id]:         attentionSeekerAgent,
   [fieldProducerAgent.id]:           fieldProducerAgent,
   [scoreboardKeeperAgent.id]:        scoreboardKeeperAgent,
+  // Growth Department — Research Lab pipeline
+  [trendScoutAgent.id]:              trendScoutAgent,
+  [adaptationValidatorAgent.id]:     adaptationValidatorAgent,
+  // Growth Department — P2 Batch 1: staleness monitors
+  [arcMonitorAgent.id]:              arcMonitorAgent,
+  [threadProgressAgent.id]:          threadProgressAgent,
+  [productionMonitorAgent.id]:       productionMonitorAgent,
+  // Growth Department — P2 Batch 2: asset matching + consent monitoring
+  [assetMatcherAgent.id]:            assetMatcherAgent,
+  [consentMonitorAgent.id]:          consentMonitorAgent,
+  // Growth Department — P2 Batch 3: Marketing Studio self-monitoring
+  [campaignReporterAgent.id]:        campaignReporterAgent,
+  [cadenceMonitorAgent.id]:          cadenceMonitorAgent,
+  // Growth Department — P2 Batch 4: Format Analyst
+  [formatAnalystAgent.id]:           formatAnalystAgent,
   // Executive Layer
   [ceoAgent.id]:                     ceoAgent,
   [cooAgent.id]:                     cooAgent,

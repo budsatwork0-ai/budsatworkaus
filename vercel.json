@@ -115,6 +115,54 @@
     {
       "path": "/api/cron/executive-learning-review",
       "schedule": "5 21 * * 0"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=competitor-scout",
+      "schedule": "0 2 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=competitor-watcher",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=trend-scout",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=adaptation-validator",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=arc-monitor",
+      "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=thread-progress",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=production-monitor",
+      "schedule": "45 6 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=asset-matcher",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=consent-monitor",
+      "schedule": "15 7 * * 2"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=campaign-reporter",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=cadence-monitor",
+      "schedule": "0 7 * * 3"
+    },
+    {
+      "path": "/api/agents/cron?agent_id=format-analyst",
+      "schedule": "0 9 * * 5"
     }
   ]
 }

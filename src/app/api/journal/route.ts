@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import type { JournalEntryDraft } from '@/types/journal';
+import { runJournalOpportunityPipeline } from '@/lib/journal/pipeline';
 
 export async function GET(req: NextRequest) {
   const authUser = await getAuthUser();
@@ -111,5 +112,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create entry' }, { status: 500 });
   }
 
+  // ── Post-save pipeline: detect + score opportunity ────────────────────────────
+  // Wrapped entirely in try/catch — journal save must never fail due to pipeline errors.
+  // Only fires when the entry has meaningful content potential and no opportunity yet.
+  if (data && data.content_potential_rating !== 'none' && !data.story_opportunity_created) {
+    try {
+      await runJournalOpportunityPipeline(client as any, data);
+    } catch (pipelineErr) {
+      console.error('[api/journal] POST pipeline error (non-fatal):', pipelineErr);
+    }
+  }
+
   return NextResponse.json(data, { status: 201 });
 }
+

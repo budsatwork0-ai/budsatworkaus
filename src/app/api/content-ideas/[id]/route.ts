@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { generateScriptForIdea } from '@/lib/story/script-generator';
+import { logPipelineEvent } from '@/lib/growth/pipeline-events';
 
 const UPDATABLE = [
   'title',
@@ -95,6 +97,16 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Failed to update content idea' }, { status: 500 });
   }
 
+  // ── Post-update: generate script when idea is approved ───────────────────────
+  // Guard: only fires when status is explicitly set to 'approved' in this request.
+  // Idempotency: checks for an existing script before calling the LLM.
+  // Wrapped in try/catch — status update never fails due to generation errors.
+  if (update.status === 'approved') {
+    generateScriptIfAbsent(client as any, id).catch((err) =>
+      console.error('[api/content-ideas/[id]] PUT script generation error (non-fatal):', err),
+    );
+  }
+
   return NextResponse.json(data);
 }
 
@@ -119,4 +131,55 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   }
 
   return NextResponse.json({ success: true });
+}
+
+// ── Script generation helper ──────────────────────────────────────────────────
+
+async function generateScriptIfAbsent(client: any, ideaId: string): Promise<void> {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  if (!apiKey) {
+    console.warn('[content-ideas/[id]] ANTHROPIC_API_KEY not set — script generation skipped');
+    return;
+  }
+
+  // Idempotency: if a script already exists for this idea, skip.
+  const { data: existing } = await client
+    .from('content_scripts')
+    .select('id')
+    .eq('idea_id', ideaId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return;
+
+  // Load idea for journal_entry_id tracing.
+  const { data: idea } = await client
+    .from('content_ideas')
+    .select('id, opportunity_id')
+    .eq('id', ideaId)
+    .single();
+
+  let journalEntryId: string | undefined;
+  if (idea?.opportunity_id) {
+    const { data: opp } = await client
+      .from('story_opportunities')
+      .select('source_type, source_ref_id')
+      .eq('id', idea.opportunity_id)
+      .single();
+    if (opp?.source_type === 'journal' && opp.source_ref_id) {
+      journalEntryId = opp.source_ref_id;
+    }
+  }
+
+  const result = await generateScriptForIdea(client, ideaId, apiKey);
+
+  await logPipelineEvent(client, {
+    event_type:       'script_generated',
+    source_type:      'idea',
+    source_id:        ideaId,
+    result_type:      'content_script',
+    result_id:        result.scriptId,
+    journal_entry_id: journalEntryId,
+    metadata:         { model: result.model, tokens: result.tokens },
+  });
 }

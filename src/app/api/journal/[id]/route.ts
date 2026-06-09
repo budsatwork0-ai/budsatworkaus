@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import type { JournalEntryDraft } from '@/types/journal';
+import { runJournalOpportunityPipeline } from '@/lib/journal/pipeline';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -75,6 +76,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (error.code === '23505') return NextResponse.json({ error: 'An entry for this date already exists' }, { status: 409 });
     console.error('[api/journal/[id]] PUT:', error.message);
     return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 });
+  }
+
+  // Pipeline hook: fires when an entry is upgraded to low/medium/high and no opportunity exists yet.
+  // story_opportunity_created gate makes this idempotent across repeated PUTs.
+  if (data && data.content_potential_rating !== 'none' && !data.story_opportunity_created) {
+    runJournalOpportunityPipeline(client as any, data).catch((err) =>
+      console.error('[api/journal/[id]] PUT pipeline error (non-fatal):', err),
+    );
   }
 
   return NextResponse.json(data);

@@ -42,6 +42,75 @@ const topRiskOf = (ds: Array<{ risk_level: string }>): 'low' | 'medium' | 'high'
 const maxConfidenceOf = (ds: Array<{ confidence: number }>): number =>
   ds.length > 0 ? Math.max(...ds.map((d) => d.confidence)) : 0.7;
 
+/** Synthesise 1–3 low-risk decisions from programmatic findings when the LLM returns none. */
+function buildFallbackDecisions(params: {
+  hotLeadsAwaitingReply: number;
+  journalToday: boolean;
+  draftBacklog: number;
+  contentPipeline: { ideas: number; scripts: number; scripts_approved: number; production_active: number };
+  storyOpps: Array<{ story_score: unknown }>;
+}): ExecutiveLlmOutput['decisions'] {
+  const out: ExecutiveLlmOutput['decisions'] = [];
+
+  if (params.hotLeadsAwaitingReply > 0) {
+    out.push({
+      title: 'Review and respond to hot leads',
+      reasoning: `${params.hotLeadsAwaitingReply} hot lead(s) awaiting first response — immediate revenue risk.`,
+      evidence: [`Hot leads awaiting reply: ${params.hotLeadsAwaitingReply}`],
+      confidence: 0.9,
+      risk_level: 'low',
+      expected_impact: 'Reduces lead drop-off and increases conversion.',
+    });
+  }
+
+  if (!params.journalToday && out.length < 3) {
+    out.push({
+      title: 'Capture founder journal entry today',
+      reasoning: 'No founder journal entry recorded today — story engine feed is stalled.',
+      evidence: ['Founder journal entry today: no'],
+      confidence: 0.85,
+      risk_level: 'low',
+      expected_impact: 'Feeds the story engine and unblocks content pipeline.',
+    });
+  }
+
+  if (params.storyOpps.length > 0 && out.length < 3) {
+    const topScore = Math.max(...params.storyOpps.map((o) => (o.story_score as number | null) ?? 0));
+    out.push({
+      title: 'Convert top story opportunity into a content idea',
+      reasoning: `${params.storyOpps.length} new story opportunit${params.storyOpps.length === 1 ? 'y' : 'ies'} awaiting development (top score: ${topScore}/100).`,
+      evidence: [`New story opportunities: ${params.storyOpps.length}`, `Top score: ${topScore}/100`],
+      confidence: 0.8,
+      risk_level: 'low',
+      expected_impact: 'Advances content pipeline and brand storytelling.',
+    });
+  }
+
+  if (params.draftBacklog > 0 && out.length < 3) {
+    out.push({
+      title: 'Review AI-generated story drafts',
+      reasoning: `${params.draftBacklog} AI draft(s) generated in the last 48h are pending review.`,
+      evidence: [`AI drafts pending review: ${params.draftBacklog}`],
+      confidence: 0.8,
+      risk_level: 'low',
+      expected_impact: 'Clears draft backlog and advances story engine output.',
+    });
+  }
+
+  if (params.contentPipeline.ideas > 0 && params.contentPipeline.scripts === 0 && out.length < 3) {
+    out.push({
+      title: 'Convert top content idea into a script',
+      reasoning: `${params.contentPipeline.ideas} idea(s) exist with no scripts — pipeline is stalled at ideation stage.`,
+      evidence: [`Ideas: ${params.contentPipeline.ideas}`, 'Scripts: 0'],
+      confidence: 0.8,
+      risk_level: 'low',
+      expected_impact: 'Unblocks content pipeline and moves ideas toward production.',
+    });
+  }
+
+  return out.slice(0, 3);
+}
+
 export const cmoAgent: AgentDefinition = {
   id: 'cmo-agent',
   name: 'CMO',
@@ -214,7 +283,10 @@ Founder journal entry today: ${journalToday ? 'yes' : 'no'}`;
       };
     }
 
-    const decisions = parsed.decisions ?? [];
+    const llmDecisions = parsed.decisions ?? [];
+    const decisions = llmDecisions.length > 0 || findings.length === 0
+      ? llmDecisions
+      : buildFallbackDecisions({ hotLeadsAwaitingReply, journalToday, draftBacklog, contentPipeline, storyOpps });
 
     if (ctx.dryRun) {
       const drySummary = findings.length > 0
