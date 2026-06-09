@@ -10,7 +10,7 @@
 export function isEmptyPayload(output: unknown): boolean {
   if (output === null || output === undefined) return true;
   if (Array.isArray(output)) return output.length === 0;
-  if (typeof output === 'object') return Object.keys(output as object).length === 0;
+  if (typeof output === 'object') return Object.keys(output as Record<string, unknown>).length === 0;
   return false;
 }
 
