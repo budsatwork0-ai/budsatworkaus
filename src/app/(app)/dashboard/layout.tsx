@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Toaster } from 'sonner';
 import CommandPalette from '@/components/CommandPalette';
@@ -10,6 +10,7 @@ import CreateOrderModal from '@/components/CreateOrderModal';
 import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { useAuth } from '@/app/hooks/useAuth';
+import { homePathForRole } from '@/types/roles';
 import { useSessionManager } from '@/app/hooks/useSessionManager';
 import { SessionWarningModal } from '@/components/SessionWarningModal';
 import { SoftLockModal } from '@/components/SoftLockModal';
@@ -88,7 +89,8 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
-  const { role, isAdmin } = useAuth();
+  const router = useRouter();
+  const { role, isAdmin, isLoaded } = useAuth();
   const { sessionState, user: sessionUser, extendSession, unlock } = useSessionManager();
   const handleSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/'; };
   const handleForceSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/account'; };
@@ -128,28 +130,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navGroups: NavGroup[] = useMemo(() => [
     { id: 'overview', label: 'Overview', items: [
-      { href: '/dashboard',            label: 'Dashboard', icon: dashboardIcon, badgeKey: 'dashboard' },
-      { href: '/dashboard/alerts',     label: 'Alerts',    icon: alertsIcon },
-    ] },
-    { id: 'growth', label: 'Growth & marketing', items: [
-      { href: '/dashboard/growth-hq',       label: 'Growth HQ',        icon: growthHqIcon },
-      { href: '/dashboard/story-engine',    label: 'Story Engine',     icon: storyEngineIcon },
-      { href: '/dashboard/content-studio',  label: 'Content Studio',   icon: contentStudioIcon },
-      { href: '/dashboard/research-lab',    label: 'Research Lab',     icon: researchLabIcon },
-      { href: '/dashboard/marketing',       label: 'Marketing Studio', icon: marketingIcon },
-      { href: '/dashboard/leads',           label: 'Bud Leads',        icon: leadsIcon },
-      { href: '/dashboard/reports',                    label: 'Reports',      icon: reportsIcon },
-      { href: '/dashboard/analytics/quote-funnel', label: 'Quote Funnel', icon: quoteFunnelIcon },
-      { href: '/dashboard/content-vault',   label: 'Content Vault',    icon: contentVaultIcon },
+      { href: '/dashboard',        label: 'Dashboard', icon: dashboardIcon, badgeKey: 'dashboard' },
+      { href: '/dashboard/alerts', label: 'Alerts',    icon: alertsIcon },
     ] },
     { id: 'work', label: 'Work', items: [
-      { href: '/dashboard/schedule',  label: 'Schedule',     icon: scheduleIcon,  badgeKey: 'schedule' },
+      { href: '/dashboard/schedule',  label: 'Schedule',      icon: scheduleIcon, badgeKey: 'schedule' },
       { href: '/dashboard/orders',    label: 'Jobs & orders', icon: jobsIcon },
-      { href: '/dashboard/quotes',    label: 'Quotes',       icon: quotesIcon,    badgeKey: 'quotes' },
-      { href: '/dashboard/pipelines', label: 'Pipelines',    icon: pipelinesIcon },
+      { href: '/dashboard/quotes',    label: 'Quotes',        icon: quotesIcon,   badgeKey: 'quotes' },
+      { href: '/dashboard/pipelines', label: 'Pipelines',     icon: pipelinesIcon },
     ] },
     { id: 'money', label: 'Money', items: [
-      { href: '/dashboard/invoices',      label: 'Invoices',      icon: moneyIcon,          badgeKey: 'invoices' },
+      { href: '/dashboard/invoices',      label: 'Invoices',      icon: moneyIcon,        badgeKey: 'invoices' },
       { href: '/dashboard/payments',      label: 'Payments',      icon: paymentsIcon },
       { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: subscriptionsIcon },
       { href: '/dashboard/expenses',      label: 'Expenses',      icon: expensesIcon },
@@ -161,16 +152,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/messages',   label: 'Messages',   icon: messagesIcon },
       { href: '/dashboard/feedback',   label: 'Feedback',   icon: feedbackIcon },
     ] },
+    { id: 'analytics', label: 'Analytics', adminOnly: true, items: [
+      { href: '/dashboard/analytics/quote-funnel', label: 'Quote Funnel',  icon: quoteFunnelIcon },
+      { href: '/dashboard/reports',                label: 'Reports',       icon: reportsIcon },
+      { href: '/dashboard/executive',              label: 'Executive HQ',  icon: executiveIcon },
+    ] },
+    { id: 'content', label: 'Content', adminOnly: true, items: [
+      { href: '/dashboard/story-engine',   label: 'Story Engine',   icon: storyEngineIcon },
+      { href: '/dashboard/research-lab',   label: 'Research Lab',   icon: researchLabIcon },
+      { href: '/dashboard/content-studio', label: 'Content Studio', icon: contentStudioIcon },
+      { href: '/dashboard/content-vault',  label: 'Content Vault',  icon: contentVaultIcon },
+    ] },
+    { id: 'growth', label: 'Growth & marketing', adminOnly: true, items: [
+      { href: '/dashboard/growth-hq', label: 'Growth HQ',        icon: growthHqIcon },
+      { href: '/dashboard/marketing', label: 'Marketing Studio', icon: marketingIcon },
+      { href: '/dashboard/leads',     label: 'Bud Leads',        icon: leadsIcon },
+    ] },
     { id: 'ndis', label: 'NDIS', adminOnly: true, items: [
       { href: '/dashboard/ndis',       label: 'Organisations', icon: ndisIcon },
       { href: '/dashboard/ndis/match', label: 'Plan matching', icon: ndisMatchIcon },
     ] },
-    { id: 'automation', label: 'Automation', adminOnly: true, items: [
-      { href: '/dashboard/mission-control', label: 'Bud OS',         icon: missionIcon },
-      { href: '/dashboard/executive',       label: 'Executive HQ',   icon: executiveIcon },
-      { href: '/dashboard/automations',     label: 'Automations',    icon: automationsIcon },
-      { href: '/dashboard/design',          label: 'Design System',  icon: designIcon },
-      { href: '/dashboard/audit-log',       label: 'Audit log',      icon: auditIcon },
+    { id: 'system', label: 'System', adminOnly: true, items: [
+      { href: '/dashboard/mission-control', label: 'Bud OS',        icon: missionIcon },
+      { href: '/dashboard/automations',     label: 'Automations',   icon: automationsIcon },
+      { href: '/dashboard/design',          label: 'Design System', icon: designIcon },
+      { href: '/dashboard/audit-log',       label: 'Audit log',     icon: auditIcon },
     ] },
     { id: 'settings', label: 'Settings', adminOnly: true, items: [
       { href: '/dashboard/settings', label: 'Settings', icon: settingsIcon },
@@ -193,6 +199,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isAdmin) router.replace(homePathForRole(role));
+  }, [isLoaded, isAdmin, role, router]);
 
   const handleBadgesUpdate = useCallback((badges: Record<NavBadgeKey, number>) => {
     setNavBadges(badges);
@@ -207,6 +217,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     .map((part: string) => part[0]?.toUpperCase() ?? '')
     .join('') || 'BW';
   const roleLabel = role === 'admin' ? 'Admin' : role === 'employee' ? 'Employee' : 'Customer';
+
+  // Block render until auth resolves; redirect fires via the effect above if not admin.
+  if (!isLoaded) return <div className="min-h-screen bg-[#f4faf6]" />;
+  if (!isAdmin) return null;
 
   return (
     <>
