@@ -29,25 +29,21 @@ export async function incrementAgentMetric(
   tags: MetricTags,
   value = 1,
 ): Promise<void> {
-  const backend = process.env.METRIC_BACKEND ?? 'console';
+  const backend =
+    typeof process !== 'undefined' && process.env.METRIC_BACKEND
+      ? process.env.METRIC_BACKEND
+      : 'console';
 
   switch (backend) {
     case 'datadog': {
       // Wire up @datadog/datadog-api-client or dd-trace here.
-      // Example (pseudo):
-      //   const { metrics } = await import('@datadog/datadog-api-client');
-      //   await metrics.submit({ series: [{ metric, points: [[Date.now()/1000, value]], tags: toTagArray(tags) }] });
-      //
       // Left as a no-op until the SDK is installed so CI stays green.
       break;
     }
 
     case 'cloudwatch': {
       // Wire up @aws-sdk/client-cloudwatch here.
-      // Example (pseudo):
-      //   const { CloudWatchClient, PutMetricDataCommand } = await import('@aws-sdk/client-cloudwatch');
-      //   const cw = new CloudWatchClient({});
-      //   await cw.send(new PutMetricDataCommand({ Namespace: 'Bud/Agents', MetricData: [...] }));
+      // Left as a no-op until the SDK is installed so CI stays green.
       break;
     }
 
@@ -56,6 +52,7 @@ export async function incrementAgentMetric(
       const tagStr = Object.entries(tags)
         .map(([k, v]) => `${k}:${v}`)
         .join(' ');
+      // eslint-disable-next-line no-console
       console.info(`[metric] ${metric} +${value} { ${tagStr} }`);
     }
   }
