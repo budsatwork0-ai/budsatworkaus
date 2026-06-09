@@ -1,4 +1,4 @@
-import { evaluateOpportunity } from '@/lib/story/opportunity-scoring';
+import { evaluateOpportunity, extractCharactersFromText } from '@/lib/story/opportunity-scoring';
 import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 import { logPipelineEvent } from '@/lib/growth/pipeline-events';
 import type { StoryOpportunity } from '@/types/story-engine';
@@ -17,18 +17,22 @@ export async function runJournalOpportunityPipeline(client: any, entry: any): Pr
   const firstLine = contentText.split(/[.!?\n]/)[0]?.trim() ?? '';
   const title = (firstLine.slice(0, 120) || entry.entry_date).trim();
 
+  const contentAngle   = (entry.content_potential_notes ?? '').slice(0, 2000);
+  const notesText      = contentText.slice(0, 2000);
+  const autoCharacters = extractCharactersFromText(`${title} ${contentAngle} ${notesText}`);
+
   const { data: opp, error: oppErr } = await client
     .from('story_opportunities')
     .insert({
       title,
       source_type:        'journal',
       source_ref_id:      entry.id,
-      content_angle:      (entry.content_potential_notes ?? '').slice(0, 500),
-      notes:              contentText.slice(0, 500),
+      content_angle:      contentAngle,
+      notes:              notesText,
       status:             'new',
       section:            'surfaced',
       priority:           0,
-      related_characters: [],
+      related_characters: autoCharacters,
     })
     .select('id')
     .single();
@@ -61,14 +65,14 @@ export async function runJournalOpportunityPipeline(client: any, entry: any): Pr
     source_type:        'journal',
     source_ref_id:      entry.id,
     related_arc_id:     null,
-    related_characters: [],
-    content_angle:      (entry.content_potential_notes ?? '').slice(0, 500),
+    related_characters: autoCharacters,
+    content_angle:      contentAngle,
     suggested_format:   '',
     suggested_platform: '',
     priority:           0,
     status:             'new',
     section:            'surfaced',
-    notes:              contentText.slice(0, 500),
+    notes:              notesText,
     is_auto_detected:   false,
     detection_rule:     null,
     detection_reason:   null,
@@ -78,6 +82,7 @@ export async function runJournalOpportunityPipeline(client: any, entry: any): Pr
     score_breakdown:    null,
     score_reason:       null,
     scored_at:          null,
+    story_category:     null,
     created_at:         new Date().toISOString(),
     updated_at:         new Date().toISOString(),
   };
@@ -93,6 +98,7 @@ export async function runJournalOpportunityPipeline(client: any, entry: any): Pr
       score_breakdown: scoringResult.score_breakdown,
       score_reason:    scoringResult.score_reason,
       scored_at:       new Date().toISOString(),
+      story_category:  scoringResult.story_category,
     })
     .eq('id', opp.id);
 

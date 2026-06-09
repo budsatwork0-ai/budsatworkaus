@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
-import { evaluateOpportunity } from '@/lib/story/opportunity-scoring';
+import { evaluateOpportunity, extractCharactersFromText } from '@/lib/story/opportunity-scoring';
 import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 import type { StoryOpportunity } from '@/types/story-engine';
 
@@ -43,21 +43,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No opportunities found' }, { status: 404 });
   }
 
-  const scored: Array<{ id: string; story_score: number; score_breakdown: object; score_reason: string }> = [];
+  const scored: Array<{ id: string; story_score: number; score_breakdown: object; score_reason: string; story_category: string }> = [];
   const errors: string[] = [];
 
   for (const opp of opps as StoryOpportunity[]) {
     try {
-      const result = evaluateOpportunity(opp);
+      const result   = evaluateOpportunity(opp);
       const exposure = classifyOpportunityExposure(opp);
+
+      // Backfill related_characters when empty and names are detectable from text
+      const existingChars = Array.isArray(opp.related_characters) ? opp.related_characters : [];
+      const characters = existingChars.length > 0
+        ? existingChars
+        : extractCharactersFromText(
+            [opp.title, opp.content_angle, opp.notes].join(' '),
+          );
+
       const { error: updateErr } = await (client as any)
         .from('story_opportunities')
         .update({
-          source_type:     exposure === 'internal_system_milestone' ? 'internal_system_milestone' : opp.source_type,
-          story_score:     result.story_score,
-          score_breakdown: result.score_breakdown,
-          score_reason:    result.score_reason,
-          scored_at:       new Date().toISOString(),
+          source_type:        exposure === 'internal_system_milestone' ? 'internal_system_milestone' : opp.source_type,
+          story_score:        result.story_score,
+          score_breakdown:    result.score_breakdown,
+          score_reason:       result.score_reason,
+          scored_at:          new Date().toISOString(),
+          story_category:     result.story_category,
+          related_characters: characters,
         })
         .eq('id', opp.id);
 

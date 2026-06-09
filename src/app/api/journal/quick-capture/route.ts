@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { organiseJournalCapture } from '@/lib/story/journal-autofill';
-import { evaluateOpportunity } from '@/lib/story/opportunity-scoring';
+import { evaluateOpportunity, extractCharactersFromText } from '@/lib/story/opportunity-scoring';
 import { classifyOpportunityExposure } from '@/lib/story/internal-opportunity-filter';
 import type { JournalEntryDraft } from '@/types/journal';
 import type { StoryOpportunity } from '@/types/story-engine';
@@ -176,18 +176,22 @@ export async function POST(req: NextRequest) {
     const firstSentence = fullRaw.split(/[.!?\n]/)[0]?.trim() ?? '';
     const title = (firstSentence.slice(0, 120) || fullRaw.slice(0, 80)).trim();
 
+    const contentAngle   = organised.content_potential_notes?.slice(0, 2000) ?? '';
+    const notesText      = fullRaw.slice(0, 2000);
+    const autoCharacters = extractCharactersFromText(`${title} ${contentAngle} ${notesText}`);
+
     const { data: opp, error: oppErr } = await (client as any)
       .from('story_opportunities')
       .insert({
         title,
         source_type:        'journal',
         source_ref_id:      entryId,
-        content_angle:      organised.content_potential_notes?.slice(0, 500) ?? '',
-        notes:              fullRaw.slice(0, 500),
+        content_angle:      contentAngle,
+        notes:              notesText,
         status:             'new',
         section:            'surfaced',
         priority:           0,
-        related_characters: [],
+        related_characters: autoCharacters,
       })
       .select('id')
       .single();
@@ -211,14 +215,14 @@ export async function POST(req: NextRequest) {
         source_type:        'journal',
         source_ref_id:      entryId,
         related_arc_id:     null,
-        related_characters: [],
-        content_angle:      organised.content_potential_notes?.slice(0, 500) ?? '',
+        related_characters: autoCharacters,
+        content_angle:      contentAngle,
         suggested_format:   '',
         suggested_platform: '',
         priority:           0,
         status:             'new',
         section:            'surfaced',
-        notes:              fullRaw.slice(0, 500),
+        notes:              notesText,
         is_auto_detected:   false,
         detection_rule:     null,
         detection_reason:   null,
@@ -228,6 +232,7 @@ export async function POST(req: NextRequest) {
         score_breakdown:    null,
         score_reason:       null,
         scored_at:          null,
+        story_category:     null,
         created_at:         new Date().toISOString(),
         updated_at:         new Date().toISOString(),
       };
@@ -243,6 +248,7 @@ export async function POST(req: NextRequest) {
           score_breakdown: scoringResult.score_breakdown,
           score_reason:    scoringResult.score_reason,
           scored_at:       new Date().toISOString(),
+          story_category:  scoringResult.story_category,
         })
         .eq('id', opp.id);
 

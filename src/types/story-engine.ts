@@ -4,13 +4,30 @@ export type OpportunityStatus = 'new' | 'in_development' | 'published' | 'passed
 export type OpportunitySourceType = 'journal' | 'character' | 'arc' | 'open_thread' | 'chapter' | 'manual' | 'milestone' | 'internal_system_milestone';
 export type OpportunitySection = 'surfaced' | 'tension_map' | 'missed_moments';
 
+export type StoryCategory =
+  | 'employment_outcome'
+  | 'customer_validation'
+  | 'community_impact'
+  | 'business_milestone'
+  | 'founder_journey'
+  | 'internal_operations';
+
+export const STORY_CATEGORY_LABELS: Record<StoryCategory, string> = {
+  employment_outcome:  'Employment Outcome',
+  customer_validation: 'Customer Validation',
+  community_impact:    'Community Impact',
+  business_milestone:  'Business Milestone',
+  founder_journey:     'Founder Journey',
+  internal_operations: 'Internal Operations',
+};
+
 export interface ScoreBreakdown {
-  human_impact:            number;
-  business_significance:   number;
-  emotional_tension:       number;
+  human_impact:             number;
+  business_significance:    number;
+  emotional_tension:        number;
   transformation_potential: number;
-  content_potential:       number;
-  reasons:                 string[];
+  content_potential:        number;
+  reasons:                  string[];
 }
 
 export interface StoryOpportunity {
@@ -33,11 +50,12 @@ export interface StoryOpportunity {
   detection_reason: string | null;
   confidence_score: number | null;
   source_hash: string | null;
-  // Story Score (Phase 2H.5)
+  // Story Score (Phase 2H.5 / v2)
   story_score: number | null;
   score_breakdown: ScoreBreakdown | null;
   score_reason: string | null;
   scored_at: string | null;
+  story_category: StoryCategory | null;
   created_at: string;
   updated_at: string;
   // Computed by GET /api/story-opportunities — not stored in DB
@@ -49,11 +67,11 @@ export type StorySortKey = 'story_score' | 'newest' | 'priority';
 export const STORY_SCORE_TIERS: Array<{
   min: number; max: number; label: string; bg: string; fg: string;
 }> = [
-  { min: 90, max: 100, label: 'Exceptional', bg: '#ECFDF5', fg: '#047857' },
-  { min: 75, max:  89, label: 'Strong',      bg: '#EFF6FF', fg: '#1D4ED8' },
-  { min: 60, max:  74, label: 'Good',        bg: '#F0FDF4', fg: '#15803D' },
-  { min: 40, max:  59, label: 'Moderate',    bg: '#FFFBEB', fg: '#B45309' },
-  { min:  0, max:  39, label: 'Weak',        bg: '#FEF2F2', fg: '#B91C1C' },
+  { min: 80, max: 100, label: 'Legendary', bg: '#FDF4FF', fg: '#7E22CE' },
+  { min: 60, max:  79, label: 'High',      bg: '#ECFDF5', fg: '#047857' },
+  { min: 40, max:  59, label: 'Strong',    bg: '#EFF6FF', fg: '#1D4ED8' },
+  { min: 20, max:  39, label: 'Moderate',  bg: '#FFFBEB', fg: '#B45309' },
+  { min:  0, max:  19, label: 'Low',       bg: '#FEF2F2', fg: '#B91C1C' },
 ];
 
 export function getScoreTier(score: number) {
