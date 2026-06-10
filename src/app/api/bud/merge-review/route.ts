@@ -111,7 +111,7 @@ function camelOrSnakeToWords(s: string): string {
     .toLowerCase();
 }
 
-export function translateTitle(raw: string): string {
+function translateTitle(raw: string): string {
   // Strip leading "bud/" branch prefix if someone passed a branch name
   const cleaned = raw.replace(/^bud\/[a-z]+-/, '').trim();
 
