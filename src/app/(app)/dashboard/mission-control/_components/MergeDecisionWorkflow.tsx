@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MergeReviewItem } from '@/app/api/bud/merge-review/route';
 import type { AgentReviewerReport } from '@/app/api/bud/merge-review/analyze/route';
 import type { EvidencePack } from '@/app/api/bud/merge-review/evidence/route';
+import type { VerifyResult, VerifyCheck, VerifyCheckStatus } from '@/app/api/bud/merge-review/verify/route';
 import { computeMergeGate, MergeGateBanner } from './FinalMergeGate';
 
 // ── Audit trail ───────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ type Stage = 'review' | 'testing' | 'decision' | 'readiness' | 'post_merge' | 'c
 type DecisionType = 'approve' | 'request_changes' | 'archive_duplicate' | 'hold';
 
 interface WorkflowState {
-  testChecks: Record<string, boolean>;
+  autoVerifyResult: VerifyResult | null;
   testResult: 'passed' | 'failed' | null;
   testNotes: string;
   decision: DecisionType | null;
@@ -64,43 +65,6 @@ const RISK_STYLE: Record<string, string> = {
   low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   high: 'bg-red-500/10 text-red-400 border-red-500/20',
-};
-
-// Preview-environment testing steps (before merge)
-const PREVIEW_STEPS: Record<string, string[]> = {
-  agent_quality: [
-    'Open the preview deployment (or /dashboard/agents on staging).',
-    'Trigger a manual test run on any agent.',
-    'Confirm the run completes and shows in Recent Runs.',
-    'Check the agent output looks correct — no errors or silent failures.',
-  ],
-  monitoring: [
-    'Open Mission Control → System Health on the preview.',
-    'Confirm no unexpected alerts have fired.',
-    'If new monitoring was added, trigger a test condition to confirm it fires.',
-  ],
-  quote_funnel: [
-    'Open /services on the preview deployment.',
-    'Complete a full test quote for any service type.',
-    'Confirm the final price matches expectations.',
-    'Submit and check the confirmation email arrives.',
-  ],
-  dashboard_ui: [
-    'Open the affected dashboard page on the preview.',
-    'Check layout at 375px (mobile) and 1280px+ (desktop).',
-    'Click through all tabs and panels that were changed.',
-    'Confirm no broken elements, missing data, or overlapping text.',
-  ],
-  infrastructure: [
-    'Confirm the preview build deployed successfully on Vercel.',
-    'If a migration is included, check Supabase for the test database.',
-    'Verify the app loads and core features work on the preview URL.',
-  ],
-  customer_experience: [
-    'Open the preview deployment and complete the affected customer workflow.',
-    'If booking-related: create a test booking and verify the confirmation.',
-    'If crew-related: log in as a crew member and test the changed flow.',
-  ],
 };
 
 // Production verification steps (after merge)
@@ -174,10 +138,16 @@ function getGateChecks(item: MergeReviewItem, ws: WorkflowState): GateCheck[] {
       note: null,
     },
     {
-      label: 'Manual preview test completed',
+      label: ws.autoVerifyResult
+        ? 'Automated verification completed'
+        : 'Preview test completed',
       passed: ws.testResult === 'passed',
       blocking: false,
-      note: ws.testResult === 'failed' ? 'Your preview test failed. Consider requesting changes instead of approving.' : ws.testResult === null ? 'No test result was recorded in the previous step.' : null,
+      note: ws.testResult === 'failed'
+        ? 'Automated verification found issues. Consider requesting changes instead of approving.'
+        : ws.testResult === null
+        ? 'No verification result was recorded. Run the automated check or use the manual override.'
+        : null,
     },
   ];
 }
@@ -363,6 +333,64 @@ function StageReview({ item }: { item: MergeReviewItem }) {
   );
 }
 
+// ── Automated Verification Pipeline ──────────────────────────────────────────
+
+const CHECK_STATUS_ICON: Record<VerifyCheckStatus, string> = {
+  pass: '✓', fail: '✗', warn: '⚠', skip: '–',
+};
+const CHECK_STATUS_COLOR: Record<VerifyCheckStatus, string> = {
+  pass: 'text-emerald-400',
+  fail: 'text-red-400',
+  warn: 'text-amber-400',
+  skip: 'text-white/25',
+};
+const CHECK_STATUS_DETAIL_COLOR: Record<VerifyCheckStatus, string> = {
+  pass: 'text-white/45',
+  fail: 'text-red-400/70',
+  warn: 'text-amber-400/60',
+  skip: 'text-white/25',
+};
+
+const RECOMMENDATION_CONFIG = {
+  ready_to_deploy: {
+    bg:    'bg-emerald-500/[0.07]',
+    border:'border-emerald-500/[0.22]',
+    icon:  '✓',
+    color: 'text-emerald-400',
+    sub:   'text-emerald-400/70',
+  },
+  needs_manual_check: {
+    bg:    'bg-amber-500/[0.07]',
+    border:'border-amber-500/[0.20]',
+    icon:  '⚠',
+    color: 'text-amber-400',
+    sub:   'text-amber-400/70',
+  },
+  do_not_deploy: {
+    bg:    'bg-red-500/[0.07]',
+    border:'border-red-500/[0.22]',
+    icon:  '✗',
+    color: 'text-red-400',
+    sub:   'text-red-400/70',
+  },
+} as const;
+
+function VerifyCheckRow({ check, visible }: { check: VerifyCheck; visible: boolean }) {
+  return (
+    <div className={`flex items-start gap-2.5 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+      <span className={`shrink-0 w-3.5 text-center text-[12px] font-bold ${CHECK_STATUS_COLOR[check.status]}`}>
+        {CHECK_STATUS_ICON[check.status]}
+      </span>
+      <div className="min-w-0">
+        <span className="text-[13px] text-white/75">{check.label}</span>
+        <span className={`ml-2 text-[12px] ${CHECK_STATUS_DETAIL_COLOR[check.status]}`}>
+          — {check.detail}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function StageTesting({
   item,
   ws,
@@ -372,80 +400,197 @@ function StageTesting({
   ws: WorkflowState;
   setWs: (fn: (prev: WorkflowState) => WorkflowState) => void;
 }) {
-  const steps = PREVIEW_STEPS[item.systemArea] ?? [];
-  const checkKeys = ['openedPreview', 'testedWorkflow', 'noUIBreakage', 'noConsoleErrors'];
-  const checkLabels = [
-    item.previewUrl ? 'Opened the preview deployment' : 'Opened the GitHub PR and reviewed the diff',
-    'Tested the affected workflow (steps above)',
-    'Confirmed no visible UI breakage or layout issues',
-    'Confirmed no console errors or runtime exceptions',
-  ];
+  const [phase, setPhase] = useState<'running' | 'done' | 'error'>('running');
+  const [errMsg, setErrMsg]   = useState('');
+  const [visibleCount, setVisibleCount] = useState(0);
+  const hasStarted = useRef(false);
 
-  function toggleCheck(key: string) {
-    setWs(prev => ({
-      ...prev,
-      testChecks: { ...prev.testChecks, [key]: !prev.testChecks[key] },
-    }));
+  async function runVerification() {
+    setPhase('running');
+    setVisibleCount(0);
+    setErrMsg('');
+    setWs(prev => ({ ...prev, autoVerifyResult: null, testResult: null }));
+
+    try {
+      const res = await fetch('/api/bud/merge-review/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ item }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      const result = await res.json() as VerifyResult;
+
+      // Auto-set testResult based on recommendation
+      const testResult: 'passed' | 'failed' | null =
+        result.recommendation === 'ready_to_deploy'   ? 'passed'
+        : result.recommendation === 'do_not_deploy' ? 'failed'
+        : null;
+
+      setWs(prev => ({ ...prev, autoVerifyResult: result, testResult }));
+      setPhase('done');
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Verification failed');
+      setPhase('error');
+    }
   }
+
+  // Auto-start once on mount
+  useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+    void runVerification();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Animate check reveal after results arrive
+  useEffect(() => {
+    if (phase !== 'done' || !ws.autoVerifyResult) return;
+    setVisibleCount(0);
+    let i = 0;
+    const total = ws.autoVerifyResult.checks.length;
+    const timer = setInterval(() => {
+      i++;
+      setVisibleCount(i);
+      if (i >= total) clearInterval(timer);
+    }, 110);
+    return () => clearInterval(timer);
+  }, [phase, ws.autoVerifyResult]);
+
+  const result = ws.autoVerifyResult;
 
   return (
     <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-0.5">
+            Automated Verification Pipeline
+          </p>
+          <p className="text-[12px] text-white/40">
+            Bud is checking CI, preview deployment, build health, and Vercel logs.
+          </p>
+        </div>
+        {phase !== 'running' && (
+          <button
+            onClick={() => void runVerification()}
+            className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/40 hover:text-white/70"
+          >
+            Re-run
+          </button>
+        )}
+      </div>
+
+      {/* Running state */}
+      {phase === 'running' && (
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+            <p className="text-[12px] text-white/50">Running verification…</p>
+          </div>
+          <div className="space-y-2.5">
+            {['PR readiness', 'CI status', 'Build & type checks', 'Preview deployment', 'Deployment logs'].map((label, i) => (
+              <div key={i} className="flex items-center gap-2.5">
+                <span className="shrink-0 w-3.5 text-center text-[11px] text-white/20">–</span>
+                <span className="text-[12px] text-white/30">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {phase === 'error' && (
+        <div className="rounded-xl border border-red-500/[0.18] bg-red-500/[0.05] px-4 py-3">
+          <p className="text-[12px] font-semibold text-red-400">Verification failed: {errMsg}</p>
+          <p className="mt-1 text-[11px] text-red-400/60">
+            You can retry, or use the manual override below.
+          </p>
+        </div>
+      )}
+
+      {/* Results */}
+      {phase === 'done' && result && (
+        <div className="space-y-4">
+          {/* Check list */}
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 space-y-2.5">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-3">
+              {result.checks.filter(c => c.status === 'pass').length}/{result.checks.filter(c => c.status !== 'skip').length} checks passed
+              <span className="ml-2 font-normal text-white/20">({result.durationMs}ms)</span>
+            </p>
+            {result.checks.map((check, i) => (
+              <VerifyCheckRow key={check.id} check={check} visible={i < visibleCount} />
+            ))}
+          </div>
+
+          {/* Recommendation */}
+          {visibleCount >= result.checks.length && (() => {
+            const cfg = RECOMMENDATION_CONFIG[result.recommendation];
+            return (
+              <div className={`rounded-xl border px-4 py-3.5 ${cfg.bg} ${cfg.border}`}>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/30 mb-1">
+                  Bud's recommendation
+                </p>
+                <p className={`text-[16px] font-bold leading-tight ${cfg.color}`}>
+                  {cfg.icon} {result.recommendationLabel}
+                </p>
+                <p className={`mt-0.5 text-[12px] leading-snug ${cfg.sub}`}>
+                  {result.recommendationDetail}
+                </p>
+                {result.recommendation === 'needs_manual_check' && (
+                  <p className="mt-2 text-[11px] text-white/40">
+                    Bud found warnings but no hard blockers. Confirm the flagged items look acceptable before continuing.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Manual override — secondary action */}
+          {visibleCount >= result.checks.length && result.recommendation === 'needs_manual_check' && (
+            <div className="border-t border-white/[0.06] pt-4">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20 mb-2">
+                Manual override
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWs(prev => ({ ...prev, testResult: 'passed' }))}
+                  className={`flex-1 rounded-xl border py-2 text-[12px] font-medium transition ${
+                    ws.testResult === 'passed'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                      : 'border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white/55'
+                  }`}
+                >
+                  I checked — looks fine
+                </button>
+                <button
+                  onClick={() => setWs(prev => ({ ...prev, testResult: 'failed' }))}
+                  className={`flex-1 rounded-xl border py-2 text-[12px] font-medium transition ${
+                    ws.testResult === 'failed'
+                      ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                      : 'border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white/55'
+                  }`}
+                >
+                  I checked — has issues
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notes field — always visible for context */}
       <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">
-          What to test — {AREA_LABELS[item.systemArea] ?? item.systemArea}
+        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-1.5">
+          Notes (optional)
         </p>
-        <ol className="space-y-2">
-          {steps.map((step, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-[13px] text-white/60">
-              <span className="shrink-0 tabular-nums text-[11px] text-white/25">{i + 1}.</span>
-              {step}
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">Checklist</p>
-        <div className="space-y-1.5">
-          {checkKeys.map((key, i) => (
-            <CheckRow
-              key={key}
-              label={checkLabels[i]}
-              checked={!!ws.testChecks[key]}
-              onChange={() => toggleCheck(key)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">Test result</p>
-        <div className="flex gap-2">
-          {(['passed', 'failed'] as const).map(result => (
-            <button
-              key={result}
-              onClick={() => setWs(prev => ({ ...prev, testResult: result }))}
-              className={`flex-1 rounded-xl border py-2.5 text-[12px] font-semibold transition ${
-                ws.testResult === result
-                  ? result === 'passed'
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                    : 'border-red-500/30 bg-red-500/10 text-red-400'
-                  : 'border-white/[0.08] bg-white/[0.02] text-white/35 hover:text-white/60'
-              }`}
-            >
-              {result === 'passed' ? '✓ Test passed' : '✗ Test failed'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-1.5">Notes (optional)</p>
         <textarea
           value={ws.testNotes}
           onChange={e => setWs(prev => ({ ...prev, testNotes: e.target.value }))}
-          placeholder="Any issues found, things to flag, or context to record…"
-          rows={3}
+          placeholder="Any issues found or context to record…"
+          rows={2}
           className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[13px] text-white placeholder-white/20 outline-none focus:border-white/20 resize-none"
         />
       </div>
@@ -791,7 +936,7 @@ export function MergeDecisionWorkflow({
 }) {
   const [stage, setStage] = useState<Stage>('review');
   const [ws, setWs] = useState<WorkflowState>({
-    testChecks: {},
+    autoVerifyResult: null,
     testResult: null,
     testNotes: '',
     decision: null,
