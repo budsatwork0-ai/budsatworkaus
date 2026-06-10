@@ -340,6 +340,10 @@ export async function getPRDetails(prNumber: number): Promise<{
   mergeable: boolean | null;
   ciStatus: 'pending' | 'success' | 'failure' | 'unknown';
   isDraft: boolean;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  body: string | null;
 } | null> {
   if (!OWNER || !REPO) return null;
   const octokit = client();
@@ -367,6 +371,10 @@ export async function getPRDetails(prNumber: number): Promise<{
       mergeable: pr.mergeable ?? null,
       ciStatus,
       isDraft: pr.draft ?? false,
+      additions: pr.additions ?? 0,
+      deletions: pr.deletions ?? 0,
+      changedFiles: pr.changed_files ?? 0,
+      body: pr.body ?? null,
     };
   } catch {
     return null;
@@ -396,6 +404,54 @@ export async function getFileContent(
   } catch (err: unknown) {
     if ((err as { status?: number }).status === 404) return null;
     throw err;
+  }
+}
+
+/**
+ * List all open PRs in this repo, optionally filtered by branch prefix.
+ * Returns an empty array if GitHub is not configured or the call fails.
+ */
+export async function listAllOpenPRs(
+  branchPrefix?: string,
+  maxResults = 25,
+): Promise<Array<{
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  isDraft: boolean;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  author: string;
+}>> {
+  if (!OWNER || !REPO) return [];
+  const octokit = client();
+  try {
+    const res = await octokit.pulls.list({
+      owner: OWNER,
+      repo: REPO,
+      state: 'open',
+      per_page: maxResults,
+      sort: 'updated',
+      direction: 'desc',
+    });
+    const prs = branchPrefix
+      ? res.data.filter((pr) => pr.head.ref.startsWith(branchPrefix))
+      : res.data;
+    return prs.map((pr) => ({
+      number:    pr.number,
+      title:     pr.title,
+      url:       pr.html_url,
+      branch:    pr.head.ref,
+      isDraft:   pr.draft ?? false,
+      labels:    pr.labels.map((l) => l.name),
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
+      author:    pr.user?.login ?? 'unknown',
+    }));
+  } catch {
+    return [];
   }
 }
 

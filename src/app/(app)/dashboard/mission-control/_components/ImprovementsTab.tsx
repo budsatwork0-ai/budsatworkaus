@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ImprovementItem, ImprovementsResponse } from '@/app/api/bud/improvements/route';
 import { HelpTip } from './HelpTip';
+import { AgentMergeReviewSection } from './AgentMergeReviewSection';
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -359,23 +360,28 @@ export function ImprovementsTab() {
     });
   }
 
-  if (loading) return <p className="text-sm text-white/40">Loading improvements…</p>;
-  if (error)   return <p className="text-sm text-red-400">Error: {error}</p>;
-  if (!data)   return null;
+  // Derive improvement backlog UI state (guards scoped to the backlog section only)
+  const totals = data?.totals;
+  const visible = !data ? [] : filter === 'all' ? data.items : data.items.filter(i => i.status === filter);
 
-  const { totals } = data;
-  const visible = filter === 'all' ? data.items : data.items.filter(i => i.status === filter);
-
-  const filterButtons: { key: StatusFilter; label: string; count: number }[] = [
+  const filterButtons: { key: StatusFilter; label: string; count: number }[] = totals ? [
     { key: 'open',        label: 'Open',        count: totals.open },
     { key: 'in_progress', label: 'In progress',  count: totals.in_progress },
     { key: 'completed',   label: 'Completed',    count: totals.completed },
     { key: 'dismissed',   label: 'Dismissed',    count: totals.dismissed },
-    { key: 'all',         label: 'All',          count: data.items.length },
-  ];
+    { key: 'all',         label: 'All',          count: data!.items.length },
+  ] : [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
+      {/* ── Agent Merge Review Cockpit ───────────────────────────────────── */}
+      <AgentMergeReviewSection />
+
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/[0.06]" />
+
+      {/* ── Improvement Backlog ─────────────────────────────────────────── */}
+      <div className="space-y-5">
       {/* Section label */}
       <div className="flex items-center gap-2.5 pt-1">
         <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">Reports</span>
@@ -393,59 +399,68 @@ export function ImprovementsTab() {
         </p>
       </div>
 
-      {/* Totals strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: 'Need attention',   count: totals.open,        style: 'text-amber-400',   tip: 'Things nobody has started working on yet.' },
-          { label: 'Being worked on',  count: totals.in_progress, style: 'text-sky-400',     tip: 'Improvements someone is actively fixing right now.' },
-          { label: 'Done',             count: totals.completed,   style: 'text-emerald-400', tip: 'Finished and verified. Nothing more to do.' },
-          { label: 'Skipped',          count: totals.dismissed,   style: 'text-white/35',    tip: 'Decided not to do these right now. Hidden from the main list.' },
-        ].map(({ label, count, style, tip }) => (
-          <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-            <p className="flex items-center text-[10px] font-semibold uppercase tracking-wider text-white/35">
-              {label}<HelpTip text={tip} />
-            </p>
-            <p className={`mt-0.5 text-2xl font-semibold tabular-nums ${style}`}>{count}</p>
+      {/* Loading / error state for backlog only */}
+      {loading && <p className="text-sm text-white/40">Loading improvements…</p>}
+      {error   && <p className="text-sm text-red-400">Error: {error}</p>}
+
+      {totals && (
+        <>
+          {/* Totals strip */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Need attention',   count: totals.open,        style: 'text-amber-400',   tip: 'Things nobody has started working on yet.' },
+              { label: 'Being worked on',  count: totals.in_progress, style: 'text-sky-400',     tip: 'Improvements someone is actively fixing right now.' },
+              { label: 'Done',             count: totals.completed,   style: 'text-emerald-400', tip: 'Finished and verified. Nothing more to do.' },
+              { label: 'Skipped',          count: totals.dismissed,   style: 'text-white/35',    tip: 'Decided not to do these right now. Hidden from the main list.' },
+            ].map(({ label, count, style, tip }) => (
+              <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+                <p className="flex items-center text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                  {label}<HelpTip text={tip} />
+                </p>
+                <p className={`mt-0.5 text-2xl font-semibold tabular-nums ${style}`}>{count}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Filter + add */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-lg border border-white/[0.07] bg-white/[0.03] p-0.5">
-          {filterButtons.map(({ key, label, count }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                filter === key
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/40 hover:text-white/70'
-              }`}
-            >
-              {label}{count > 0 && <span className="ml-1 text-white/30">{count}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto">
-          <AddImprovementForm onAdded={() => void load()} />
-        </div>
-      </div>
+          {/* Filter + add */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 rounded-lg border border-white/[0.07] bg-white/[0.03] p-0.5">
+              {filterButtons.map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
+                    filter === key
+                      ? 'bg-white/10 text-white'
+                      : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  {label}{count > 0 && <span className="ml-1 text-white/30">{count}</span>}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto">
+              <AddImprovementForm onAdded={() => void load()} />
+            </div>
+          </div>
 
-      {/* Items */}
-      {visible.length === 0 ? (
-        <p className="text-sm text-white/35">No improvements in this filter.</p>
-      ) : (
-        <div className="space-y-3">
-          {visible.map(item => (
-            <ImprovementCard
-              key={item.id}
-              item={item}
-              onStatusChange={handleStatusChange}
-            />
-          ))}
-        </div>
+          {/* Items */}
+          {visible.length === 0 ? (
+            <p className="text-sm text-white/35">No improvements in this filter.</p>
+          ) : (
+            <div className="space-y-3">
+              {visible.map(item => (
+                <ImprovementCard
+                  key={item.id}
+                  item={item}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
+      </div>{/* end improvement backlog */}
     </div>
   );
 }
