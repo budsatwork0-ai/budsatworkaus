@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MergeReviewItem, MergeReviewResponse } from '@/app/api/bud/merge-review/route';
 import type { ExplainResponse } from '@/app/api/bud/merge-review/explain/route';
 import { HelpTip } from './HelpTip';
+import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -832,7 +833,6 @@ export function AgentMergeReviewSection() {
   ];
 
   const visible = filter === 'all' ? data.items : data.items.filter(i => i.recommendation === filter);
-  const duplicateCount = duplicateMap.size;
 
   return (
     <div className="space-y-5">
@@ -840,23 +840,15 @@ export function AgentMergeReviewSection() {
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
         <p className="text-[13px] text-white/55">
-          Open code changes waiting to go live on your platform. Each has been reviewed for{' '}
-          <strong className="text-white/70">risk</strong>,{' '}
-          <strong className="text-white/70">what it does</strong>, and{' '}
-          <strong className="text-white/70">exactly what to do next</strong>.
-          Click <em className="text-white/60">Details + Next Steps</em> on any card for the full procedure, checklist, and action buttons.
+          Open code changes waiting to go live. The{' '}
+          <strong className="text-white/70">Priority Engine</strong> below tells you exactly which PR to review first and why.
+          Expand any card for the full checklist, verification steps, and action buttons.
         </p>
       </div>
 
-      {duplicateCount > 0 && (
-        <div className="rounded-xl border border-amber-500/[0.15] bg-amber-500/[0.03] px-4 py-3">
-          <p className="text-[12px] text-amber-400/80">
-            <strong>{duplicateCount} PR{duplicateCount > 1 ? 's' : ''}</strong> may overlap with another PR in the same area —
-            highlighted below as <span className="font-semibold">Possible duplicate</span>.
-            Review the oldest one first and archive any duplicates.
-          </p>
-        </div>
-      )}
+      <ReviewPrioritisationEngine items={data.items} duplicateMap={duplicateMap} />
+
+      <div className="border-t border-white/[0.06]" />
 
       <SummaryStrip summary={data.summary} />
 
