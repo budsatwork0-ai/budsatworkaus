@@ -40,6 +40,7 @@ const alertsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const leadsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z" /></svg>;
 const marketingIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 11-5.8-1.6" /></svg>;
 const reportsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+const insightsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 20 9 4 6 12 2 12" /></svg>;
 const quoteFunnelIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></svg>;
 const jobsIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>;
 const pipelinesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="14" rx="1" /><rect x="15" y="3" width="6" height="9" rx="1" /></svg>;
@@ -152,7 +153,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/messages',   label: 'Messages',   icon: messagesIcon },
       { href: '/dashboard/feedback',   label: 'Feedback',   icon: feedbackIcon },
     ] },
+    // Insights = live operational BI cockpit (revenue, pipeline, crew, marketing, visitors).
+    // Growth HQ = strategic planning (content, opportunities, campaigns). Not the same thing.
     { id: 'analytics', label: 'Analytics', adminOnly: true, items: [
+      { href: '/dashboard/insights',               label: 'Insights',      icon: insightsIcon },
       { href: '/dashboard/analytics/quote-funnel', label: 'Quote Funnel',  icon: quoteFunnelIcon },
       { href: '/dashboard/reports',                label: 'Reports',       icon: reportsIcon },
       { href: '/dashboard/executive',              label: 'Executive HQ',  icon: executiveIcon },
