@@ -9,7 +9,7 @@ import type { AccuracyResponse } from '@/app/api/bud/merge-review/accuracy/route
 import { HelpTip } from './HelpTip';
 import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
 import { MergeDecisionWorkflow, AuditTrailPanel } from './MergeDecisionWorkflow';
-import { computeMergeGate, MergeGatePanel, type MergeGateVerdict } from './FinalMergeGate';
+import { computeMergeGate, MergeGatePanel, type MergeGateDecision, type MergeGateVerdict } from './FinalMergeGate';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -1882,6 +1882,217 @@ function QuickOutcomeForm({ prNumber, onDone }: { prNumber: number; onDone: () =
 
 type FilterKey = 'all' | 'approve' | 'needs_manual_review' | 'reject' | 'hold';
 
+// ── SmokeTestPanel (admin-only production integration test) ───────────────────
+
+type SmokePhase = 'idle' | 'evidence' | 'analyze' | 'done' | 'error';
+
+interface SmokeResult {
+  pr: MergeReviewItem;
+  evidenceOk: boolean;
+  evidencePack: EvidencePack | null;
+  evidenceError: string | null;
+  analyzeOk: boolean;
+  report: AgentReviewerReport | null;
+  analyzeError: string | null;
+  gate: MergeGateDecision | null;
+  completedAt: string;
+}
+
+function SmokeStep({
+  label, ok, error, detail,
+}: {
+  label: string;
+  ok: boolean | null;
+  error?: string | null;
+  detail?: string;
+}) {
+  const dot  = ok === null ? 'bg-white/20' : ok ? 'bg-emerald-400' : 'bg-red-400';
+  const tick = ok === null ? '—' : ok ? '✓' : '✗';
+  return (
+    <div className="flex items-start gap-2">
+      <span className={`mt-[3px] inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+      <div>
+        <span className="font-mono text-[11px] text-white/50">{tick} {label}</span>
+        {detail && <p className="text-[11px] text-white/30">{detail}</p>}
+        {error  && <p className="text-[11px] text-red-400/70">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function SmokeTestPanel({ items }: { items: MergeReviewItem[] }) {
+  const [phase,  setPhase]  = useState<SmokePhase>('idle');
+  const [result, setResult] = useState<SmokeResult | null>(null);
+
+  // Prefer first non-draft PR as the test target
+  const target = items.find(i => !i.isDraft) ?? items[0] ?? null;
+
+  async function run() {
+    if (!target || phase === 'evidence' || phase === 'analyze') return;
+    setPhase('evidence');
+    setResult(null);
+
+    const partial: SmokeResult = {
+      pr: target,
+      evidenceOk:    false,
+      evidencePack:  null,
+      evidenceError: null,
+      analyzeOk:     false,
+      report:        null,
+      analyzeError:  null,
+      gate:          null,
+      completedAt:   '',
+    };
+
+    // Step 1 — /evidence
+    let evidencePack: EvidencePack | null = null;
+    try {
+      const res = await fetch('/api/bud/merge-review/evidence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: target, allItems: items }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      evidencePack          = await res.json() as EvidencePack;
+      partial.evidenceOk   = true;
+      partial.evidencePack = evidencePack;
+    } catch (e) {
+      partial.evidenceError = e instanceof Error ? e.message : String(e);
+    }
+
+    // Step 2 — /analyze (LLM)
+    setPhase('analyze');
+    let report: AgentReviewerReport | null = null;
+    try {
+      const res = await fetch('/api/bud/merge-review/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: target, evidence: evidencePack }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      report             = await res.json() as AgentReviewerReport;
+      partial.analyzeOk = true;
+      partial.report    = report;
+    } catch (e) {
+      partial.analyzeError = e instanceof Error ? e.message : String(e);
+    }
+
+    // Step 3 — merge gate (pure client-side computation, no API call)
+    if (report) {
+      partial.gate = computeMergeGate({
+        item: target,
+        report,
+        evidence: evidencePack ?? undefined,
+      });
+    }
+
+    // Step 4 — /predictions intentionally skipped to avoid polluting accuracy data
+
+    partial.completedAt = new Date().toISOString();
+    setResult(partial);
+    setPhase(partial.evidenceError && partial.analyzeError ? 'error' : 'done');
+  }
+
+  const running = phase === 'evidence' || phase === 'analyze';
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-4 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/25">
+            Production smoke test
+          </p>
+          <p className="mt-0.5 text-[12px] text-white/35">
+            Calls /evidence → /analyze → computes merge gate on a real PR. Nothing is approved, merged, or saved.
+          </p>
+        </div>
+        <button
+          onClick={() => void run()}
+          disabled={running || !target}
+          className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/55 transition hover:border-white/20 hover:text-white/80 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {running
+            ? phase === 'evidence' ? 'Fetching evidence…' : 'Running analyzer…'
+            : result ? 'Re-run' : 'Run production smoke test'}
+        </button>
+      </div>
+
+      {result && (
+        <div className="space-y-3 border-t border-white/[0.05] pt-3">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block h-2 w-2 rounded-full ${
+              result.evidenceOk && result.analyzeOk ? 'bg-emerald-400'
+              : result.evidenceOk || result.analyzeOk ? 'bg-amber-400'
+              : 'bg-red-400'
+            }`} />
+            <p className="text-[12px] font-semibold text-white/60">
+              PR #{result.pr.prNumber} — {result.pr.plainTitle}
+            </p>
+            <span className="ml-auto font-mono text-[10px] text-white/25">
+              {new Date(result.completedAt).toLocaleTimeString()}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            <SmokeStep
+              label="/evidence"
+              ok={result.evidenceOk}
+              error={result.evidenceError}
+              detail={result.evidencePack
+                ? `${result.evidencePack.filesChanged.totalCount} files · confidence ${result.evidencePack.confidence.level} (${result.evidencePack.confidence.score}/100) · penalty −${result.evidencePack.confidence.scorePenalty}`
+                : undefined}
+            />
+            <SmokeStep
+              label="/analyze (LLM)"
+              ok={result.analyzeOk}
+              error={result.analyzeError}
+              detail={result.report
+                ? `Score ${result.report.recommendationQualityScore}/100 · cap ${result.report.safetyGuardrails.capApplied ? 'applied' : 'not applied'} · heightened caution ${result.report.safetyGuardrails.heightenedCautionActive ? 'YES' : 'no'}`
+                : undefined}
+            />
+            <SmokeStep
+              label="merge gate (computed)"
+              ok={!!result.gate}
+              detail={result.gate
+                ? `${result.gate.verdictLabel} · composite ${result.gate.compositeScore}/100 · ${result.gate.blockingIssues.length} blocker${result.gate.blockingIssues.length !== 1 ? 's' : ''}`
+                : 'skipped — /analyze did not return a report'}
+            />
+            <SmokeStep
+              label="/predictions"
+              ok={null}
+              detail="Skipped — smoke tests excluded from reviewer accuracy tracking"
+            />
+          </div>
+
+          {result.report && (
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-3">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/25">
+                Executive summary
+              </p>
+              <p className="text-[12px] leading-relaxed text-white/50">
+                {result.report.executiveSummary}
+              </p>
+            </div>
+          )}
+
+          {result.gate && (
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-3 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/25">
+                Final merge gate
+              </p>
+              <p className={`text-[13px] font-semibold ${GATE_VERDICT_STYLE[result.gate.verdict]}`}>
+                {result.gate.verdictLabel}
+              </p>
+              <p className="text-[12px] text-white/40">{result.gate.verdictSubtext}</p>
+              <p className="text-[11px] text-white/30">Next: {result.gate.nextAction}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AgentMergeReviewSection() {
   const [data, setData] = useState<MergeReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2053,6 +2264,7 @@ export function AgentMergeReviewSection() {
       <div className="border-t border-white/[0.05] pt-4 space-y-4">
         <AuditTrailPanel />
         <ReviewerAccuracyPanel />
+        <SmokeTestPanel items={data.items} />
       </div>
 
       {activeWorkflowPR && (
