@@ -239,7 +239,7 @@ function deriveRecommendation(
   }
   // low risk, CI passed, not draft
   if (ciStatus === 'success' && (area === 'agent_quality' || area === 'monitoring')) {
-    return { recommendation: 'approve', label: 'Recommended for auto-merge', confidence: 88 };
+    return { recommendation: 'approve', label: 'Safe to merge — low risk', confidence: 88 };
   }
   return { recommendation: 'approve', label: 'Safe to merge', confidence: 80 };
 }

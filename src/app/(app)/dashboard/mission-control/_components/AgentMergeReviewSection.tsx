@@ -9,7 +9,7 @@ import type { AccuracyResponse } from '@/app/api/bud/merge-review/accuracy/route
 import { HelpTip } from './HelpTip';
 import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
 import { MergeDecisionWorkflow, AuditTrailPanel } from './MergeDecisionWorkflow';
-import { computeMergeGate, MergeGatePanel } from './FinalMergeGate';
+import { computeMergeGate, MergeGatePanel, type MergeGateVerdict } from './FinalMergeGate';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,14 @@ const SYSTEM_AREA_STYLES: Record<MergeReviewItem['systemArea'], string> = {
   dashboard_ui:        'bg-sky-500/10     text-sky-400    border-sky-500/20',
   infrastructure:      'bg-white/5        text-white/50   border-white/10',
   customer_experience: 'bg-pink-500/10    text-pink-400   border-pink-500/20',
+};
+
+const GATE_VERDICT_STYLE: Record<MergeGateVerdict, string> = {
+  ready_to_merge:          'text-emerald-400',
+  ready_after_manual_test: 'text-sky-400',
+  needs_changes:           'text-amber-400',
+  hold_due_to_risk:        'text-orange-400',
+  do_not_merge:            'text-red-400',
 };
 
 const CI_STYLES: Record<MergeReviewItem['ciStatus'], string> = {
@@ -569,6 +577,104 @@ function ExplainPanel({ item }: { item: MergeReviewItem }) {
   );
 }
 
+// ── SafetyGuardrailsPanel ─────────────────────────────────────────────────────
+
+function SafetyGuardrailsPanel({ guardrails }: { guardrails: AgentReviewerReport['safetyGuardrails'] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!guardrails) return null;
+
+  const { finalScore, originalScore, adjustments, highRiskFlags, auditSummary, heightenedCautionActive, heightenedCautionArea, requiresHumanDecision } = guardrails;
+
+  const hasFlags = highRiskFlags.length > 0;
+  const hasAdjustments = adjustments.length > 0;
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+      <button
+        onClick={() => setExpanded(x => !x)}
+        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.03]"
+      >
+        <div className="flex items-center gap-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Safety Guardrails</p>
+          {requiresHumanDecision && (
+            <span className="inline-flex items-center rounded border border-sky-500/20 bg-sky-500/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-sky-400">
+              Human decision required
+            </span>
+          )}
+          {heightenedCautionActive && (
+            <span className="inline-flex items-center rounded border border-orange-500/20 bg-orange-500/[0.08] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-orange-400">
+              Heightened caution
+            </span>
+          )}
+          <span className="text-[11px] text-white/30 tabular-nums">{originalScore} → {finalScore}</span>
+        </div>
+        <span className="text-[11px] text-white/30">{expanded ? 'Hide' : 'Show'}</span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-4">
+
+          {/* Audit summary */}
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+            <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/25">Score audit</p>
+            <p className="text-[12px] leading-snug text-white/55">{auditSummary}</p>
+          </div>
+
+          {/* Heightened caution */}
+          {heightenedCautionActive && (
+            <div className="rounded-lg border border-orange-500/[0.18] bg-orange-500/[0.04] px-3 py-2.5">
+              <p className="text-[12px] font-semibold text-orange-400">
+                ⚠ Heightened caution active for {heightenedCautionArea ?? 'this area'}
+              </p>
+              <p className="mt-0.5 text-[11px] leading-snug text-orange-400/70">
+                This area has had repeated wrong predictions. Extra manual scrutiny is required before approving.
+              </p>
+            </div>
+          )}
+
+          {/* Score adjustments */}
+          {hasAdjustments && (
+            <div>
+              <p className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-white/25">Score adjustments</p>
+              <div className="space-y-1.5">
+                {adjustments.map((adj, i) => (
+                  <div key={i} className="flex items-start gap-2.5 text-[12px]">
+                    <span className={`shrink-0 font-semibold tabular-nums ${adj.amount < 0 ? 'text-red-400/80' : 'text-emerald-400/80'}`}>
+                      {adj.amount > 0 ? '+' : ''}{adj.amount}
+                    </span>
+                    <span className="leading-snug text-white/50">{adj.reason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* High-risk flags */}
+          {hasFlags && (
+            <div>
+              <p className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-white/25">High-risk area checks</p>
+              <div className="space-y-1.5">
+                {highRiskFlags.map((flag, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className={`shrink-0 text-[11px] font-bold ${flag.satisfied ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {flag.satisfied ? '✓' : '⚠'}
+                    </span>
+                    <span className={`text-[12px] leading-snug ${flag.satisfied ? 'text-white/45' : 'text-white/70'}`}>
+                      {flag.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── AgentReviewerPanel ────────────────────────────────────────────────────────
 
 const SCORE_COLOR = (score: number) =>
@@ -1056,6 +1162,9 @@ function AgentReviewerPanel({
       {/* Evidence Pack — always shown so the user can see what the score is based on */}
       {evidence && <EvidencePackDisplay pack={evidence} />}
 
+      {/* Safety Guardrails */}
+      <SafetyGuardrailsPanel guardrails={report.safetyGuardrails} />
+
       {/* Executive Summary */}
       <div>
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Executive Summary</p>
@@ -1292,13 +1401,13 @@ function ReviewCard({ item, duplicateOf, allItems, onStartReview }: { item: Merg
   function toggleTested() {
     const next = !tested;
     setTested(next);
-    localStorage.setItem(`bud-mr-tested-${item.prNumber}`, next ? '1' : '0');
+    try { localStorage.setItem(`bud-mr-tested-${item.prNumber}`, next ? '1' : '0'); } catch { /* storage unavailable */ }
   }
 
   function toggleArchived() {
     const next = !archived;
     setArchived(next);
-    localStorage.setItem(`bud-mr-archived-${item.prNumber}`, next ? '1' : '0');
+    try { localStorage.setItem(`bud-mr-archived-${item.prNumber}`, next ? '1' : '0'); } catch { /* storage unavailable */ }
   }
 
   const rel = (() => {
@@ -1353,11 +1462,45 @@ function ReviewCard({ item, duplicateOf, allItems, onStartReview }: { item: Merg
       </div>
       <p className="mt-0.5 font-mono text-[12px] text-white/35">{item.branch}</p>
 
-      {/* Recommendation */}
-      <div className={`mt-3 inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-medium ${RECOMMENDATION_STYLES[item.recommendation]}`}>
-        {item.recommendationLabel}
-        <HelpTip text={`Confidence: ${item.confidence}%`} />
-      </div>
+      {/* Recommendation — initial estimate before reviewer runs, reviewer verdict after */}
+      {latestReport ? (() => {
+        const reviewerApproves = latestReport.approvalExplanation.toLowerCase().startsWith('approve');
+        const initialIsApprove = item.recommendation === 'approve';
+        const hasConflict = initialIsApprove !== reviewerApproves;
+        const gate = computeMergeGate({ item, report: latestReport, evidence: latestEvidence, manuallyTested: tested });
+        return (
+          <div className="mt-3 space-y-1.5">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-white/25">Approval recommendation</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-sm font-bold tabular-nums ${SCORE_COLOR(latestReport.recommendationQualityScore)}`}>
+                {latestReport.recommendationQualityScore}
+              </span>
+              <span className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-medium ${reviewerApproves ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                {reviewerApproves ? 'Approve' : 'Do not approve'}
+              </span>
+              {latestEvidence && (
+                <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${EVIDENCE_CONFIDENCE_STYLE[latestEvidence.confidence.level]}`}>
+                  {latestEvidence.confidence.level} evidence
+                </span>
+              )}
+              <span className={`text-[11px] font-medium ${GATE_VERDICT_STYLE[gate.verdict]}`}>
+                {gate.verdictLabel}
+              </span>
+            </div>
+            {hasConflict && (
+              <p className="text-[11px] text-amber-400/80">⚠ Reviewer verdict overrides initial recommendation</p>
+            )}
+          </div>
+        );
+      })() : (
+        <div className="mt-3">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/25 mb-1">Initial estimate</p>
+          <div className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-medium ${RECOMMENDATION_STYLES[item.recommendation]}`}>
+            {item.recommendationLabel}
+            <HelpTip text={`Confidence: ${item.confidence}%`} />
+          </div>
+        </div>
+      )}
 
       {/* CI checks */}
       <div className="mt-3">
@@ -1830,7 +1973,7 @@ export function AgentMergeReviewSection() {
   const filterButtons: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: 'all',                 label: 'All',             count: data.items.length },
     { key: 'approve',             label: 'Safe to approve', count: data.summary.safeToApprove },
-    { key: 'needs_manual_review', label: 'Needs review',    count: data.summary.needsManualReview },
+    { key: 'needs_manual_review', label: 'Needs review',    count: data.items.filter(i => i.recommendation === 'needs_manual_review').length },
     { key: 'reject',              label: 'Failing CI',      count: data.summary.shouldNotPush },
   ];
 
@@ -1843,8 +1986,9 @@ export function AgentMergeReviewSection() {
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
         <p className="text-[13px] text-white/55">
           Open code changes waiting to go live. The{' '}
-          <strong className="text-white/70">Priority Engine</strong> below tells you exactly which PR to review first and why.
-          Expand any card for the full checklist, verification steps, and action buttons.
+          <strong className="text-white/70">Priority Engine</strong> below controls{' '}
+          <strong className="text-white/60">review priority</strong> — which PR to look at first and why.
+          To get an <strong className="text-white/60">approval recommendation</strong>, expand any card and run the Agent Reviewer.
         </p>
       </div>
 

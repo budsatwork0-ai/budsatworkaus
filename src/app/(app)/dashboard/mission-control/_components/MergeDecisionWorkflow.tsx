@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MergeReviewItem } from '@/app/api/bud/merge-review/route';
 import type { AgentReviewerReport } from '@/app/api/bud/merge-review/analyze/route';
 import type { EvidencePack } from '@/app/api/bud/merge-review/evidence/route';
@@ -31,8 +31,12 @@ export function loadAuditEntries(): AuditEntry[] {
 }
 
 function persistAuditEntry(entry: AuditEntry): void {
-  const existing = loadAuditEntries();
-  localStorage.setItem(AUDIT_KEY, JSON.stringify([entry, ...existing].slice(0, 200)));
+  try {
+    const existing = loadAuditEntries();
+    localStorage.setItem(AUDIT_KEY, JSON.stringify([entry, ...existing].slice(0, 200)));
+  } catch {
+    // localStorage unavailable (blocked, full, or SSR) — entry not persisted
+  }
 }
 
 // ── Types & constants ─────────────────────────────────────────────────────────
@@ -697,7 +701,7 @@ function StageComplete({
         {([
           ['Decision',          <span key="d" className={`text-[13px] font-semibold ${DECISION_STYLE[entry.decision]}`}>{DECISION_LABELS[entry.decision]}</span>],
           ['Test result',       <span key="t" className="text-[13px] text-white/65">{entry.testResult === 'passed' ? '✓ Passed' : entry.testResult === 'failed' ? '✗ Failed' : 'Skipped'}</span>],
-          ['Verification',      <span key="v" className="text-[13px] text-white/65">{entry.postMergeResult === 'passed' ? '✓ Production verified' : entry.postMergeResult === 'failed' ? '✗ Issue found' : 'Pending'}</span>],
+          ['Verification',      <span key="v" className="text-[13px] text-white/65">{entry.decision !== 'approve' ? 'N/A — not merged' : entry.postMergeResult === 'passed' ? '✓ Production verified' : entry.postMergeResult === 'failed' ? '✗ Issue found' : 'Pending'}</span>],
           ['Reviewer',          <span key="r" className="text-[13px] text-white/65">{entry.reviewer}</span>],
           ['Date',              <span key="date" className="text-[13px] text-white/65">{formattedDate}</span>],
           ...(entry.notes ? [['Notes', <span key="n" className="text-[13px] text-white/55 italic">"{entry.notes}"</span>]] : []),
@@ -925,7 +929,7 @@ export function AuditTrailPanel() {
   const [expanded, setExpanded] = useState(false);
 
   // Load after mount to avoid SSR mismatch
-  useState(() => { setEntries(loadAuditEntries()); });
+  useEffect(() => { setEntries(loadAuditEntries()); }, []);
 
   if (!expanded) {
     return (
