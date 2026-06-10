@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MergeReviewItem, MergeReviewResponse } from '@/app/api/bud/merge-review/route';
 import type { ExplainResponse } from '@/app/api/bud/merge-review/explain/route';
+import type { AgentReviewerReport } from '@/app/api/bud/merge-review/analyze/route';
+import type { EvidencePack } from '@/app/api/bud/merge-review/evidence/route';
+import type { AccuracyResponse } from '@/app/api/bud/merge-review/accuracy/route';
 import { HelpTip } from './HelpTip';
 import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
 import { MergeDecisionWorkflow, AuditTrailPanel } from './MergeDecisionWorkflow';
+import { computeMergeGate, MergeGatePanel } from './FinalMergeGate';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -479,8 +483,8 @@ function NextStepPanel({
           />
         </div>
         <p className="mt-2 text-[10px] text-white/20">
-          "Request changes" and "Approve for production" copy a pre-written note — paste into GitHub.
-          "Convert to improvement" copies a Bud Factory prompt to paste into Claude Code.
+          &ldquo;Request changes&rdquo; and &ldquo;Approve for production&rdquo; copy a pre-written note — paste into GitHub.
+          &ldquo;Convert to improvement&rdquo; copies a Bud Factory prompt to paste into Claude Code.
         </p>
       </div>
     </div>
@@ -565,12 +569,719 @@ function ExplainPanel({ item }: { item: MergeReviewItem }) {
   );
 }
 
+// ── AgentReviewerPanel ────────────────────────────────────────────────────────
+
+const SCORE_COLOR = (score: number) =>
+  score >= 80 ? 'text-emerald-400' :
+  score >= 60 ? 'text-amber-400' :
+  score >= 40 ? 'text-orange-400' :
+  'text-red-400';
+
+const SCORE_BAR_COLOR = (score: number) =>
+  score >= 80 ? 'bg-emerald-500' :
+  score >= 60 ? 'bg-amber-500' :
+  score >= 40 ? 'bg-orange-500' :
+  'bg-red-500';
+
+const CONFIDENCE_BADGE: Record<AgentReviewerReport['confidenceAssessment']['level'], string> = {
+  high:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  medium: 'bg-amber-500/10   text-amber-400   border-amber-500/20',
+  low:    'bg-red-500/10     text-red-400     border-red-500/20',
+};
+
+const EVIDENCE_CONFIDENCE_STYLE: Record<EvidencePack['confidence']['level'], string> = {
+  strong:      'border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-400',
+  partial:     'border-amber-500/20   bg-amber-500/[0.06]   text-amber-400',
+  weak:        'border-orange-500/20  bg-orange-500/[0.06]  text-orange-400',
+  insufficient:'border-red-500/20     bg-red-500/[0.06]     text-red-400',
+};
+
+function ScoreBar({ label, score }: { label: string; score: number }) {
+  return (
+    <div>
+      <div className="mb-0.5 flex justify-between">
+        <span className="text-[11px] text-white/40">{label}</span>
+        <span className={`text-[11px] font-semibold tabular-nums ${SCORE_COLOR(score)}`}>{score}</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-white/[0.06]">
+        <div
+          className={`h-1 rounded-full transition-all ${SCORE_BAR_COLOR(score)}`}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── EvidencePackDisplay ───────────────────────────────────────────────────────
+
+function EvidencePackDisplay({ pack }: { pack: EvidencePack }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setExpanded(x => !x)}
+        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.03]"
+      >
+        <div className="flex items-center gap-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Evidence Pack</p>
+          <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${EVIDENCE_CONFIDENCE_STYLE[pack.confidence.level]}`}>
+            {pack.confidence.level === 'strong' ? 'Strong evidence' :
+             pack.confidence.level === 'partial' ? 'Partial evidence' :
+             pack.confidence.level === 'weak' ? 'Weak evidence' :
+             'Insufficient evidence'}
+          </span>
+          {pack.confidence.scorePenalty > 0 && (
+            <span className="text-[11px] text-orange-400/70">−{pack.confidence.scorePenalty} score penalty</span>
+          )}
+        </div>
+        <span className="text-[11px] text-white/30">{expanded ? 'Hide' : 'Show'}</span>
+      </button>
+
+      {expanded && (
+        <div className="space-y-4 border-t border-white/[0.06] px-4 pb-4 pt-3">
+
+          {/* 1. Files changed */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Files Changed</p>
+            {pack.filesChanged.available ? (
+              <div className="space-y-2">
+                {pack.filesChanged.coreAreasTouched.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {pack.filesChanged.coreAreasTouched.map(area => (
+                      <span key={area} className="inline-flex items-center rounded border border-sky-500/20 bg-sky-500/[0.06] px-1.5 py-px text-[10px] text-sky-400">
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {pack.filesChanged.highRiskFiles.length > 0 && (
+                  <div className="rounded-lg border border-red-500/[0.15] bg-red-500/[0.04] px-3 py-2 space-y-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400/70">High-risk files</p>
+                    {pack.filesChanged.highRiskFiles.map(f => (
+                      <div key={f.filename}>
+                        <span className="font-mono text-[11px] text-red-300/80">{f.filename}</span>
+                        <span className="ml-2 text-[11px] text-white/40">{f.riskReason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {pack.filesChanged.files.slice(0, 12).map(f => (
+                    <div key={f.filename} className="flex items-center gap-2 text-[11px]">
+                      <span className={`shrink-0 ${f.isHighRisk ? 'text-red-400/80' : 'text-white/25'}`}>
+                        {f.isHighRisk ? '⚠' : '·'}
+                      </span>
+                      <span className={`font-mono truncate ${f.isHighRisk ? 'text-red-300/70' : 'text-white/45'}`}>
+                        {f.filename}
+                      </span>
+                      <span className="ml-auto shrink-0 text-white/25">
+                        {f.additions > 0 && <span className="text-emerald-400/50">+{f.additions}</span>}
+                        {f.deletions > 0 && <span className="ml-1 text-red-400/50">-{f.deletions}</span>}
+                      </span>
+                    </div>
+                  ))}
+                  {pack.filesChanged.totalCount > 12 && (
+                    <p className="text-[11px] text-white/25">+{pack.filesChanged.totalCount - 12} more files</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[12px] text-white/35">
+                File list unavailable — GitHub not configured. Risk assessed from branch name and labels only.
+              </p>
+            )}
+          </div>
+
+          {/* 2. Test evidence */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Test Evidence</p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['CI',         pack.testEvidence.ciStatus],
+                ['Typecheck',  pack.testEvidence.typecheck],
+                ['Lint',       pack.testEvidence.lint],
+                ['Build',      pack.testEvidence.build],
+                ['Unit tests', pack.testEvidence.unitTests],
+                ...(pack.testEvidence.migrationSafe ? [['Migration', pack.testEvidence.migrationSafe]] : []),
+              ] as [string, string][]).map(([label, status]) => (
+                <div key={label} className="flex items-center gap-1.5 rounded-md border border-white/[0.07] bg-white/[0.03] px-2 py-1">
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    status === 'pass' || status === 'success' ? 'bg-emerald-400' :
+                    status === 'fail' || status === 'failure' ? 'bg-red-400' :
+                    'bg-white/20'
+                  }`} />
+                  <span className="text-[11px] text-white/50">{label}</span>
+                  <span className={`text-[11px] font-medium ${
+                    status === 'pass' || status === 'success' ? 'text-emerald-400' :
+                    status === 'fail' || status === 'failure' ? 'text-red-400' :
+                    'text-white/30'
+                  }`}>{status}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-white/30">
+              {pack.testEvidence.checksPassed}/{pack.testEvidence.checksTotal} checks passed
+            </p>
+          </div>
+
+          {/* 3. Code risk */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Code Risk</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {pack.codeRisk.filesCount !== null && (
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-center">
+                  <p className="text-lg font-semibold tabular-nums text-white/70">{pack.codeRisk.filesCount}</p>
+                  <p className="text-[10px] text-white/30">Files</p>
+                </div>
+              )}
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-center">
+                <p className="text-lg font-semibold tabular-nums text-emerald-400/80">+{pack.codeRisk.linesAdded}</p>
+                <p className="text-[10px] text-white/30">Added</p>
+              </div>
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-center">
+                <p className="text-lg font-semibold tabular-nums text-red-400/80">-{pack.codeRisk.linesRemoved}</p>
+                <p className="text-[10px] text-white/30">Removed</p>
+              </div>
+            </div>
+            {pack.codeRisk.highRiskAreasTouched.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {pack.codeRisk.highRiskAreasTouched.map(area => (
+                  <span key={area} className="inline-flex items-center rounded border border-orange-500/20 bg-orange-500/[0.06] px-1.5 py-px text-[10px] text-orange-400">
+                    {area}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/35">
+              {pack.codeRisk.hasMigration && <span className="text-red-400/70">Database migration</span>}
+              {pack.codeRisk.touchesAuth && <span>Auth layer</span>}
+              {pack.codeRisk.touchesPayments && <span className="text-red-400/70">Payments</span>}
+              {pack.codeRisk.touchesQuotes && <span className="text-amber-400/70">Quote funnel</span>}
+              {pack.codeRisk.touchesCustomerFlow && <span>Customer flow</span>}
+              {pack.codeRisk.touchesAgentSystem && <span>Agent system</span>}
+            </div>
+          </div>
+
+          {/* 4. Preview evidence */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Preview Evidence</p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-[12px]">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${pack.previewEvidence.previewUrlAvailable ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                <span className="text-white/50">Preview URL</span>
+                <span className={pack.previewEvidence.previewUrlAvailable ? 'text-emerald-400' : 'text-white/30'}>
+                  {pack.previewEvidence.previewUrlAvailable ? 'Available' : 'Not available'}
+                </span>
+                {pack.previewEvidence.previewUrl && (
+                  <a href={pack.previewEvidence.previewUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-sky-400 hover:underline">
+                    Open ↗
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[12px]">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${pack.previewEvidence.manuallyTested ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                <span className="text-white/50">Manual test</span>
+                <span className={pack.previewEvidence.manuallyTested ? 'text-emerald-400' : 'text-white/30'}>
+                  {pack.previewEvidence.manuallyTested ? 'Completed' : 'Not yet tested'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Historical evidence */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Historical Evidence</p>
+            <p className="text-[12px] leading-snug text-white/50">{pack.historicalEvidence.historicalRiskNote}</p>
+            {pack.historicalEvidence.duplicatePRs.length > 0 && (
+              <p className="mt-1.5 text-[12px] text-amber-400/80">
+                Possible duplicate of PR{pack.historicalEvidence.duplicatePRs.length > 1 ? 's' : ''}{' '}
+                {pack.historicalEvidence.duplicatePRs.map(n => `#${n}`).join(', ')}
+              </p>
+            )}
+            {pack.historicalEvidence.relatedPRsInArea.length > 0 && (
+              <div className="mt-1.5 space-y-0.5">
+                <p className="text-[11px] text-white/30">Related PRs in same area:</p>
+                {pack.historicalEvidence.relatedPRsInArea.map(p => (
+                  <p key={p.prNumber} className="text-[12px] text-white/45">
+                    <span className="font-mono text-white/30">#{p.prNumber}</span> {p.plainTitle}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 6. Evidence confidence */}
+          <div className={`rounded-lg border px-3 py-2.5 ${EVIDENCE_CONFIDENCE_STYLE[pack.confidence.level]}`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Evidence confidence</p>
+              <span className="text-[11px] font-semibold tabular-nums">{pack.confidence.score}/100</span>
+            </div>
+            {pack.confidence.missing.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Missing</p>
+                {pack.confidence.missing.map(m => (
+                  <p key={m} className="text-[11px] leading-snug opacity-80">· {m}</p>
+                ))}
+              </div>
+            )}
+            {pack.confidence.present.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">Present</p>
+                {pack.confidence.present.map(p => (
+                  <p key={p} className="text-[11px] leading-snug text-white/45">✓ {p}</p>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentReviewerPanel({
+  item,
+  duplicateOf,
+  allItems,
+  tested,
+  onReportLoaded,
+}: {
+  item: MergeReviewItem;
+  duplicateOf: number[];
+  allItems: MergeReviewItem[];
+  tested: boolean;
+  onReportLoaded?: (report: AgentReviewerReport, evidence: EvidencePack | null) => void;
+}) {
+  const [phase, setPhase] = useState<'idle' | 'evidence' | 'analysis' | 'done' | 'error'>('idle');
+  const [evidence, setEvidence] = useState<EvidencePack | null>(null);
+  const [report, setReport] = useState<AgentReviewerReport | null>(null);
+  const [errMsg, setErrMsg] = useState('');
+  const [predictionSaved, setPredictionSaved] = useState(false);
+  const [showOutcomeForm, setShowOutcomeForm] = useState(false);
+  const [outcomeSubmitting, setOutcomeSubmitting] = useState(false);
+  const [outcomeResult, setOutcomeResult] = useState<{
+    verdict: string; accuracyScore: number;
+    learningNotes: { whatGotRight: string; whatMissed: string; calibrationNote: string };
+  } | null>(null);
+  // Outcome form state
+  const [productionHealthy, setProductionHealthy] = useState<boolean | null>(null);
+  const [errorsIncreased, setErrorsIncreased] = useState<boolean | null>(null);
+  const [workflowAffected, setWorkflowAffected] = useState<boolean | null>(null);
+  const [rollbackNeeded, setRollbackNeeded] = useState<boolean | null>(null);
+  const [improvementHappened, setImprovementHappened] = useState<boolean | null>(null);
+  const [outcomeNotes, setOutcomeNotes] = useState('');
+
+  function resetAll() {
+    setPhase('idle'); setEvidence(null); setReport(null); setErrMsg('');
+    setPredictionSaved(false); setShowOutcomeForm(false); setOutcomeResult(null);
+    setProductionHealthy(null); setErrorsIncreased(null); setWorkflowAffected(null);
+    setRollbackNeeded(null); setImprovementHappened(null); setOutcomeNotes('');
+  }
+
+  async function load() {
+    setPhase('evidence');
+    try {
+      // Phase 1: build evidence pack
+      const evRes = await fetch('/api/bud/merge-review/evidence', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ item, allItems, duplicateOf, manuallyTested: tested }),
+      });
+      if (!evRes.ok) {
+        const d = await evRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? `Evidence HTTP ${evRes.status}`);
+      }
+      const pack = await evRes.json() as EvidencePack;
+      setEvidence(pack);
+
+      // Phase 2: AI analysis with evidence
+      setPhase('analysis');
+      const arRes = await fetch('/api/bud/merge-review/analyze', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ item, evidence: pack }),
+      });
+      if (!arRes.ok) {
+        const d = await arRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? `Analysis HTTP ${arRes.status}`);
+      }
+      const finalReport = await arRes.json() as AgentReviewerReport;
+      setReport(finalReport);
+      setPhase('done');
+      onReportLoaded?.(finalReport, pack);
+
+      // Phase 3: save prediction (fire-and-forget — does not block the UI)
+      fetch('/api/bud/merge-review/predictions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ item, report: finalReport, evidence: pack }),
+      }).then((r) => { if (r.ok) setPredictionSaved(true); }).catch(() => {/* silent */});
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Failed');
+      setPhase('error');
+    }
+  }
+
+  async function submitOutcome() {
+    setOutcomeSubmitting(true);
+    try {
+      const res = await fetch(`/api/bud/merge-review/predictions/${item.prNumber}/outcome`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          productionHealthy, errorsIncreased, workflowAffected,
+          rollbackNeeded, improvementHappened, outcomeNotes,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as typeof outcomeResult;
+      setOutcomeResult(data);
+      setShowOutcomeForm(false);
+    } catch {
+      // show nothing — outcome submit is best-effort
+    } finally {
+      setOutcomeSubmitting(false);
+    }
+  }
+
+  if (phase === 'idle') {
+    return (
+      <button
+        onClick={() => void load()}
+        className="rounded-md border border-teal-400/20 bg-teal-500/[0.06] px-3 py-1.5 text-[11px] font-medium text-teal-400 hover:bg-teal-500/[0.12]"
+      >
+        Run Agent Reviewer — full business audit
+      </button>
+    );
+  }
+
+  if (phase === 'evidence') {
+    return (
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <p className="text-[12px] text-white/40">Collecting evidence — fetching file list and checks…</p>
+      </div>
+    );
+  }
+
+  if (phase === 'analysis') {
+    return (
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+        {evidence && <EvidencePackDisplay pack={evidence} />}
+        <p className="text-[12px] text-white/40">Generating business audit… ~10 seconds.</p>
+      </div>
+    );
+  }
+
+  if (phase === 'error') {
+    return (
+      <p className="text-[12px] text-red-400">
+        Agent Reviewer failed: {errMsg}.{' '}
+        <button onClick={resetAll} className="underline hover:text-red-300">Retry</button>
+      </p>
+    );
+  }
+
+  if (!report) return null;
+
+  const isApprove = report.approvalExplanation.toLowerCase().startsWith('approve');
+
+  const VERDICT_STYLE: Record<string, string> = {
+    correct:           'text-emerald-400',
+    partially_correct: 'text-amber-400',
+    wrong:             'text-red-400',
+    unknown:           'text-white/40',
+  };
+
+  return (
+    <div className="space-y-4">
+      <MergeGatePanel
+        decision={computeMergeGate({ item, report, evidence, manuallyTested: tested })}
+        githubUrl={item.githubUrl}
+      />
+      <div className="rounded-xl border border-teal-500/[0.15] bg-teal-500/[0.03] p-4 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-400/70">Agent Reviewer — Business Audit</p>
+          {predictionSaved && (
+            <span className="inline-flex items-center rounded border border-teal-500/20 bg-teal-500/[0.08] px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-teal-400/70">
+              Prediction recorded
+            </span>
+          )}
+        </div>
+        <button onClick={resetAll} className="text-[10px] text-white/25 hover:text-white/50">Dismiss</button>
+      </div>
+
+      {/* Recommendation Quality Score */}
+      <div className="flex items-center gap-4 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+        <div className="text-center">
+          <p className={`text-3xl font-bold tabular-nums ${SCORE_COLOR(report.recommendationQualityScore)}`}>
+            {report.recommendationQualityScore}
+          </p>
+          <p className="text-[10px] text-white/30">/ 100</p>
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">Recommendation Quality</p>
+          <div className="mt-1.5 h-2 w-full rounded-full bg-white/[0.06]">
+            <div
+              className={`h-2 rounded-full transition-all ${SCORE_BAR_COLOR(report.recommendationQualityScore)}`}
+              style={{ width: `${report.recommendationQualityScore}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-white/35">
+            {report.recommendationQualityScore >= 90 ? 'Approve immediately' :
+             report.recommendationQualityScore >= 70 ? 'Approve after minor checks' :
+             report.recommendationQualityScore >= 50 ? 'Hold and investigate' :
+             report.recommendationQualityScore >= 30 ? 'Request changes' :
+             'Reject'}
+          </p>
+          {evidence && evidence.confidence.scorePenalty > 0 && (
+            <p className="mt-0.5 text-[10px] text-orange-400/60">
+              Includes −{evidence.confidence.scorePenalty} penalty for {evidence.confidence.level} evidence
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Approval Explanation */}
+      <div className={`rounded-lg border px-3 py-2.5 ${isApprove ? 'border-emerald-500/20 bg-emerald-500/[0.05]' : 'border-red-500/20 bg-red-500/[0.05]'}`}>
+        <p className={`text-[13px] font-medium leading-relaxed ${isApprove ? 'text-emerald-300/90' : 'text-red-300/90'}`}>
+          {report.approvalExplanation}
+        </p>
+      </div>
+
+      {/* Evidence Pack — always shown so the user can see what the score is based on */}
+      {evidence && <EvidencePackDisplay pack={evidence} />}
+
+      {/* Executive Summary */}
+      <div>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Executive Summary</p>
+        <p className="text-[13px] leading-relaxed text-white/70">{report.executiveSummary}</p>
+      </div>
+
+      {/* Before vs After */}
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Before vs After</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/25">Before</p>
+            <p className="text-[12px] leading-snug text-white/55">{report.beforeAfter.before}</p>
+          </div>
+          <div className="rounded-lg border border-teal-500/[0.12] bg-teal-500/[0.03] px-3 py-2">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-teal-400/60">After</p>
+            <p className="text-[12px] leading-snug text-white/65">{report.beforeAfter.after}</p>
+          </div>
+        </div>
+        <p className="mt-2 text-[12px] leading-snug text-white/45">{report.beforeAfter.whyItMatters}</p>
+      </div>
+
+      {/* Business Impact */}
+      <div>
+        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Business Impact</p>
+        <div className="space-y-2.5">
+          <ScoreBar label="Revenue impact" score={report.businessImpact.revenue} />
+          <ScoreBar label="Customer impact" score={report.businessImpact.customer} />
+          <ScoreBar label="Operational impact" score={report.businessImpact.operational} />
+          <ScoreBar label="Agent quality impact" score={report.businessImpact.agentQuality} />
+          <ScoreBar label="Reliability impact" score={report.businessImpact.reliability} />
+        </div>
+        <p className="mt-2 text-[12px] text-white/45">{report.businessImpact.summary}</p>
+      </div>
+
+      {/* Hidden Risks */}
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Hidden Risks</p>
+        <div className="space-y-2">
+          {([
+            ['Potential regressions',   report.hiddenRisks.regressions],
+            ['Unintended side effects', report.hiddenRisks.sideEffects],
+            ['Test coverage gaps',      report.hiddenRisks.testCoverage],
+            ['Dependency risks',        report.hiddenRisks.dependencyRisks],
+            ['Database risks',          report.hiddenRisks.databaseRisks],
+          ] as [string, string][]).map(([label, text]) => (
+            <div key={label} className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-white/20" />
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-white/25">{label}: </span>
+                <span className="text-[12px] leading-snug text-white/55">{text}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Confidence Assessment */}
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Confidence Assessment</p>
+        <div className="flex items-start gap-3">
+          <span className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${CONFIDENCE_BADGE[report.confidenceAssessment.level]}`}>
+            {report.confidenceAssessment.level} — {report.confidenceAssessment.score}%
+          </span>
+          <div>
+            <p className="text-[12px] leading-snug text-white/60">{report.confidenceAssessment.reason}</p>
+            <p className="mt-0.5 text-[12px] leading-snug text-white/40">{report.confidenceAssessment.evidence}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Simulated Outcome */}
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Simulated Outcome</p>
+        <div className="space-y-1.5">
+          {([
+            ['Best case',  report.simulatedOutcome.bestCase,     'text-emerald-400/70'],
+            ['Expected',   report.simulatedOutcome.expectedCase, 'text-white/40'],
+            ['Worst case', report.simulatedOutcome.worstCase,    'text-red-400/70'],
+          ] as [string, string, string][]).map(([label, text, labelStyle]) => (
+            <div key={label} className="flex items-start gap-2 text-[12px]">
+              <span className={`shrink-0 font-semibold ${labelStyle}`}>{label}:</span>
+              <span className="leading-snug text-white/55">{text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Calibration applied note */}
+      {evidence?.calibration.applied && (
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/25">Calibration active</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-white/40">
+            Score adjusted by {evidence.calibration.scoreAdjustment > 0 ? '+' : ''}{evidence.calibration.scoreAdjustment} pts,
+            evidence penalty ×{evidence.calibration.penaltyMultiplier} based on past outcomes for{' '}
+            {item.systemArea.replace(/_/g, ' ')} PRs.
+            {evidence.calibration.accuracyRate !== null && (
+              <> Historical accuracy: {evidence.calibration.accuracyRate}%.</>
+            )}
+          </p>
+          {evidence.calibration.note && (
+            <p className="mt-1 text-[11px] leading-snug text-white/30">{evidence.calibration.note}</p>
+          )}
+        </div>
+      )}
+
+      {/* Outcome result — shown after submitting */}
+      {outcomeResult && (
+        <div className={`rounded-lg border px-3 py-3 space-y-2 ${
+          outcomeResult.verdict === 'correct' ? 'border-emerald-500/20 bg-emerald-500/[0.04]' :
+          outcomeResult.verdict === 'wrong'   ? 'border-red-500/20     bg-red-500/[0.04]'     :
+                                                'border-amber-500/20   bg-amber-500/[0.04]'
+        }`}>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">Outcome recorded</p>
+            <span className={`text-[11px] font-semibold ${VERDICT_STYLE[outcomeResult.verdict] ?? 'text-white/40'}`}>
+              {outcomeResult.verdict.replace(/_/g, ' ')} — {outcomeResult.accuracyScore}/100
+            </span>
+          </div>
+          {outcomeResult.learningNotes.whatGotRight && (
+            <p className="text-[12px] leading-snug text-white/55">
+              <span className="font-medium text-emerald-400/70">Got right: </span>
+              {outcomeResult.learningNotes.whatGotRight}
+            </p>
+          )}
+          {outcomeResult.learningNotes.whatMissed && outcomeResult.learningNotes.whatMissed !== 'Nothing significant.' && (
+            <p className="text-[12px] leading-snug text-white/55">
+              <span className="font-medium text-amber-400/70">Missed: </span>
+              {outcomeResult.learningNotes.whatMissed}
+            </p>
+          )}
+          {outcomeResult.learningNotes.calibrationNote && (
+            <p className="text-[12px] leading-snug text-white/40 italic">{outcomeResult.learningNotes.calibrationNote}</p>
+          )}
+        </div>
+      )}
+
+      {/* Outcome form — record what actually happened after merge */}
+      {!outcomeResult && predictionSaved && (
+        <div className="border-t border-white/[0.06] pt-4">
+          {!showOutcomeForm ? (
+            <button
+              onClick={() => setShowOutcomeForm(true)}
+              className="rounded-md border border-white/[0.10] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-white/50 hover:bg-white/[0.07] hover:text-white/70"
+            >
+              Record actual outcome after merge →
+            </button>
+          ) : (
+            <div className="space-y-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Post-merge reality check</p>
+              <p className="text-[12px] text-white/45">Answer after the PR has been merged and deployed. This trains the reviewer to be more accurate.</p>
+
+              {([
+                ['Production stayed healthy?', productionHealthy, setProductionHealthy],
+                ['Errors increased after deploy?', errorsIncreased, setErrorsIncreased],
+                ['Affected workflow still works?', workflowAffected === null ? null : !workflowAffected, (v: boolean | null) => setWorkflowAffected(v === null ? null : !v)],
+                ['Expected improvement happened?', improvementHappened, setImprovementHappened],
+                ['Rollback was needed?', rollbackNeeded, setRollbackNeeded],
+              ] as [string, boolean | null, (v: boolean | null) => void][]).map(([label, value, setter]) => (
+                <div key={label} className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] text-white/55">{label}</span>
+                  <div className="flex gap-1">
+                    {([['Yes', true], ['No', false]] as [string, boolean][]).map(([btnLabel, btnVal]) => (
+                      <button
+                        key={btnLabel}
+                        onClick={() => setter(value === btnVal ? null : btnVal)}
+                        className={`rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
+                          value === btnVal
+                            ? 'bg-white/15 text-white'
+                            : 'border border-white/[0.08] text-white/35 hover:text-white/60'
+                        }`}
+                      >
+                        {btnLabel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div>
+                <p className="mb-1 text-[10px] text-white/30">Notes (optional)</p>
+                <textarea
+                  value={outcomeNotes}
+                  onChange={(e) => setOutcomeNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Any relevant details about what happened after merge…"
+                  className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[12px] text-white/70 placeholder-white/20 outline-none focus:border-white/20 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void submitOutcome()}
+                  disabled={outcomeSubmitting}
+                  className="rounded-md border border-teal-400/20 bg-teal-500/[0.08] px-3 py-1.5 text-[11px] font-medium text-teal-400 hover:bg-teal-500/[0.14] disabled:opacity-50"
+                >
+                  {outcomeSubmitting ? 'Saving…' : 'Save outcome & generate lesson'}
+                </button>
+                <button
+                  onClick={() => setShowOutcomeForm(false)}
+                  className="text-[11px] text-white/30 hover:text-white/55"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+    </div>
+  );
+}
+
 // ── ReviewCard ────────────────────────────────────────────────────────────────
 
-function ReviewCard({ item, duplicateOf, onStartReview }: { item: MergeReviewItem; duplicateOf: number[]; onStartReview: (item: MergeReviewItem) => void }) {
+function ReviewCard({ item, duplicateOf, allItems, onStartReview }: { item: MergeReviewItem; duplicateOf: number[]; allItems: MergeReviewItem[]; onStartReview: (item: MergeReviewItem, report?: AgentReviewerReport | null, evidence?: EvidencePack | null) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [tested, setTested] = useState(false);
   const [archived, setArchived] = useState(false);
+  const [latestReport, setLatestReport] = useState<AgentReviewerReport | null>(null);
+  const [latestEvidence, setLatestEvidence] = useState<EvidencePack | null>(null);
+
+  function handleStartReview(reviewItem: MergeReviewItem) {
+    onStartReview(reviewItem, latestReport, latestEvidence);
+  }
 
   // Hydrate from localStorage after mount to avoid SSR mismatch
   useEffect(() => {
@@ -699,10 +1410,18 @@ function ReviewCard({ item, duplicateOf, onStartReview }: { item: MergeReviewIte
             tested={tested}
             onToggleTested={toggleTested}
             onToggleArchived={toggleArchived}
-            onStartReview={onStartReview}
+            onStartReview={handleStartReview}
           />
 
           <ExplainPanel item={item} />
+
+          <AgentReviewerPanel
+            item={item}
+            duplicateOf={duplicateOf}
+            allItems={allItems}
+            tested={tested}
+            onReportLoaded={(r, e) => { setLatestReport(r); setLatestEvidence(e); }}
+          />
         </div>
       )}
     </div>
@@ -750,6 +1469,272 @@ function SectionHeader({ loading, onRefresh }: { loading?: boolean; onRefresh?: 
   );
 }
 
+// ── ReviewerAccuracyPanel ─────────────────────────────────────────────────────
+
+const VERDICT_CHIP: Record<string, string> = {
+  correct:           'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  partially_correct: 'bg-amber-500/10   text-amber-400   border-amber-500/20',
+  wrong:             'bg-red-500/10     text-red-400     border-red-500/20',
+  unknown:           'bg-white/5        text-white/40    border-white/10',
+};
+
+function ReviewerAccuracyPanel() {
+  const [data, setData] = useState<AccuracyResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [pendingOutcome, setPendingOutcome] = useState<number | null>(null);
+
+  async function load() {
+    if (data) { setExpanded(x => !x); return; }
+    setLoading(true);
+    setExpanded(true);
+    try {
+      const res = await fetch('/api/bud/merge-review/accuracy');
+      if (res.ok) setData(await res.json() as AccuracyResponse);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const s = data?.stats;
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+      {/* Header — always visible */}
+      <button
+        onClick={() => void load()}
+        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.03]"
+      >
+        <div className="flex items-center gap-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">Reviewer Accuracy</p>
+          {s && s.averageAccuracyScore !== null && (
+            <span className={`text-[11px] font-semibold tabular-nums ${SCORE_COLOR(s.averageAccuracyScore)}`}>
+              {s.averageAccuracyScore}/100
+            </span>
+          )}
+          {s && s.pendingOutcomeChecks > 0 && (
+            <span className="inline-flex items-center rounded border border-amber-500/25 bg-amber-500/[0.08] px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-amber-400">
+              {s.pendingOutcomeChecks} awaiting outcome
+            </span>
+          )}
+          {loading && <span className="text-[10px] text-white/30">Loading…</span>}
+        </div>
+        <span className="text-[11px] text-white/30">{expanded ? 'Hide' : 'Show'}</span>
+      </button>
+
+      {expanded && data && (
+        <div className="border-t border-white/[0.06] px-4 pb-5 pt-4 space-y-5">
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {([
+              { label: 'Predictions made',   value: s!.totalPredictions,      style: 'text-white/70' },
+              { label: 'Outcomes checked',    value: s!.outcomeChecked,         style: 'text-white/70' },
+              { label: 'Successful approvals', value: s!.successfulApprovals,  style: 'text-emerald-400' },
+              { label: 'Problematic approvals', value: s!.problematicApprovals, style: s!.problematicApprovals > 0 ? 'text-red-400' : 'text-white/40' },
+            ] as const).map(({ label, value, style }) => (
+              <div key={label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">{label}</p>
+                <p className={`mt-0.5 text-xl font-semibold tabular-nums ${style}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Accuracy breakdown */}
+          {s!.outcomeChecked > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Accuracy breakdown</p>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['Correct',            s!.correctCount,          'text-emerald-400'],
+                  ['Partially correct',  s!.partiallyCorrectCount, 'text-amber-400'],
+                  ['Wrong',              s!.wrongCount,            'text-red-400'],
+                  ['Unknown',            s!.unknownCount,          'text-white/35'],
+                ] as [string, number, string][]).filter(([,count]) => count > 0).map(([label, count, style]) => (
+                  <div key={label} className="flex items-center gap-1.5 rounded-md border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5">
+                    <span className={`text-lg font-bold tabular-nums ${style}`}>{count}</span>
+                    <span className="text-[11px] text-white/40">{label}</span>
+                  </div>
+                ))}
+              </div>
+              {s!.averageAccuracyScore !== null && (
+                <div className="mt-3">
+                  <div className="mb-1 flex justify-between">
+                    <span className="text-[11px] text-white/35">Average accuracy</span>
+                    <span className={`text-[11px] font-semibold tabular-nums ${SCORE_COLOR(s!.averageAccuracyScore)}`}>
+                      {s!.averageAccuracyScore}/100
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-1.5 rounded-full ${SCORE_BAR_COLOR(s!.averageAccuracyScore)}`}
+                      style={{ width: `${s!.averageAccuracyScore}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Calibration state */}
+          {data.calibration.some(c => c.total_predictions > 0) && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Calibration by area</p>
+              <div className="space-y-1.5">
+                {data.calibration.filter(c => c.total_predictions > 0).map(c => (
+                  <div key={c.system_area} className="flex items-center gap-3 text-[11px]">
+                    <span className="w-36 shrink-0 text-white/45">{c.system_area.replace(/_/g, ' ')}</span>
+                    <span className={c.score_adjustment > 0 ? 'text-emerald-400/80' : c.score_adjustment < 0 ? 'text-red-400/80' : 'text-white/30'}>
+                      {c.score_adjustment > 0 ? '+' : ''}{c.score_adjustment} pts
+                    </span>
+                    <span className={c.penalty_multiplier > 1 ? 'text-orange-400/70' : 'text-white/30'}>
+                      ×{c.penalty_multiplier} penalty
+                    </span>
+                    {c.accuracy_rate !== null && (
+                      <span className="ml-auto text-white/30">{c.accuracy_rate}% accurate ({c.total_predictions} predictions)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending outcome checks */}
+          {data.pendingChecks.length > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Awaiting outcome confirmation</p>
+              <div className="space-y-1.5">
+                {data.pendingChecks.map(p => (
+                  <div key={p.pr_number} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                    <span className="font-mono text-[11px] text-white/30">#{p.pr_number}</span>
+                    <span className="flex-1 text-[12px] text-white/55 truncate">{p.plain_title}</span>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${SCORE_COLOR(p.recommendation_score)}`}>
+                      {p.recommendation_score}
+                    </span>
+                    <button
+                      onClick={() => setPendingOutcome(pendingOutcome === p.pr_number ? null : p.pr_number)}
+                      className="shrink-0 rounded border border-white/[0.10] bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50 hover:text-white/70"
+                    >
+                      {pendingOutcome === p.pr_number ? 'Cancel' : 'Check outcome'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Inline quick-outcome form for pending items */}
+              {pendingOutcome !== null && (
+                <QuickOutcomeForm
+                  prNumber={pendingOutcome}
+                  onDone={() => { setPendingOutcome(null); setData(null); void load(); }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Recent lessons */}
+          {data.recentLessons.length > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Recent lessons learned</p>
+              <div className="space-y-3">
+                {data.recentLessons.map(lesson => (
+                  <div key={`${lesson.pr_number}-${lesson.checked_at}`} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-white/30">#{lesson.pr_number}</span>
+                      <span className="flex-1 truncate text-[12px] text-white/60">{lesson.plain_title}</span>
+                      <span className={`inline-flex items-center rounded border px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider ${VERDICT_CHIP[lesson.accuracy_verdict] ?? VERDICT_CHIP.unknown}`}>
+                        {lesson.accuracy_verdict.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {lesson.learning_notes.whatGotRight && (
+                      <p className="text-[11px] leading-snug text-white/50">
+                        <span className="text-emerald-400/60">✓ </span>{lesson.learning_notes.whatGotRight}
+                      </p>
+                    )}
+                    {lesson.learning_notes.whatMissed && lesson.learning_notes.whatMissed !== 'Nothing significant.' && (
+                      <p className="text-[11px] leading-snug text-white/50">
+                        <span className="text-amber-400/60">△ </span>{lesson.learning_notes.whatMissed}
+                      </p>
+                    )}
+                    {lesson.learning_notes.calibrationNote && (
+                      <p className="text-[11px] leading-snug text-white/35 italic">{lesson.learning_notes.calibrationNote}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {s!.totalPredictions === 0 && (
+            <p className="text-[12px] text-white/35">
+              No predictions recorded yet. Run the Agent Reviewer on a PR to start tracking accuracy.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── QuickOutcomeForm ──────────────────────────────────────────────────────────
+
+function QuickOutcomeForm({ prNumber, onDone }: { prNumber: number; onDone: () => void }) {
+  const [productionHealthy,   setProductionHealthy]   = useState<boolean | null>(null);
+  const [errorsIncreased,     setErrorsIncreased]     = useState<boolean | null>(null);
+  const [rollbackNeeded,      setRollbackNeeded]      = useState<boolean | null>(null);
+  const [improvementHappened, setImprovementHappened] = useState<boolean | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    setSubmitting(true);
+    try {
+      await fetch(`/api/bud/merge-review/predictions/${prNumber}/outcome`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ productionHealthy, errorsIncreased, rollbackNeeded, improvementHappened }),
+      });
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">Quick outcome check — PR #{prNumber}</p>
+      {([
+        ['Production stayed healthy?', productionHealthy,   setProductionHealthy],
+        ['Errors increased?',          errorsIncreased,     setErrorsIncreased],
+        ['Rollback was needed?',       rollbackNeeded,      setRollbackNeeded],
+        ['Improvement happened?',      improvementHappened, setImprovementHappened],
+      ] as [string, boolean | null, (v: boolean | null) => void][]).map(([label, value, setter]) => (
+        <div key={label} className="flex items-center justify-between">
+          <span className="text-[12px] text-white/50">{label}</span>
+          <div className="flex gap-1">
+            {([['Yes', true], ['No', false]] as [string, boolean][]).map(([btnLabel, btnVal]) => (
+              <button
+                key={String(btnLabel)}
+                onClick={() => setter(value === btnVal ? null : btnVal)}
+                className={`rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
+                  value === btnVal ? 'bg-white/15 text-white' : 'border border-white/[0.08] text-white/35 hover:text-white/60'
+                }`}
+              >
+                {String(btnLabel)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button
+        onClick={() => void submit()}
+        disabled={submitting}
+        className="rounded-md border border-teal-400/20 bg-teal-500/[0.08] px-3 py-1.5 text-[11px] font-medium text-teal-400 hover:bg-teal-500/[0.14] disabled:opacity-50"
+      >
+        {submitting ? 'Saving…' : 'Save & learn'}
+      </button>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 type FilterKey = 'all' | 'approve' | 'needs_manual_review' | 'reject' | 'hold';
@@ -760,6 +1745,20 @@ export function AgentMergeReviewSection() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [activeWorkflowPR, setActiveWorkflowPR] = useState<MergeReviewItem | null>(null);
+  const [activeWorkflowReport, setActiveWorkflowReport] = useState<AgentReviewerReport | null>(null);
+  const [activeWorkflowEvidence, setActiveWorkflowEvidence] = useState<EvidencePack | null>(null);
+
+  function openWorkflowModal(item: MergeReviewItem, report?: AgentReviewerReport | null, evidence?: EvidencePack | null) {
+    setActiveWorkflowPR(item);
+    setActiveWorkflowReport(report ?? null);
+    setActiveWorkflowEvidence(evidence ?? null);
+  }
+
+  function closeWorkflowModal() {
+    setActiveWorkflowPR(null);
+    setActiveWorkflowReport(null);
+    setActiveWorkflowEvidence(null);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -852,7 +1851,7 @@ export function AgentMergeReviewSection() {
       <ReviewPrioritisationEngine
         items={data.items}
         duplicateMap={duplicateMap}
-        onStartReview={setActiveWorkflowPR}
+        onStartReview={openWorkflowModal}
       />
 
       <div className="border-t border-white/[0.06]" />
@@ -900,20 +1899,25 @@ export function AgentMergeReviewSection() {
               key={item.prNumber}
               item={item}
               duplicateOf={duplicateMap.get(item.prNumber) ?? []}
-              onStartReview={setActiveWorkflowPR}
+              allItems={data.items}
+              onStartReview={openWorkflowModal}
             />
           ))}
         </div>
       )}
 
-      <div className="border-t border-white/[0.05] pt-4">
+      <div className="border-t border-white/[0.05] pt-4 space-y-4">
         <AuditTrailPanel />
+        <ReviewerAccuracyPanel />
       </div>
 
       {activeWorkflowPR && (
         <MergeDecisionWorkflow
           item={activeWorkflowPR}
-          onClose={() => setActiveWorkflowPR(null)}
+          report={activeWorkflowReport}
+          evidence={activeWorkflowEvidence}
+          isDuplicate={!!(duplicateMap.get(activeWorkflowPR.prNumber)?.length)}
+          onClose={closeWorkflowModal}
         />
       )}
     </div>

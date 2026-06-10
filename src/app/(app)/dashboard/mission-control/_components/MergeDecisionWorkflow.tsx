@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import type { MergeReviewItem } from '@/app/api/bud/merge-review/route';
+import type { AgentReviewerReport } from '@/app/api/bud/merge-review/analyze/route';
+import type { EvidencePack } from '@/app/api/bud/merge-review/evidence/route';
+import { computeMergeGate, MergeGateBanner } from './FinalMergeGate';
 
 // ── Audit trail ───────────────────────────────────────────────────────────────
 
@@ -771,9 +774,15 @@ function buildAuditEntry(item: MergeReviewItem, ws: WorkflowState): AuditEntry {
 
 export function MergeDecisionWorkflow({
   item,
+  report = null,
+  evidence = null,
+  isDuplicate = false,
   onClose,
 }: {
   item: MergeReviewItem;
+  report?: AgentReviewerReport | null;
+  evidence?: EvidencePack | null;
+  isDuplicate?: boolean;
   onClose: () => void;
 }) {
   const [stage, setStage] = useState<Stage>('review');
@@ -849,6 +858,23 @@ export function MergeDecisionWorkflow({
         <div className="shrink-0 border-b border-white/[0.05] px-5 py-3 overflow-x-auto">
           <ProgressBar current={stage} decision={ws.decision} />
         </div>
+
+        {/* Final merge gate banner — always visible */}
+        {stage !== 'complete' && (() => {
+          const gate = computeMergeGate({
+            item,
+            report,
+            evidence,
+            manuallyTested: ws.testResult === 'passed',
+            isDuplicate,
+            workflowTestResult: ws.testResult,
+          });
+          return (
+            <div className="shrink-0 border-b border-white/[0.05] px-5 py-3">
+              <MergeGateBanner decision={gate} />
+            </div>
+          );
+        })()}
 
         {/* Stage content */}
         <div className="flex-1 overflow-y-auto px-5 py-5">

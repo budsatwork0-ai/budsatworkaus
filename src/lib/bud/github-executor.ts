@@ -484,6 +484,40 @@ export async function searchIssues(
   }
 }
 
+export interface PRFileEntry {
+  filename: string;
+  status: 'added' | 'modified' | 'removed' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+  additions: number;
+  deletions: number;
+  changes: number;
+}
+
+/**
+ * List all files changed in a PR. Returns an empty array if GitHub is not configured
+ * or the call fails. Caps at 100 files (GitHub API limit per page).
+ */
+export async function getPRFiles(prNumber: number): Promise<PRFileEntry[]> {
+  if (!OWNER || !REPO) return [];
+  const octokit = client();
+  try {
+    const res = await octokit.pulls.listFiles({
+      owner: OWNER,
+      repo: REPO,
+      pull_number: prNumber,
+      per_page: 100,
+    });
+    return res.data.map((f) => ({
+      filename: f.filename,
+      status: f.status as PRFileEntry['status'],
+      additions: f.additions,
+      deletions: f.deletions,
+      changes: f.changes,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Write (create or update) a file on a branch.
  * Pass the SHA from `getFileContent` when updating; omit for new files.
