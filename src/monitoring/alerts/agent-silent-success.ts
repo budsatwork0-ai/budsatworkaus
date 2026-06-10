@@ -15,7 +15,7 @@ export interface AlertRule {
   description: string;
   /** How often the evaluator should check this rule (ms) */
   intervalMs: number;
-  evaluate: (ctx: AlertEvalContext) => AlertEvalResult;
+  evaluate: (ctx: AlertEvalContext) => AlertEvalResult | Promise<AlertEvalResult>;
 }
 
 export interface AlertEvalContext {
