@@ -5,6 +5,7 @@ import type { MergeReviewItem, MergeReviewResponse } from '@/app/api/bud/merge-r
 import type { ExplainResponse } from '@/app/api/bud/merge-review/explain/route';
 import { HelpTip } from './HelpTip';
 import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
+import { MergeDecisionWorkflow, AuditTrailPanel } from './MergeDecisionWorkflow';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -319,12 +320,14 @@ function NextStepPanel({
   tested,
   onToggleTested,
   onToggleArchived,
+  onStartReview,
 }: {
   item: MergeReviewItem;
   duplicateOf: number[];
   tested: boolean;
   onToggleTested: () => void;
   onToggleArchived: () => void;
+  onStartReview: (item: MergeReviewItem) => void;
 }) {
   const checklist = buildChecklist(item);
   const rollout = getRolloutPlan(item);
@@ -407,14 +410,12 @@ function NextStepPanel({
       <div className="border-t border-white/[0.06] pt-4">
         <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-white/25">Actions</p>
         <div className="flex flex-wrap gap-2">
-          <a
-            href={item.githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => onStartReview(item)}
             className="rounded-md border border-white/[0.12] bg-white/[0.05] px-3 py-1.5 text-[11px] font-medium text-white/70 hover:bg-white/[0.10] hover:text-white"
           >
-            Start review ↗
-          </a>
+            Start review →
+          </button>
 
           {item.previewUrl && (
             <a
@@ -566,7 +567,7 @@ function ExplainPanel({ item }: { item: MergeReviewItem }) {
 
 // ── ReviewCard ────────────────────────────────────────────────────────────────
 
-function ReviewCard({ item, duplicateOf }: { item: MergeReviewItem; duplicateOf: number[] }) {
+function ReviewCard({ item, duplicateOf, onStartReview }: { item: MergeReviewItem; duplicateOf: number[]; onStartReview: (item: MergeReviewItem) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [tested, setTested] = useState(false);
   const [archived, setArchived] = useState(false);
@@ -698,6 +699,7 @@ function ReviewCard({ item, duplicateOf }: { item: MergeReviewItem; duplicateOf:
             tested={tested}
             onToggleTested={toggleTested}
             onToggleArchived={toggleArchived}
+            onStartReview={onStartReview}
           />
 
           <ExplainPanel item={item} />
@@ -757,6 +759,7 @@ export function AgentMergeReviewSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [activeWorkflowPR, setActiveWorkflowPR] = useState<MergeReviewItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -846,7 +849,11 @@ export function AgentMergeReviewSection() {
         </p>
       </div>
 
-      <ReviewPrioritisationEngine items={data.items} duplicateMap={duplicateMap} />
+      <ReviewPrioritisationEngine
+        items={data.items}
+        duplicateMap={duplicateMap}
+        onStartReview={setActiveWorkflowPR}
+      />
 
       <div className="border-t border-white/[0.06]" />
 
@@ -893,9 +900,21 @@ export function AgentMergeReviewSection() {
               key={item.prNumber}
               item={item}
               duplicateOf={duplicateMap.get(item.prNumber) ?? []}
+              onStartReview={setActiveWorkflowPR}
             />
           ))}
         </div>
+      )}
+
+      <div className="border-t border-white/[0.05] pt-4">
+        <AuditTrailPanel />
+      </div>
+
+      {activeWorkflowPR && (
+        <MergeDecisionWorkflow
+          item={activeWorkflowPR}
+          onClose={() => setActiveWorkflowPR(null)}
+        />
       )}
     </div>
   );

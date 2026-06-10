@@ -235,7 +235,7 @@ function SectionLabel({ number, title, tip }: { number: string; title: string; t
 
 // ── Review Next card ──────────────────────────────────────────────────────────
 
-function ReviewNextCard({ s }: { s: ScoredItem }) {
+function ReviewNextCard({ s, onStartReview }: { s: ScoredItem; onStartReview: (item: ScoredItem['item']) => void }) {
   const pr = s.item;
 
   const reasons: string[] = [];
@@ -256,14 +256,12 @@ function ReviewNextCard({ s }: { s: ScoredItem }) {
           <h3 className="mt-0.5 text-[15px] font-semibold leading-snug text-white/95">{pr.plainTitle}</h3>
           <p className="mt-0.5 font-mono text-[11px] text-white/30">{pr.branch}</p>
         </div>
-        <a
-          href={pr.githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => onStartReview(pr)}
           className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-500/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-400 hover:bg-emerald-500/[0.20]"
         >
-          Start review ↗
-        </a>
+          Start review →
+        </button>
       </div>
 
       <div>
@@ -293,7 +291,7 @@ function ReviewNextCard({ s }: { s: ScoredItem }) {
 
 // ── Quick Win card ────────────────────────────────────────────────────────────
 
-function QuickWinCard({ s }: { s: ScoredItem }) {
+function QuickWinCard({ s, onStartReview }: { s: ScoredItem; onStartReview: (item: ScoredItem['item']) => void }) {
   const pr = s.item;
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3 space-y-2.5 transition hover:border-white/[0.12]">
@@ -302,14 +300,12 @@ function QuickWinCard({ s }: { s: ScoredItem }) {
           <span className="font-mono text-[10px] text-white/25">#{pr.prNumber}</span>
           <p className="text-[12px] font-semibold leading-snug text-white/85">{pr.plainTitle}</p>
         </div>
-        <a
-          href={pr.githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => onStartReview(pr)}
           className="shrink-0 rounded border border-white/[0.09] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/50 hover:text-white/80"
         >
-          Review ↗
-        </a>
+          Review →
+        </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <ScorePill label="Impact" value={s.businessImpact} color="bg-emerald-400" />
@@ -436,9 +432,11 @@ function ValueBuckets({ buckets }: { buckets: ValueBucket[] }) {
 export function ReviewPrioritisationEngine({
   items,
   duplicateMap,
+  onStartReview,
 }: {
   items: MergeReviewItem[];
   duplicateMap: Map<number, number[]>;
+  onStartReview: (item: MergeReviewItem) => void;
 }) {
   if (items.length === 0) return null;
 
@@ -473,7 +471,7 @@ export function ReviewPrioritisationEngine({
             title="Review next"
             tip="The single highest-priority PR based on business impact, safety, CI status, and how long it has been waiting."
           />
-          <ReviewNextCard s={report.reviewNext} />
+          <ReviewNextCard s={report.reviewNext} onStartReview={onStartReview} />
         </div>
       )}
 
@@ -486,7 +484,7 @@ export function ReviewPrioritisationEngine({
             tip="Low-risk, high-value PRs with passing CI. These can likely be approved and merged soon."
           />
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {report.quickWins.map(s => <QuickWinCard key={s.item.prNumber} s={s} />)}
+            {report.quickWins.map(s => <QuickWinCard key={s.item.prNumber} s={s} onStartReview={onStartReview} />)}
           </div>
         </div>
       )}
