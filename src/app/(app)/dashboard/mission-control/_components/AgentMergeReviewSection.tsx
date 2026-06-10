@@ -10,6 +10,7 @@ import { HelpTip } from './HelpTip';
 import { ReviewPrioritisationEngine } from './ReviewPrioritisationEngine';
 import { MergeDecisionWorkflow, AuditTrailPanel } from './MergeDecisionWorkflow';
 import { computeMergeGate, MergeGatePanel, type MergeGateDecision, type MergeGateVerdict } from './FinalMergeGate';
+import { ImprovementOpportunityCard, groupIntoOpportunities, type ImprovementOpportunity } from './ImprovementOpportunityCard';
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 
@@ -1593,13 +1594,47 @@ function SummaryStrip({ summary }: { summary: MergeReviewResponse['summary'] }) 
   );
 }
 
+// ── OpportunityStrip (operator-facing counts — no GitHub/PR language) ─────────
+
+function OpportunityStrip({
+  opportunities,
+  deferredCount,
+}: {
+  opportunities: ImprovementOpportunity[];
+  deferredCount: number;
+}) {
+  const ready     = opportunities.filter(o => o.readiness.status === 'ready').length;
+  const needsTest = opportunities.filter(o => o.readiness.status === 'needs_test').length;
+  const blocked   = opportunities.filter(o => o.readiness.status === 'blocked').length;
+
+  const stats: Array<{ label: string; count: number; style: string; tip: string }> = [
+    { label: 'Ready to deploy',    count: ready,        style: 'text-emerald-400', tip: 'Improvements with all checks passing — safe to go live now.' },
+    { label: 'Test first',         count: needsTest,    style: 'text-sky-400',     tip: 'Improvements that need a quick manual check before going live.' },
+    { label: 'Blocked',            count: blocked,      style: 'text-red-400',     tip: 'Improvements that cannot be deployed until an underlying issue is resolved.' },
+    { label: 'Deferred',           count: deferredCount, style: 'text-white/35',   tip: 'Improvements you have chosen to snooze or skip for now.' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {stats.map(({ label, count, style, tip }) => (
+        <div key={label} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+          <p className="flex items-center text-[10px] font-semibold uppercase tracking-wider text-white/35">
+            {label}<HelpTip text={tip} />
+          </p>
+          <p className={`mt-0.5 text-2xl font-semibold tabular-nums ${style}`}>{count}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── SectionHeader ─────────────────────────────────────────────────────────────
 
 function SectionHeader({ loading, onRefresh }: { loading?: boolean; onRefresh?: () => void }) {
   return (
     <div className="flex items-center justify-between pt-1">
       <div className="flex items-center gap-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">Agent Merge Review</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/25">Pending Improvements</span>
         <span className="inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-sky-400">
           Read-only
         </span>
@@ -1880,8 +1915,6 @@ function QuickOutcomeForm({ prNumber, onDone }: { prNumber: number; onDone: () =
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-type FilterKey = 'all' | 'approve' | 'needs_manual_review' | 'reject' | 'hold';
-
 // ── SmokeTestPanel (admin-only production integration test) ───────────────────
 
 type SmokePhase = 'idle' | 'evidence' | 'analyze' | 'done' | 'error';
@@ -2097,7 +2130,9 @@ export function AgentMergeReviewSection() {
   const [data, setData] = useState<MergeReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const [showPriorityDetails, setShowPriorityDetails] = useState(false);
+  const [showDeferred, setShowDeferred]               = useState(false);
+  const [snoozedMap, setSnoozedMap]                   = useState<Map<string, Date | 'skip'>>(new Map());
   const [activeWorkflowPR, setActiveWorkflowPR] = useState<MergeReviewItem | null>(null);
   const [activeWorkflowReport, setActiveWorkflowReport] = useState<AgentReviewerReport | null>(null);
   const [activeWorkflowEvidence, setActiveWorkflowEvidence] = useState<EvidencePack | null>(null);
@@ -2112,6 +2147,48 @@ export function AgentMergeReviewSection() {
     setActiveWorkflowPR(null);
     setActiveWorkflowReport(null);
     setActiveWorkflowEvidence(null);
+  }
+
+  // Hydrate snooze state from localStorage (client-only)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('bud-improvements-snoozed');
+      if (!raw) return;
+      const entries = JSON.parse(raw) as Array<[string, string]>;
+      const now = Date.now();
+      const valid: Array<[string, Date | 'skip']> = entries
+        .filter(([, v]) => v === 'skip' || new Date(v).getTime() > now)
+        .map(([k, v]) => [k, v === 'skip' ? 'skip' : new Date(v)]);
+      setSnoozedMap(new Map(valid));
+    } catch { /* storage unavailable */ }
+  }, []);
+
+  function handleSnooze(id: string, until: Date | 'skip') {
+    setSnoozedMap(prev => {
+      const next = new Map(prev);
+      next.set(id, until);
+      try {
+        const entries: Array<[string, string]> = Array.from(next.entries()).map(
+          ([k, v]) => [k, v === 'skip' ? 'skip' : (v as Date).toISOString()],
+        );
+        localStorage.setItem('bud-improvements-snoozed', JSON.stringify(entries));
+      } catch { /* storage unavailable */ }
+      return next;
+    });
+  }
+
+  function handleRestore(id: string) {
+    setSnoozedMap(prev => {
+      const next = new Map(prev);
+      next.delete(id);
+      try {
+        const entries: Array<[string, string]> = Array.from(next.entries()).map(
+          ([k, v]) => [k, v === 'skip' ? 'skip' : (v as Date).toISOString()],
+        );
+        localStorage.setItem('bud-improvements-snoozed', JSON.stringify(entries));
+      } catch { /* storage unavailable */ }
+      return next;
+    });
   }
 
   const load = useCallback(async () => {
@@ -2149,10 +2226,29 @@ export function AgentMergeReviewSection() {
     return result;
   }, [data]);
 
+  const opportunities = useMemo<ImprovementOpportunity[]>(() => {
+    if (!data) return [];
+    return groupIntoOpportunities(data.items, duplicateMap);
+  }, [data, duplicateMap]);
+
+  const activeOpportunities = opportunities.filter(o => {
+    const v = snoozedMap.get(o.id);
+    if (!v) return true;
+    if (v === 'skip') return false;
+    return v.getTime() <= Date.now();
+  });
+
+  const deferredOpportunities = opportunities.filter(o => {
+    const v = snoozedMap.get(o.id);
+    if (!v) return false;
+    if (v === 'skip') return true;
+    return v.getTime() > Date.now();
+  });
+
   if (loading) return (
     <div className="space-y-4">
       <SectionHeader loading />
-      <p className="text-sm text-white/40">Fetching open PRs from GitHub…</p>
+      <p className="text-sm text-white/40">Loading improvements…</p>
     </div>
   );
 
@@ -2181,85 +2277,116 @@ export function AgentMergeReviewSection() {
     </div>
   );
 
-  const filterButtons: Array<{ key: FilterKey; label: string; count: number }> = [
-    { key: 'all',                 label: 'All',             count: data.items.length },
-    { key: 'approve',             label: 'Safe to approve', count: data.summary.safeToApprove },
-    { key: 'needs_manual_review', label: 'Needs review',    count: data.items.filter(i => i.recommendation === 'needs_manual_review').length },
-    { key: 'reject',              label: 'Failing CI',      count: data.summary.shouldNotPush },
-  ];
-
-  const visible = filter === 'all' ? data.items : data.items.filter(i => i.recommendation === filter);
-
   return (
     <div className="space-y-5">
       <SectionHeader onRefresh={() => void load()} />
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
         <p className="text-[13px] text-white/55">
-          Open code changes waiting to go live. The{' '}
-          <strong className="text-white/70">Priority Engine</strong> below controls{' '}
-          <strong className="text-white/60">review priority</strong> — which PR to look at first and why.
-          To get an <strong className="text-white/60">approval recommendation</strong>, expand any card and run the Agent Reviewer.
+          Improvements ready to ship, grouped by business area. The best available change is
+          pre-selected in each area. Deploy, defer, or expand{' '}
+          <em className="text-white/60">Details</em> for risks and recovery plan.
         </p>
       </div>
 
-      <ReviewPrioritisationEngine
-        items={data.items}
-        duplicateMap={duplicateMap}
-        onStartReview={openWorkflowModal}
+      <OpportunityStrip
+        opportunities={activeOpportunities}
+        deferredCount={deferredOpportunities.length}
       />
 
-      <div className="border-t border-white/[0.06]" />
-
-      <SummaryStrip summary={data.summary} />
-
-      {data.summary.topRecommended.length > 0 && (
-        <div className="rounded-xl border border-emerald-500/[0.12] bg-emerald-500/[0.03] p-4">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400/70">
-            Top changes to improve agent quality
-          </p>
-          <ul className="space-y-1">
-            {data.summary.topRecommended.map(item => (
-              <li key={item.prNumber} className="flex items-center gap-2 text-[13px]">
-                <span className="text-emerald-400">→</span>
-                <span className="text-white/75">{item.plainTitle}</span>
-                <span className="font-mono text-[11px] text-white/30">#{item.prNumber}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="flex gap-1 rounded-lg border border-white/[0.07] bg-white/[0.03] p-0.5 w-fit">
-        {filterButtons.map(({ key, label, count }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-              filter === key ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'
-            }`}
-          >
-            {label}
-            {count > 0 && <span className="ml-1 text-white/30">{count}</span>}
-          </button>
-        ))}
-      </div>
-
-      {visible.length === 0 ? (
-        <p className="text-sm text-white/35">No PRs in this filter.</p>
+      {activeOpportunities.length === 0 ? (
+        <p className="text-sm text-white/35">No open improvements right now.</p>
       ) : (
         <div className="space-y-3">
-          {visible.map(item => (
-            <ReviewCard
-              key={item.prNumber}
-              item={item}
-              duplicateOf={duplicateMap.get(item.prNumber) ?? []}
-              allItems={data.items}
+          {activeOpportunities.map(opp => (
+            <ImprovementOpportunityCard
+              key={opp.id}
+              opportunity={opp}
               onStartReview={openWorkflowModal}
+              onSnooze={handleSnooze}
+              renderRecommendedPR={(item) => (
+                <ReviewCard
+                  item={item}
+                  duplicateOf={duplicateMap.get(item.prNumber) ?? []}
+                  allItems={data.items}
+                  onStartReview={openWorkflowModal}
+                />
+              )}
             />
           ))}
         </div>
       )}
+
+      {/* Deferred improvements */}
+      {deferredOpportunities.length > 0 && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
+          <button
+            onClick={() => setShowDeferred(x => !x)}
+            className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.02]"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/25">
+                Deferred Improvements
+              </span>
+              <span className="rounded-full bg-white/[0.06] px-2 py-px text-[10px] text-white/35">
+                {deferredOpportunities.length}
+              </span>
+            </div>
+            <span className="text-[11px] text-white/30">{showDeferred ? 'Hide ↑' : 'Show ↓'}</span>
+          </button>
+          {showDeferred && (
+            <div className="border-t border-white/[0.05] divide-y divide-white/[0.04]">
+              {deferredOpportunities.map(opp => {
+                const v = snoozedMap.get(opp.id);
+                const deferLabel = !v ? '' : v === 'skip'
+                  ? 'Skipped'
+                  : `Until ${(v as Date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+                return (
+                  <div key={opp.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-white/35">{opp.areaLabel}</p>
+                      <p className="mt-px truncate text-[12px] text-white/25">{opp.recommendedPR.plainTitle}</p>
+                    </div>
+                    <span className="shrink-0 text-[10px] text-white/25">{deferLabel}</span>
+                    <button
+                      onClick={() => handleRestore(opp.id)}
+                      className="shrink-0 rounded border border-white/[0.07] px-2 py-1 text-[10px] text-white/35 hover:text-white/65"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
+        <button
+          onClick={() => setShowPriorityDetails(x => !x)}
+          className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.02]"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/25">
+              Review Order Details
+            </span>
+            <span className="inline-flex items-center rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-violet-400">
+              Priority Engine
+            </span>
+          </div>
+          <span className="text-[11px] text-white/30">{showPriorityDetails ? 'Hide ↑' : 'Show ↓'}</span>
+        </button>
+        {showPriorityDetails && (
+          <div className="border-t border-white/[0.05] p-4">
+            <ReviewPrioritisationEngine
+              items={data.items}
+              duplicateMap={duplicateMap}
+              onStartReview={openWorkflowModal}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="border-t border-white/[0.05] pt-4 space-y-4">
         <AuditTrailPanel />
