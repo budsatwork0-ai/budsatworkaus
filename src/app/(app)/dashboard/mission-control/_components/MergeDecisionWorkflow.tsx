@@ -5,6 +5,7 @@ import type { MergeReviewItem } from '@/app/api/bud/merge-review/route';
 import type { AgentReviewerReport } from '@/app/api/bud/merge-review/analyze/route';
 import type { EvidencePack } from '@/app/api/bud/merge-review/evidence/route';
 import type { VerifyResult, VerifyCheck, VerifyCheckStatus } from '@/app/api/bud/merge-review/verify/route';
+import type { PostMergeVerifyResult } from '@/app/api/bud/merge-review/post-merge-verify/route';
 import { computeMergeGate, MergeGateBanner } from './FinalMergeGate';
 
 // ── Audit trail ───────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ type DecisionType = 'approve' | 'request_changes' | 'archive_duplicate' | 'hold'
 
 interface WorkflowState {
   autoVerifyResult: VerifyResult | null;
+  postMergeVerifyResult: PostMergeVerifyResult | null;
   testResult: 'passed' | 'failed' | null;
   testNotes: string;
   decision: DecisionType | null;
@@ -372,6 +374,30 @@ const RECOMMENDATION_CONFIG = {
     icon:  '✗',
     color: 'text-red-400',
     sub:   'text-red-400/70',
+  },
+} as const;
+
+const RECOMMENDATION_POST_MERGE_CONFIG = {
+  production_verified: {
+    bg:    'bg-emerald-500/[0.07]',
+    border:'border-emerald-500/[0.22]',
+    icon:  '✓',
+    color: 'text-emerald-400',
+    sub:   'text-emerald-400/70',
+  },
+  production_issue: {
+    bg:    'bg-red-500/[0.07]',
+    border:'border-red-500/[0.22]',
+    icon:  '✗',
+    color: 'text-red-400',
+    sub:   'text-red-400/70',
+  },
+  needs_manual_review: {
+    bg:    'bg-amber-500/[0.07]',
+    border:'border-amber-500/[0.20]',
+    icon:  '⚠',
+    color: 'text-amber-400',
+    sub:   'text-amber-400/70',
   },
 } as const;
 
@@ -735,67 +761,255 @@ function StagePostMerge({
   ws: WorkflowState;
   setWs: (fn: (prev: WorkflowState) => WorkflowState) => void;
 }) {
-  const steps = PRODUCTION_STEPS[item.systemArea] ?? [];
+  const [phase, setPhase] = useState<'running' | 'done' | 'error'>('running');
+  const [errMsg, setErrMsg] = useState('');
+  const [visibleCount, setVisibleCount] = useState(0);
+  const hasStarted = useRef(false);
 
-  function toggleCheck(key: string) {
-    setWs(prev => ({
-      ...prev,
-      postMergeChecks: { ...prev.postMergeChecks, [key]: !prev.postMergeChecks[key] },
-    }));
+  async function runVerification() {
+    setPhase('running');
+    setVisibleCount(0);
+    setErrMsg('');
+    setWs(prev => ({ ...prev, postMergeVerifyResult: null, postMergeResult: null }));
+
+    try {
+      const res = await fetch('/api/bud/merge-review/post-merge-verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ item }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      const result = await res.json() as PostMergeVerifyResult;
+
+      const postMergeResult: 'passed' | 'failed' | null =
+        result.recommendation === 'production_verified' ? 'passed'
+        : result.recommendation === 'production_issue'  ? 'failed'
+        : null; // needs_manual_review — operator must choose
+
+      setWs(prev => ({ ...prev, postMergeVerifyResult: result, postMergeResult }));
+      setPhase('done');
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Verification failed');
+      setPhase('error');
+    }
   }
+
+  useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+    void runVerification();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'done' || !ws.postMergeVerifyResult) return;
+    setVisibleCount(0);
+    let i = 0;
+    const total = ws.postMergeVerifyResult.checks.length;
+    const timer = setInterval(() => {
+      i++;
+      setVisibleCount(i);
+      if (i >= total) clearInterval(timer);
+    }, 110);
+    return () => clearInterval(timer);
+  }, [phase, ws.postMergeVerifyResult]);
+
+  const result = ws.postMergeVerifyResult;
+  const steps = PRODUCTION_STEPS[item.systemArea] ?? [];
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-sky-500/[0.15] bg-sky-500/[0.04] px-4 py-3">
-        <p className="text-[12px] text-sky-400/90">
-          The PR has been merged. Now verify it works correctly in <strong>production</strong>.
-        </p>
-      </div>
-
-      <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">
-          What to check in production — {AREA_LABELS[item.systemArea] ?? item.systemArea}
-        </p>
-        <div className="space-y-1.5">
-          {steps.map((step, i) => (
-            <CheckRow
-              key={i}
-              label={step}
-              checked={!!ws.postMergeChecks[String(i)]}
-              onChange={() => toggleCheck(String(i))}
-            />
-          ))}
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-0.5">
+            Post-Merge Production Verification
+          </p>
+          <p className="text-[12px] text-white/40">
+            Automated production verification is running.
+          </p>
         </div>
+        {phase !== 'running' && (
+          <button
+            onClick={() => void runVerification()}
+            className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/40 hover:text-white/70"
+          >
+            Re-run
+          </button>
+        )}
       </div>
 
-      <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">Verification result</p>
-        <div className="flex gap-2">
-          {(['passed', 'failed'] as const).map(result => (
+      {/* Running */}
+      {phase === 'running' && (
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+            <p className="text-[12px] text-white/50">Verifying production…</p>
+          </div>
+          <div className="space-y-2.5">
+            {['Production site reachable', 'Affected route', 'Vercel production deployment', 'Agent system health', 'Test run'].map((label, i) => (
+              <div key={i} className="flex items-center gap-2.5">
+                <span className="shrink-0 w-3.5 text-center text-[11px] text-white/20">–</span>
+                <span className="text-[12px] text-white/30">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {phase === 'error' && (
+        <div className="rounded-xl border border-red-500/[0.18] bg-red-500/[0.05] px-4 py-3">
+          <p className="text-[12px] font-semibold text-red-400">Verification failed: {errMsg}</p>
+          <p className="mt-1 text-[11px] text-red-400/60">Retry, or use the manual override below.</p>
+        </div>
+      )}
+
+      {/* Results */}
+      {phase === 'done' && result && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 space-y-2.5">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-3">
+              {result.checks.filter(c => c.status === 'pass').length}/{result.checks.filter(c => c.status !== 'skip').length} checks passed
+              <span className="ml-2 font-normal text-white/20">({result.durationMs}ms)</span>
+            </p>
+            {result.checks.map((check, i) => (
+              <VerifyCheckRow key={check.id} check={check} visible={i < visibleCount} />
+            ))}
+          </div>
+
+          {visibleCount >= result.checks.length && (() => {
+            const cfg = RECOMMENDATION_POST_MERGE_CONFIG[result.recommendation];
+            return (
+              <div className={`rounded-xl border px-4 py-3.5 ${cfg.bg} ${cfg.border}`}>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/30 mb-1">
+                  Verification result
+                </p>
+                <p className={`text-[16px] font-bold leading-tight ${cfg.color}`}>
+                  {cfg.icon} {result.recommendationLabel}
+                </p>
+                <p className={`mt-0.5 text-[12px] leading-snug ${cfg.sub}`}>
+                  {result.recommendationDetail}
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Hard failure: show rollback plan, block completion */}
+          {visibleCount >= result.checks.length && result.recommendation === 'production_issue' && (
+            <div className="rounded-xl border border-red-500/[0.18] bg-red-500/[0.05] px-4 py-3 space-y-1.5">
+              <p className="text-[11px] font-semibold text-red-400">Completion blocked — resolve the issue before completing.</p>
+              <p className="text-[11px] text-red-400/70">
+                <span className="font-medium">Rollback plan:</span> {item.rollbackPlan}
+              </p>
+              <p className="text-[11px] text-red-400/55">Re-run verification once the issue is resolved.</p>
+            </div>
+          )}
+
+          {/* Needs manual review: production steps + override buttons */}
+          {visibleCount >= result.checks.length && result.recommendation === 'needs_manual_review' && (
+            <div className="space-y-4">
+              {steps.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-2">
+                    Manual checks — {AREA_LABELS[item.systemArea] ?? item.systemArea}
+                  </p>
+                  <div className="space-y-1.5">
+                    {steps.map((step, i) => (
+                      <CheckRow
+                        key={i}
+                        label={step}
+                        checked={!!ws.postMergeChecks[String(i)]}
+                        onChange={() =>
+                          setWs(prev => ({
+                            ...prev,
+                            postMergeChecks: {
+                              ...prev.postMergeChecks,
+                              [String(i)]: !prev.postMergeChecks[String(i)],
+                            },
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20 mb-2">
+                  Manual override
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWs(prev => ({ ...prev, postMergeResult: 'passed' }))}
+                    className={`flex-1 rounded-xl border py-2 text-[12px] font-medium transition ${
+                      ws.postMergeResult === 'passed'
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                        : 'border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white/55'
+                    }`}
+                  >
+                    I checked — looks fine
+                  </button>
+                  <button
+                    onClick={() => setWs(prev => ({ ...prev, postMergeResult: 'failed' }))}
+                    className={`flex-1 rounded-xl border py-2 text-[12px] font-medium transition ${
+                      ws.postMergeResult === 'failed'
+                        ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                        : 'border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white/55'
+                    }`}
+                  >
+                    I checked — has issues
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Verification error: manual override fallback */}
+      {phase === 'error' && (
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20 mb-2">
+            Manual override
+          </p>
+          <div className="flex gap-2">
             <button
-              key={result}
-              onClick={() => setWs(prev => ({ ...prev, postMergeResult: result }))}
+              onClick={() => setWs(prev => ({ ...prev, postMergeResult: 'passed' }))}
               className={`flex-1 rounded-xl border py-2.5 text-[12px] font-semibold transition ${
-                ws.postMergeResult === result
-                  ? result === 'passed'
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                    : 'border-red-500/30 bg-red-500/10 text-red-400'
+                ws.postMergeResult === 'passed'
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
                   : 'border-white/[0.08] bg-white/[0.02] text-white/35 hover:text-white/60'
               }`}
             >
-              {result === 'passed' ? '✓ Production verified — all good' : '✗ Issue found in production'}
+              ✓ Production verified — all good
             </button>
-          ))}
+            <button
+              onClick={() => setWs(prev => ({ ...prev, postMergeResult: 'failed' }))}
+              className={`flex-1 rounded-xl border py-2.5 text-[12px] font-semibold transition ${
+                ws.postMergeResult === 'failed'
+                  ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                  : 'border-white/[0.08] bg-white/[0.02] text-white/35 hover:text-white/60'
+              }`}
+            >
+              ✗ Issue found in production
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* Notes */}
       <div>
-        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-1.5">Notes</p>
+        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/25 mb-1.5">
+          Notes (optional)
+        </p>
         <textarea
           value={ws.postMergeNotes}
           onChange={e => setWs(prev => ({ ...prev, postMergeNotes: e.target.value }))}
-          placeholder="What you checked, any issues found, or context to record…"
-          rows={3}
+          placeholder="What was checked, any issues found, or context to record…"
+          rows={2}
           className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[13px] text-white placeholder-white/20 outline-none focus:border-white/20 resize-none"
         />
       </div>
@@ -937,6 +1151,7 @@ export function MergeDecisionWorkflow({
   const [stage, setStage] = useState<Stage>('review');
   const [ws, setWs] = useState<WorkflowState>({
     autoVerifyResult: null,
+    postMergeVerifyResult: null,
     testResult: null,
     testNotes: '',
     decision: null,
@@ -970,7 +1185,11 @@ export function MergeDecisionWorkflow({
   const canAdvance = (() => {
     if (stage === 'decision') return ws.decision !== null;
     if (stage === 'readiness') return blockers.length === 0;
-    if (stage === 'post_merge') return ws.postMergeResult !== null;
+    if (stage === 'post_merge') {
+      // Hard failure blocks completion — operator must resolve and re-run verification
+      if (ws.postMergeVerifyResult?.recommendation === 'production_issue') return false;
+      return ws.postMergeResult !== null;
+    }
     return true;
   })();
 
