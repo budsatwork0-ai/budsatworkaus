@@ -386,11 +386,11 @@ describe('Agent value classification (Phase 7)', () => {
     expect(status).toBe('healthy');
   });
 
-  it('derives watch status when health label is watch', () => {
+  it('derives watch status when health label is degraded', () => {
     const status = deriveAgentDisplayStatus({
       configured_status: 'enabled',
       lifecycle: 'active',
-      health: { label: 'watch', score: 70 },
+      health: { label: 'degraded', score: 70 },
     });
     expect(status).toBe('watch');
   });
@@ -404,15 +404,15 @@ describe('Agent value classification (Phase 7)', () => {
     expect(status).toBe('watch');
   });
 
-  it('derives failing status for broken and needs_repair agents', () => {
+  it('derives failing status for failed agents and watch status for degraded agents', () => {
     expect(deriveAgentDisplayStatus({
       configured_status: 'enabled', lifecycle: 'active',
-      health: { label: 'broken', score: 0 },
+      health: { label: 'failed', score: 0 },
     })).toBe('failing');
     expect(deriveAgentDisplayStatus({
       configured_status: 'enabled', lifecycle: 'active',
-      health: { label: 'needs_repair', score: 30 },
-    })).toBe('failing');
+      health: { label: 'degraded', score: 50 },
+    })).toBe('watch');
   });
 
   it('derives disabled status for explicitly disabled agents', () => {

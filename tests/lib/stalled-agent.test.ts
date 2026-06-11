@@ -131,20 +131,20 @@ describe('scoreAgentHealth — stalled agent detection', () => {
     };
   }
 
-  it('25 successful no-op runs produces watch label and stalled reason', () => {
+  it('25 successful no-op runs produces waiting_for_input label and stalled reason', () => {
     const runs = Array.from({ length: 25 }, (_, i) => makeNoOpRun(i));
     const health = scoreAgentHealth(runs, []);
-    expect(health.label).toBe('watch');
+    expect(health.label).toBe('waiting_for_input');
     expect(health.reasons.some((r) => r.includes('stalled'))).toBe(true);
     expect(health.output_useful).toBe(false);
   });
 
-  it('stalled agent is not marked broken — warning only', () => {
+  it('stalled no-input agent is not marked failed or degraded', () => {
     const runs = Array.from({ length: 40 }, (_, i) => makeNoOpRun(i));
     const health = scoreAgentHealth(runs, []);
-    expect(health.label).not.toBe('broken');
-    expect(health.label).not.toBe('needs_repair');
-    expect(['watch', 'healthy']).toContain(health.label);
+    expect(health.label).not.toBe('failed');
+    expect(health.label).not.toBe('degraded');
+    expect(['waiting_for_input', 'idle', 'healthy']).toContain(health.label);
   });
 
   it('successful runs with approvals do not trigger stalled warning', () => {

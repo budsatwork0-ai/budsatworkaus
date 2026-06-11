@@ -14,6 +14,7 @@ import { getDefaultAutonomyLevel, requiresApproval } from './autonomy';
 import { createIssue, createBranch, budBranchName, branchExists } from './github-executor';
 import { emitStage, finalizePipelineRun, signalToSurface } from '@/lib/pipeline/engine';
 import type { PipelineSurface } from '@/lib/pipeline/types';
+import { classifyRootCause, rootCauseFingerprint } from './root-cause';
 
 // ── Activity feed ─────────────────────────────────────────────────────────────
 
@@ -92,11 +93,13 @@ export function computeApprovalIdentity(params: {
 }): string | null {
   if (params.action_type !== IMPROVEMENT_APPROVAL_ACTION) return null;
 
+  const rootCauseKey = params.payload.root_cause_key;
   const signalId = params.payload.signal_id;
   const fingerprint = params.payload.fingerprint;
   const taskId = params.payload.task_id;
   const key =
-    typeof signalId === 'string' && signalId.trim() ? `signal:${signalId.trim()}`
+    typeof rootCauseKey === 'string' && rootCauseKey.trim() ? `root:${rootCauseKey.trim()}`
+    : typeof signalId === 'string' && signalId.trim() ? `signal:${signalId.trim()}`
     : typeof fingerprint === 'string' && fingerprint.trim() ? `fingerprint:${fingerprint.trim()}`
     : typeof taskId === 'string' && taskId.trim() ? `task:${taskId.trim()}`
     : null;
@@ -149,6 +152,9 @@ export async function queueApproval(
             params.payload,
             now,
           ),
+          root_cause_id: typeof params.payload.root_cause_id === 'string' ? params.payload.root_cause_id : null,
+          root_cause_key: typeof params.payload.root_cause_key === 'string' ? params.payload.root_cause_key : null,
+          initiative_id: typeof params.payload.initiative_id === 'string' ? params.payload.initiative_id : null,
           last_seen_at: now,
         })
         .eq('id', (existing as { id: string }).id)
@@ -168,6 +174,9 @@ export async function queueApproval(
       action_type: params.action_type,
       payload: mergeApprovalPayload(null, params.payload, new Date().toISOString()),
       approval_identity: approvalIdentity,
+      root_cause_id: typeof params.payload.root_cause_id === 'string' ? params.payload.root_cause_id : null,
+      root_cause_key: typeof params.payload.root_cause_key === 'string' ? params.payload.root_cause_key : null,
+      initiative_id: typeof params.payload.initiative_id === 'string' ? params.payload.initiative_id : null,
       status: 'pending',
       requested_by: params.requested_by ?? 'bud',
     })
@@ -629,7 +638,29 @@ export function computeImprovementFingerprint(params: {
   signalType: string;
   affectedArea?: string;
   title: string;
+  description?: string;
+  referenceFiles?: string[];
+  metadata?: Record<string, unknown>;
 }): string {
+  const root = classifyRootCause({
+    signalType: params.signalType,
+    affectedArea: params.affectedArea,
+    title: params.title,
+    description: params.description,
+    referenceFiles: params.referenceFiles,
+    metadata: params.metadata,
+  });
+  if (root.rootCauseId !== 'data_readiness') {
+    return rootCauseFingerprint({
+      signalType: params.signalType,
+      affectedArea: params.affectedArea,
+      title: params.title,
+      description: params.description,
+      referenceFiles: params.referenceFiles,
+      metadata: params.metadata,
+    });
+  }
+
   const raw = [
     params.signalType.trim().toLowerCase(),
     (params.affectedArea ?? '').trim().toLowerCase(),
@@ -637,6 +668,126 @@ export function computeImprovementFingerprint(params: {
   ].join(':');
 
   return createHash('sha256').update(raw).digest('hex');
+}
+
+async function upsertRootCauseInitiative(
+  supabase: SupabaseClient,
+  params: {
+    rootCauseId: string;
+    rootCauseKey: string;
+    title: string;
+    signalTitle: string;
+    severity: string;
+  },
+): Promise<string | null> {
+  const now = new Date().toISOString();
+
+  let existing: Record<string, unknown> | null = null;
+  try {
+    const { data } = await supabase
+      .from('bud_root_cause_initiatives')
+      .select('id, signal_count, duplicate_count, approval_count, metadata')
+      .eq('root_cause_key', params.rootCauseKey)
+      .limit(1)
+      .maybeSingle();
+    existing = data as Record<string, unknown> | null;
+  } catch {
+    return null;
+  }
+
+  if (existing) {
+    const metadata = existing.metadata && typeof existing.metadata === 'object'
+      ? existing.metadata as Record<string, unknown>
+      : {};
+    await supabase
+      .from('bud_root_cause_initiatives')
+      .update({
+        signal_count: (typeof existing.signal_count === 'number' ? existing.signal_count : 0) + 1,
+        duplicate_count: (typeof existing.duplicate_count === 'number' ? existing.duplicate_count : 0) + 1,
+        latest_signal_at: now,
+        metadata: {
+          ...metadata,
+          latest_signal_title: params.signalTitle,
+          latest_severity: params.severity,
+        },
+      })
+      .eq('id', existing.id as string);
+    return existing.id as string;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bud_root_cause_initiatives')
+      .insert({
+        root_cause_id: params.rootCauseId,
+        root_cause_key: params.rootCauseKey,
+        title: params.title,
+        status: 'open',
+        signal_count: 1,
+        duplicate_count: 0,
+        latest_signal_at: now,
+        metadata: {
+          latest_signal_title: params.signalTitle,
+          latest_severity: params.severity,
+        },
+      })
+      .select('id')
+      .single();
+
+    if (error || !data) return null;
+    return data.id as string;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDuplicateRootCauseWork(
+  supabase: SupabaseClient,
+  params: {
+    rootCauseKey: string;
+    initiativeId: string | null;
+    keepSignalId: string;
+    status: 'patching' | 'validating' | 'merged' | 'resolved';
+  },
+): Promise<void> {
+  const terminalSignalStatus = params.status === 'merged' || params.status === 'resolved' ? 'completed' : 'queued';
+
+  await supabase
+    .from('bud_root_cause_initiatives')
+    .update({ status: params.status })
+    .eq('root_cause_key', params.rootCauseKey);
+
+  await supabase
+    .from('bud_improvement_signals')
+    .update({
+      status: terminalSignalStatus,
+      duplicate_of: params.keepSignalId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('root_cause_key', params.rootCauseKey)
+    .neq('id', params.keepSignalId)
+    .in('status', ['new', 'queued']);
+
+  await supabase
+    .from('bud_approval_queue')
+    .update({
+      status: 'archived',
+      reviewed_at: new Date().toISOString(),
+      review_notes: `Auto-resolved by Agent Intelligence v2: initiative ${params.rootCauseKey} is ${params.status}.`,
+    })
+    .eq('root_cause_key', params.rootCauseKey)
+    .eq('status', 'pending');
+
+  await supabase
+    .from('agent_actions')
+    .update({
+      status: 'archived',
+      reviewed_at: new Date().toISOString(),
+      review_notes: `Auto-resolved by Agent Intelligence v2: initiative ${params.rootCauseKey} is ${params.status}.`,
+    })
+    .eq('root_cause_key', params.rootCauseKey)
+    .eq('status', 'pending')
+    .eq('action_type', 'flag_for_review');
 }
 
 function observedCountFrom(params: {
@@ -750,6 +901,22 @@ export async function triggerImprovement(
     surface?: PipelineSurface;
   },
 ): Promise<{ signalId: string; executionId?: string; status: string; pipelineRunId?: string }> {
+  const root = classifyRootCause({
+    signalType: params.signalType,
+    title: params.title,
+    description: params.description,
+    affectedArea: params.affectedArea,
+    referenceFiles: params.referenceFiles,
+    metadata: params.metadata,
+  });
+  const initiativeId = await upsertRootCauseInitiative(supabase, {
+    rootCauseId: root.rootCauseId,
+    rootCauseKey: root.rootCauseKey,
+    title: root.initiativeTitle,
+    signalTitle: params.title,
+    severity: params.severity,
+  });
+
   const fingerprint = computeImprovementFingerprint(params);
   const { data: fingerprintMatch } = await supabase
     .from('bud_improvement_signals')
@@ -761,6 +928,16 @@ export async function triggerImprovement(
 
   if (fingerprintMatch) {
     await updateExistingImprovementSignal(supabase, fingerprintMatch as Record<string, unknown>, params);
+    if (initiativeId) {
+      await supabase
+        .from('bud_improvement_signals')
+        .update({
+          root_cause_id: root.rootCauseId,
+          root_cause_key: root.rootCauseKey,
+          initiative_id: initiativeId,
+        })
+        .eq('id', fingerprintMatch.id as string);
+    }
     return { signalId: fingerprintMatch.id as string, status: 'deduplicated' };
   }
 
@@ -779,7 +956,13 @@ export async function triggerImprovement(
   if (existing) {
     await supabase
       .from('bud_improvement_signals')
-      .update({ fingerprint, updated_at: new Date().toISOString() })
+      .update({
+        fingerprint,
+        root_cause_id: root.rootCauseId,
+        root_cause_key: root.rootCauseKey,
+        initiative_id: initiativeId,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', existing.id as string);
     return { signalId: existing.id as string, status: 'deduplicated' };
   }
@@ -801,7 +984,13 @@ export async function triggerImprovement(
     if (areaMatch) {
       await supabase
         .from('bud_improvement_signals')
-        .update({ fingerprint, updated_at: new Date().toISOString() })
+        .update({
+          fingerprint,
+          root_cause_id: root.rootCauseId,
+          root_cause_key: root.rootCauseKey,
+          initiative_id: initiativeId,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', areaMatch.id as string);
       return { signalId: areaMatch.id as string, status: 'deduplicated' };
     }
@@ -825,6 +1014,9 @@ export async function triggerImprovement(
         observedAt: new Date().toISOString(),
       }),
       fingerprint,
+      root_cause_id: root.rootCauseId,
+      root_cause_key: root.rootCauseKey,
+      initiative_id: initiativeId,
       status: 'new',
     })
     .select('id')
@@ -875,6 +1067,9 @@ export async function triggerImprovement(
         trigger_signal: params.title,
         trigger_payload: {
           signal_id: signalId,
+          initiative_id: initiativeId,
+          root_cause_id: root.rootCauseId,
+          root_cause_key: root.rootCauseKey,
           source: params.source,
           signal_type: params.signalType,
           severity: params.severity,
@@ -923,6 +1118,9 @@ export async function triggerImprovement(
         proposed_approach: params.proposedApproach ?? null,
         reference_files: params.referenceFiles ?? [],
         affected_area: params.affectedArea ?? null,
+        root_cause_id: root.rootCauseId,
+        root_cause_key: root.rootCauseKey,
+        initiative_id: initiativeId,
       },
     });
 
@@ -931,6 +1129,9 @@ export async function triggerImprovement(
       action_type: 'run_improvement_pipeline',
       payload: {
         signal_id: signalId,
+        initiative_id: initiativeId,
+        root_cause_id: root.rootCauseId,
+        root_cause_key: root.rootCauseKey,
         title: params.title,
         description: params.description ?? null,
         proposed_approach: params.proposedApproach ?? null,
@@ -961,6 +1162,15 @@ export async function triggerImprovement(
       trigger: 'observer',
       pipelineRunId,
     });
+
+    if (['patching', 'validating', 'recovered'].includes(result.status)) {
+      await resolveDuplicateRootCauseWork(supabase, {
+        rootCauseKey: root.rootCauseKey,
+        initiativeId,
+        keepSignalId: signalId,
+        status: result.status === 'validating' ? 'validating' : 'patching',
+      });
+    }
 
     await writeBudActivity(
       supabase,

@@ -455,7 +455,14 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         if (existing) {
           await supabase
             .from('agent_actions')
-            .update({ payload: action.payload, preview: action.preview, run_id: runId })
+            .update({
+              payload: action.payload,
+              preview: action.preview,
+              run_id: runId,
+              root_cause_id: typeof action.payload?.root_cause_id === 'string' ? action.payload.root_cause_id : null,
+              root_cause_key: typeof action.payload?.root_cause_key === 'string' ? action.payload.root_cause_key : null,
+              initiative_id: typeof action.payload?.initiative_id === 'string' ? action.payload.initiative_id : null,
+            })
             .eq('id', existing.id as string);
           if (requires) needsApproval = true;
           return;
@@ -473,6 +480,9 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         requires_approval: requires,
         status: requires ? 'pending' : 'approved',
         action_identity: actionIdentity,
+        root_cause_id: typeof action.payload?.root_cause_id === 'string' ? action.payload.root_cause_id : null,
+        root_cause_key: typeof action.payload?.root_cause_key === 'string' ? action.payload.root_cause_key : null,
+        initiative_id: typeof action.payload?.initiative_id === 'string' ? action.payload.initiative_id : null,
       }).select('id').single();
 
       if (actionInsertErr || !actionRow) {
@@ -487,7 +497,14 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
           if (winner) {
             await supabase
               .from('agent_actions')
-              .update({ payload: action.payload, preview: action.preview, run_id: runId })
+              .update({
+                payload: action.payload,
+                preview: action.preview,
+                run_id: runId,
+                root_cause_id: typeof action.payload?.root_cause_id === 'string' ? action.payload.root_cause_id : null,
+                root_cause_key: typeof action.payload?.root_cause_key === 'string' ? action.payload.root_cause_key : null,
+                initiative_id: typeof action.payload?.initiative_id === 'string' ? action.payload.initiative_id : null,
+              })
               .eq('id', winner.id as string);
             if (requires) needsApproval = true;
             return;
@@ -1026,6 +1043,22 @@ async function scheduleJobEffect(payload: Record<string, unknown>): Promise<void
  * return null and bypass the dedup check entirely.
  */
 function computeActionIdentity(action: ProposedAction): string | null {
+  if (action.action_type === 'flag_for_review') {
+    const rootCauseKey = action.payload?.root_cause_key as string | undefined;
+    if (rootCauseKey) return `flag_for_review:root:${rootCauseKey}`;
+    const signals = action.payload?.signals;
+    if (Array.isArray(signals) && signals.length > 0) {
+      const first = signals[0] as Record<string, unknown>;
+      const signalRoot = first.root_cause_key;
+      if (typeof signalRoot === 'string' && signalRoot.trim()) {
+        return `flag_for_review:root:${signalRoot.trim()}`;
+      }
+      const title = typeof first.title === 'string' ? first.title.toLowerCase().replace(/\b\d+(?:\.\d+)?\b/g, '#').replace(/\s+/g, ' ').trim() : '';
+      const area = typeof first.affected_area === 'string' ? first.affected_area.toLowerCase().trim() : '';
+      const type = typeof first.signal_type === 'string' ? first.signal_type.toLowerCase().trim() : '';
+      if (title || area || type) return `flag_for_review:${type}:${area}:${title}`;
+    }
+  }
   if (action.action_type === 'send_messenger') {
     const leadId = action.payload?.lead_id as string | undefined;
     const convId = action.payload?.conversation_id as string | undefined;

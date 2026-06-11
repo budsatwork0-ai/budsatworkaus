@@ -89,6 +89,9 @@ const VALUE_TONE: Record<AgentBizValue, string> = {
 
 const AGENT_STATUS_TONE: Record<AgentStatusDerived, string> = {
   healthy:  'border-emerald-400/30 bg-emerald-500/[0.06] text-emerald-300',
+  idle:     'border-sky-400/25 bg-sky-500/[0.05] text-sky-300',
+  waiting_for_input: 'border-blue-400/25 bg-blue-500/[0.05] text-blue-300',
+  misconfigured: 'border-white/15 bg-white/[0.03] text-white/45',
   watch:    'border-amber-400/35 bg-amber-500/[0.08] text-amber-300',
   failing:  'border-red-400/40 bg-red-500/[0.08] text-red-300',
   disabled: 'border-white/15 bg-white/[0.03] text-white/35',
@@ -1090,7 +1093,13 @@ function ActionQueue({
 /* ── 4. agent value ──────────────────────────────────────────────────────── */
 
 const STATUS_LABEL: Record<AgentStatusDerived, string> = {
-  healthy: 'Healthy', watch: 'Watch', failing: 'Failing', disabled: 'Disabled',
+  healthy: 'Healthy',
+  idle: 'Idle',
+  waiting_for_input: 'Waiting',
+  misconfigured: 'Config',
+  watch: 'Watch',
+  failing: 'Failing',
+  disabled: 'Disabled',
 };
 
 function AgentValue({

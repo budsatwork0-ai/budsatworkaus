@@ -32,7 +32,7 @@ describe('evaluateGlobalHealth', () => {
     expect(health.bud_status).toBe('nominal');
   });
 
-  it('blocks nominal when failed, broken, repair, watch, approval, parse, and alert signals exist', () => {
+  it('blocks nominal when failed, repair, approval, parse, and alert signals exist without treating watch status as intervention', () => {
     const health = evaluateGlobalHealth({
       agents: [
         { id: 'cash-flow-forecaster', status: 'broken' },
@@ -69,14 +69,14 @@ describe('evaluateGlobalHealth', () => {
     expect(health.counts.failed_runs).toBe(1);
     expect(health.counts.broken_agents).toBeGreaterThan(0);
     expect(health.counts.needs_repair_agents).toBeGreaterThan(0);
-    expect(health.counts.watch_agents).toBeGreaterThan(0);
+    expect(health.counts.watch_agents).toBe(0);
     expect(health.counts.pending_approvals).toBe(2);
     expect(health.counts.parse_failures).toBe(1);
     expect(health.counts.unresolved_alerts).toBe(1);
     expect(health.summary).toContain('Operational review complete — attention required.');
   });
 
-  it('reports degraded for watch and approval issues without hard failures', () => {
+  it('reports degraded for approval issues without hard failures', () => {
     const health = evaluateGlobalHealth({
       agents: [{ id: 'competitor-scout', status: 'watch' }],
       runs: [],

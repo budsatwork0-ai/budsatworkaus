@@ -21,6 +21,7 @@
 import type { AgentDefinition, AgentContext } from '../types';
 import { triggerImprovement } from '@/lib/bud/orchestrator';
 import { isStalledAgent } from '@/lib/bud/health';
+import { classifyRootCause } from '@/lib/bud/root-cause';
 
 const DEFAULT_OBSERVER_BUDGET_MS = 210_000;
 const LLM_TIMEOUT_MS = 75_000;
@@ -309,7 +310,26 @@ Return the JSON as described in your system instructions.`;
         signals?: typeof signals;
         summary?: string;
       };
-      signals = (parsed.signals ?? []).slice(0, 5);
+      signals = (parsed.signals ?? []).slice(0, 5).map((signal) => {
+        const root = classifyRootCause({
+          signalType: signal.signal_type,
+          title: signal.title,
+          description: signal.description,
+          affectedArea: signal.affected_area,
+          referenceFiles: signal.reference_files,
+          metadata: { confidence: signal.confidence },
+        });
+        return {
+          ...signal,
+          root_cause_id: root.rootCauseId,
+          root_cause_key: root.rootCauseKey,
+          initiative_title: root.initiativeTitle,
+        } as typeof signal & {
+          root_cause_id: string;
+          root_cause_key: string;
+          initiative_title: string;
+        };
+      });
       observerSummary = parsed.summary ?? '';
     } catch {
       ctx.log('bud-observer: failed to parse LLM response', { raw: raw.slice(0, 500) });
@@ -392,19 +412,46 @@ Return the JSON as described in your system instructions.`;
       ...signals.filter((s) => s.confidence < MIN_CONFIDENCE || s.severity === 'critical'),
       ...signals.filter((s) => skippedForTimeout.includes(s.title)),
     ];
+    const reviewByRoot = new Map<string, typeof reviewNeeded>();
+    for (const signal of reviewNeeded) {
+      const key = (signal as typeof signal & { root_cause_key?: string }).root_cause_key
+        ?? classifyRootCause({
+          signalType: signal.signal_type,
+          title: signal.title,
+          description: signal.description,
+          affectedArea: signal.affected_area,
+          referenceFiles: signal.reference_files,
+        }).rootCauseKey;
+      const list = reviewByRoot.get(key) ?? [];
+      list.push(signal);
+      reviewByRoot.set(key, list);
+    }
     if (reviewNeeded.length > 0 && !shouldStop('propose_review')) {
-      await ctx.proposeAction({
-        action_type: 'flag_for_review',
-        payload: {
-          signals: reviewNeeded,
-          source: 'bud-observer',
-          run_id: ctx.runId,
-        },
-        preview: `Observer found ${reviewNeeded.length} signal(s) needing human review: ${reviewNeeded.map((s) => s.title).join(', ')}`,
-        requiresApproval: true,
-        confidence: 0.5,
-        risk_level: 'low',
-      });
+      for (const [rootCauseKey, rootSignals] of reviewByRoot) {
+        const first = rootSignals[0];
+        const root = classifyRootCause({
+          signalType: first.signal_type,
+          title: first.title,
+          description: first.description,
+          affectedArea: first.affected_area,
+          referenceFiles: first.reference_files,
+        });
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          payload: {
+            signals: rootSignals,
+            source: 'bud-observer',
+            run_id: ctx.runId,
+            root_cause_id: root.rootCauseId,
+            root_cause_key: rootCauseKey,
+            initiative_title: root.initiativeTitle,
+          },
+          preview: `Observer found ${rootSignals.length} ${root.initiativeTitle} signal(s): ${rootSignals.map((s) => s.title).join(', ')}`,
+          requiresApproval: true,
+          confidence: 0.5,
+          risk_level: 'low',
+        });
+      }
     }
 
     const total = signals.length;

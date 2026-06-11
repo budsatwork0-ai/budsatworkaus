@@ -160,6 +160,9 @@ type ActionRow = {
   payload?: Record<string, unknown> | null;
   target_table?: string | null;
   target_id?: string | null;
+  root_cause_id?: string | null;
+  root_cause_key?: string | null;
+  initiative_id?: string | null;
 };
 
 type InsightRow = {
@@ -538,8 +541,8 @@ function buildApprovalDetailFromAgentAction(args: { action: ActionRow }): BudOsA
     source_agent: args.action.agent_id,
     requested_at: args.action.created_at,
     truth_label: 'Needs manual review',
-    affected_area: null,
-    signal_type: null,
+    affected_area: (payload.affected_area as string | undefined) ?? null,
+    signal_type: (payload.signal_type as string | undefined) ?? null,
   };
 }
 
@@ -602,7 +605,7 @@ export const MEDIUM_VALUE_AGENT_IDS = new Set([
 ]);
 
 export type AgentBizValue = 'high' | 'medium' | 'low';
-export type AgentStatusDerived = 'healthy' | 'watch' | 'failing' | 'disabled';
+export type AgentStatusDerived = 'healthy' | 'idle' | 'waiting_for_input' | 'misconfigured' | 'watch' | 'failing' | 'disabled';
 
 export function deriveAgentBizValue(agentId: string): AgentBizValue {
   if (HIGH_VALUE_AGENT_IDS.has(agentId)) return 'high';
@@ -621,8 +624,11 @@ export function deriveAgentDisplayStatus(agent: {
     agent.lifecycle === 'retired' ||
     agent.health.label === 'inactive'
   ) return 'disabled';
-  if (agent.health.label === 'broken' || agent.health.label === 'needs_repair') return 'failing';
-  if (agent.health.label === 'watch' || agent.health.score < 60) return 'watch';
+  if (agent.health.label === 'failed') return 'failing';
+  if (agent.health.label === 'degraded' || agent.health.score < 60) return 'watch';
+  if (agent.health.label === 'misconfigured') return 'misconfigured';
+  if (agent.health.label === 'waiting_for_input') return 'waiting_for_input';
+  if (agent.health.label === 'idle') return 'idle';
   return 'healthy';
 }
 
@@ -770,8 +776,8 @@ export function buildBudOsActionQueue(args: {
   }
 
   for (const agent of args.commandState.agents) {
-    if (!['broken', 'needs_repair', 'watch'].includes(agent.health.label)) continue;
-    const severity = agent.health.label === 'broken' ? 'critical' : agent.health.label === 'needs_repair' ? 'high' : 'medium';
+    if (!['failed', 'degraded'].includes(agent.health.label)) continue;
+    const severity = agent.health.label === 'failed' ? 'critical' : 'high';
     const group = severity === 'critical' ? 'critical' : 'watch_items';
     items.push({
       id: `agent-health:${agent.id}`,
@@ -838,7 +844,13 @@ export function buildBudOsActionQueue(args: {
 
   const deduped = new Map<string, BudOsQueueItem>();
   for (const item of items) {
-    const targetKey = item.approval?.target_table && item.approval.target_id
+    const payloadRoot = item.approval?.payload?.root_cause_key;
+    const rootCauseKey = typeof payloadRoot === 'string' && payloadRoot.trim()
+      ? payloadRoot.trim()
+      : null;
+    const targetKey = rootCauseKey
+      ? `root-cause:${rootCauseKey}`
+      : item.approval?.target_table && item.approval.target_id
       ? `${item.source}:${item.agent_id ?? 'unknown'}:${item.approval.action_type}:${item.approval.target_table}:${item.approval.target_id}`
       : item.id;
     const existing = deduped.get(targetKey);
@@ -868,7 +880,7 @@ export function buildBudOsWorkforce(commandState: MissionControlHealth): BudOsWo
         health: agent.health.label.replace('_', ' '),
         current_task: agent.lifecycle === 'active' ? 'Bud is using this agent now' : agent.recommended_action,
         last_useful_output: agent.last_failure ?? (agent.last_run_at ? `Last useful signal ${new Date(agent.last_run_at).toLocaleString()}` : 'No useful output yet'),
-        can_delegate: agent.configured_status !== 'disabled' && agent.health.label !== 'broken',
+        can_delegate: agent.configured_status !== 'disabled' && agent.health.label !== 'failed',
       })),
   })).filter((cluster) => cluster.agents.length > 0);
 }

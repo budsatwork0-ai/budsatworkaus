@@ -50,6 +50,7 @@ import {
 import { getDefaultAutonomyLevel } from './autonomy';
 import { emitStage, emitArtifact, runDebate, finalizePipelineRun } from '@/lib/pipeline/engine';
 import type { DebateResult } from '@/lib/pipeline/engine';
+import { classifyRootCause } from './root-cause';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const IMPROVEMENT_MODEL = 'claude-sonnet-4-6';
@@ -139,6 +140,9 @@ export type ImprovementSignalRow = {
   proposed_approach: string | null;
   reference_files: string[] | null;
   metadata: Record<string, unknown> | null;
+  root_cause_id?: string | null;
+  root_cause_key?: string | null;
+  initiative_id?: string | null;
 };
 
 function isExecutionEnabled(): boolean {
@@ -151,6 +155,19 @@ async function createExecution(
   userId: string | null,
   trigger: string,
 ): Promise<string> {
+  const root = signal.root_cause_id && signal.root_cause_key
+    ? {
+      rootCauseId: signal.root_cause_id,
+      rootCauseKey: signal.root_cause_key,
+    }
+    : classifyRootCause({
+      signalType: signal.signal_type,
+      title: signal.title,
+      description: signal.description,
+      affectedArea: signal.affected_area,
+      referenceFiles: signal.reference_files,
+      metadata: signal.metadata,
+    });
   const { data, error } = await supabase
     .from('bud_improvement_executions')
     .insert({
@@ -161,6 +178,9 @@ async function createExecution(
       confidence: null,
       risk_score: signalRiskScore(signal.severity),
       created_by: userId,
+      root_cause_id: root.rootCauseId,
+      root_cause_key: root.rootCauseKey,
+      initiative_id: signal.initiative_id ?? null,
     })
     .select('id')
     .single();

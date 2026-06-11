@@ -72,7 +72,7 @@ async function loadData() {
     changeRequestsRes,
     ordersSnapshotRes, todayJobsRes,
   ] = await Promise.all([
-    supabase.from('agents').select('id, name, status, category, autonomy, last_run_at, last_success_at').order('name'),
+    supabase.from('agents').select('id, name, status, category, autonomy, config, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
       .select('id, agent_id, status, summary, error, cost_cents, duration_ms, started_at, trigger')
       .order('started_at', { ascending: false }).limit(40),
@@ -279,6 +279,9 @@ async function loadData() {
       payload: (a as { payload?: Record<string, unknown> | null }).payload ?? null,
       target_table: (a as { target_table?: string | null }).target_table ?? null,
       target_id: (a as { target_id?: string | null }).target_id ?? null,
+      root_cause_id: (a as { root_cause_id?: string | null }).root_cause_id ?? null,
+      root_cause_key: (a as { root_cause_key?: string | null }).root_cause_key ?? null,
+      initiative_id: (a as { initiative_id?: string | null }).initiative_id ?? null,
     })),
     insights: insightsRes.data ?? [],
     budApprovals,

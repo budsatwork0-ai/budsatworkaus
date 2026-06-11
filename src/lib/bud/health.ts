@@ -29,6 +29,7 @@ type AgentRow = {
   category?: string | null;
   autonomy?: string | null;
   status?: string | null;
+  config?: Record<string, unknown> | null;
 };
 
 type GithubEventRow = {
@@ -96,7 +97,7 @@ type MemoryRow = {
   created_at: string;
 };
 
-export type AgentLifecycleState = 'active' | 'idle' | 'awaiting_review' | 'degraded' | 'blocked' | 'overloaded' | 'dormant' | 'retired';
+export type AgentLifecycleState = 'active' | 'idle' | 'waiting_for_input' | 'misconfigured' | 'awaiting_review' | 'degraded' | 'failed' | 'overloaded' | 'dormant' | 'retired';
 
 export type MissionControlAgentState = {
   id: string;
@@ -221,7 +222,7 @@ export function classifyApprovalTruth(approval: ActionRow, nowMs = Date.now()): 
   return 'Actionable';
 }
 
-export type AgentHealthLabel = 'healthy' | 'watch' | 'needs_repair' | 'broken' | 'inactive';
+export type AgentHealthLabel = 'healthy' | 'idle' | 'waiting_for_input' | 'misconfigured' | 'degraded' | 'failed' | 'inactive';
 
 export type AgentHealthScore = {
   score: number;
@@ -305,11 +306,11 @@ export function hasParseFailure(run: RunRow): boolean {
 }
 
 function isWatchStatus(status: string | null | undefined): boolean {
-  return ['watch', 'awaiting_review', 'needs_approval', 'pending_approval'].includes((status ?? '').toLowerCase());
+  return ['watch', 'awaiting_review', 'needs_approval', 'pending_approval', 'degraded'].includes((status ?? '').toLowerCase());
 }
 
 function isNeedsRepairStatus(status: string | null | undefined): boolean {
-  return ['needs_repair', 'repair', 'failed_needs_repair'].includes((status ?? '').toLowerCase());
+  return ['needs_repair', 'repair', 'failed_needs_repair', 'degraded'].includes((status ?? '').toLowerCase());
 }
 
 function isBrokenStatus(status: string | null | undefined): boolean {
@@ -373,12 +374,12 @@ export function evaluateGlobalHealth({
   const agentsNeedingAttention = new Set<string>();
 
   for (const agent of agents) {
-    const health = scoreAgentHealth(runsByAgent.get(agent.id) ?? [], actions.filter((a) => a.agent_id === agent.id));
+    const health = scoreAgentHealth(runsByAgent.get(agent.id) ?? [], actions.filter((a) => a.agent_id === agent.id), { agent });
     const status = agent.status ?? '';
 
-    const isBroken = health.label === 'broken' || isBrokenStatus(status);
-    const isNeedsRepair = health.label === 'needs_repair' || isNeedsRepairStatus(status);
-    const isWatch = health.label === 'watch' || isWatchStatus(status);
+    const isBroken = health.label === 'failed' || isBrokenStatus(status);
+    const isNeedsRepair = health.label === 'degraded' || isNeedsRepairStatus(status);
+    const isWatch = false;
 
     if (isBroken) {
       brokenAgents++;
@@ -391,7 +392,7 @@ export function evaluateGlobalHealth({
       agentsNeedingAttention.add(agent.id);
     }
 
-    if (health.score > 0 && health.score < 80) {
+    if (health.score > 0 && health.score < 80 && ['degraded', 'failed'].includes(health.label)) {
       lowSuccessRateAgents++;
       agentsNeedingAttention.add(agent.id);
     }
@@ -490,13 +491,16 @@ function lifecycleForAgent(
 ): AgentLifecycleState {
   const status = (agent.status ?? '').toLowerCase();
   if (status === 'disabled') return 'retired';
+  if (health.label === 'misconfigured') return 'misconfigured';
+  if (health.label === 'waiting_for_input') return 'waiting_for_input';
+  if (health.label === 'idle') return 'idle';
   if (pendingApprovals > 0) return 'awaiting_review';
   const latest = runs[0];
   if (latest?.status === 'running') return 'active';
   if (latest?.status === 'needs_approval') return 'awaiting_review';
   if (latest?.status === 'needs_repair') return 'degraded';
-  if (health.label === 'broken') return 'blocked';
-  if (health.label === 'needs_repair' || health.label === 'watch') return 'degraded';
+  if (health.label === 'failed') return 'failed';
+  if (health.label === 'degraded') return 'degraded';
   if (!latest) return status === 'paused' ? 'dormant' : 'idle';
   const ageMs = Date.now() - new Date(latest.started_at).getTime();
   if (ageMs > 7 * 24 * 3600_000) return 'dormant';
@@ -511,8 +515,11 @@ function recommendedActionForAgent(state: {
   pending: number;
 }): string {
   if (state.lifecycle === 'awaiting_review') return `${state.pending} approval${state.pending === 1 ? '' : 's'} waiting for a human decision`;
-  if (state.health.label === 'broken') return 'Start a Bud investigation and draft a repair task';
-  if (state.health.label === 'needs_repair') return 'Review the latest failures and queue a targeted repair';
+  if (state.health.label === 'failed') return 'Start a Bud investigation and draft a repair task';
+  if (state.health.label === 'degraded') return 'Review the latest failures and queue a targeted repair';
+  if (state.health.label === 'misconfigured') return 'Configure the required data source before monitoring this agent';
+  if (state.health.label === 'waiting_for_input') return 'Waiting for routable source input';
+  if (state.health.label === 'idle') return 'No source input waiting';
   if (!state.health.output_useful && state.health.label !== 'inactive') return 'Tune output so successful runs produce actionable intelligence';
   if (state.failures > 0) return 'Monitor the recent failure pattern before the next scheduled run';
   if (state.lifecycle === 'dormant') return 'Run manually or pause if this agent is no longer needed';
@@ -659,7 +666,7 @@ export function computeMissionControlHealth({
   const agentNameMap = new Map(agents.map((agent) => [agent.id, agent.name ?? agent.id]));
   const agentStates = agents.map((agent): MissionControlAgentState => {
     const agentRuns = runsByAgent.get(agent.id) ?? [];
-    const health = scoreAgentHealth(agentRuns, allApprovals.filter((action) => action.agent_id === agent.id));
+    const health = scoreAgentHealth(agentRuns, allApprovals.filter((action) => action.agent_id === agent.id), { agent });
     const failures = agentRuns.filter((run) => run.status === 'failed' || run.status === 'needs_repair').length;
     const successes = agentRuns.filter((run) => run.status === 'succeeded').length;
     const pending = approvalsByAgent.get(agent.id) ?? 0;
@@ -770,6 +777,7 @@ function validateOutput(run: RunRow): boolean {
 export function scoreAgentHealth(
   runs: RunRow[],
   actions: ActionRow[],
+  context: { agent?: AgentRow } = {},
 ): AgentHealthScore {
   const reasons: string[] = [];
 
@@ -795,6 +803,31 @@ export function scoreAgentHealth(
   const usefulSummaryRuns = succeededRuns.filter((r) => isUsefulSummary(r.summary));
   const output_useful = usefulSummaryRuns.length > 0 || validOutputRuns.length > 0;
   const stalled = isStalledAgent(runs);
+  const latestSummary = recentRuns[0]?.summary?.toLowerCase() ?? '';
+  const agentId = context.agent?.id ?? runs[0]?.agent_id ?? '';
+  const config = context.agent?.config ?? {};
+
+  const noOpOnly = succeededRuns.length > 0 && failedRuns.length === 0 && recentRuns.every((run) => (
+    run.status === 'succeeded' &&
+    !isUsefulSummary(run.summary) &&
+    !validateOutput(run)
+  ));
+  const noSourceInput =
+    latestSummary.includes('no new quote requests') ||
+    latestSummary.includes('no inbound messages') ||
+    latestSummary.includes('all inbound messages already have a response');
+  const waitingForRouting =
+    latestSummary.includes('no actionable inbound') ||
+    latestSummary.includes('no unanswered') ||
+    latestSummary.includes('no question provided') ||
+    latestSummary.includes('no inbound messages linked to a lead');
+  const missingCompetitorConfig =
+    agentId === 'competitor-watcher' &&
+    Array.isArray(config.watch_urls) &&
+    config.watch_urls.length === 0;
+  const missingKnowledgeCorpus =
+    agentId === 'internal-qa' &&
+    (!output_useful || latestSummary.includes("don't have anything in the knowledge base"));
 
   // Only flag repeated_failures when the 3 most recent runs all failed — prevents
   // an agent with old failures + recent successes from being labelled 'broken'.
@@ -872,15 +905,29 @@ export function scoreAgentHealth(
 
   let label: AgentHealthLabel;
   if (!parse_valid || (score < 30 && !output_useful)) {
-    label = 'broken';
+    label = 'failed';
   } else if (repeated_failures || score < 40) {
-    label = 'broken';
+    label = 'failed';
   } else if (score < 60) {
-    label = 'needs_repair';
+    label = 'degraded';
+  } else if (missingCompetitorConfig || missingKnowledgeCorpus) {
+    label = 'misconfigured';
+  } else if (waitingForRouting) {
+    label = 'waiting_for_input';
+  } else if (noSourceInput || noOpOnly) {
+    label = 'idle';
   } else if (score < 80 || !output_useful) {
-    label = 'watch';
+    label = 'degraded';
   } else {
     label = 'healthy';
+  }
+
+  if (label === 'idle') {
+    reasons.push('No source input available');
+  } else if (label === 'waiting_for_input') {
+    reasons.push('Waiting for routable input');
+  } else if (label === 'misconfigured') {
+    reasons.push('Required data source is not configured');
   }
 
   return { score, label, reasons, parse_valid, output_useful, repeated_failures };
