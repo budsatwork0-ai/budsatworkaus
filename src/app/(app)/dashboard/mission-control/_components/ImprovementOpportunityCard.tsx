@@ -211,12 +211,10 @@ const CARD_BORDER: Record<DeploymentStatus, string> = {
 
 export function ImprovementOpportunityCard({
   opportunity,
-  onStartReview,
   onSnooze,
   renderRecommendedPR,
 }: {
   opportunity: ImprovementOpportunity;
-  onStartReview: (item: MergeReviewItem) => void;
   onSnooze: (id: string, until: Date | 'skip') => void;
   renderRecommendedPR: (item: MergeReviewItem) => ReactNode;
 }) {
@@ -283,35 +281,12 @@ export function ImprovementOpportunityCard({
       {/* Readiness reason */}
       <p className="text-[12px] text-white/35">{readiness.reason}</p>
 
-      {/* Action row */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/[0.05]">
-        {readiness.status === 'ready' && (
-          <button
-            onClick={() => onStartReview(recommendedPR)}
-            className="rounded-lg border border-emerald-400/25 bg-emerald-500/[0.10] px-4 py-2 text-[12px] font-semibold text-emerald-400 hover:bg-emerald-500/[0.18]"
-          >
-            Deploy Now →
-          </button>
-        )}
-        {readiness.status === 'needs_test' && (
-          <button
-            onClick={() => onStartReview(recommendedPR)}
-            className="rounded-lg border border-sky-400/20 bg-sky-500/[0.08] px-4 py-2 text-[12px] font-semibold text-sky-400 hover:bg-sky-500/[0.14]"
-          >
-            Test &amp; Deploy →
-          </button>
-        )}
-        {(readiness.status === 'blocked' || readiness.status === 'not_ready') && (
-          <button
-            onClick={() => onStartReview(recommendedPR)}
-            className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-4 py-2 text-[12px] font-medium text-white/45 hover:bg-white/[0.07]"
-          >
-            Review →
-          </button>
-        )}
+      {/* Promotion card — primary action surface */}
+      {renderRecommendedPR(recommendedPR)}
 
-        {/* Defer controls */}
-        <div className="ml-auto flex items-center gap-1">
+      {/* Footer: defer controls + other PRs in this area */}
+      <div className="border-t border-white/[0.05] pt-3 space-y-3">
+        <div className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-white/20 mr-0.5">Defer:</span>
           <button
             onClick={snoozeUntilTomorrow}
@@ -331,88 +306,32 @@ export function ImprovementOpportunityCard({
           >
             Skip for now
           </button>
-        </div>
-
-        <button
-          onClick={() => { setExpanded(x => !x); if (expanded) setDevExpanded(false); }}
-          className="text-[11px] text-white/30 hover:text-white/60"
-        >
-          {expanded ? 'Hide details ↑' : 'Details ↓'}
-        </button>
-      </div>
-
-      {/* Details expansion — business content first */}
-      {expanded && (
-        <div className="border-t border-white/[0.06] pt-4 space-y-4">
-
-          {/* Business summary */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20">What&apos;s changing</p>
-              <p className="text-[13px] leading-relaxed text-white/55">{recommendedPR.whatChanged}</p>
-            </div>
-            <div>
-              <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20">What could break</p>
-              <p className="text-[13px] leading-relaxed text-white/55">{recommendedPR.couldBreak}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20">Recovery plan</p>
-            <p className="text-[13px] leading-relaxed text-white/55">{recommendedPR.rollbackPlan}</p>
-          </div>
-
-          {/* Other changes in this area */}
           {otherPRs.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/20">
-                {otherPRs.length} other change{otherPRs.length !== 1 ? 's' : ''} in this area
-              </p>
-              <div className="space-y-1.5">
-                {otherPRs.map(pr => {
-                  const r = computeDeploymentReadiness(pr);
-                  return (
-                    <div key={pr.prNumber} className="flex items-center gap-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2">
-                      <span className={`shrink-0 inline-block h-1.5 w-1.5 rounded-full ${READINESS_DOT[r.status]}`} />
-                      <span className="flex-1 truncate text-[12px] text-white/50">{pr.plainTitle}</span>
-                      <span className={`shrink-0 text-[10px] ${READINESS_LABEL_STYLE[r.status]}`}>{r.label}</span>
-                      <button
-                        onClick={() => onStartReview(pr)}
-                        className="shrink-0 rounded border border-white/[0.07] px-2 py-0.5 text-[10px] text-white/35 hover:text-white/65"
-                      >
-                        Review →
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Developer Details — nested gate keeping all GitHub / CI / PR content */}
-          <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] overflow-hidden">
             <button
-              onClick={() => setDevExpanded(x => !x)}
-              className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/[0.02]"
+              onClick={() => { setExpanded(x => !x); if (expanded) setDevExpanded(false); }}
+              className="ml-auto text-[11px] text-white/30 hover:text-white/60"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/20">
-                  Developer Details
-                </span>
-                <span className="text-[9px] text-white/15">
-                  — checks, branches, full analysis
-                </span>
-              </div>
-              <span className="text-[11px] text-white/25">{devExpanded ? 'Hide ↑' : 'Show ↓'}</span>
+              {expanded ? `Hide ${otherPRs.length} other ↑` : `${otherPRs.length} other in area ↓`}
             </button>
-            {devExpanded && (
-              <div className="border-t border-white/[0.05] p-4">
-                {renderRecommendedPR(recommendedPR)}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Other changes in this area */}
+        {expanded && otherPRs.length > 0 && (
+          <div className="space-y-1.5">
+            {otherPRs.map(pr => {
+              const r = computeDeploymentReadiness(pr);
+              return (
+                <div key={pr.prNumber} className="flex items-center gap-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2">
+                  <span className={`shrink-0 inline-block h-1.5 w-1.5 rounded-full ${READINESS_DOT[r.status]}`} />
+                  <span className="flex-1 truncate text-[12px] text-white/50">{pr.plainTitle}</span>
+                  <span className={`shrink-0 text-[10px] ${READINESS_LABEL_STYLE[r.status]}`}>{r.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
