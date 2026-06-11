@@ -1,0 +1,3 @@
+-- Applied directly to production. No local SQL file was available at reconciliation time (Jun 2026).
+-- This stub allows supabase db push to recognise this migration as already applied.
+-- Do NOT add SQL here — the schema change is already in production.
