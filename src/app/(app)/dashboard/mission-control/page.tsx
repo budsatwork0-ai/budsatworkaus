@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { MissionControlClient } from './MissionControlClient';
 import type { QuarantineRow } from './_components/RepairQuarantineSection';
 import { computeMissionControlHealth } from '@/lib/bud/health';
-import { buildBudOsActionQueue, buildAgentImpactMap } from '@/lib/bud/os-view-model';
+import { buildBudOsActionQueue, buildAgentImpactMap, type RootCauseInitiativeRow } from '@/lib/bud/os-view-model';
 import { buildUxEvolutionRecommendations } from '@/lib/bud/ux-evolution-engine';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import type { ApprovalTruthLabel } from '@/lib/bud/health';
@@ -22,6 +22,13 @@ type BudApprovalTruthRow = {
   risk_level: string | null;
   linked_pr: string | null;
   truth_label: ApprovalTruthLabel;
+  payload?: Record<string, unknown> | null;
+  approval_identity?: string | null;
+  root_cause_id?: string | null;
+  root_cause_key?: string | null;
+  initiative_id?: string | null;
+  superseded_by?: string | null;
+  is_duplicate?: boolean | null;
 };
 
 type BudTaskContextRow = {
@@ -37,6 +44,7 @@ type BudTaskContextRow = {
 
 function buildApprovalPayload(row: BudApprovalTruthRow, task: BudTaskContextRow | null): Record<string, unknown> {
   return {
+    ...(row.payload ?? {}),
     ...((task?.raw_input ?? {}) as Record<string, unknown>),
     action_type: row.action_type,
     truth_label: row.truth_label,
@@ -45,6 +53,12 @@ function buildApprovalPayload(row: BudApprovalTruthRow, task: BudTaskContextRow 
     linked_pr: row.linked_pr,
     archive_reason: row.archive_reason,
     blocked_reason: row.blocked_reason,
+    approval_identity: row.approval_identity,
+    root_cause_id: row.root_cause_id,
+    root_cause_key: row.root_cause_key,
+    initiative_id: row.initiative_id,
+    superseded_by: row.superseded_by,
+    is_duplicate: row.is_duplicate,
   };
 }
 
@@ -71,6 +85,7 @@ async function loadData() {
     budActivityRes, budApprovalsRes, budTasksRes,
     changeRequestsRes,
     ordersSnapshotRes, todayJobsRes,
+    initiativesRes, intelligenceQualityRes,
   ] = await Promise.all([
     supabase.from('agents').select('id, name, status, category, autonomy, config, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
@@ -100,7 +115,7 @@ async function loadData() {
       .select('id, event_type, narrative, actor, target, metadata, created_at')
       .order('created_at', { ascending: false }).limit(50),
     supabase.from('v_bud_approval_truth')
-      .select('id, task_id, action_type, status, created_at, archived_at, archive_reason, blocked_reason, task_status, risk_level, linked_pr, truth_label')
+      .select('id, task_id, action_type, status, created_at, archived_at, archive_reason, blocked_reason, task_status, risk_level, linked_pr, truth_label, payload, approval_identity, root_cause_id, root_cause_key, initiative_id, superseded_by, is_duplicate')
       .in('truth_label', ['Actionable', 'Needs manual review', 'Blocked', 'Archived'])
       .order('created_at', { ascending: false })
       .limit(120),
@@ -125,6 +140,16 @@ async function loadData() {
       .select('id')
       .eq('scheduled_date', today)
       .neq('status', 'cancelled'),
+    supabase.from('bud_root_cause_initiatives')
+      .select('id, root_cause_id, root_cause_key, title, status, signal_count, duplicate_count, approval_count, latest_signal_at, created_at')
+      .in('status', ['open', 'patching', 'validating', 'blocked'])
+      .gt('approval_count', 0)
+      .order('latest_signal_at', { ascending: false, nullsFirst: false })
+      .limit(10),
+    supabase.from('v_agent_intelligence_quality')
+      .select('signal_count, duplicate_rate, root_cause_count, approval_count, initiative_count')
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // memory_documents is small and feeds commandState — keep but don't return raw
@@ -248,6 +273,15 @@ async function loadData() {
     })),
     tasks: budTasks, changeRequests, github: githubData,
     insights: insightsRes.data ?? [], memory,
+    intelligence: intelligenceQualityRes.data
+      ? {
+          signal_count: (intelligenceQualityRes.data.signal_count as number | null) ?? 0,
+          duplicate_rate: Number((intelligenceQualityRes.data.duplicate_rate as number | null) ?? 0),
+          root_cause_count: (intelligenceQualityRes.data.root_cause_count as number | null) ?? 0,
+          approval_count: (intelligenceQualityRes.data.approval_count as number | null) ?? 0,
+          initiative_count: (intelligenceQualityRes.data.initiative_count as number | null) ?? 0,
+        }
+      : undefined,
   });
 
   // uxEvolution: UX-signal tables removed from fetch (were always empty in practice).
@@ -282,10 +316,14 @@ async function loadData() {
       root_cause_id: (a as { root_cause_id?: string | null }).root_cause_id ?? null,
       root_cause_key: (a as { root_cause_key?: string | null }).root_cause_key ?? null,
       initiative_id: (a as { initiative_id?: string | null }).initiative_id ?? null,
+      action_identity: (a as { action_identity?: string | null }).action_identity ?? null,
+      superseded_by: (a as { superseded_by?: string | null }).superseded_by ?? null,
+      is_duplicate: (a as { is_duplicate?: boolean | null }).is_duplicate ?? null,
     })),
     insights: insightsRes.data ?? [],
     budApprovals,
     uxEvolution,
+    initiatives: (initiativesRes.data ?? []) as RootCauseInitiativeRow[],
   });
 
   const ordersThisMonth = ordersSnapshotRes.data ?? [];

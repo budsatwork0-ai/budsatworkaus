@@ -19,6 +19,12 @@ type ActionRow = {
   action_type?: string | null;
   payload?: Record<string, unknown> | null;
   task_id?: string | null;
+  root_cause_id?: string | null;
+  root_cause_key?: string | null;
+  initiative_id?: string | null;
+  action_identity?: string | null;
+  superseded_by?: string | null;
+  is_duplicate?: boolean | null;
   bud_tasks?: BudApprovalTaskRow | BudApprovalTaskRow[] | null;
   truth_label?: ApprovalTruthLabel | null;
 };
@@ -186,6 +192,13 @@ export type MissionControlHealth = GlobalHealthCheck & {
     archived_stale: number;
     blocked_historical: number;
     total_pending: number;
+  };
+  intelligence: {
+    signal_count: number;
+    duplicate_rate: number;
+    root_cause_count: number;
+    approval_count: number;
+    initiative_count: number;
   };
 };
 
@@ -613,6 +626,7 @@ export function computeMissionControlHealth({
   github = [],
   insights = [],
   memory = [],
+  intelligence,
 }: {
   agents: AgentRow[];
   runs: RunRow[];
@@ -623,6 +637,7 @@ export function computeMissionControlHealth({
   github?: GithubEventRow[];
   insights?: InsightRow[];
   memory?: MemoryRow[];
+  intelligence?: Partial<MissionControlHealth['intelligence']>;
 }): MissionControlHealth {
   const healthBudApprovals = budApprovals.filter((approval) => {
     const label = classifyApprovalTruth(approval);
@@ -762,6 +777,13 @@ export function computeMissionControlHealth({
       blocked_historical: blockedBudApprovals,
       total_pending: actionableAgentActions + actionableBudApprovals + manualBudApprovals,
     },
+    intelligence: {
+      signal_count: intelligence?.signal_count ?? 0,
+      duplicate_rate: intelligence?.duplicate_rate ?? 0,
+      root_cause_count: intelligence?.root_cause_count ?? 0,
+      approval_count: intelligence?.approval_count ?? (actionableAgentActions + actionableBudApprovals + manualBudApprovals),
+      initiative_count: intelligence?.initiative_count ?? 0,
+    },
     summary: global.is_nominal
       ? 'Bud OS is monitoring the workforce from one operational state engine.'
       : `Bud OS requires attention: ${formatHealthCounts(global.counts)}.`,
@@ -806,6 +828,8 @@ export function scoreAgentHealth(
   const latestSummary = recentRuns[0]?.summary?.toLowerCase() ?? '';
   const agentId = context.agent?.id ?? runs[0]?.agent_id ?? '';
   const config = context.agent?.config ?? {};
+  const awaitingReview = actions.some((action) => action.status === 'pending')
+    || recentRuns[0]?.status === 'needs_approval';
 
   const noOpOnly = succeededRuns.length > 0 && failedRuns.length === 0 && recentRuns.every((run) => (
     run.status === 'succeeded' &&
@@ -916,6 +940,8 @@ export function scoreAgentHealth(
     label = 'waiting_for_input';
   } else if (noSourceInput || noOpOnly) {
     label = 'idle';
+  } else if (awaitingReview) {
+    label = 'healthy';
   } else if (score < 80 || !output_useful) {
     label = 'degraded';
   } else {

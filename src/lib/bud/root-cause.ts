@@ -73,23 +73,15 @@ export function classifyRootCause(input: RootCauseSignalInput): RootCauseClassif
     /silent[-\s]?success|succeeded[_\s-]?no[_\s-]?output|no[-\s]?output|empty output|produced no output|no useful output/.test(text)
   ) {
     rootCauseId = 'silent_success';
-  }
-
-  if (
+  } else if (
     /output contract|schema validation|output schema|runtime schema|agentresult|validation_error|agent-output-guard/.test(text)
   ) {
     rootCauseId = 'output_contract';
-  }
-
-  if (/reply_channel|reply channel|messenger_psid|sms|phone lead|manual callback|unroutable|missing psid/.test(text)) {
+  } else if (/reply_channel|reply channel|messenger_psid|sms|phone lead|manual callback|unroutable|missing psid/.test(text)) {
     rootCauseId = 'customer_reply_routing';
-  }
-
-  if (/watch_urls|watch urls|competitor_pages|no competitor|knowledge_articles|knowledge corpus|corpus|not configured|config missing/.test(text)) {
+  } else if (/watch_urls|watch urls|competitor_pages|no competitor|knowledge_articles|knowledge corpus|corpus|not configured|config missing/.test(text)) {
     rootCauseId = 'agent_config_missing';
-  }
-
-  if (/observability|metric|alert|monitoring|dashboard|blind spot|telemetry/.test(text)) {
+  } else if (/observability|metric|alert|monitoring|dashboard|blind spot|telemetry/.test(text)) {
     rootCauseId = 'observability_gap';
   }
 

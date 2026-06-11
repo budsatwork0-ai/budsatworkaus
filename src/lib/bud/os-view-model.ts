@@ -16,6 +16,7 @@ export type BudOsStateLabel =
 
 export type BudOsQueueGroup = 'critical' | 'needs_approval' | 'suggested_improvements' | 'watch_items' | 'completed_actions';
 export type BudOsQueueSource =
+  | 'root_cause_initiative'
   | 'bud_task'
   | 'bud_approval'
   | 'agent_action'
@@ -76,6 +77,9 @@ export type BudOsQueueItem = {
   created_at: string;
   actions: Array<'explain' | 'investigate' | 'fix_with_bud' | 'approve' | 'dismiss'>;
   approval?: BudOsApprovalDetail;
+  root_cause_id?: string | null;
+  root_cause_key?: string | null;
+  initiative_id?: string | null;
 };
 
 export type BudOsRepairWorkspace = {
@@ -163,6 +167,22 @@ type ActionRow = {
   root_cause_id?: string | null;
   root_cause_key?: string | null;
   initiative_id?: string | null;
+  action_identity?: string | null;
+  superseded_by?: string | null;
+  is_duplicate?: boolean | null;
+};
+
+export type RootCauseInitiativeRow = {
+  id: string;
+  root_cause_id: string;
+  root_cause_key: string;
+  title: string;
+  status: string;
+  signal_count: number;
+  duplicate_count: number;
+  approval_count: number;
+  latest_signal_at: string | null;
+  created_at: string;
 };
 
 type InsightRow = {
@@ -639,9 +659,35 @@ export function buildBudOsActionQueue(args: {
   insights: InsightRow[];
   budApprovals: BudApprovalItem[];
   uxEvolution: UxEvolutionRecommendation[];
+  initiatives?: RootCauseInitiativeRow[];
 }): BudOsQueueItem[] {
   const items: BudOsQueueItem[] = [];
   const agentById = new Map(args.commandState.agents.map((agent) => [agent.id, agent]));
+  const initiativeIds = new Set((args.initiatives ?? []).map((initiative) => initiative.id));
+  const initiativeRootKeys = new Set((args.initiatives ?? []).map((initiative) => initiative.root_cause_key));
+
+  for (const initiative of args.initiatives ?? []) {
+    if (!['open', 'patching', 'validating', 'blocked'].includes(initiative.status)) continue;
+    const group: BudOsQueueGroup = initiative.status === 'blocked' ? 'critical' : 'needs_approval';
+    items.push({
+      id: `initiative:${initiative.id}`,
+      source: 'root_cause_initiative',
+      source_id: initiative.id,
+      task_id: null,
+      group,
+      title: initiative.title,
+      detail: `${initiative.signal_count} signal${initiative.signal_count === 1 ? '' : 's'} compressed into ${initiative.approval_count} live approval${initiative.approval_count === 1 ? '' : 's'}; ${initiative.duplicate_count} duplicate${initiative.duplicate_count === 1 ? '' : 's'} suppressed.`,
+      severity: initiative.status === 'blocked' ? 'critical' : initiative.root_cause_id === 'silent_success' ? 'high' : 'medium',
+      status: initiative.status,
+      agent_id: null,
+      agent_name: 'Agent Intelligence',
+      created_at: initiative.latest_signal_at ?? initiative.created_at,
+      actions: ['explain', 'investigate', 'dismiss'],
+      root_cause_id: initiative.root_cause_id,
+      root_cause_key: initiative.root_cause_key,
+      initiative_id: initiative.id,
+    });
+  }
 
   const sessionByTask = new Map(args.commandState.repair_sessions.map((s) => [s.id, s]));
 
@@ -670,6 +716,13 @@ export function buildBudOsActionQueue(args: {
   }
 
   for (const approval of args.budApprovals) {
+    const approvalPayload = (approval.payload ?? {}) as Record<string, unknown>;
+    const approvalInitiativeId = typeof approvalPayload.initiative_id === 'string' ? approvalPayload.initiative_id : null;
+    const approvalRootKey = typeof approvalPayload.root_cause_key === 'string' ? approvalPayload.root_cause_key : null;
+    if (
+      (approvalInitiativeId && initiativeIds.has(approvalInitiativeId))
+      || (approvalRootKey && initiativeRootKeys.has(approvalRootKey))
+    ) continue;
     const annotated = approval as BudApprovalItem & {
       bud_tasks?: { description?: string; source_agent?: string | null; risk_level?: string | null; confidence?: number | null } | null;
     };
@@ -710,11 +763,19 @@ export function buildBudOsActionQueue(args: {
       created_at: approval.created_at,
       actions: actionSet(group),
       approval: detail,
+      root_cause_id: typeof approvalPayload.root_cause_id === 'string' ? approvalPayload.root_cause_id : null,
+      root_cause_key: approvalRootKey,
+      initiative_id: approvalInitiativeId,
     });
   }
 
   for (const action of args.actions) {
     if (!action.id) continue;
+    if (
+      action.is_duplicate
+      || (action.initiative_id && initiativeIds.has(action.initiative_id))
+      || (action.root_cause_key && initiativeRootKeys.has(action.root_cause_key))
+    ) continue;
     const detail = buildApprovalDetailFromAgentAction({ action });
     items.push({
       id: `agent-action:${action.id}`,
@@ -731,6 +792,9 @@ export function buildBudOsActionQueue(args: {
       created_at: action.created_at,
       actions: actionSet('needs_approval'),
       approval: detail,
+      root_cause_id: action.root_cause_id ?? null,
+      root_cause_key: action.root_cause_key ?? null,
+      initiative_id: action.initiative_id ?? null,
     });
   }
 
@@ -845,10 +909,13 @@ export function buildBudOsActionQueue(args: {
   const deduped = new Map<string, BudOsQueueItem>();
   for (const item of items) {
     const payloadRoot = item.approval?.payload?.root_cause_key;
-    const rootCauseKey = typeof payloadRoot === 'string' && payloadRoot.trim()
+    const rootCauseKey = item.root_cause_key
+      || (typeof payloadRoot === 'string' && payloadRoot.trim()
       ? payloadRoot.trim()
-      : null;
-    const targetKey = rootCauseKey
+      : null);
+    const targetKey = item.initiative_id
+      ? `initiative:${item.initiative_id}`
+      : rootCauseKey
       ? `root-cause:${rootCauseKey}`
       : item.approval?.target_table && item.approval.target_id
       ? `${item.source}:${item.agent_id ?? 'unknown'}:${item.approval.action_type}:${item.approval.target_table}:${item.approval.target_id}`

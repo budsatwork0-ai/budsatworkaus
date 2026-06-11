@@ -299,10 +299,16 @@ function Vitals({ commandState }: { commandState: MissionControlHealth }) {
       tone: commandState.counts.failed_runs > 0 ? 'text-red-300' : 'text-emerald-300',
     },
     {
-      label: 'Pending approvals',
-      value: String(commandState.approvals.total_pending),
-      sub: `${commandState.approvals.actionable_pending} actionable · ${commandState.approvals.needs_manual_review} manual · ${commandState.approvals.blocked_historical} blocked · ${commandState.approvals.archived_stale} archived`,
-      tone: commandState.approvals.total_pending > 0 ? 'text-yellow-200' : 'text-white/70',
+      label: 'Initiatives',
+      value: String(commandState.intelligence.initiative_count),
+      sub: `${commandState.intelligence.root_cause_count} roots · ${Math.round(commandState.intelligence.duplicate_rate * 100)}% duplicate compression`,
+      tone: commandState.intelligence.initiative_count > 0 ? 'text-sky-300' : 'text-white/70',
+    },
+    {
+      label: 'Approvals',
+      value: String(commandState.intelligence.approval_count || commandState.approvals.total_pending),
+      sub: `${commandState.approvals.actionable_pending} actionable after compression`,
+      tone: (commandState.intelligence.approval_count || commandState.approvals.total_pending) > 0 ? 'text-yellow-200' : 'text-white/70',
     },
     {
       label: 'Open tasks',
@@ -329,7 +335,7 @@ function Vitals({ commandState }: { commandState: MissionControlHealth }) {
   ];
 
   return (
-    <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
       {cells.map((c) => (
         <div key={c.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{c.label}</p>
@@ -557,9 +563,10 @@ const APPROVAL_ACTION_TYPES = new Set([
   'flag_for_review',
 ]);
 
-type QueueBucket = 'approval' | 'operational' | 'observation' | 'watch';
+type QueueBucket = 'initiative' | 'approval' | 'operational' | 'observation' | 'watch';
 
 function classifyQueueItem(item: BudOsQueueItem): QueueBucket {
+  if (item.source === 'root_cause_initiative') return 'initiative';
   if (item.approval && APPROVAL_ACTION_TYPES.has(item.approval.action_type)) return 'approval';
   if (item.source === 'bud_insight' || item.source === 'ux_evolution') return 'observation';
   if (item.group === 'watch_items') return 'watch';
@@ -573,7 +580,11 @@ function normalizeTitle(title: string): string {
 }
 
 function deriveDeduplicateKey(item: BudOsQueueItem): string {
+  if (item.initiative_id) return `initiative:${item.initiative_id}`;
+  if (item.root_cause_key) return `root-cause:${item.root_cause_key}`;
   const approval = item.approval;
+  const payloadRoot = approval?.payload?.root_cause_key;
+  if (typeof payloadRoot === 'string' && payloadRoot.trim()) return `root-cause:${payloadRoot.trim()}`;
   if (!approval) {
     return `${item.source}:${item.agent_id ?? ''}:${normalizeTitle(item.title)}`;
   }
@@ -1028,11 +1039,12 @@ function ActionQueue({
   onInvestigate: (item: BudOsQueueItem) => void;
   onBulkApprove: (items: BudOsQueueItem[]) => void;
 }) {
+  const initiatives  = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'initiative')).slice(0, 10);
   const approvals    = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'approval')).slice(0, 10);
   const operational  = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'operational')).slice(0, 10);
   const observations = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'observation')).slice(0, 10);
   const watchItems   = deduplicateQueueBucket(queue.filter((i) => classifyQueueItem(i) === 'watch')).slice(0, 10);
-  const isEmpty = approvals.length + operational.length + observations.length + watchItems.length === 0;
+  const isEmpty = initiatives.length + approvals.length + operational.length + observations.length + watchItems.length === 0;
 
   const handlers: QueueSubSectionHandlers = {
     selectedId, investigatingIds, onSelect, onApprove, onReject, onInvestigate, onBulkApprove,
@@ -1044,6 +1056,16 @@ function ActionQueue({
         <div className="px-5 py-8 text-center text-sm text-white/45">No action items. Bud is on watch.</div>
       ) : (
         <>
+          {initiatives.length > 0 && (
+            <QueueSubSection
+              title="Root-cause initiatives"
+              description="Compressed Agent Intelligence issues. One initiative replaces duplicate symptom approvals."
+              count={initiatives.length}
+              countTone="border-sky-400/25 bg-sky-500/[0.06] text-sky-300"
+              items={initiatives}
+              {...handlers}
+            />
+          )}
           {approvals.length > 0 && (
             <QueueSubSection
               title="Needs approval"
