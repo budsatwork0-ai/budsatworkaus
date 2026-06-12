@@ -1,16 +1,16 @@
 # Graph Report - budsatwork  (2026-06-13)
 
 ## Corpus Check
-- 1176 files · ~1,563,464 words
+- 1183 files · ~1,569,594 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 11648 nodes · 20985 edges · 698 communities (511 shown, 187 thin omitted)
+- 11659 nodes · 20995 edges · 719 communities (528 shown, 191 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 334 edges (avg confidence: 0.84)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0eda8e03`
+- Built from commit: `137bfb5c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -678,6 +678,27 @@
 - [[_COMMUNITY_Community 695|Community 695]]
 - [[_COMMUNITY_Community 696|Community 696]]
 - [[_COMMUNITY_Community 697|Community 697]]
+- [[_COMMUNITY_Community 698|Community 698]]
+- [[_COMMUNITY_Community 699|Community 699]]
+- [[_COMMUNITY_Community 700|Community 700]]
+- [[_COMMUNITY_Community 701|Community 701]]
+- [[_COMMUNITY_Community 702|Community 702]]
+- [[_COMMUNITY_Community 703|Community 703]]
+- [[_COMMUNITY_Community 704|Community 704]]
+- [[_COMMUNITY_Community 705|Community 705]]
+- [[_COMMUNITY_Community 706|Community 706]]
+- [[_COMMUNITY_Community 707|Community 707]]
+- [[_COMMUNITY_Community 708|Community 708]]
+- [[_COMMUNITY_Community 709|Community 709]]
+- [[_COMMUNITY_Community 710|Community 710]]
+- [[_COMMUNITY_Community 711|Community 711]]
+- [[_COMMUNITY_Community 712|Community 712]]
+- [[_COMMUNITY_Community 713|Community 713]]
+- [[_COMMUNITY_Community 714|Community 714]]
+- [[_COMMUNITY_Community 715|Community 715]]
+- [[_COMMUNITY_Community 716|Community 716]]
+- [[_COMMUNITY_Community 717|Community 717]]
+- [[_COMMUNITY_Community 718|Community 718]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `createServiceClientSafe()` - 344 edges
@@ -707,27 +728,27 @@
 - **All four agents feed leads into the shared Lead record via the Concierge** —  [EXTRACTED 1.00]
 - **All agents require ICP definition as a foundational input** —  [EXTRACTED 0.95]
 
-## Communities (698 total, 187 thin omitted)
+## Communities (719 total, 191 thin omitted)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.08
-Nodes (24): POST(), GET(), POST(), adminClient(), GET(), POST(), GET(), MODES (+16 more)
+Cohesion: 0.11
+Nodes (25): POST(), canonicalEmail(), displayEmail(), GMAIL_DOMAINS, NormalizedEmail, normalizeEmail(), PLUS_ALIAS_PROVIDERS, GET() (+17 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.05
 Nodes (43): [13:33] Session 31733717, [13:41] Session 31733717, [13:49] Session 31733717, [14:03] Session 31733717, [15:07] Session ad31c7aa, [15:09] Session ad31c7aa, [15:10] Session ad31c7aa, [15:18] Session ad31c7aa (+35 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.27
-Nodes (10): Claude should know, code:bash (graphify query "WizardState reducer wizard"), Graphify queries, How it fits in, Purpose, Related files/components, Related Systems, Source files (+2 more)
+Cohesion: 0.13
+Nodes (21): Claude should know, code:bash (graphify query "WizardState reducer wizard"), Graphify queries, How it fits in, Purpose, Related files/components, Related Systems, Source files (+13 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.05
-Nodes (29): adaptationValidatorAgent, ACTIVE_STATUSES, assetMatcherAgent, cadenceMonitorAgent, ChannelRow, campaignReporterAgent, CampaignRow, QueueRow (+21 more)
+Cohesion: 0.09
+Nodes (41): buildQuoteSummary(), cleaningAddonsForScope(), cleaningParamsForScope(), computeMins(), computeScopeCardState(), ScopeCardState, COMM_PARAM_DEFS, FALLBACK_INCLUSIONS (+33 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.04
-Nodes (41): AgentHealthLabel, AgentOutput, AgentOutputSchema, AutonomyLevelSchema, BudState, BudStateSchema, BudTaskStatusSchema, RiskLevelSchema (+33 more)
+Cohesion: 0.06
+Nodes (34): AgentHealthLabel, AgentOutput, AgentOutputSchema, AutonomyLevelSchema, BudState, BudStateSchema, BudTaskStatusSchema, RiskLevelSchema (+26 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.09
@@ -735,27 +756,27 @@ Nodes (28): Admin, Automations Log, Dashboard (/dashboard), Email Triggers, Fina
 
 ### Community 7 - "Community 7"
 Cohesion: 0.05
-Nodes (84): AssistantQuestion(), Props, buildMergePayload(), COMMERCIAL_COPY, CONTEXT_COPY, CONTEXT_PROMPT, CONTEXT_QUESTION_OVERRIDES, getActiveSequence() (+76 more)
+Nodes (90): AssistantPriceBanner(), fmtAUD(), Props, AssistantQuestion(), Props, AssistantRegoBanner(), DETECTED_ANSWER_IDS, Props (+82 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.06
-Nodes (54): Admin Agent Active Issues, Applicant Screener Agent, Crew Briefing Agent, Admin Agent Decisions, Admin Agent Findings, Lapsed Win-Back Agent, NDIS Plan Matcher Agent, Quote Triage Agent (+46 more)
+Nodes (39): Admin UX Designer Agent, AgentContext, AgentDefinition, adminUxDesignerAgent, defaultTargets(), PageAudit, AgentMetrics, budAgent (+31 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.05
-Nodes (79): POST(), canAutoComplete(), GET(), OrderWithAssignments, serviceScheduledEmail Template, code:block1 (| [description] | HIGH/MEDIUM/LOW | [pending/in progress/fix), Template, getResendClient() (+71 more)
+Cohesion: 0.06
+Nodes (72): POST(), canAutoComplete(), GET(), OrderWithAssignments, serviceScheduledEmail Template, code:block1 (| [description] | HIGH/MEDIUM/LOW | [pending/in progress/fix), Template, getResendClient() (+64 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.15
 Nodes (20): Assistant Types (types.ts), Additive Surcharge Pricing Model, Auto Interior Pricing Model, auto_rego_lookup First Step, buildMergePayload Function, Dump Delivery Subtype, DUMP_LOAD_META, Dump/Removal Flow (+12 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.07
-Nodes (23): CustomerPageContent(), useTabbedNav(), fmt(), fmtDelta(), formatDelta(), formatDurationHours(), InsightsPageContent(), MarketingIntelPanel() (+15 more)
+Cohesion: 0.14
+Nodes (11): DateRange, formatSeconds(), FunnelStage, QuoteFunnelContent(), QuoteFunnelData, RANGE_LABELS, SERVICE_LABELS, serviceLabel() (+3 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.06
-Nodes (54): Architecture, Automation Opportunities, code:bash (stripe listen --forward-to localhost:3000/api/webhooks/strip), Deployment Process, Environment Variables (Required), Incident Response, Key File Map, Related (+46 more)
+Cohesion: 0.07
+Nodes (48): Architecture, Automation Opportunities, code:bash (stripe listen --forward-to localhost:3000/api/webhooks/strip), Deployment Process, Environment Variables (Required), Incident Response, Key File Map, Related (+40 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.10
@@ -766,32 +787,32 @@ Cohesion: 0.15
 Nodes (25): Email Triggers, Order Assign Route (POST /api/orders/[id]/assign), src/app/api/orders/[id]/remind-day-before/route.ts, Email Triggers, Email: Quote Reminder (24h nudge), Quotes Route (POST /api/quotes), Quote Remind Route (POST /api/quotes/[id]/remind), Resend Email Client (+17 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.09
-Nodes (17): Active-Issues — Meta Agent, foreman, Decisions — Meta Agent, Findings — Meta Agent, Active-Issues — Meta Agent, Decisions — Meta Agent, Findings — Meta Agent, Meta Agent (+9 more)
+Cohesion: 0.13
+Nodes (13): Active-Issues — Meta Agent, foreman, Active-Issues — Meta Agent, Meta Agent, Agents, Meta Agent, Subfolders, Reports — Meta Agent (+5 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.14
-Nodes (33): GraphContextOpts, GET(), detectClusters(), findShortestPath(), frequency(), getCentralNodes(), getDecisionChain(), getNeighborhood() (+25 more)
+Cohesion: 0.13
+Nodes (34): buildGraphContext(), GraphContextOpts, GET(), detectClusters(), findShortestPath(), frequency(), getCentralNodes(), getDecisionChain() (+26 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.06
-Nodes (62): FunnelEventName, FunnelEventPayload, getOrCreateFunnelSessionId(), trackFunnelEvent(), Props, useYardMapping(), ACCESS_TOGGLES, CLEAN_SCOPES (+54 more)
+Cohesion: 0.09
+Nodes (43): ACCESS_TOGGLES, CLEAN_SCOPES, CLEANING_IMPACTS, CLEANING_MICRO_PRESETS, COMM_LABELS, CONTEXT_LABELS, CONTEXT_OPTIONS, DEFAULT_YARD_MEASUREMENT (+35 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.11
-Nodes (34): Semantic Search, buildGraphContext(), CATEGORY_FOLDER, FRESHNESS_DECAY, VAULT_SKIP_FOLDERS, buildMemoryContext(), buildRetrievalContext(), InjectedContext (+26 more)
+Cohesion: 0.08
+Nodes (51): CRAWL_PAGES, POST(), stripHtml(), CATEGORY_FOLDER, FRESHNESS_DECAY, VAULT_SKIP_FOLDERS, buildRetrievalContext(), InjectedContext (+43 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.13
-Nodes (32): DEFAULT_DUMP_RUN, LAUNDRY_IRONING_PRICES, SNEAKER_MULTI_PRICING, ALLOWED_SERVICES_BY_CONTEXT, AUTO_SIZE_CATEGORIES, DEFAULT_DUMP_RUN, LAUNDRY_IRONING_PRICES, LAUNDRY_PER_LOAD_ADDONS (+24 more)
+Cohesion: 0.12
+Nodes (31): LAUNDRY_IRONING_PRICES, POLICY, PRICE_OVERRIDE, ROUTE_SCOPES, SERVICE_REGIONS, SNEAKER_MULTI_PRICING, WINDOW_PRICES, ALLOWED_SERVICES_BY_CONTEXT (+23 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.05
-Nodes (56): clampParam(), POLICY, PRICE_OVERRIDE, WINDOW_PRICES, clampUnitPrice(), CLEANING_HOME_BRISBANE_2025, CLEANING_HOME_MIN_HOURS, CLEANING_HOME_MIN_HOURS_V2 (+48 more)
+Cohesion: 0.04
+Nodes (66): clampParam(), clampUnitPrice(), CLEANING_HOME_BRISBANE_2025, CLEANING_HOME_MIN_HOURS, CLEANING_HOME_MIN_HOURS_V2, CLEANING_HOME_MULTIPLIER, CLEANING_HOME_MULTIPLIER_V2, CLEANING_HOME_RATES (+58 more)
 
 ### Community 21 - "Community 21"
 Cohesion: 0.05
-Nodes (55): Order Assign Route (/api/orders/[id]/assign/route.ts), API: /api/portal/profile, Checkout Route (/api/quotes/[id]/checkout/route.ts), Quote Submission API (/api/quotes/route.ts), Audit Log Table, Checkout Success Page, Client Portal, Post-Payment Admin Dispatch Workflow (+47 more)
+Nodes (54): Order Assign Route (/api/orders/[id]/assign/route.ts), API: /api/portal/profile, Checkout Route (/api/quotes/[id]/checkout/route.ts), Quote Submission API (/api/quotes/route.ts), Audit Log Table, Checkout Success Page, Client Portal, Post-Payment Admin Dispatch Workflow (+46 more)
 
 ### Community 22 - "Community 22"
 Cohesion: 0.01
@@ -799,11 +820,11 @@ Nodes (256): Communities (378 total, 92 thin omitted), Community 100 - "Communit
 
 ### Community 23 - "Community 23"
 Cohesion: 0.05
-Nodes (52): JobAssignment, MatchBadge(), NdisPublication, NdisRequirements, SERVICE_HOURS, SERVICE_TYPE_OPTIONS, job_participant_matches, job_publications (+44 more)
+Nodes (55): JobAssignment, MatchBadge(), NdisPublication, NdisRequirements, SERVICE_HOURS, SERVICE_TYPE_OPTIONS, GET(), Params (+47 more)
 
 ### Community 24 - "Community 24"
 Cohesion: 0.07
-Nodes (29): Lead Scorer Agent, WHS Safety Reminder Agent, Cash Flow Forecaster Agent, Crew Briefing Agent, Crew Coach Agent, Customer Reply Agent, Lapsed Win-Back Agent, Lead Scorer Agent (+21 more)
+Nodes (31): Lead Scorer Agent, WHS Safety Reminder Agent, Cash Flow Forecaster Agent, Crew Briefing Agent, Crew Coach Agent, Customer Reply Agent, Lapsed Win-Back Agent, Lead Scorer Agent (+23 more)
 
 ### Community 25 - "Community 25"
 Cohesion: 0.04
@@ -814,12 +835,12 @@ Cohesion: 0.05
 Nodes (42): Applicant, ApplicantInsert, ApplicantUpdate, AuditLog, AuditLogInsert, ChecklistTemplate, ChecklistTemplateInsert, ChecklistTemplateUpdate (+34 more)
 
 ### Community 27 - "Community 27"
-Cohesion: 0.13
-Nodes (54): ANTHROPIC_API_KEY(), callLLM(), fetchRunHistory(), generateAllReports(), generateReport(), GenerateReportOpts, RunSummary, AGENT_WORKSPACE_MAP (+46 more)
+Cohesion: 0.15
+Nodes (26): ANTHROPIC_API_KEY(), callLLM(), fetchRunHistory(), generateAllReports(), generateReport(), GenerateReportOpts, RunSummary, AGENT_WORKSPACE_MAP (+18 more)
 
 ### Community 28 - "Community 28"
-Cohesion: 0.05
-Nodes (70): github-historian Agent (ADR Drafts Context), ADR Drafts README, Bug Tracker (Deployments Context), Deployments README, GitHub-Automation, code:block1 (GitHub Event), code:block2 (Dev/), Event → Note Mapping (+62 more)
+Cohesion: 0.09
+Nodes (47): ARCH_PATTERNS, changeTypeToMemoryCategory(), classifyCommit(), classifyFilePaths(), classifyPR(), classifyPushCommits(), COMMIT_PREFIX_MAP, extractAffectedSystems() (+39 more)
 
 ### Community 29 - "Community 29"
 Cohesion: 0.04
@@ -834,68 +855,68 @@ Cohesion: 0.07
 Nodes (60): 10. `payment_intent.succeeded` backup handler doesn't update order status, 11. No `payment_intent.requires_action` handling, 12. Env-var validation is lazy, 13. No CSRF defence-in-depth on checkout POSTs, 14. Email comparison doesn't trim, 15. Money stored as float, not integer cents, 16. `payments.currency` not stored, 17. Quote status state machine sprawls (+52 more)
 
 ### Community 32 - "Community 32"
-Cohesion: 0.05
-Nodes (54): AuthCard(), AuthCardProps, AdminDocument, DocCard(), DocCardProps, DocReviewCard(), DocReviewCardProps, DocRow() (+46 more)
+Cohesion: 0.06
+Nodes (43): AdminDocument, DocCard(), DocCardProps, DocReviewCard(), DocReviewCardProps, DocRow(), DocRowProps, Employee (+35 more)
 
 ### Community 33 - "Community 33"
 Cohesion: 0.05
 Nodes (43): [00:35] Session 87072ced, [00:47] Session 87072ced, [00:51] Session 87072ced, [08:31] Session 87072ced, [08:40] Session 87072ced, [08:52] Session 87072ced, [09:15] Session 87072ced, [09:23] Session 29424d95 (+35 more)
 
 ### Community 34 - "Community 34"
-Cohesion: 0.10
-Nodes (37): acceptanceChip(), acceptanceLabel(), aggregateSeries(), AlertsStack(), BreakdownList(), ChartLegend(), DisplayPayStatus, DisplayWorker (+29 more)
+Cohesion: 0.09
+Nodes (41): acceptanceChip(), acceptanceLabel(), aggregateSeries(), AlertsStack(), BreakdownList(), ChartLegend(), DisplayPayStatus, DisplayWorker (+33 more)
 
 ### Community 35 - "Community 35"
 Cohesion: 0.10
-Nodes (39): adminClient(), GET(), POST(), getDefaultAutonomyLevel(), branchExists(), budBranchName(), createBranch(), createIssue() (+31 more)
+Nodes (37): adminClient(), GET(), POST(), getDefaultAutonomyLevel(), budBranchName(), createIssue(), ACTIVE_IMPROVEMENT_STATUSES, buildFailureReport() (+29 more)
 
 ### Community 36 - "Community 36"
-Cohesion: 0.13
-Nodes (19): AGENT_REGISTRY, ProposedAction, GET(), GET(), GET(), POST(), POST(), adminClient() (+11 more)
+Cohesion: 0.10
+Nodes (26): AGENT_REGISTRY, ProposedAction, GET(), GET(), buildMemoryContext(), GET(), POST(), POST() (+18 more)
 
 ### Community 37 - "Community 37"
 Cohesion: 0.08
 Nodes (45): Trial Arbiter Agent, Court Architect Agent, Master of Familiars Agent, Sword Tester Agent, Autonomy: Auto (at-will), Autonomy: Manual (by-summons), Autonomy: Review (by-decree), Buds At Work Application (+37 more)
 
 ### Community 38 - "Community 38"
-Cohesion: 0.11
-Nodes (34): getVaultPath(), getEmbeddingProvider(), bulkRefreshFreshness(), buildNote(), extractInlineTags(), parseFrontmatter(), parseYamlScalar(), parseYamlValue() (+26 more)
+Cohesion: 0.10
+Nodes (35): getVaultPath(), bulkRefreshFreshness(), buildNote(), extractInlineTags(), parseFrontmatter(), parseYamlScalar(), parseYamlValue(), serializeFrontmatter() (+27 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.06
-Nodes (51): AnalyticsEventInput, recordAnalyticsEvent(), AnalyticsEventData, AnalyticsScalar, canonicalEmail(), displayEmail(), GMAIL_DOMAINS, NormalizedEmail (+43 more)
+Cohesion: 0.10
+Nodes (35): ndisForwardQuoteEmail(), quoteReceivedEmail(), ALLOWED_PHOTO_EXT, ALLOWED_PHOTO_MIME, GET(), POST(), VALID_TYPES, checkRateLimit() (+27 more)
 
 ### Community 40 - "Community 40"
-Cohesion: 0.07
-Nodes (34): GET(), POST(), requireStaff(), ActivityItem, createEmptyDailySeries(), CrewAssignmentRecord, DashboardData, DashboardMetrics (+26 more)
+Cohesion: 0.06
+Nodes (41): GET(), POST(), requireStaff(), ActivityItem, createEmptyDailySeries(), CrewAssignmentRecord, DashboardData, DashboardMetrics (+33 more)
 
 ### Community 41 - "Community 41"
-Cohesion: 0.14
-Nodes (17): githubHistorianAgent, AgentFinding, AgentIssue, AgentTask, AreaFinding, AreaResult, buildFindingBody(), FOCUS_AREAS (+9 more)
+Cohesion: 0.11
+Nodes (35): /dashboard, /dashboard/quotes, defaultMetrics, defaultMoneyFlow, UseDashboardDataResult, writeCache(), DEFAULT_DASHBOARD_GOALS, inferResponseStatus() (+27 more)
 
 ### Community 42 - "Community 42"
 Cohesion: 0.06
 Nodes (22): CHARACTER_OPTIONS, formatDate(), IdeaCard(), IdeaDraft, OpportunityConvertCard(), ScorePill(), ScorePill(), formatDate() (+14 more)
 
 ### Community 43 - "Community 43"
-Cohesion: 0.09
-Nodes (39): formatBrowserSummary(), EmbeddingResponse, generateEmbedding(), searchSimilarLearnings(), SimilarLearning, writeLearningEmbedding(), searchIssues(), BudOsLifecycleState (+31 more)
+Cohesion: 0.08
+Nodes (49): EmbeddingResponse, searchSimilarLearnings(), SimilarLearning, writeLearningEmbedding(), branchExists(), client(), createBranch(), deleteBranch() (+41 more)
 
 ### Community 44 - "Community 44"
 Cohesion: 0.09
 Nodes (42): AgentAction Record (Audit Log), Agent Record (Data Model), Ahrefs API, Anthropic SDK (LLM Layer), Apollo Prospect Data, Recommended Build Sequence (Phases 0-5), CallRail Call Tracking, Clay Prospect Enrichment (+34 more)
 
 ### Community 45 - "Community 45"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (30): AlertCircleIcon(), ArrowLeftIcon(), EyeIcon(), LeafIcon(), MailIcon(), Spinner(), AuthSplitLayout(), AuthSplitLayoutProps (+22 more)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.05
-Nodes (39): ActionRow, AgentHealthScore, AgentLifecycleState, AgentRow, BudApprovalTaskRow, BudTaskRow, ChangeRequestRow, classifyApprovalTruth() (+31 more)
+Cohesion: 0.04
+Nodes (42): ActionRow, AgentHealthScore, AgentLifecycleState, AgentRow, BudApprovalTaskRow, BudTaskRow, ChangeRequestRow, classifyApprovalTruth() (+34 more)
 
 ### Community 47 - "Community 47"
-Cohesion: 0.10
-Nodes (26): competitorScoutAgent, extractSuburb(), fetchPageText(), isOwnDomain(), parseJsonResponse(), SEARCH_QUERIES(), SearchHit, webSearch() (+18 more)
+Cohesion: 0.11
+Nodes (25): competitorScoutAgent, extractSuburb(), fetchPageText(), isOwnDomain(), parseJsonResponse(), SEARCH_QUERIES(), SearchHit, webSearch() (+17 more)
 
 ### Community 48 - "Community 48"
 Cohesion: 0.11
@@ -903,15 +924,15 @@ Nodes (36): activeFileDelete(), activeFileGet(), activeFilePatch(), activeFilePo
 
 ### Community 49 - "Community 49"
 Cohesion: 0.05
-Nodes (27): TONE_STYLES, WorkbenchHeader(), WorkbenchQueue(), WorkbenchQueueItem, WorkbenchStat, WorkbenchStatGrid(), WorkbenchTab, WorkbenchTabs() (+19 more)
+Nodes (29): TONE_STYLES, WorkbenchHeader(), WorkbenchQueue(), WorkbenchQueueItem, WorkbenchStat, WorkbenchStatGrid(), WorkbenchTab, WorkbenchTabs() (+21 more)
 
 ### Community 50 - "Community 50"
-Cohesion: 0.10
-Nodes (35): MissionControlHealth, BudOsQueueItem, BudOsRepairWorkspace, buildApprovalDetail(), buildBlockedDetail(), buildDegradedDetail(), buildRecoveringDetail(), deriveGlobalTruth() (+27 more)
+Cohesion: 0.08
+Nodes (43): MissionControlHealth, AgentImpactMap, BudOsQueueItem, BudOsRepairWorkspace, buildRepairWorkspace(), buildApprovalDetail(), buildBlockedDetail(), buildDegradedDetail() (+35 more)
 
 ### Community 51 - "Community 51"
 Cohesion: 0.06
-Nodes (45): ActionRow, actionSet(), AgentBizValue, AgentImpactEntry, ApprovalReadinessReason, BudOsApprovalDetail, BudOsAutonomyCapability, BudOsMemoryLayer (+37 more)
+Nodes (54): getBudCapabilities(), ApprovalTruthLabel, ActionRow, actionSet(), AgentImpactEntry, ApprovalReadinessReason, BudOsApprovalDetail, BudOsAutonomyCapability (+46 more)
 
 ### Community 52 - "Community 52"
 Cohesion: 0.07
@@ -919,7 +940,7 @@ Nodes (36): TYPES, URGENCIES, cleanText(), GET(), PLATFORMS, POST(), requireAdmi
 
 ### Community 53 - "Community 53"
 Cohesion: 0.02
-Nodes (166): POST(), RouteContext, POST(), RouteParams, STATUS_FIELD, SuggestionType, TARGET_FIELD, GET() (+158 more)
+Nodes (154): POST(), RouteContext, POST(), RouteContext, GET(), POST(), GET(), SERVICE_LABELS (+146 more)
 
 ### Community 54 - "Community 54"
 Cohesion: 0.05
@@ -955,11 +976,11 @@ Nodes (16): PreflightFinding, PreflightResult, PreflightSeverity, Rule, ruleBran
 
 ### Community 62 - "Community 62"
 Cohesion: 0.04
-Nodes (37): ErrorBoundary, Props, State, MetricCard(), AvatarLead, OverviewCard(), PopularService, PopularServicesCard() (+29 more)
+Nodes (34): ErrorBoundary, Props, State, MetricCard(), AvatarLead, OverviewCard(), PopularService, PopularServicesCard() (+26 more)
 
 ### Community 63 - "Community 63"
 Cohesion: 0.05
-Nodes (40): AnalyticsProviders(), ClarityInit(), HotjarInit(), EXCLUDED_PATHS, isExcluded(), PageViewTracker(), PostHogProvider(), captureLeadAttribution() (+32 more)
+Nodes (42): AnalyticsProviders(), ClarityInit(), HotjarInit(), EXCLUDED_PATHS, isExcluded(), PageViewTracker(), PostHogProvider(), captureLeadAttribution() (+34 more)
 
 ### Community 64 - "Community 64"
 Cohesion: 0.10
@@ -967,7 +988,7 @@ Nodes (20): [00:07] Session 29d34382, [00:29] Session 29d34382, [00:30] Session 
 
 ### Community 65 - "Community 65"
 Cohesion: 0.10
-Nodes (33): Description, Impact, Issue: Job Scheduling — No Drag-Assign; 5+ Clicks per Assignment, Related, Steps to Reproduce, Finding: Admin Optimization Agent — Baseline Seed, Decision: Introduce Admin Optimization as a Dedicated Operational Intelligence Agent, Admin Optimization Agent (+25 more)
+Nodes (32): Description, Impact, Issue: Job Scheduling — No Drag-Assign; 5+ Clicks per Assignment, Related, Steps to Reproduce, Finding: Admin Optimization Agent — Baseline Seed, Decision: Introduce Admin Optimization as a Dedicated Operational Intelligence Agent, Admin Optimization Agent (+24 more)
 
 ### Community 66 - "Community 66"
 Cohesion: 0.11
@@ -978,8 +999,8 @@ Cohesion: 0.07
 Nodes (32): Product Management, Current Product Phases, Feature Prioritisation Framework, Phase 3 — Growth & automation 🔄 In progress (April 2026), Phase 4 — Scale 🗺️ Planned, Related, Sprint Cadence, User Personas (+24 more)
 
 ### Community 68 - "Community 68"
-Cohesion: 0.22
-Nodes (24): Customer Reply Agent, NDIS Compliance Agent, Activity Chart (14-day run history), Applicant Screener Agent, Pending Approvals Queue, Autonomy Mode: Auto (Fully autonomous), Autonomy Mode: Review (Human-in-the-loop), Buds At Work (+16 more)
+Cohesion: 0.12
+Nodes (37): Admin Agent Active Issues, Applicant Screener Agent, Crew Briefing Agent, Customer Reply Agent, Admin Agent Decisions, Admin Agent Findings, Lapsed Win-Back Agent, NDIS Compliance Agent (+29 more)
 
 ### Community 69 - "Community 69"
 Cohesion: 0.09
@@ -987,7 +1008,7 @@ Nodes (25): Bullets(), DetailPanel(), EMPTY_STAGE_MAP(), formatDuration(), forma
 
 ### Community 70 - "Community 70"
 Cohesion: 0.07
-Nodes (35): Pre-Test Setup, Related, Step 1 — Wizard Flow, Step 2 — Admin Review, Step 3 — Checkout Creation, Step 4 — Payment, Step 5 — Failure Scenario, Step 6 — Expired Session Scenario (+27 more)
+Nodes (33): Pre-Test Setup, Related, Step 1 — Wizard Flow, Step 2 — Admin Review, Step 3 — Checkout Creation, Step 4 — Payment, Step 5 — Failure Scenario, Step 6 — Expired Session Scenario (+25 more)
 
 ### Community 71 - "Community 71"
 Cohesion: 0.10
@@ -998,12 +1019,12 @@ Cohesion: 0.04
 Nodes (47): [00:58] Session 28f2480e, [01:11] Session 096c15df, [01:16] Session 096c15df, [01:24] Session 096c15df, [01:38] Session 096c15df, [11:11] Session 096c15df, [11:48] Session 096c15df, [13:44] Session f8b272c8 (+39 more)
 
 ### Community 73 - "Community 73"
-Cohesion: 0.13
-Nodes (23): CRAWL_PAGES, POST(), stripHtml(), checkDuplicate(), checkDuplicateInProcess(), dedupSeverity, InProcessCandidate, buildEmbedText() (+15 more)
+Cohesion: 0.08
+Nodes (35): Quote Flow, code:bash (graphify query "ServicesPageContent wizard step"), Graphify queries, Key internal dependencies, Purpose, Related Systems, Source file, code:bash (graphify query "WizardState reducer wizard") (+27 more)
 
 ### Community 74 - "Community 74"
-Cohesion: 0.08
-Nodes (28): Decision Log, ivfflat Index, OpenAI Embeddings, pgvector, ADR-0001: Use pgvector for Memory Semantic Search, Supabase, ADR-0001: Use pgvector for Memory Semantic Search, Bud Core Runtime (+20 more)
+Cohesion: 0.12
+Nodes (16): Bud Core Runtime, ADR Index, Engineering (Admin), Home (00-Index), Bud Leads, Engineering (Admin), lead_conversations Table, lead_follow_ups Table (+8 more)
 
 ### Community 75 - "Community 75"
 Cohesion: 0.08
@@ -1014,8 +1035,8 @@ Cohesion: 0.06
 Nodes (40): Claude should know, code:bash (graphify query "ServicesPageContent wizard step"), Graphify queries, Key internal dependencies, Purpose, Related files/components, Related Systems, ServicesPageContent (+32 more)
 
 ### Community 77 - "Community 77"
-Cohesion: 0.08
-Nodes (18): LearningOutcome, PipelineLearningEntry, VALID_SURFACES, VALID_SURFACES, PipelineAgentScore, PipelineArtifact, PipelineKpis, PipelineRun (+10 more)
+Cohesion: 0.10
+Nodes (15): LearningOutcome, PipelineLearningEntry, VALID_SURFACES, VALID_SURFACES, PipelineAgentScore, PipelineArtifact, PipelineKpis, PipelineRun (+7 more)
 
 ### Community 78 - "Community 78"
 Cohesion: 0.05
@@ -1026,8 +1047,8 @@ Cohesion: 0.08
 Nodes (28): Automation Opportunities, Business Registration, Contractor Compliance (ATO), Data Privacy (Privacy Act 1988 + Australian Privacy Principles), Insurance Checklist, Legal Documents Required, Related, ABN Registration (+20 more)
 
 ### Community 80 - "Community 80"
-Cohesion: 0.09
-Nodes (17): Active-Issues — Performance Agent, photo-qa, Decisions — Performance Agent, Findings — Performance Agent, Active-Issues — Performance Agent, Decisions — Performance Agent, Findings — Performance Agent, Performance Agent (+9 more)
+Cohesion: 0.12
+Nodes (13): photo-qa, Decisions — Performance Agent, Findings — Performance Agent, Decisions — Performance Agent, Findings — Performance Agent, Performance Agent, Agents, Performance Agent (+5 more)
 
 ### Community 81 - "Community 81"
 Cohesion: 0.11
@@ -1038,8 +1059,8 @@ Cohesion: 0.06
 Nodes (31): audio-recorder, backlink, bases, bookmarks, canvas, command-palette, daily-notes, editor-status (+23 more)
 
 ### Community 83 - "Community 83"
-Cohesion: 0.11
-Nodes (32): VisitorsTab, page_views, site_visitors, site_visitors, ArrowDownIcon(), ArrowUpIcon(), Panel(), BRAND (+24 more)
+Cohesion: 0.07
+Nodes (41): VisitorsTab, page_views, site_visitors, site_visitors, analytics_sessions, page_views, visitor_events, analytics_sessions (+33 more)
 
 ### Community 84 - "Community 84"
 Cohesion: 0.06
@@ -1054,8 +1075,8 @@ Cohesion: 0.14
 Nodes (25): FURNITURE_TYPES, Props, ROOM_TYPES, BaseShape, computeMetrics(), defaultEstimateConfig, EstimateConfig, FloorItem (+17 more)
 
 ### Community 87 - "Community 87"
-Cohesion: 0.06
-Nodes (31): ALLOWED_LEVELS, AUTHORITY_CAPABILITY_MATRIX, AUTHORITY_DESCRIPTIONS, AUTHORITY_LABELS, BudAuthority, BudAuthorityLevel, clamp(), ComputeAuthorityArgs (+23 more)
+Cohesion: 0.12
+Nodes (14): ALLOWED_LEVELS, AUTHORITY_CAPABILITY_MATRIX, AUTHORITY_DESCRIPTIONS, AUTHORITY_LABELS, BudAuthority, BudAuthorityLevel, clamp(), ComputeAuthorityArgs (+6 more)
 
 ### Community 88 - "Community 88"
 Cohesion: 0.06
@@ -1066,36 +1087,36 @@ Cohesion: 0.10
 Nodes (19): Avatars, Body & meta, Buttons, Cards, Chips & badges, Colour, Components, Core 2.0 Design System (+11 more)
 
 ### Community 90 - "Community 90"
-Cohesion: 0.07
-Nodes (68): LeadFunnel(), leakRecommendation(), STAGE_HINTS, capitalize(), Filter, FilterPill(), LeadRow(), LiveLeadsFeed() (+60 more)
+Cohesion: 0.09
+Nodes (12): buildAttentionQueue(), buildFunnelSnapshot(), buildResponseMetrics(), buildSuburbInsights(), dashboardLeadsToLeads(), formatAge(), quotesToLeads(), STAGE_LABELS (+4 more)
 
 ### Community 91 - "Community 91"
 Cohesion: 0.07
 Nodes (29): dependencies, framer-motion, @googlemaps/js-api-loader, konva, @marsidev/react-turnstile, next, @next/third-parties, @octokit/rest (+21 more)
 
 ### Community 92 - "Community 92"
-Cohesion: 0.05
-Nodes (32): AgentLifecycleState, AgentMetrics, COMPLIANCE_IDS, CUSTOMER_IDS, FINANCE_IDS, foremanAgent, GROWTH_IDS, LIVE_OPS_IDS (+24 more)
+Cohesion: 0.08
+Nodes (20): ActionRow, AgentCard(), AgentRow, CATEGORY_COLOR, DOMAIN_DOT, ForemanConsole(), ForemanLobbyState, InsightRow (+12 more)
 
 ### Community 93 - "Community 93"
 Cohesion: 0.14
 Nodes (13): AgentMergeReviewSection(), ImprovementCard(), rel(), RISK_STYLES, SOURCE_STYLES, STATUS_LABELS, StatusFilter, GET() (+5 more)
 
 ### Community 94 - "Community 94"
-Cohesion: 0.11
-Nodes (27): Buds At Work Admin Dashboard, CSS Backdrop Filter (Glassmorphism), Badge Component, Chip Component, Content Grid Layout, Crew List Component, Delta Badge Component, CSS Design Tokens (+19 more)
+Cohesion: 0.10
+Nodes (28): Buds At Work Admin Dashboard, Attention Items List, CSS Backdrop Filter (Glassmorphism), Badge Component, Chip Component, Content Grid Layout, Crew List Component, Delta Badge Component (+20 more)
 
 ### Community 95 - "Community 95"
-Cohesion: 0.09
-Nodes (31): Admin Issue: Quote Pipeline No Single Pane, Admin Issue: Scheduling Multi-Step Assign, Admin Optimization Agent Design Decision, Admin Optimization Baseline Finding, Analytics Behavior Library, Analytics Providers Aggregator, Microsoft Clarity Init Component, GitHub to Obsidian Automation (Concept) (+23 more)
+Cohesion: 0.07
+Nodes (42): Admin Issue: Quote Pipeline No Single Pane, Admin Issue: Scheduling Multi-Step Assign, Admin Optimization Agent Design Decision, Admin Optimization Baseline Finding, abTestArchitectAgent, PageAudit, AreaFinding, AreaResult (+34 more)
 
 ### Community 96 - "Community 96"
 Cohesion: 0.05
 Nodes (33): ceoAgent, cfoAgent, chiefOfStaffAgent, cmoAgent, cooAgent, ExecutiveHQClient(), fmt(), fmtPct() (+25 more)
 
 ### Community 97 - "Community 97"
-Cohesion: 0.06
-Nodes (49): ADR Drafts, Current Queue, Workflow, AgentLifecycleState, AgentMetrics, budAgent, COMPLIANCE_IDS, CUSTOMER_IDS (+41 more)
+Cohesion: 0.12
+Nodes (29): AgentLifecycleState, ActionRow, AgentCard(), agentName(), AgentRow, BudConsole(), BudLobbyState, CATEGORY_COLOR (+21 more)
 
 ### Community 98 - "Community 98"
 Cohesion: 0.08
@@ -1134,12 +1155,12 @@ Cohesion: 0.07
 Nodes (27): ConversationRow, customerReplyAgent, DraftTarget, FlagTarget, LeadRow, Target, action, { ctx } (+19 more)
 
 ### Community 107 - "Community 107"
-Cohesion: 0.03
-Nodes (66): Checklist Template, contexts, CreateOrderModalProps, frequencies, serviceTypes, contexts, CreateSubscriptionModalProps, frequencies (+58 more)
+Cohesion: 0.06
+Nodes (33): BudChangeRequest, contexts, CreateSubscriptionModalProps, frequencies, serviceTypes, LoadingSkeletonProps, SummaryCardsSkeleton(), CHANGE_OPTIONS (+25 more)
 
 ### Community 108 - "Community 108"
-Cohesion: 0.15
-Nodes (16): Failed Payment, Email: Quote Finalized, Email: Quote Received, SOP: Failed Payment, Manual Fix: Quote Stuck in payment_pending, Quote Lifecycle (submitted → finalized → payment_pending → paid/failed), Quotes API (POST /api/quotes), Checklist (+8 more)
+Cohesion: 0.12
+Nodes (21): Failed Payment, Email: Booking Confirmed, Email: Checkout Expired, Email: Quote Received, Stripe Webhooks Route, SOP: Failed Payment, Manual Fix: Quote Stuck in payment_pending, Quote Lifecycle (submitted → finalized → payment_pending → paid/failed) (+13 more)
 
 ### Community 109 - "Community 109"
 Cohesion: 0.07
@@ -1147,23 +1168,23 @@ Nodes (27): Agent, RecentRuns(), Run, STATUS_COLOR, Td(), Th(), FeedbackItem, ST
 
 ### Community 110 - "Community 110"
 Cohesion: 0.06
-Nodes (68): SetFunction, UseYardMappingProps, YardConditionLevel, YardJob, YardMeasurementConfig, haversineDistanceKm(), toRadians(), applyDifficultyMultiplier() (+60 more)
+Nodes (67): SetFunction, UseYardMappingProps, YardConditionLevel, YardJob, YardMeasurementConfig, haversineDistanceKm(), toRadians(), haversineDistanceKm (+59 more)
 
 ### Community 111 - "Community 111"
 Cohesion: 0.09
-Nodes (34): code:bash (graphify query "route routing travel distance"), Graphify queries, How it fits in, Purpose, Related Systems, Source file, Pricing Engine, Route Service (+26 more)
+Nodes (31): code:bash (graphify query "route routing travel distance"), Graphify queries, How it fits in, Purpose, Related Systems, Source file, Route Service, Route Service (+23 more)
 
 ### Community 112 - "Community 112"
-Cohesion: 0.11
-Nodes (31): DomainCard, Icon(), ICONS, Props, TriagePill, TriageStrip(), TriageStripProps, URGENCY_STYLES (+23 more)
+Cohesion: 0.12
+Nodes (30): DomainCard, Icon(), ICONS, Props, TriagePill, TriageStrip(), TriageStripProps, URGENCY_STYLES (+22 more)
 
 ### Community 113 - "Community 113"
 Cohesion: 0.11
 Nodes (13): LatLng, BRISBANE_BOUNDS, coordsFromPath(), DEFAULT_CENTER, FRAME_EVENTS, MAP_OPTIONS, PERIMETER_STROKE_WEIGHTS, POLYGON_BASE (+5 more)
 
 ### Community 114 - "Community 114"
-Cohesion: 0.10
-Nodes (12): SURFACES, SurfaceSwitcher(), MissionControlAutonomy.tsx, Mission Control Page (mission-control/page.tsx), /account Route (disallowed), budsatwork.com Sitemap, /cart Route (disallowed), /dashboard Route (disallowed) (+4 more)
+Cohesion: 0.14
+Nodes (8): SURFACES, SurfaceSwitcher(), MissionControlAutonomy.tsx, Mission Control Page (mission-control/page.tsx), SURFACES, STAGE_BY_ID, StageDefinition, STAGES
 
 ### Community 115 - "Community 115"
 Cohesion: 0.11
@@ -1186,8 +1207,8 @@ Cohesion: 0.24
 Nodes (12): Quote Pipeline, Claude should know, code:block1 (WizardState → POST /api/quotes → quote saved), code:bash (graphify query "quote pipeline checkout stripe webhook"), Flow summary, Graphify queries, Purpose, Quote Pipeline (+4 more)
 
 ### Community 120 - "Community 120"
-Cohesion: 0.07
-Nodes (51): DistanceConfiguratorProps, DistanceRouteConfigurator, How it fits in, Purpose, Related Systems, RouteResult, useRouteResult(), loaderCache (+43 more)
+Cohesion: 0.13
+Nodes (28): DistanceConfiguratorProps, DistanceRouteConfigurator, How it fits in, Purpose, Related Systems, RouteResult, loaderCache, loadGoogleMapsOnce() (+20 more)
 
 ### Community 121 - "Community 121"
 Cohesion: 0.06
@@ -1210,8 +1231,8 @@ Cohesion: 0.09
 Nodes (21): Appendix — Audit cross-reference, Batch 0 — Pure cleanup (no code changes), Batch 1 — Governance docs + bud-memory.md case fix (no folder moves), Batch 2 — Buds OS Dashboard, Batch 3 — Archive policy + Dev Log archival, Batch 4 — Architecture rename + adjacent moves, Batch 5 — Agents folder migration (GATED on code refactor), code:block1 (Buds At Work/) (+13 more)
 
 ### Community 126 - "Community 126"
-Cohesion: 0.06
-Nodes (63): adjustedTypicalMinutes(), badgeMinutesForScope(), buildQuoteSummary(), buildServiceEstimate(), calculateEstimatedPrice(), calculateEstimatedTime(), calculateServicePrice(), cleaningAddonsForScope() (+55 more)
+Cohesion: 0.09
+Nodes (34): adjustedTypicalMinutes(), badgeMinutesForScope(), buildServiceEstimate(), calculateEstimatedPrice(), calculateEstimatedTime(), calculateServicePrice(), combinePricing(), computeScopeMinutes() (+26 more)
 
 ### Community 127 - "Community 127"
 Cohesion: 0.13
@@ -1234,8 +1255,8 @@ Cohesion: 0.10
 Nodes (35): AssignModal, CrewMember, DAY_KEYS, DayOrder, DayScheduler(), DaySchedulerProps, DEFAULT_DURATIONS, formatAvailRange() (+27 more)
 
 ### Community 132 - "Community 132"
-Cohesion: 0.10
-Nodes (21): photoQaAgent, VisionPart, Bud Agent (bud.ts), Crew Briefing Agent, Dev Session f5b1561a (2026-05-20 20:25), Approval Filter Bug (source_agent vs requested_by), Bud Self-Investigation Loop Bug, Bud Writes Code (repair-executor LLM patching) (+13 more)
+Cohesion: 0.13
+Nodes (18): Bud Agent (bud.ts), Crew Briefing Agent, Dev Session f5b1561a (2026-05-20 20:25), Approval Filter Bug (source_agent vs requested_by), Bud Self-Investigation Loop Bug, Bud Writes Code (repair-executor LLM patching), Duplicate Repair Branch Bug, Bud OS Efficiency Improvements (+10 more)
 
 ### Community 133 - "Community 133"
 Cohesion: 0.11
@@ -1254,20 +1275,20 @@ Cohesion: 0.16
 Nodes (17): clampMultiplier(), computeCoverageHours(), ConditionLevel, estimateGardenHours(), estimateGutterHours(), estimateHedgeHours(), estimateLawnHours(), estimatePressureHours() (+9 more)
 
 ### Community 137 - "Community 137"
-Cohesion: 0.06
-Nodes (42): Supabase audit_log table, Data & Analytics, Automation Opportunities, code:sql (SELECT SUM(amount) FROM payments), code:sql (SELECT), code:sql (SELECT o.service_type, SUM(p.amount) AS revenue), Dashboard Data Sources, Key SQL Queries (Supabase) (+34 more)
+Cohesion: 0.10
+Nodes (26): Supabase audit_log table, Automation Opportunities, code:sql (SELECT * FROM quotes), code:sql (SELECT o.*, q.customer_name, q.customer_email), code:sql (SELECT * FROM payments), code:sql (SELECT * FROM audit_log), Related, Resend Search (+18 more)
 
 ### Community 139 - "Community 139"
 Cohesion: 0.12
 Nodes (16): code:block1 (/graphify                                             # full), code:bash (if [ ! -f graphify-out/.graphify_python ]; then), code:bash (graphify cluster-only .), code:bash (python3 -m graphify.watch INPUT_PATH --debounce 3), code:bash (graphify hook install    # install), code:bash (graphify claude install), code:bash (graphify claude uninstall  # remove the section), For --cluster-only (+8 more)
 
 ### Community 140 - "Community 140"
-Cohesion: 0.08
-Nodes (21): Active-Issues — Frontend Agent, copyOptimizerAgent, defaultPages(), PageBundle, copy-optimizer, seo-meta, Decisions — Frontend Agent, Findings — Frontend Agent (+13 more)
+Cohesion: 0.13
+Nodes (13): Active-Issues — Frontend Agent, seo-meta, Decisions — Frontend Agent, Active-Issues — Frontend Agent, Decisions — Frontend Agent, Frontend Agent, Agents, Frontend Agent (+5 more)
 
 ### Community 141 - "Community 141"
-Cohesion: 0.11
-Nodes (21): deriveReplyChannel(), ReplyChannel, coerceLeadSource(), hostFromReferrer(), LEAD_SOURCE_SET, LEAD_SOURCES, LeadSource, LeadSourceInput (+13 more)
+Cohesion: 0.26
+Nodes (8): deriveReplyChannel(), ReplyChannel, coerceLeadSource(), LeadSource, checkSharedSecret(), MessengerIngestBody, unauthorized(), POST()
 
 ### Community 142 - "Community 142"
 Cohesion: 0.13
@@ -1282,20 +1303,20 @@ Cohesion: 0.09
 Nodes (22): Approval workflow, Automation Opportunities, code:block1 (intake → verify → paperwork → induct → ready), Compliance documents (required to be rostered), Contractor vs Employee, Crew Pipeline, Crew Portal, Crew Roles (+14 more)
 
 ### Community 145 - "Community 145"
-Cohesion: 0.17
-Nodes (18): Assignment, checklist_templates, employee_documents, employee_onboarding, employees, job_assignments, job_completions, trg_checklist_templates_updated_at (+10 more)
+Cohesion: 0.16
+Nodes (19): Checklist Template, Assignment, checklist_templates, employee_documents, employee_onboarding, employees, job_assignments, job_completions (+11 more)
 
 ### Community 146 - "Community 146"
-Cohesion: 0.10
-Nodes (24): CrewLayout(), CrewHomePage(), CrewStats, DAYS_SHORT, DOC_LABELS, DocAlert, SERVICE_HOURS, WeekJob (+16 more)
+Cohesion: 0.05
+Nodes (55): contexts, CreateOrderModalProps, frequencies, serviceTypes, CrewHomePage(), CrewStats, DAYS_SHORT, DOC_LABELS (+47 more)
 
 ### Community 147 - "Community 147"
-Cohesion: 0.47
-Nodes (6): forward-to-obsidian job, GitHub Historian Agent, trigger-historian job, Obsidian Vault (memory system), Buds At Work Webhook Handler (budsatwork.com/api/webhooks/github), Obsidian Memory Events workflow
+Cohesion: 0.26
+Nodes (28): WORKSPACES, agentsRoot(), buildAgentsIndexReadme(), buildSubfolderReadme(), buildWorkspaceReadme(), capitalise(), filename(), fm() (+20 more)
 
 ### Community 148 - "Community 148"
-Cohesion: 0.13
-Nodes (24): AssistantPriceBanner(), fmtAUD(), Props, AssistantRegoBanner(), DETECTED_ANSWER_IDS, Props, ProgressDots(), Props (+16 more)
+Cohesion: 0.10
+Nodes (17): CookieBanner(), CookieConsent, ArrowRightIcon(), ChatIcon(), FeedbackWidget(), fireEvent(), Footer(), home:cta-enter / home:cta-leave Custom Events (+9 more)
 
 ### Community 149 - "Community 149"
 Cohesion: 0.09
@@ -1310,12 +1331,12 @@ Cohesion: 0.10
 Nodes (21): code:bash (mkdir -p graphify-out), code:bash (graphify export obsidian), code:bash (graphify export html  # auto-aggregates to community view if), code:bash (graphify export wiki), code:bash (graphify export svg), code:bash (graphify export graphml), code:bash (python3 -m graphify.serve graphify-out/graph.json), code:json ({) (+13 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.05
-Nodes (36): DesignAudit, DesignSystemTab(), IntegrityCard(), scoreRing(), DraftSuggestState, MediaItem, Props, SearchBarProps (+28 more)
+Cohesion: 0.04
+Nodes (37): DraftSuggestState, MediaItem, Props, EarningsData, SERVICE_LABELS, Context, CONTEXTS, Service (+29 more)
 
 ### Community 153 - "Community 153"
-Cohesion: 0.19
-Nodes (15): Point, AddressGeocode, extractMMM(), fetchMMMGeoJson(), geocodeAddressForMMM(), GeoJsonFeature, GeoJsonFeatureCollection, GeoJsonGeometry (+7 more)
+Cohesion: 0.10
+Nodes (20): EXCLUDED_PATHS, INTERACTIVE_SELECTOR, LeafTrail, MARKETING_PATHS, Point, PublicLeafCursorFollower(), AddressGeocode, extractMMM() (+12 more)
 
 ### Community 154 - "Community 154"
 Cohesion: 0.12
@@ -1327,7 +1348,7 @@ Nodes (16): Agent Actions Route (actions/[id]/route.ts), Agents Cron (/api/agent
 
 ### Community 156 - "Community 156"
 Cohesion: 0.06
-Nodes (58): CarModelViewerProps, blendTextures(), DirtyBlendUserData, mapZoneHit(), ShaderLike, CarSelectionPayload, CarType, CarZone (+50 more)
+Nodes (49): CarModelViewerProps, blendTextures(), DirtyBlendUserData, mapZoneHit(), ShaderLike, CarSelectionPayload, CarType, CarZone (+41 more)
 
 ### Community 157 - "Community 157"
 Cohesion: 0.20
@@ -1354,16 +1375,16 @@ Cohesion: 0.16
 Nodes (12): BOOSTS, end, format(), full, h1, main(), Note, rel (+4 more)
 
 ### Community 163 - "Community 163"
-Cohesion: 0.14
-Nodes (7): CardDraft, formatDate(), ProductionCard(), CONTENT_PRODUCTION_STATUS_STYLES, CONTENT_PRODUCTION_STATUSES, ContentProductionCard, ContentProductionStatus
+Cohesion: 0.08
+Nodes (14): AssetDraft, CardDraft, formatDate(), ProductionCard(), CONTENT_ASSET_CONSENT_STATUSES, CONTENT_ASSET_CONSENT_STYLES, CONTENT_ASSET_TYPES, ContentAsset (+6 more)
 
 ### Community 164 - "Community 164"
 Cohesion: 0.08
 Nodes (28): NDIS Pricing Rewrite & Stripe Hardening — April 2026, 10. `success_url` / `cancel_url` precedence flipped, 11. Webhook handler test coverage, 1. NDIS rate constants extracted to `lib/pricing/ndis.ts`, 2. Hours suggester rewritten, 3. Full Price Guide rate table, 4. Quote Assistant pricing aligned with wizard, 5. Wizard handoff carries NDIS state through `buildMergePayload` (+20 more)
 
 ### Community 165 - "Community 165"
-Cohesion: 0.09
-Nodes (45): budImproveBranchName(), client(), deleteBranch(), enableAutoMerge(), getFileContent(), getIssueStatus(), getLatestWorkflowRun(), getWorkflowRunFailureLog() (+37 more)
+Cohesion: 0.08
+Nodes (44): BrowserTestResult, generateEmbedding(), budImproveBranchName(), enableAutoMerge(), getWorkflowRunFailureLog(), buildToolchainNotes(), callClaudeForPatches(), createExecution() (+36 more)
 
 ### Community 166 - "Community 166"
 Cohesion: 0.06
@@ -1382,8 +1403,8 @@ Cohesion: 0.08
 Nodes (14): approvalIdentity, customerReply, errorSpike, fingerprint, first, MockSupabase, payload, performance (+6 more)
 
 ### Community 170 - "Community 170"
-Cohesion: 0.06
-Nodes (46): Anti-Patterns, code:block1 (Code change), Folder map, How Claude Code should use this vault, How Graphify fits into the architecture workflow, How refactors should be staged, How runtime and system ownership is documented, Related (+38 more)
+Cohesion: 0.08
+Nodes (35): Anti-Patterns, Brand Design Tokens, Bud Core Runtime, Anti-Patterns, Auto-merging pricing / payments / auth changes, brand.primary for button backgrounds, code:tsx (// CORRECT), code:tsx (// CORRECT) (+27 more)
 
 ### Community 171 - "Community 171"
 Cohesion: 0.20
@@ -1399,7 +1420,7 @@ Nodes (12): extractBlock(), extractObjectKeys(), extractSchema(), extractStringL
 
 ### Community 174 - "Community 174"
 Cohesion: 0.04
-Nodes (45): CHARACTER_ORDER, CharacterCard(), CharacterCardProps, CharacterDraft, CONSENT_BADGE, CONSENT_BANNER, DEFAULT_CONSENT_BANNER, formatTimestamp() (+37 more)
+Nodes (49): ArcCard(), ArcDraft, CHARACTER_OPTIONS, formatDate(), formatTimestamp(), STATUS_ORDER, opportunity(), OpportunityInput (+41 more)
 
 ### Community 175 - "Community 175"
 Cohesion: 0.20
@@ -1414,8 +1435,8 @@ Cohesion: 0.14
 Nodes (20): AgentContext, AgentDefinition, AgentContext, Claude should know, code:bash (graphify explain "AgentContext"), Graphify queries, Purpose, Related files/components (+12 more)
 
 ### Community 178 - "Community 178"
-Cohesion: 0.17
-Nodes (19): callModel(), adminClient(), GET(), adminClient(), AgentResult, POST(), adminClient(), GET() (+11 more)
+Cohesion: 0.18
+Nodes (18): callModel(), adminClient(), GET(), adminClient(), POST(), adminClient(), GET(), CircuitOpenError (+10 more)
 
 ### Community 179 - "Community 179"
 Cohesion: 0.15
@@ -1423,7 +1444,7 @@ Nodes (17): entityBadgeColor(), entityLabel(), InboxRow(), MessageBubble(), Mess
 
 ### Community 180 - "Community 180"
 Cohesion: 0.06
-Nodes (34): ALL_RATINGS, buildDraft(), Props, todayDate(), ArcOption, BIBLE_SECTIONS, CardProps, CharOption (+26 more)
+Nodes (33): ALL_RATINGS, buildDraft(), Props, todayDate(), ArcOption, BIBLE_SECTIONS, CardProps, CharOption (+25 more)
 
 ### Community 181 - "Community 181"
 Cohesion: 0.17
@@ -1443,7 +1464,7 @@ Nodes (12): 1. Update Graphify, 2. Write a Dev Log Entry, 3. Capture New Convent
 
 ### Community 185 - "Community 185"
 Cohesion: 0.06
-Nodes (29): AgentImpactMap, AgentStatusDerived, ActionQueue(), AGENT_STATUS_TONE, APPROVAL_ACTION_TYPES, APPROVAL_TRUTH_TONE, BulkGroup, BusinessSnapshot() (+21 more)
+Nodes (28): AgentBizValue, AgentStatusDerived, ActionQueue(), AGENT_STATUS_TONE, APPROVAL_ACTION_TYPES, APPROVAL_TRUTH_TONE, BulkGroup, BusinessSnapshot() (+20 more)
 
 ### Community 186 - "Community 186"
 Cohesion: 0.15
@@ -1466,16 +1487,16 @@ Cohesion: 0.18
 Nodes (6): Error(), ErrorDisplay(), ErrorDisplayProps, getErrorMessage(), getVariantStyles(), "node_modules/node-forge/lib/util.js"()
 
 ### Community 191 - "Community 191"
-Cohesion: 0.35
-Nodes (13): emailRatelimit, AWS SES (Alternate Provider), budsatwork.com Application, DNS Records (SPF/DKIM/MX), Supabase SMTP Setup Guide for budsatwork.com, Email Deliverability, Postmark (Alternate Provider), Resend (Email Provider) (+5 more)
+Cohesion: 0.38
+Nodes (12): AWS SES (Alternate Provider), budsatwork.com Application, DNS Records (SPF/DKIM/MX), Supabase SMTP Setup Guide for budsatwork.com, Email Deliverability, Postmark (Alternate Provider), Resend (Email Provider), SendGrid (Alternate Provider) (+4 more)
 
 ### Community 192 - "Community 192"
 Cohesion: 0.10
 Nodes (20): [10:39] Session 110cdf57, [10:55] Session bc359851, [11:04] Session 182a7ba1, [11:09] Session 182a7ba1, [11:23] Session 182a7ba1, [12:05] Session 182a7ba1, [14:50] Session 7e16d9d5, [15:34] Session 7e16d9d5 (+12 more)
 
 ### Community 193 - "Community 193"
-Cohesion: 0.19
-Nodes (17): POST(), checkBrand(), checkConsent(), checkFactual(), checkPrivacy(), DEDUCTIONS, evaluateDraft(), finding() (+9 more)
+Cohesion: 0.10
+Nodes (27): POST(), TERMINAL_STATUSES, PUT(), RouteParams, POST(), DraftGenerationResult, generateDraftForOpportunity(), GeneratedShape (+19 more)
 
 ### Community 194 - "Community 194"
 Cohesion: 0.15
@@ -1486,12 +1507,12 @@ Cohesion: 0.10
 Nodes (19): Anti-patterns, code:block1 (00 System Core/), code:block2 (01 Architecture/), code:block3 (Pricing Engine.md), code:block4 (Dev Log 2026-05-27.md), code:block5 (Services Core Extraction.md), code:block6 (admin-optimization-findings-2026-05-27.md), Dated notes use ISO format (+11 more)
 
 ### Community 196 - "Community 196"
-Cohesion: 0.11
-Nodes (29): Admin Dashboard Improvements — April 2026, Crew Today Widget, api/dashboard/route.ts, DashboardCrewMember type, DashboardData type, DashboardQuote type, Dashboard Types (dashboard.ts), Admin Dashboard Improvements — April 2026 (+21 more)
+Cohesion: 0.21
+Nodes (14): Admin Dashboard Improvements — April 2026, Crew Today Widget, api/dashboard/route.ts, DashboardCrewMember type, DashboardData type, DashboardQuote type, Dashboard Types (dashboard.ts), Admin Dashboard Improvements — April 2026 (+6 more)
 
 ### Community 197 - "Community 197"
-Cohesion: 0.02
-Nodes (62): Command Palette (⌘K), iconProps, metadata, quickLinks, ACTION_COLORS, AuditEntry, metadata, CommandItem (+54 more)
+Cohesion: 0.03
+Nodes (38): iconProps, metadata, quickLinks, Brand tokens, code:tsx (// CORRECT), code:tsx (import { glass, glassSoft, brand } from '@/app/ui/theme';), Design System Anti-patterns, glass / glassSoft (+30 more)
 
 ### Community 198 - "Community 198"
 Cohesion: 0.21
@@ -1530,8 +1551,8 @@ Cohesion: 0.11
 Nodes (7): CHAT_MESSAGES, COLORS, EMPLOYEES, MESSAGES, NAV, NEWS, TASKS
 
 ### Community 207 - "Community 207"
-Cohesion: 0.09
-Nodes (36): Stripe Webhook Route (/api/webhooks/stripe/route.ts), Stripe Webhook Idempotency Check, Quote Pipeline, API: `POST /api/quotes`, Architecture, code:block1 (submitted → finalized → payment_pending → paid), Quote Flow, Quote Lifecycle (+28 more)
+Cohesion: 0.15
+Nodes (20): Stripe Webhook Route (/api/webhooks/stripe/route.ts), Stripe Webhook Idempotency Check, Email: Quote Finalized, Architecture, code:block1 (pending → confirmed → cancelled (if fully refunded)), code:bash (stripe listen --forward-to localhost:3000/api/webhooks/strip), Creating a Checkout Session, Metadata on Stripe Sessions (+12 more)
 
 ### Community 208 - "Community 208"
 Cohesion: 0.12
@@ -1550,8 +1571,8 @@ Cohesion: 0.13
 Nodes (11): AgentRunRow, BriefRow, CampaignRow, Channel, CHANNELS, DraftRow, fmt(), MarketingStudioTab() (+3 more)
 
 ### Community 212 - "Community 212"
-Cohesion: 0.10
-Nodes (49): TableSkeleton(), /dashboard, formatDate(), BaseFilters, useTableFilters(), ExportButton(), Pagination(), StatusChip() (+41 more)
+Cohesion: 0.17
+Nodes (25): TableSkeleton(), formatDate(), BaseFilters, useTableFilters(), ExportButton(), Pagination(), StatusChip(), buildInitialFilters() (+17 more)
 
 ### Community 213 - "Community 213"
 Cohesion: 0.15
@@ -1582,8 +1603,8 @@ Cohesion: 0.22
 Nodes (9): args, main(), OUTCOME, SCRIPT, sleep(), StageId, STAGES, supabase (+1 more)
 
 ### Community 220 - "Community 220"
-Cohesion: 0.06
-Nodes (32): services, Two-Layer Video Overlay, footer, mainNav, nav, servicesLink, AnimatedStat(), BRAND (+24 more)
+Cohesion: 0.13
+Nodes (10): LOCAL_LANDING_PAGE_LIST, LOCAL_LANDING_PAGES, LocalLandingPage, MARKETING_SERVICE_LIST, MARKETING_SERVICES, MarketingService, MarketingServiceKey, rows (+2 more)
 
 ### Community 221 - "Community 221"
 Cohesion: 0.20
@@ -1634,8 +1655,8 @@ Cohesion: 0.06
 Nodes (37): Compliance documents (required to be rostered), Employment & payroll details, Related, Supporting documents (optional, role-based), Operations, Automation Opportunities, code:block1 (Quote submitted → Finalized by admin → Payment link sent →), code:block2 (pending → confirmed → [in_progress] → completed) (+29 more)
 
 ### Community 233 - "Community 233"
-Cohesion: 0.16
-Nodes (7): AssetDraft, CONTENT_ASSET_CONSENT_STATUSES, CONTENT_ASSET_CONSENT_STYLES, CONTENT_ASSET_TYPES, ContentAsset, ContentAssetConsentStatus, ContentAssetType
+Cohesion: 0.11
+Nodes (25): github-historian Agent (ADR Drafts Context), ADR Drafts README, Bug Tracker (Deployments Context), Deployments README, GitHub-Automation, code:block1 (GitHub Event), code:block2 (Dev/), Event → Note Mapping (+17 more)
 
 ### Community 234 - "Community 234"
 Cohesion: 0.17
@@ -1678,8 +1699,8 @@ Cohesion: 0.33
 Nodes (7): public.pipeline_agent_scores, public.pipeline_artifacts, public.pipeline_kill_switch, public.pipeline_kpis_7d, public.pipeline_policy, public.pipeline_runs, public.pipeline_stage_events
 
 ### Community 244 - "Community 244"
-Cohesion: 0.04
-Nodes (56): SEVERITY_STYLES, DashboardShell(), DevRoleSwitcher(), ROLE_COLORS, ROLES, NavBadgeKey, NOTIF_ICONS, NotificationCenter() (+48 more)
+Cohesion: 0.05
+Nodes (51): Command Palette (⌘K), SEVERITY_STYLES, ACTION_COLORS, AuditEntry, CommandItem, CommandPaletteProps, SearchResult, ConfirmDialogProps (+43 more)
 
 ### Community 245 - "Community 245"
 Cohesion: 0.22
@@ -1694,12 +1715,12 @@ Cohesion: 0.13
 Nodes (15): Agent: Cash Flow Forecaster, Agent: Content Agent, Agent: Internal QA, Agent: Phone Transcriber, Agent: Photo QA, DB Table: cash_flow_forecasts, DB Table: content_drafts, DB Table: job_photos (+7 more)
 
 ### Community 248 - "Community 248"
-Cohesion: 0.18
-Nodes (12): AST Structural Extraction, Extraction Cache, Gemini Backend (LLM Extraction), graphify.cache, graphify.detect, graphify.extract, graphify.llm, graphify.transcribe (+4 more)
+Cohesion: 0.14
+Nodes (20): AST Structural Extraction, Community Detection, Extraction Cache, Gemini Backend (LLM Extraction), graph.json (GraphRAG output), GRAPH_REPORT.md, graphify.cache, graphify clone (+12 more)
 
 ### Community 249 - "Community 249"
-Cohesion: 0.04
-Nodes (21): AboutPage(), credentials, customers, iconProps, metadata, team, timeline, values (+13 more)
+Cohesion: 0.10
+Nodes (8): AboutPage(), credentials, customers, iconProps, metadata, team, timeline, values
 
 ### Community 250 - "Community 250"
 Cohesion: 0.11
@@ -1714,8 +1735,8 @@ Cohesion: 0.22
 Nodes (8): public.applicants, public.customers, public.employees, public.job_assignments, public.job_completions, public.orders, public.subscription_orders, public.subscriptions
 
 ### Community 253 - "Community 253"
-Cohesion: 0.10
-Nodes (32): ActivityFeed(), typeBgColors, typeColors, typeIcons, EVENT_CONFIG, Props, COLORS, ExpenseDataPoint (+24 more)
+Cohesion: 0.07
+Nodes (38): ActivityFeed(), typeBgColors, typeColors, typeIcons, EVENT_CONFIG, Props, COLORS, ExpenseDataPoint (+30 more)
 
 ### Community 254 - "Community 254"
 Cohesion: 0.11
@@ -1734,8 +1755,8 @@ Cohesion: 0.12
 Nodes (14): code:json ({), Config (stored in `agents.config`), Dashboard integration, Data model additions, Failure modes & guards, Files (additive, mirrors the rest of the agents framework), Market-capacity rule of thumb (the agent's prior), Price Optimizer Agent — May 2026 (+6 more)
 
 ### Community 258 - "Community 258"
-Cohesion: 0.10
-Nodes (22): CampaignCard(), CampaignDraft, formatDate(), attachQueueItems(), cleanDate(), cleanKpis(), cleanNullableText(), cleanQueueItemIds() (+14 more)
+Cohesion: 0.09
+Nodes (25): CampaignCard(), CampaignDraft, formatDate(), attachQueueItems(), cleanDate(), cleanKpis(), cleanQueueItemIds(), replaceQueueLinks() (+17 more)
 
 ### Community 259 - "Community 259"
 Cohesion: 0.09
@@ -1794,8 +1815,8 @@ Cohesion: 0.22
 Nodes (8): [12:02] Session 24850c62, [12:05] Session 24850c62, [12:23] Session 3fec8dc6, [12:26] Session 3fec8dc6, [16:19] Session 3fec8dc6, [17:02] Session 3fec8dc6, [17:05] Session 3fec8dc6, Dev Log 2026-05-29
 
 ### Community 273 - "Community 273"
-Cohesion: 0.14
-Nodes (11): adminOptimizationAgent, AreaFinding, AreaResult, avg(), avgDaysInPipeline(), buildFindingBody(), FOCUS_AREAS, FocusAreaId (+3 more)
+Cohesion: 0.07
+Nodes (24): adminOptimizationAgent, AreaFinding, AreaResult, avg(), avgDaysInPipeline(), buildFindingBody(), FOCUS_AREAS, FocusAreaId (+16 more)
 
 ### Community 274 - "Community 274"
 Cohesion: 0.14
@@ -1834,8 +1855,8 @@ Cohesion: 0.38
 Nodes (5): permissions, permissions, additionalDirectories, allow, permissions
 
 ### Community 283 - "Community 283"
-Cohesion: 0.25
-Nodes (17): createPR(), getPRDetails(), mergePR(), checkAgentFailureRate(), checkProductionHealth(), getConversionBaseline(), getConversionNow(), getLatestVercelDeployment() (+9 more)
+Cohesion: 0.24
+Nodes (18): createPR(), getPRDetails(), listOpenPRsByLabel(), mergePR(), checkAgentFailureRate(), checkProductionHealth(), getConversionBaseline(), getConversionNow() (+10 more)
 
 ### Community 284 - "Community 284"
 Cohesion: 0.20
@@ -1903,7 +1924,7 @@ Nodes (4): hooks, PreToolUse, Stop, UserPromptSubmit
 
 ### Community 302 - "Community 302"
 Cohesion: 0.05
-Nodes (48): .bw-* Utility Classes, colors_and_type.css (Design Handoff), brand.accent Colour Token (#10b981 / #1C7C54), brand.accentSoft Colour Token (#DDF3E4), brand.primary Colour Token (#0F3D2E), home:cta-enter / home:cta-leave Custom Events, Rotating Headline Words Animation, CSS Design Tokens (:root variables) (+40 more)
+Nodes (47): .bw-* Utility Classes, colors_and_type.css (Design Handoff), brand.accent Colour Token (#10b981 / #1C7C54), brand.accentSoft Colour Token (#DDF3E4), brand.primary Colour Token (#0F3D2E), Rotating Headline Words Animation, CSS Design Tokens (:root variables), Design System — April 2026 (+39 more)
 
 ### Community 303 - "Community 303"
 Cohesion: 0.33
@@ -2091,7 +2112,7 @@ Nodes (3): E(), "node_modules/obsidian-dataview/lib/index.js"(), r
 
 ### Community 387 - "Community 387"
 Cohesion: 0.06
-Nodes (45): GET(), POST(), POST(), RouteContext, buildEmployeeOnboardingSnapshot Function, GET(), BASE_SECTIONS, buildEmployeeOnboardingSnapshot() (+37 more)
+Nodes (43): GET(), POST(), buildEmployeeOnboardingSnapshot Function, GET(), BASE_SECTIONS, buildEmployeeOnboardingSnapshot(), EmployeeProgressDocument, EmployeeProgressEmployee (+35 more)
 
 ### Community 390 - "Community 390"
 Cohesion: 0.21
@@ -2126,8 +2147,8 @@ Cohesion: 0.15
 Nodes (12): Auto-Tracking Setup — Instagram + Facebook (Meta), Before you start — accounts must be linked, code:block1 (me/accounts), code:block2 (PAGE_ID?fields=instagram_business_account), code:block3 (https://graph.facebook.com/v21.0/oauth/access_token?grant_ty), code:block4 (me/accounts), Step 1 — Create a Meta developer app, Step 2 — Get your access token + IDs (Graph API Explorer) (+4 more)
 
 ### Community 403 - "Community 403"
-Cohesion: 0.12
-Nodes (15): ChannelDraft, cleanInt(), cleanText(), GET(), PLATFORMS, POST(), requireAdmin(), STATUSES (+7 more)
+Cohesion: 0.17
+Nodes (7): ChannelDraft, SOCIAL_CHANNEL_PLATFORM_LABELS, SOCIAL_CHANNEL_PLATFORMS, SOCIAL_CHANNEL_STATUS_STYLES, SOCIAL_CHANNEL_STATUSES, SocialChannel, SocialChannelPlatform
 
 ### Community 404 - "Community 404"
 Cohesion: 0.67
@@ -2146,8 +2167,8 @@ Cohesion: 0.25
 Nodes (7): Adding New Recipes, Architecture, Automations Log, Claude should know, Current Recipes, How to Enable/Disable, Related
 
 ### Community 520 - "Community 520"
-Cohesion: 0.16
-Nodes (9): ArcCard(), ArcDraft, CHARACTER_OPTIONS, formatDate(), formatTimestamp(), STATUS_ORDER, ARC_STATUS_STYLES, ARC_STATUSES (+1 more)
+Cohesion: 0.22
+Nodes (19): LeadFunnel(), leakRecommendation(), STAGE_HINTS, NightChip(), NightEmpty(), NightPanel(), NightStat(), SOURCE_GLYPH (+11 more)
 
 ### Community 521 - "Community 521"
 Cohesion: 0.40
@@ -2186,8 +2207,8 @@ Cohesion: 0.18
 Nodes (10): Checklist: Payment Flow End-to-End Test, Pre-Test Setup, Related, Step 1 — Wizard Flow, Step 2 — Admin Review, Step 3 — Checkout Creation, Step 4 — Payment, Step 5 — Failure Scenario (+2 more)
 
 ### Community 543 - "Community 543"
-Cohesion: 0.19
-Nodes (20): adminClient(), buildDocumentGraph(), buildFullGraph(), FullBuildOpts, IncrementalBuildOpts, buildBacklinkEdges(), buildDeterministicEdges(), buildSemanticEdges() (+12 more)
+Cohesion: 0.13
+Nodes (27): adminClient(), buildDocumentGraph(), buildFullGraph(), FullBuildOpts, IncrementalBuildOpts, buildBacklinkEdges(), buildDeterministicEdges(), buildSemanticEdges() (+19 more)
 
 ### Community 544 - "Community 544"
 Cohesion: 0.50
@@ -2202,8 +2223,8 @@ Cohesion: 0.18
 Nodes (10): Automation Opportunities, code:block1 (Visitor → Services Wizard → Quote Submitted → Finalized → Pa), Conversion Metrics to Track, Lead Sources, Pipeline Stages, Pricing Engine, Quote Review Process, Re-engagement Triggers (+2 more)
 
 ### Community 547 - "Community 547"
-Cohesion: 0.10
-Nodes (28): adminClient(), AgentActionEffectRow, callGemini(), CallModelResult, createQuoteEffect(), dispatchEffect(), flagForReviewEffect(), PRICING_PER_MTOK (+20 more)
+Cohesion: 0.09
+Nodes (31): adminClient(), AgentActionEffectRow, callGemini(), CallModelResult, createQuoteEffect(), dispatchEffect(), executeApprovedAction(), flagForReviewEffect() (+23 more)
 
 ### Community 548 - "Community 548"
 Cohesion: 0.20
@@ -2246,12 +2267,12 @@ Cohesion: 0.12
 Nodes (15): [00:08] Session 9d56abfd, [00:29] Session 9d56abfd, [00:32] Session 9d56abfd, [00:36] Session 9d56abfd, [00:42] Session 7296ce1c, [00:49] Session 7296ce1c, [00:58] Session 7296ce1c, [00:59] Session 7296ce1c (+7 more)
 
 ### Community 558 - "Community 558"
-Cohesion: 0.25
-Nodes (15): attachQueueItems(), cleanDate(), cleanKpis(), cleanQueueItemIds(), replaceQueueLinks(), cleanNullableText(), cleanText(), cleanTextArray() (+7 more)
+Cohesion: 0.18
+Nodes (18): Quote Pipeline, API: `POST /api/quotes`, Architecture, code:block1 (submitted → finalized → payment_pending → paid), Quote Flow, Quote Lifecycle, Related, Step 1 — Service Selection (`/services`) (+10 more)
 
 ### Community 559 - "Community 559"
-Cohesion: 0.26
-Nodes (11): createServiceClient, createServiceClient Function, Claude should know, code:bash (graphify explain "createServiceClient"), createServiceClient, Graphify queries, Purpose, Related files/components (+3 more)
+Cohesion: 0.12
+Nodes (11): NDIS_MGMT_CLASS, NDIS_MGMT_LABELS, NdisManagementType, QuotesPageContent(), QuoteStatus, sanitizeStatus(), STATUS_CLASS, STATUS_LABELS (+3 more)
 
 ### Community 560 - "Community 560"
 Cohesion: 0.22
@@ -2294,12 +2315,12 @@ Cohesion: 0.31
 Nodes (10): getPRStatus(), clampCalibration(), computeUpdatedStreak(), AccuracyVerdict, computeAccuracy(), generateLearningNotes(), LearningNotes, POST() (+2 more)
 
 ### Community 570 - "Community 570"
-Cohesion: 0.20
-Nodes (10): analytics_sessions, page_views, visitor_events, analytics_sessions, orders, page_views, quotes, visitor_events (+2 more)
+Cohesion: 0.11
+Nodes (7): CHAT_MESSAGES, COLORS, EMPLOYEES, MESSAGES, NAV, NEWS, TASKS
 
 ### Community 571 - "Community 571"
-Cohesion: 0.23
-Nodes (11): BrowserRunRow, BrowserTestResult, collectFailures(), execFileAsync, parsePlaywrightJson(), PlaywrightJsonReport, PlaywrightSpec, PlaywrightSuite (+3 more)
+Cohesion: 0.24
+Nodes (12): browserAgent, BrowserRunRow, collectFailures(), execFileAsync, formatBrowserSummary(), parsePlaywrightJson(), PlaywrightJsonReport, PlaywrightSpec (+4 more)
 
 ### Community 572 - "Community 572"
 Cohesion: 0.33
@@ -2310,8 +2331,8 @@ Cohesion: 0.22
 Nodes (7): envPath, firstEquals, key, lines, supabase, trimmed, val
 
 ### Community 574 - "Community 574"
-Cohesion: 0.13
-Nodes (7): Order, sanitizeScheduleState(), SchedulePageContent(), SERVICE_COLORS, View, DAYS, SERVICE_LABELS
+Cohesion: 0.08
+Nodes (22): useDashboardData(), Order, sanitizeScheduleState(), SchedulePageContent(), SERVICE_COLORS, View, DAYS, SERVICE_LABELS (+14 more)
 
 ### Community 575 - "Community 575"
 Cohesion: 0.33
@@ -2330,8 +2351,8 @@ Cohesion: 0.67
 Nodes (3): Batch 1 — Done, [DevTab.tsx](src/app/(app)/dashboard/mission-control/_components/DevTab.tsx), [MissionControlClient.tsx](src/app/(app)/dashboard/mission-control/MissionControlClient.tsx)
 
 ### Community 579 - "Community 579"
-Cohesion: 0.22
-Nodes (13): getAuthUser Function, getAuthUser, Claude should know, code:ts (const user = await getAuthUser();), code:bash (graphify explain "getAuthUser"), getAuthUser, Graphify queries, Pattern (+5 more)
+Cohesion: 0.11
+Nodes (26): getAuthUser Function, createServiceClient, getAuthUser, Mission Control, Quote Pipeline, createServiceClient Function, Claude should know, code:bash (graphify explain "createServiceClient") (+18 more)
 
 ### Community 580 - "Community 580"
 Cohesion: 0.67
@@ -2358,12 +2379,12 @@ Cohesion: 0.25
 Nodes (9): BudInsight, BudInsightRow, buildUxEvolutionRecommendations(), FailedRunRow, MemoryRow, normalizeSeverity(), short(), UxEvolutionSource (+1 more)
 
 ### Community 598 - "Community 598"
-Cohesion: 0.07
-Nodes (40): COMM_FEATURES, COMM_PRESETS, COMM_STANDARDS, CLEANING_SIZE_PRESETS, CleaningSizeKey, BinCleansPanel(), BinCleansPanelProps, ChecklistSection() (+32 more)
+Cohesion: 0.05
+Nodes (48): FunnelEventName, FunnelEventPayload, getOrCreateFunnelSessionId(), trackFunnelEvent(), Props, QuoteAssistantTrigger(), TRIGGER_LABEL, Props (+40 more)
 
 ### Community 599 - "Community 599"
-Cohesion: 0.09
-Nodes (32): mocks, postCheckout(), request(), createCheckoutIdempotencyKey(), RouteParams, SERVICE_LABELS, canAccessQuote(), logQuoteAudit() (+24 more)
+Cohesion: 0.10
+Nodes (26): AnalyticsEventInput, recordAnalyticsEvent(), mocks, postCheckout(), request(), createCheckoutIdempotencyKey(), RouteParams, SERVICE_LABELS (+18 more)
 
 ### Community 600 - "Community 600"
 Cohesion: 0.20
@@ -2378,56 +2399,56 @@ Cohesion: 0.24
 Nodes (5): ChapterDraft, ChapterView(), formatDate(), formatTimestamp(), StoryChapter
 
 ### Community 603 - "Community 603"
-Cohesion: 0.11
-Nodes (21): AssistantRegoLookup(), DETECTED_ANSWER_IDS, DetectedVehicle, mapDetectedCategory(), Props, readDetectedVehicle(), STATES, readNullableNumber() (+13 more)
+Cohesion: 0.12
+Nodes (20): AssistantRegoLookup(), DETECTED_ANSWER_IDS, DetectedVehicle, mapDetectedCategory(), Props, readDetectedVehicle(), STATES, DetectedVehicle (+12 more)
 
 ### Community 604 - "Community 604"
-Cohesion: 0.29
-Nodes (8): AssignFormState, DispatchTab(), Employee, EMPTY_FORM, UnassignedOrder, TodayView, VIEWS, SERVICE_LABELS
+Cohesion: 0.19
+Nodes (16): Two-Layer Video Overlay, AnimatedStat(), BRAND, Eyebrow(), FadeUp(), HomePage(), icoBase, Icon() (+8 more)
 
 ### Community 605 - "Community 605"
-Cohesion: 0.06
-Nodes (44): CHAT_MESSAGES, COLORS, EMPLOYEES, MESSAGES, NAV, NEWS, TASKS, normalize() (+36 more)
+Cohesion: 0.18
+Nodes (22): applyOverrides(), decodeXmlEntities(), extractProviderMessage(), fetchCache(), GET(), isDev(), isRegoState(), lookupFromProvider() (+14 more)
 
 ### Community 607 - "Community 607"
-Cohesion: 0.31
-Nodes (9): cleanInt(), cleanText(), DELETE(), GET(), PUT(), requireAdmin(), RouteParams, STATUSES (+1 more)
+Cohesion: 0.27
+Nodes (10): cleanInt(), cleanText(), DELETE(), GET(), PUT(), requireAdmin(), RouteParams, STATUSES (+2 more)
 
 ### Community 608 - "Community 608"
 Cohesion: 0.09
-Nodes (39): opportunity(), OpportunityInput, ranked, rankedBenchmarks(), result, "node_modules/object-inspect/index.js"(), CHANNEL_LABELS, detectBudOsFirstAction() (+31 more)
+Nodes (42): POST(), runJournalOpportunityPipeline(), GET(), POST(), POST(), POST(), DELETE(), GET() (+34 more)
 
 ### Community 610 - "Community 610"
 Cohesion: 0.27
 Nodes (11): Claude should know, code:bash (# Scoped subgraph around a concept (fastest)), Graphify Overview, Key commands, Maintenance, Output location, Purpose, Related files/components (+3 more)
 
 ### Community 611 - "Community 611"
-Cohesion: 0.36
-Nodes (9): cleanDateTime(), cleanNullableText(), cleanText(), ensureConsentForStatus(), GET(), PLATFORMS, POST(), STATUSES (+1 more)
+Cohesion: 0.18
+Nodes (15): canAccessQuote(), logQuoteAudit(), normalizeStatus(), QuoteStatus, GET(), PATCH(), RouteParams, VALID_STATUSES (+7 more)
 
 ### Community 612 - "Community 612"
-Cohesion: 0.27
-Nodes (9): authHeaders(), FIXTURES, funnel(), FunnelStep, get(), notableSessions(), pageHeatmap, SessionSummary (+1 more)
+Cohesion: 0.24
+Nodes (10): conversion-funnel, authHeaders(), FIXTURES, funnel(), FunnelStep, get(), notableSessions(), pageHeatmap (+2 more)
 
 ### Community 616 - "Community 616"
-Cohesion: 0.06
-Nodes (45): Cash Flow Forecaster Agent, Crew Coach Agent, Reconciliation Agent, Stripe Dispute Manager Agent, abTestArchitectAgent, adminUxDesignerAgent, defaultTargets(), PageAudit (+37 more)
+Cohesion: 0.04
+Nodes (76): Cash Flow Forecaster Agent, Crew Coach Agent, Reconciliation Agent, Stripe Dispute Manager Agent, Yard Map Geo Agent, adaptationValidatorAgent, agentArchitectAgent, AgentMetric (+68 more)
 
 ### Community 617 - "Community 617"
-Cohesion: 0.22
-Nodes (6): formatTimestamp(), SectionCard(), SectionCardProps, STORY_BIBLE_SECTIONS, StoryBibleSection, StoryBibleSectionKey
+Cohesion: 0.12
+Nodes (17): Data & Analytics, Automation Opportunities, code:sql (SELECT SUM(amount) FROM payments), code:sql (SELECT), code:sql (SELECT o.service_type, SUM(p.amount) AS revenue), Dashboard Data Sources, Key SQL Queries (Supabase), Related (+9 more)
 
 ### Community 618 - "Community 618"
-Cohesion: 0.09
-Nodes (33): CaptureLearningCard(), Card(), CAT_CHIP, CAT_DOT, CONSTITUTION_RULES, DEV_OS_AGENTS, DEV_OS_HOW, DevOsTab() (+25 more)
+Cohesion: 0.10
+Nodes (28): CaptureLearningCard(), Card(), CAT_CHIP, CAT_DOT, CONSTITUTION_RULES, DEV_OS_AGENTS, DEV_OS_HOW, DevOsTab() (+20 more)
 
 ### Community 619 - "Community 619"
 Cohesion: 0.33
 Nodes (5): [12:37] Session 34f94291, [12:43] Session 34f94291, [19:33] Session c203c649, [19:36] Session c203c649, Dev Log 2026-05-23
 
 ### Community 627 - "Community 627"
-Cohesion: 0.15
-Nodes (20): analyticsIntelligenceAgent, buildFindingBody(), toTaskPriority(), TrendResult, Analytics Intelligence Agent, Analytics Intelligence Layer (Concept), AbandonmentBreakdown, CtaPerformance (+12 more)
+Cohesion: 0.14
+Nodes (22): analyticsIntelligenceAgent, buildFindingBody(), toTaskPriority(), TrendResult, AgentFinding, AgentIssue, AgentTask, Analytics Intelligence Agent (+14 more)
 
 ### Community 628 - "Community 628"
 Cohesion: 0.22
@@ -2442,20 +2463,20 @@ Cohesion: 0.22
 Nodes (6): Scheduling Agent, CrewRow, OrderRow, schedulingAgent, API: POST /api/orders/[id]/assign, Service Scheduled Email Automation
 
 ### Community 646 - "Community 646"
-Cohesion: 0.50
-Nodes (7): BudTerminal(), HistoryMessage, stripAnsi(), SUGGESTIONS, TerminalLine, Thinking(), ToolBlock()
+Cohesion: 0.14
+Nodes (13): BudTerminal(), HistoryMessage, stripAnsi(), SUGGESTIONS, TerminalLine, Thinking(), ToolBlock(), GROUP_LABEL (+5 more)
 
 ### Community 647 - "Community 647"
-Cohesion: 0.43
-Nodes (7): ANTHROPIC_API_KEY(), callLLM(), condenseMemory(), maybeCondense(), MemoryNote, mergeMemories(), Anthropic API
+Cohesion: 0.12
+Nodes (11): CHARACTER_ORDER, CharacterCard(), CharacterCardProps, CharacterDraft, CONSENT_BADGE, CONSENT_BANNER, DEFAULT_CONSENT_BANNER, formatTimestamp() (+3 more)
 
 ### Community 648 - "Community 648"
 Cohesion: 0.31
 Nodes (10): cleanNullableText(), cleanText(), cleanTextArray(), DELETE(), GET(), PUT(), requireAdmin(), RouteParams (+2 more)
 
 ### Community 649 - "Community 649"
-Cohesion: 0.20
-Nodes (11): cleanNullableText(), cleanText(), GET(), POST(), requireApprovedScript(), POST(), DraftGenerationResult, generateDraftForOpportunity() (+3 more)
+Cohesion: 0.24
+Nodes (15): capitalize(), Filter, FilterPill(), LeadRow(), LiveLeadsFeed(), quoteStatusLabel(), SourceFilter, TemperatureBadge() (+7 more)
 
 ### Community 650 - "Community 650"
 Cohesion: 0.39
@@ -2466,8 +2487,8 @@ Cohesion: 0.27
 Nodes (10): createQueueItemIfAbsent(), PUBLISHING_PLATFORMS, requireApprovedScript(), cleanNullableText(), cleanText(), DELETE(), GET(), PUT() (+2 more)
 
 ### Community 652 - "Community 652"
-Cohesion: 0.14
-Nodes (13): draftFromCard(), formatDateTime(), itemToDraft(), normalizePlatform(), QueueCard(), QueueDraft, toDatetimeLocal(), MarketingPublishingQueueItem (+5 more)
+Cohesion: 0.10
+Nodes (22): draftFromCard(), formatDateTime(), itemToDraft(), normalizePlatform(), QueueCard(), QueueDraft, toDatetimeLocal(), cleanDateTime() (+14 more)
 
 ### Community 653 - "Community 653"
 Cohesion: 0.22
@@ -2506,12 +2527,12 @@ Cohesion: 0.25
 Nodes (8): Buds At Work — Agents, code:sql (update public.agents set autonomy = 'auto' where id = 'quote), Cost expectations, How the autonomy levels work, How the design loop closes, Questions / next steps, Recommended rollout, Where memory lives
 
 ### Community 663 - "Community 663"
-Cohesion: 0.12
-Nodes (16): runJournalOpportunityPipeline(), GET(), POST(), POST(), POST(), cleanText(), DELETE(), GET() (+8 more)
+Cohesion: 0.33
+Nodes (6): cleanText(), DELETE(), GET(), PUT(), RouteParams, UPDATABLE
 
 ### Community 664 - "Community 664"
-Cohesion: 0.22
-Nodes (7): approvedMessengerAction, body, eqAfterUpdate, fetchMock, insertFn, singleFn, updateFn
+Cohesion: 0.15
+Nodes (9): CHARACTER_OPTIONS, daysOpen(), formatDate(), ThreadCard(), ThreadDraft, StoryOpenThread, THREAD_STATUS_STYLES, THREAD_STATUSES (+1 more)
 
 ### Community 665 - "Community 665"
 Cohesion: 0.25
@@ -2522,8 +2543,8 @@ Cohesion: 0.40
 Nodes (4): cta, ndisContent, ndisTab, scopeCard
 
 ### Community 667 - "Community 667"
-Cohesion: 0.32
-Nodes (8): Community Detection, graph.json (GraphRAG output), GRAPH_REPORT.md, graphify clone, graphify merge-graphs, Graphify Pipeline, Interactive HTML Visualization, Knowledge Graph
+Cohesion: 0.23
+Nodes (13): Decision Log, ivfflat Index, OpenAI Embeddings, pgvector, ADR-0001: Use pgvector for Memory Semantic Search, Semantic Search, Supabase, ADR-0001: Use pgvector for Memory Semantic Search (+5 more)
 
 ### Community 668 - "Community 668"
 Cohesion: 0.11
@@ -2534,12 +2555,12 @@ Cohesion: 0.33
 Nodes (6): 1. Database (migration `036_ndis_matching.sql`), 2. Matching Algorithm (`src/lib/ndis/matching.ts`), 3. Admin Workflow, 4. Crew Portal — Support Profile, 5. Crew Portal — Find Jobs Updates, What Was Built
 
 ### Community 670 - "Community 670"
-Cohesion: 0.38
-Nodes (5): classifySensitiveFile(), RULES, SensitiveCategory, sensitiveFilesIn(), hits
+Cohesion: 0.15
+Nodes (12): AgentLifecycleState, AgentMetrics, COMPLIANCE_IDS, CUSTOMER_IDS, FINANCE_IDS, foremanAgent, GROWTH_IDS, LIVE_OPS_IDS (+4 more)
 
 ### Community 671 - "Community 671"
-Cohesion: 0.14
-Nodes (14): executeApprovedAction(), DANGEROUS_ACTIONS, isDangerousAction(), requiresApproval(), POST(), POST(), envPath, firstEquals (+6 more)
+Cohesion: 0.10
+Nodes (18): runAgent(), GET(), POST(), EXEC_SEQUENCE, GET(), GET(), POST(), pctx (+10 more)
 
 ### Community 672 - "Community 672"
 Cohesion: 0.83
@@ -2570,36 +2591,40 @@ Cohesion: 0.73
 Nodes (5): AnalyticsFinding, analytics_funnels, analytics_latest_report, analytics_open_critical, analytics_reports
 
 ### Community 682 - "Community 682"
-Cohesion: 0.09
-Nodes (17): POST(), runSandboxPack(), ArenaTab, CATEGORY_COLOURS, DIFFICULTY_COLOURS, LastResultCard(), LeaderboardRow, Lesson (+9 more)
+Cohesion: 0.11
+Nodes (11): ArenaTab, CATEGORY_COLOURS, DIFFICULTY_COLOURS, LastResultCard(), LeaderboardRow, Lesson, pct(), ReadinessData (+3 more)
 
 ### Community 687 - "Community 687"
-Cohesion: 0.60
-Nodes (4): checkRateLimit(), logAudit(), rateLimitMap, POST()
+Cohesion: 0.05
+Nodes (35): POST(), RouteParams, STATUS_FIELD, SuggestionType, TARGET_FIELD, checkRateLimit(), logAudit(), rateLimitMap (+27 more)
 
 ### Community 688 - "Community 688"
 Cohesion: 0.40
 Nodes (5): Booking Confirmed Email Automation, Checkout Expired Reset Automation, Payment Failed Reset Automation, Refund Processed Automation, Stripe
 
 ### Community 689 - "Community 689"
-Cohesion: 0.60
-Nodes (4): GET(), Params, POST(), requireAdmin()
+Cohesion: 0.21
+Nodes (13): Analytics Behavior Library, Analytics Providers Aggregator, Microsoft Clarity Init Component, Design System Rules, Dev Session c809b4fb (2026-05-18), Dev Session f1e7a03b (2026-05-18), Dev Session f97e1f64 (2026-05-18), Hotjar Init Component (+5 more)
 
 ### Community 690 - "Community 690"
-Cohesion: 0.83
-Nodes (3): adminClient(), POST(), updateManyCandidates()
+Cohesion: 0.33
+Nodes (12): attachQueueItems(), cleanDate(), cleanKpis(), cleanNullableText(), cleanQueueItemIds(), cleanText(), cleanTextArray(), GET() (+4 more)
 
 ### Community 691 - "Community 691"
 Cohesion: 0.50
 Nodes (4): code:bash (LOCAL_PATH=$(graphify clone <github-url> [--branch <branch>]), code:bash (# Clone each repo, run the full pipeline on each, then merge), code:bash (graphify extract ./core/     # → ./core/graphify-out/graph.j), Step 0 - Clone GitHub repo(s) (only if a GitHub URL was given)
 
 ### Community 692 - "Community 692"
-Cohesion: 0.83
-Nodes (3): GithubEventRow, github_adr_queue, github_recent_failures
+Cohesion: 0.24
+Nodes (12): classifyVehicle(), classifyVehicleCategory(), deriveSizeCategory(), emptyScores(), includesAny(), KB, KnowledgeBase, normalize() (+4 more)
+
+### Community 693 - "Community 693"
+Cohesion: 0.21
+Nodes (10): hostFromReferrer(), LEAD_SOURCE_SET, LEAD_SOURCES, LeadSourceInput, normalize(), REFERRER_HOST_PATTERNS, resolveLeadSource(), UTM_SOURCE_MAP (+2 more)
 
 ### Community 694 - "Community 694"
-Cohesion: 0.33
-Nodes (6): Design, Infrastructure, Key system hubs, NDIS, Quote & Payment, Runtime
+Cohesion: 0.12
+Nodes (15): code:block1 (Code change), Design, Folder map, How Claude Code should use this vault, How Graphify fits into the architecture workflow, How refactors should be staged, How runtime and system ownership is documented, Infrastructure (+7 more)
 
 ### Community 695 - "Community 695"
 Cohesion: 0.50
@@ -2613,25 +2638,89 @@ Nodes (7): AccuracyResponse, AccuracyStats, CalibrationEntry, GET(), PendingChec
 Cohesion: 0.67
 Nodes (3): code:bash (graphify export neo4j), code:bash (graphify export neo4j --push bolt://localhost:7687 --user ne), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag)
 
+### Community 698 - "Community 698"
+Cohesion: 0.18
+Nodes (10): [00:10] Session 6c724988, [00:27] Session 31aaa47d, [00:32] Session 31aaa47d, [00:36] Session 31aaa47d, 1. `src/lib/agents/agents/quote-triage.ts`, Agent Training Arena — Regression Verification Report, Dev Log 2026-06-13, Functional checks (+2 more)
+
+### Community 699 - "Community 699"
+Cohesion: 0.35
+Nodes (10): NightDivider(), DEFAULT_CENTER, Geocache, HEAT_GRADIENT, NIGHT_MAP_STYLES, SuburbHeatmap(), SuburbList(), SuburbMap() (+2 more)
+
+### Community 700 - "Community 700"
+Cohesion: 0.38
+Nodes (9): AttentionRow(), CATEGORY_META, NeedsAttentionPanel(), PulseDot(), BudLeadsWorkspace(), formatLeadAge(), formatLeadMoney(), formatMoney() (+1 more)
+
+### Community 701 - "Community 701"
+Cohesion: 0.22
+Nodes (5): SearchBarProps, SearchResult, typeColors, typeLabels, debounce()
+
+### Community 702 - "Community 702"
+Cohesion: 0.22
+Nodes (7): FinalizedQuote, PendingQuote, PortalHome(), SERVICE_ICONS, SERVICE_LABELS, STATUS_STEPS, SubSummary
+
+### Community 703 - "Community 703"
+Cohesion: 0.39
+Nodes (6): fetchSenderProfile(), GraphProfile, ingestEvent(), nameFromProfile(), verifyMetaSignature(), POST()
+
+### Community 704 - "Community 704"
+Cohesion: 0.43
+Nodes (6): EmployeeCard, FilterKey, OnboardingPipelineView(), sanitizeFilter(), statusMeta(), OnboardingPipelinePage()
+
+### Community 705 - "Community 705"
+Cohesion: 0.25
+Nodes (4): OrderRow, SERVICE_LABELS, Stage, STAGES
+
+### Community 706 - "Community 706"
+Cohesion: 0.52
+Nodes (6): AgentWorkflow, WORKFLOW_AGENT_IDS, WorkflowDomain, WORKFLOWS, workflowsByAgent(), WorkflowType
+
+### Community 707 - "Community 707"
+Cohesion: 0.33
+Nodes (4): DashboardHero(), Delta(), pct(), SERVICE_SHADES
+
+### Community 708 - "Community 708"
+Cohesion: 0.33
+Nodes (5): services, footer, mainNav, nav, servicesLink
+
+### Community 709 - "Community 709"
+Cohesion: 0.33
+Nodes (4): Active-Issues — Performance Agent, Active-Issues — Performance Agent, Resolved-Issues — Performance Agent, Resolved-Issues — Performance Agent
+
+### Community 710 - "Community 710"
+Cohesion: 0.40
+Nodes (4): AttentionItem, FUNNEL_STAGES, FunnelStage, LeadResponseStatus
+
+### Community 711 - "Community 711"
+Cohesion: 0.40
+Nodes (4): /account Route (disallowed), budsatwork.com Sitemap, /cart Route (disallowed), /dashboard Route (disallowed)
+
+### Community 712 - "Community 712"
+Cohesion: 0.40
+Nodes (3): VALID_SEVERITIES, VALID_SIGNAL_TYPES, VALID_SURFACES
+
+### Community 713 - "Community 713"
+Cohesion: 0.50
+Nodes (3): ADR Drafts, Current Queue, Workflow
+
 ## Knowledge Gaps
-- **4401 isolated node(s):** `SandboxData`, `ArenaTab`, `LeaderboardRow`, `Lesson`, `ReadinessData` (+4396 more)
+- **4408 isolated node(s):** `[00:10] Session 6c724988`, `[00:27] Session 31aaa47d`, `1. `src/lib/agents/agents/quote-triage.ts``, `[00:32] Session 31aaa47d`, `Result: PASS — Operator-ready` (+4403 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **187 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **191 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Graph Report` connect `Community 70` to `Community 98`, `Community 99`, `Community 7`, `Community 8`, `Community 10`, `Community 120`, `Community 111`, `Community 53`, `Community 246`, `Community 88`, `Community 667`, `Community 156`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
-- **Why does `createServiceClient()` connect `Community 53` to `Community 1`, `Community 98`, `Community 387`, `Community 99`, `Community 70`, `Community 39`, `Community 40`, `Community 9`, `Community 141`, `Community 28`, `Community 687`, `Community 559`, `Community 689`, `Community 599`, `Community 88`, `Community 154`, `Community 188`, `Community 605`?**
-  _High betweenness centrality (0.063) - this node is a cross-community bridge._
-- **Why does `Buds At Work — Operations Hub` connect `Community 25` to `Community 6`, `Community 7`, `Community 9`, `Community 137`, `Community 271`, `Community 147`, `Community 21`, `Community 28`, `Community 171`, `Community 54`, `Community 56`, `Community 57`, `Community 66`, `Community 67`, `Community 196`, `Community 330`, `Community 207`, `Community 352`, `Community 232`, `Community 107`, `Community 115`, `Community 628`, `Community 246`, `Community 119`?**
-  _High betweenness centrality (0.059) - this node is a cross-community bridge._
+- **Why does `Graph Report` connect `Community 70` to `Community 98`, `Community 99`, `Community 8`, `Community 73`, `Community 10`, `Community 111`, `Community 53`, `Community 246`, `Community 248`, `Community 88`, `Community 120`?**
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
+- **Why does `Buds At Work — Operations Hub` connect `Community 25` to `Community 6`, `Community 9`, `Community 137`, `Community 271`, `Community 273`, `Community 145`, `Community 21`, `Community 171`, `Community 54`, `Community 56`, `Community 57`, `Community 66`, `Community 67`, `Community 196`, `Community 73`, `Community 330`, `Community 207`, `Community 352`, `Community 232`, `Community 617`, `Community 233`, `Community 115`, `Community 628`, `Community 246`, `Community 119`?**
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+- **Why does `Brand` connect `Community 244` to `Community 131`, `Community 390`, `Community 7`, `Community 143`, `Community 658`, `Community 146`, `Community 148`, `Community 19`, `Community 150`, `Community 23`, `Community 152`, `Community 30`, `Community 32`, `Community 34`, `Community 675`, `Community 45`, `Community 559`, `Community 49`, `Community 701`, `Community 702`, `Community 62`, `Community 574`, `Community 705`, `Community 704`, `Community 707`, `Community 197`, `Community 83`, `Community 212`, `Community 211`, `Community 598`, `Community 603`, `Community 220`, `Community 604`, `Community 96`, `Community 121`, `Community 101`, `Community 107`, `Community 109`, `Community 112`, `Community 249`, `Community 253`?**
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `createServiceClient()` (e.g. with `Supabase orders table` and `Supabase payments table`) actually correct?**
   _`createServiceClient()` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `SandboxData`, `ArenaTab`, `LeaderboardRow` to the rest of the system?**
-  _4409 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `[00:10] Session 6c724988`, `[00:27] Session 31aaa47d`, `1. `src/lib/agents/agents/quote-triage.ts`` to the rest of the system?**
+  _4416 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.006756756756756757 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.07712765957446809 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10810810810810811 - nodes in this community are weakly interconnected._
