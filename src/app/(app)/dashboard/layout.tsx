@@ -54,6 +54,7 @@ const auditIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 const designIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></svg>;
 const ndisMatchIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1" /><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" /></svg>;
 const messagesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+const sandboxIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-5 9 5-9 5-9-5z" /><path d="M3 15l9 5 9-5" /><path d="M3 12l9 5 9-5" /></svg>;
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -86,6 +87,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/reports': 'Reports',
   '/dashboard/analytics/quote-funnel': 'Quote Funnel',
   '/dashboard/content-vault': 'Content Vault',
+  '/dashboard/sandbox': 'Sandbox',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -178,6 +180,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ] },
     { id: 'system', label: 'System', adminOnly: true, items: [
       { href: '/dashboard/mission-control', label: 'Bud OS',        icon: missionIcon },
+      { href: '/dashboard/sandbox',         label: 'Sandbox',       icon: sandboxIcon },
       { href: '/dashboard/automations',     label: 'Automations',   icon: automationsIcon },
       { href: '/dashboard/design',          label: 'Design System', icon: designIcon },
       { href: '/dashboard/audit-log',       label: 'Audit log',     icon: auditIcon },

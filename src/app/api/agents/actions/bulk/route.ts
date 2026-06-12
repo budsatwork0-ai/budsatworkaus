@@ -36,11 +36,17 @@ export async function POST(req: NextRequest) {
 
   const { data: actions, error: readErr } = await supabase
     .from('agent_actions')
-    .select('id, action_type, agent_id, payload, status')
+    .select('id, action_type, agent_id, payload, status, environment')
     .in('id', ids as string[]);
 
   if (readErr || !actions) {
     return NextResponse.json({ error: 'failed to load actions' }, { status: 500 });
+  }
+  if (actions.some((action) => action.environment === 'sandbox')) {
+    return NextResponse.json(
+      { error: 'sandbox actions cannot be bulk-approved from the production approval API' },
+      { status: 409 },
+    );
   }
 
   // All must be pending — idempotency guard

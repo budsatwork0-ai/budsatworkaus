@@ -38,7 +38,7 @@ export async function POST(
 
   const { data: action, error: readErr } = await supabase
     .from('agent_actions')
-    .select('id, action_type, payload, status, requires_approval')
+    .select('id, action_type, payload, status, requires_approval, environment')
     .eq('id', id)
     .single();
 
@@ -47,6 +47,9 @@ export async function POST(
   }
   if (action.status !== 'pending') {
     return NextResponse.json({ error: `action is already ${action.status}` }, { status: 409 });
+  }
+  if (action.environment === 'sandbox') {
+    return NextResponse.json({ error: 'sandbox actions cannot be executed from the production approval API' }, { status: 409 });
   }
 
   if (body.decision === 'approve') {
@@ -109,6 +112,20 @@ export async function PATCH(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
+
+  const { data: action, error: readErr } = await supabase
+    .from('agent_actions')
+    .select('id, status, environment')
+    .eq('id', id)
+    .single();
+
+  if (readErr || !action) return NextResponse.json({ error: 'action not found' }, { status: 404 });
+  if (action.environment === 'sandbox') {
+    return NextResponse.json({ error: 'sandbox actions cannot be edited from the production approval API' }, { status: 409 });
+  }
+  if (action.status !== 'pending') {
+    return NextResponse.json({ error: `action is already ${action.status}` }, { status: 409 });
+  }
 
   const { error } = await supabase
     .from('agent_actions')

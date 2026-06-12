@@ -584,6 +584,18 @@ function createEmptyDailySeries(now: Date) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const isSummary = searchParams.get('scope') === 'summary';
+  const requestedEnvironment = searchParams.get('environment');
+  const environmentMode =
+    requestedEnvironment === 'sandbox' || requestedEnvironment === 'combined'
+      ? requestedEnvironment
+      : searchParams.get('show_test_data') === '1'
+        ? 'sandbox'
+        : 'production';
+  const isSandboxOnly = environmentMode === 'sandbox';
+  const isCombined = environmentMode === 'combined';
+  const environmentFilter = isCombined
+    ? 'environment.eq.production,environment.eq.sandbox'
+    : `environment.eq.${isSandboxOnly ? 'sandbox' : 'production'}`;
 
   const client = createServiceClientSafe();
 
@@ -629,6 +641,7 @@ export async function GET(request: Request) {
         .from('orders')
         .select('*, customers(default_address)')
         .neq('status', 'cancelled')
+        .or(environmentFilter)
         .order('created_at', { ascending: false }),
 
       // Completed orders (last 6 months for trend)
@@ -636,6 +649,7 @@ export async function GET(request: Request) {
         .from('orders')
         .select('*')
         .eq('status', 'completed')
+        .or(environmentFilter)
         .gte('completed_at', yearAgo.toISOString()),
 
       // Completed orders last month for comparison
@@ -643,6 +657,7 @@ export async function GET(request: Request) {
         .from('orders')
         .select('*')
         .eq('status', 'completed')
+        .or(environmentFilter)
         .gte('completed_at', startOfLastMonth.toISOString())
         .lte('completed_at', endOfLastMonth.toISOString()),
 
@@ -683,11 +698,12 @@ export async function GET(request: Request) {
         .select('id, full_name, status, services, onboarding_complete, crew_access_approved, ndis_worker, hourly_rate, default_role, employment_type')
         .order('created_at', { ascending: false }),
 
-      // All quotes for pipeline calculations
+      // All quotes for pipeline calculations (exclude test data by default)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
         .from('quotes')
         .select('id, status, customer_name, service_type, created_at, submitted_total, reviewed_total, total, converted_order_id, payment_status, payment_requested_at, finalized_at, service_address, source, lead_score, lead_score_at')
+        .or(environmentFilter)
         .order('created_at', { ascending: false })
         .limit(200),
 
@@ -722,6 +738,7 @@ export async function GET(request: Request) {
         .from('leads')
         .select('id, customer_name, customer_email, customer_phone, service_type, suburb, service_address, source, response_status, temperature, quote_id, first_response_at, booked_at, completed_at, lost_at, created_at, updated_at')
         .is('quote_id', null)
+        .or(environmentFilter)
         .order('created_at', { ascending: false })
         .limit(200)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

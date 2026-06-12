@@ -90,6 +90,7 @@ async function loadData() {
     supabase.from('agents').select('id, name, status, category, autonomy, config, last_run_at, last_success_at').order('name'),
     supabase.from('agent_runs')
       .select('id, agent_id, status, summary, error, cost_cents, duration_ms, started_at, trigger')
+      .eq('environment', 'production')
       .order('started_at', { ascending: false }).limit(40),
     supabase.from('v_pending_agent_actions').select('*').limit(20),
     // Recent events (push/PR/deployment created) — general activity
@@ -134,14 +135,17 @@ async function loadData() {
     supabase.from('orders')
       .select('final_price, status')
       .gte('created_at', startOfMonth)
+      .eq('environment', 'production')
       .neq('status', 'cancelled'),
     // Jobs scheduled today
     supabase.from('orders')
       .select('id')
       .eq('scheduled_date', today)
+      .eq('environment', 'production')
       .neq('status', 'cancelled'),
     supabase.from('bud_root_cause_initiatives')
       .select('id, root_cause_id, root_cause_key, title, status, signal_count, duplicate_count, approval_count, latest_signal_at, created_at')
+      .eq('environment', 'production')
       .in('status', ['open', 'patching', 'validating', 'blocked'])
       .gt('approval_count', 0)
       .order('latest_signal_at', { ascending: false, nullsFirst: false })
@@ -167,8 +171,8 @@ async function loadData() {
   let impactOutputRows: Array<{ agent_id: string | null }> = [];
   try {
     const [actionsImpactRes, outputsImpactRes] = await Promise.all([
-      supabase.from('agent_actions').select('agent_id, status').gte('created_at', since30d),
-      supabase.from('agent_runs').select('agent_id').eq('status', 'succeeded').gte('started_at', since30d),
+      supabase.from('agent_actions').select('agent_id, status').eq('environment', 'production').gte('created_at', since30d),
+      supabase.from('agent_runs').select('agent_id').eq('environment', 'production').eq('status', 'succeeded').gte('started_at', since30d),
     ]);
     impactActionRows = (actionsImpactRes.data ?? []) as typeof impactActionRows;
     impactOutputRows = (outputsImpactRes.data ?? []) as typeof impactOutputRows;

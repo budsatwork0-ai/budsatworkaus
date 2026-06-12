@@ -26,18 +26,21 @@ async function load(agentId: string) {
       .from('agent_runs')
       .select('id, status, trigger, summary, error, input, output, model, input_tokens, output_tokens, cost_cents, duration_ms, started_at, finished_at, triggered_by')
       .eq('agent_id', agentId)
+      .eq('environment', 'production')
       .order('started_at', { ascending: false })
       .limit(50),
     supabase
       .from('agent_actions')
       .select('id, run_id, action_type, status, preview, payload, requires_approval, created_at, reviewed_at, executed_at')
       .eq('agent_id', agentId)
+      .eq('environment', 'production')
       .order('created_at', { ascending: false })
       .limit(50),
     supabase
       .from('agent_runs')
       .select('status, cost_cents, duration_ms, started_at')
       .eq('agent_id', agentId)
+      .eq('environment', 'production')
       .gte('started_at', since30d),
   ]);
 
