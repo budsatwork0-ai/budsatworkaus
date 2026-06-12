@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
-import type { ScenarioCategory } from '@/lib/sandbox/scenarios';
+import type { ScenarioCategory, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -366,38 +366,13 @@ export default function SandboxPage() {
           {/* Scenario cards */}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {filteredScenarios.map((scenario) => (
-              <div
+              <ScenarioCard
                 key={scenario.slug}
-                className="flex flex-col gap-3 rounded-[8px] border border-[#dfe9e2] bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,61,46,0.05)]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap gap-1">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${CATEGORY_COLOURS[scenario.category]}`}>
-                      {scenario.category}
-                    </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${DIFFICULTY_COLOURS[scenario.difficulty]}`}>
-                      {scenario.difficulty}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-black text-[#17392b]">{scenario.title}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-[#7f9187]">{scenario.description}</p>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#617269]">
-                    Agent: <span className="text-[#17392b]">{scenario.agentId}</span>
-                  </span>
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => runScenario(scenario.slug)}
-                    className="rounded-[6px] bg-[#1C7C54] px-3 py-1.5 text-xs font-black text-white transition hover:bg-[#17392b] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {busySlug === scenario.slug ? 'Running...' : 'Run'}
-                  </button>
-                </div>
-              </div>
+                scenario={scenario}
+                busy={busySlug === scenario.slug}
+                disabled={isBusy}
+                onRun={runScenario}
+              />
             ))}
           </div>
         </section>
@@ -590,6 +565,74 @@ export default function SandboxPage() {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
+
+// Required fields every scenario card must render — validated before display.
+const REQUIRED_SCENARIO_FIELDS = ['slug', 'title', 'description', 'agentId', 'category', 'difficulty'] as const;
+
+function ScenarioCard({
+  scenario,
+  busy,
+  disabled,
+  onRun,
+}: {
+  scenario: SandboxScenarioTemplate;
+  busy: boolean;
+  disabled: boolean;
+  onRun: (slug: string) => void;
+}) {
+  // Validate all required fields are present and non-empty.
+  const missingFields = REQUIRED_SCENARIO_FIELDS.filter(
+    (f) => !scenario[f] || (typeof scenario[f] === 'string' && (scenario[f] as string).trim() === ''),
+  );
+
+  if (missingFields.length > 0) {
+    return (
+      <div className="flex flex-col gap-2 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3">
+        <p className="text-xs font-black uppercase tracking-wider text-red-700">Incomplete scenario</p>
+        <p className="text-xs font-semibold text-red-600">
+          Missing: {missingFields.join(', ')}
+        </p>
+        <p className="text-[10px] font-bold text-red-500">{scenario.slug || '(no slug)'}</p>
+      </div>
+    );
+  }
+
+  const categoryColour = CATEGORY_COLOURS[scenario.category] ?? 'bg-gray-100 text-gray-700';
+  const difficultyColour = DIFFICULTY_COLOURS[scenario.difficulty] ?? 'bg-gray-100 text-gray-700';
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[8px] border border-[#dfe9e2] bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,61,46,0.05)]">
+      {/* Badges row */}
+      <div className="flex flex-wrap gap-1">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${categoryColour}`}>
+          {scenario.category}
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${difficultyColour}`}>
+          {scenario.difficulty}
+        </span>
+      </div>
+      {/* Title + description */}
+      <div>
+        <p className="text-sm font-black text-[#17392b]">{scenario.title}</p>
+        <p className="mt-0.5 text-xs font-semibold text-[#7f9187]">{scenario.description}</p>
+      </div>
+      {/* Agent row + Run button — always rendered as a single flex row */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-[#617269]">
+          Agent: <span className="text-[#17392b]">{scenario.agentId}</span>
+        </span>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onRun(scenario.slug)}
+          className="rounded-[6px] bg-[#1C7C54] px-3 py-1.5 text-xs font-black text-white transition hover:bg-[#17392b] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? 'Running...' : 'Run'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, loading }: { label: string; value: number; loading: boolean }) {
   return (
