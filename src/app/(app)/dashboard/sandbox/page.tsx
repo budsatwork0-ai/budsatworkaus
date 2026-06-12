@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
 import type { ScenarioCategory, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
+import HealthTab from './_components/HealthTab';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ type SandboxData = {
   };
 };
 
-type ArenaTab = 'actions' | 'leaderboard' | 'lessons' | 'readiness';
+type ArenaTab = 'actions' | 'health' | 'leaderboard' | 'lessons' | 'readiness';
 
 type LeaderboardRow = {
   agentId: string;
@@ -289,7 +290,7 @@ export default function SandboxPage() {
 
       {/* Tab nav */}
       <div className="flex gap-1 border-b border-[#dfe9e2]">
-        {(['actions', 'leaderboard', 'lessons', 'readiness'] as ArenaTab[]).map((tab) => (
+        {(['actions', 'health', 'leaderboard', 'lessons', 'readiness'] as ArenaTab[]).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -304,6 +305,9 @@ export default function SandboxPage() {
           </button>
         ))}
       </div>
+
+      {/* Tab: Health (continuous monitoring) */}
+      {activeTab === 'health' ? <HealthTab /> : null}
 
       {/* Tab: Run Scenarios */}
       {activeTab === 'actions' ? (

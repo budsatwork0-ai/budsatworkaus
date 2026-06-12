@@ -170,7 +170,7 @@ export interface ArenaLeaderboardRow {
  */
 export async function runSandboxScenario(
   scenario: SandboxScenarioTemplate,
-  opts: { triggeredBy?: string } = {},
+  opts: { triggeredBy?: string; batchId?: string; trigger?: 'manual' | 'cron' | 'eval' } = {},
 ): Promise<ArenaRunResult> {
   const supabase = adminClient();
   const startedAt = Date.now();
@@ -206,9 +206,10 @@ export async function runSandboxScenario(
     .insert({
       scenario_id: scenarioDbId,
       triggered_by: opts.triggeredBy ?? null,
-      trigger: 'manual',
+      trigger: opts.trigger ?? 'manual',
       status: 'running',
       environment: 'sandbox',
+      batch_id: opts.batchId ?? null,
     })
     .select('id')
     .single();

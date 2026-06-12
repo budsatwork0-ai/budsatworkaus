@@ -163,6 +163,18 @@
     {
       "path": "/api/agents/cron?agent_id=format-analyst",
       "schedule": "0 9 * * 5"
+    },
+    {
+      "path": "/api/cron/sandbox-runner?pack=hourly",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/sandbox-runner?pack=daily",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/sandbox-runner?pack=full",
+      "schedule": "30 1 * * *"
     }
   ]
 }
