@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import CronCountdownCard from './CronCountdownCard';
 
 type Batch = {
   id: string;
@@ -148,6 +149,9 @@ export default function HealthTab() {
 
   return (
     <section className="grid gap-5">
+      {/* Cron countdown — live client-side timer showing next scheduled runs */}
+      <CronCountdownCard lastCronRun={data.lastCronRun} />
+
       {/* Last cron run */}
       <Panel title="Continuous Monitoring" action={refreshButton}>
         {data.lastCronRun ? (
