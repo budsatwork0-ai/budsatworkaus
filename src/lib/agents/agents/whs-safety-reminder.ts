@@ -6,6 +6,7 @@
  * Auto autonomy because reminders are low-risk and high-value.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxWhsScenario, sandboxEmail, sandboxId } from '../sandbox-input';
 
 export const whsSafetyReminderAgent: AgentDefinition = {
   id: 'whs-safety-reminder',
@@ -15,6 +16,45 @@ export const whsSafetyReminderAgent: AgentDefinition = {
   autonomy: 'auto',
   preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxWhs = detectSandboxWhsScenario(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxWhs) {
+      if (sandboxWhs.kind === 'reminder') {
+        // → send_email: compliance reminder to crew
+        await ctx.proposeAction({
+          action_type: 'send_email',
+          target_table: 'whs_records',
+          target_id: sandboxId('whs-record'),
+          preview: `WHS reminder: ${sandboxWhs.reminderType} due ${sandboxWhs.dueDate} — ${sandboxWhs.crewCount} crew affected`,
+          payload: {
+            to: sandboxEmail('crew'),
+            subject: `Compliance reminder: ${sandboxWhs.reminderType.replace(/-/g, ' ')}`,
+            html: `<p>Hi team, this is a reminder that your <strong>${sandboxWhs.reminderType.replace(/-/g, ' ')}</strong> compliance is due by ${sandboxWhs.dueDate}. Please ensure all ${sandboxWhs.crewCount} affected crew members complete the renewal. Thanks, Buds At Work.</p>`,
+          },
+          requiresApproval: false,
+        });
+        return {
+          summary: `Sandbox WHS reminder: ${sandboxWhs.reminderType} due ${sandboxWhs.dueDate}, ${sandboxWhs.crewCount} crew.`,
+          output: { sandbox: true, ...sandboxWhs },
+        };
+      }
+      // incident → flag_for_review
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'whs_records',
+        target_id: sandboxWhs.jobId,
+        preview: `WHS incident: ${sandboxWhs.incidentType} (${sandboxWhs.severity}) — ${sandboxWhs.crewName}`,
+        payload: { sandbox: true, ...sandboxWhs },
+        requiresApproval: true,
+      });
+      return {
+        summary: `Sandbox WHS incident flagged: ${sandboxWhs.incidentType} (${sandboxWhs.severity}) involving ${sandboxWhs.crewName}.`,
+        output: { sandbox: true, ...sandboxWhs },
+      };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const remindAt = (ctx.config?.remind_days_before as number[] | undefined) ?? [30, 14, 7, 1];
     const today = new Date();
     today.setHours(0, 0, 0, 0);

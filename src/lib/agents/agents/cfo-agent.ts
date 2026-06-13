@@ -8,6 +8,7 @@
  */
 import type { AgentDefinition, AgentContext } from '../types';
 import type { ExecutiveLlmOutput, InsertExecutiveDecision } from '../executive/types';
+import { detectSandboxFinancialSnapshot, sandboxId } from '../sandbox-input';
 
 const SYSTEM = `You are the CFO of Buds At Work, a local services platform.
 Review financial metrics and issue decisions to protect cash flow and profitability.
@@ -42,6 +43,34 @@ export const cfoAgent: AgentDefinition = {
   schedule: '0 6 * * *',
 
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxSnap = detectSandboxFinancialSnapshot(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxSnap) {
+      const prompt = `Financial snapshot (${sandboxSnap.period}):
+Revenue: A$${sandboxSnap.revenueAud}
+Cost: A$${sandboxSnap.costAud}
+Gross margin: ${sandboxSnap.grossMarginPct}%
+Jobs completed: ${sandboxSnap.jobsCompleted}
+Flag any cash-flow risks or margin concerns.`;
+      let summary = `CFO sandbox review: A$${sandboxSnap.revenueAud} revenue, ${sandboxSnap.grossMarginPct}% margin, ${sandboxSnap.jobsCompleted} jobs.`;
+      try {
+        const raw = await ctx.llm(prompt, { system: SYSTEM });
+        const parsed = JSON.parse(raw) as ExecutiveLlmOutput;
+        if (parsed.summary) summary = parsed.summary;
+      } catch { /* use default summary */ }
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'executive_decisions',
+        target_id: sandboxId('cfo-decision'),
+        preview: summary,
+        payload: { sandbox: true, period: sandboxSnap.period, revenueAud: sandboxSnap.revenueAud, costAud: sandboxSnap.costAud, grossMarginPct: sandboxSnap.grossMarginPct },
+        requiresApproval: true,
+      });
+      return { summary, output: { sandbox: true, ...sandboxSnap } };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const since7d   = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
     const horizonEnd = new Date(Date.now() + 14 * 24 * 3600_000).toISOString();
 

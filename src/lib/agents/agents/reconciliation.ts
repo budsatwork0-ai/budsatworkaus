@@ -3,6 +3,7 @@
  * orders/invoices and flags mismatches or overdue payables.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxReconciliation, sandboxId } from '../sandbox-input';
 
 export const reconciliationAgent: AgentDefinition = {
   id: 'reconciliation',
@@ -11,6 +12,36 @@ export const reconciliationAgent: AgentDefinition = {
   category: 'finance',
   autonomy: 'review',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxCase = detectSandboxReconciliation(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxCase) {
+      if (sandboxCase.kind === 'period_mismatch') {
+        const preview = `Period mismatch: expected A$${sandboxCase.expectedAud}, recorded A$${sandboxCase.recordedAud} (gap A$${sandboxCase.gapAud}) over ${sandboxCase.periodDays}d`;
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          target_table: 'payments',
+          target_id: sandboxId('payment'),
+          preview,
+          payload: { sandbox: true, ...sandboxCase },
+          requiresApproval: true,
+        });
+        return { summary: preview, output: { sandbox: true, ...sandboxCase } };
+      }
+      // stripe_payout
+      const preview = `Payout ${sandboxCase.payoutId}: A$${sandboxCase.payoutAud} for period ${sandboxCase.period} — pending review`;
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'payments',
+        target_id: sandboxId('payout'),
+        preview,
+        payload: { sandbox: true, ...sandboxCase },
+        requiresApproval: true,
+      });
+      return { summary: preview, output: { sandbox: true, ...sandboxCase } };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
 
     const { data: payments } = await ctx.supabase

@@ -128,7 +128,7 @@ function scoreResponse(
 export interface ArenaRunResult {
   trainingRunId: string;
   agentRunId: string | null;
-  status: 'completed' | 'failed';
+  status: 'complete' | 'failed';
   summary: string;
   proposedActions: ProposedAction[];
   llmCalls: number;
@@ -281,7 +281,7 @@ export async function runSandboxScenario(
   };
 
   let summary = '';
-  let runStatus: 'completed' | 'failed' = 'completed';
+  let runStatus: 'complete' | 'failed' = 'complete';
   let agentRunId: string | null = null;
 
   try {

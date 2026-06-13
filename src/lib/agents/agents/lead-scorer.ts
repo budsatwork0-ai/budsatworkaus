@@ -14,6 +14,7 @@
  * because writing a score never touches the customer.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxLead, sandboxId } from '../sandbox-input';
 
 const SYSTEM = `You score inbound leads for Buds At Work — a Logan / South
 Brisbane services business. Return a JSON object only:
@@ -43,6 +44,42 @@ export const leadScorerAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'auto',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxLead = detectSandboxLead(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxLead) {
+      const inArea = SERVICE_AREA.has((sandboxLead.suburb ?? '').toLowerCase().trim());
+      const wordCount = (sandboxLead.message ?? '').split(/\s+/).filter(Boolean).length;
+      const prompt = `Lead:
+- Suburb: ${sandboxLead.suburb ?? '(unknown)'} (in_service_area: ${inArea})
+- Service hint: ${sandboxLead.service ?? '(none)'}
+- Message word count: ${wordCount}
+- Notes: ${sandboxLead.message ?? '(none)'}
+- Repeat customer: false
+Return scoring JSON.`;
+      let score = 60;
+      let tier = 'warm';
+      try {
+        const raw = await ctx.llm(prompt, { system: SYSTEM, model: 'claude-haiku-4-5-20251001' });
+        const parsed = JSON.parse(raw) as { score?: number; tier?: string };
+        if (typeof parsed.score === 'number') score = parsed.score;
+        if (parsed.tier) tier = parsed.tier;
+      } catch { /* use defaults */ }
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'quotes',
+        target_id: sandboxLead.leadId,
+        preview: `Lead scored ${score} (${tier}): ${sandboxLead.service ?? ''} in ${sandboxLead.suburb ?? 'unknown suburb'}`,
+        payload: { sandbox: true, score, tier, lead: sandboxLead },
+        requiresApproval: false,
+      });
+      return {
+        summary: `Sandbox lead scored ${score} (${tier}).`,
+        output: { sandbox: true, scored: 1, score, tier },
+      };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     // ── 1. Validate that lead_score column exists by probing a single row ──────
     const { data: probe, error: probeError } = await ctx.supabase
       .from('quotes')

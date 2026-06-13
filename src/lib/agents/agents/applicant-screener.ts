@@ -2,6 +2,7 @@
  * Applicant Screener — first-pass on crew applicants.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxApplicant, sandboxId } from '../sandbox-input';
 
 const SYSTEM = `You screen Buds At Work crew applicants for fit on basics:
 lives in or near Logan / South Brisbane (within ~45km), has a driver's licence,
@@ -23,6 +24,44 @@ export const applicantScreenerAgent: AgentDefinition = {
   category: 'hiring',
   autonomy: 'review',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxApp = detectSandboxApplicant(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxApp) {
+      const syntheticApp = {
+        id: sandboxApp.applicantId,
+        full_name: sandboxApp.name,
+        email: `sandbox+${sandboxApp.name.toLowerCase().replace(/\s+/g, '.')}@budsatwork.dev`,
+        suburb: sandboxApp.suburb,
+        role: sandboxApp.role,
+        experience_years: sandboxApp.experienceYears,
+        has_abn: sandboxApp.hasAbn,
+      };
+      let recommendation = 'request_more_info';
+      let score = 50;
+      let draftMessage = `Hi ${sandboxApp.name}, thank you for your application. We'd like to learn more — we'll be in touch shortly.`;
+      try {
+        const raw = await ctx.llm(JSON.stringify(syntheticApp), { system: SYSTEM });
+        const parsed = JSON.parse(raw) as { recommendation?: string; score?: number; draft_message?: string };
+        if (parsed.recommendation) recommendation = parsed.recommendation;
+        if (typeof parsed.score === 'number') score = parsed.score;
+        if (parsed.draft_message) draftMessage = parsed.draft_message;
+      } catch { /* use defaults */ }
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'applicants',
+        target_id: sandboxApp.applicantId,
+        preview: `Screen ${sandboxApp.name} (${sandboxApp.role ?? 'unknown role'}): ${recommendation.replace(/_/g, ' ')} (score ${score})`,
+        payload: { sandbox: true, recommendation, score, draft_message: draftMessage, applicant: syntheticApp },
+        requiresApproval: true,
+      });
+      return {
+        summary: `Sandbox screened ${sandboxApp.name}: ${recommendation} (score ${score}).`,
+        output: { sandbox: true, screened: 1, recommendation, score },
+      };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const { data: apps } = await ctx.supabase
       .from('applicants')
       .select('id, full_name, email, suburb, postcode, licence, wwcc, summary, created_at')

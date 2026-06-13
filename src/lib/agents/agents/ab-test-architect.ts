@@ -7,6 +7,7 @@
  * meaningful product decisions.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxAbTestRequest, sandboxId } from '../sandbox-input';
 
 const SYSTEM = `You are the A/B Test Architect for Buds At Work. From the
 provided heatmap insights and funnel data, propose 1-3 A/B tests, each
@@ -36,6 +37,39 @@ export const abTestArchitectAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'manual',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxReq = detectSandboxAbTestRequest(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxReq) {
+      const syntheticInsight = [{
+        page_path: `/${sandboxReq.page}`,
+        insight_type: 'ab_test_request',
+        title: `A/B test proposal: ${sandboxReq.element}`,
+        body: sandboxReq.hypothesis,
+        severity: 'medium',
+        evidence: { page: sandboxReq.page, element: sandboxReq.element },
+      }];
+      let preview = `A/B test: ${sandboxReq.hypothesis}`;
+      try {
+        const raw = await ctx.llm(
+          `Insights backlog:\n${JSON.stringify(syntheticInsight, null, 2)}\nReturn tests JSON.`,
+          { system: SYSTEM },
+        );
+        const parsed = JSON.parse(raw) as { tests?: Array<{ hypothesis: string }> };
+        if (parsed.tests?.[0]?.hypothesis) preview = `A/B test: ${parsed.tests[0].hypothesis}`;
+      } catch { /* use default preview */ }
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'design_insights',
+        target_id: sandboxId('ab-test'),
+        preview,
+        payload: { sandbox: true, page: sandboxReq.page, element: sandboxReq.element, hypothesis: sandboxReq.hypothesis },
+        requiresApproval: true,
+      });
+      return { summary: `Sandbox A/B proposal: ${sandboxReq.hypothesis}`, output: { sandbox: true } };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const { data: insights } = await ctx.supabase
       .from('design_insights')
       .select('page_path, insight_type, title, body, severity, evidence')

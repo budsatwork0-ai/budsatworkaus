@@ -13,6 +13,7 @@
  * probability >= 60%.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxSchedulingScenario, sandboxId, sandboxEmail } from '../sandbox-input';
 
 const SYSTEM = `You are the Scheduling agent for Buds At Work. You assign
 confirmed jobs to crew based on skill match, suburb proximity (Logan & South
@@ -64,6 +65,106 @@ export const schedulingAgent: AgentDefinition = {
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxScenario = detectSandboxSchedulingScenario(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxScenario) {
+      if (sandboxScenario.kind === 'ndis_brief') {
+        // → send_email: shift briefing to participant
+        await ctx.proposeAction({
+          action_type: 'send_email',
+          target_table: 'orders',
+          target_id: sandboxId('ndis-order'),
+          preview: `NDIS shift brief → ${sandboxScenario.participantName} @ ${sandboxScenario.shiftStart} in ${sandboxScenario.suburb}`,
+          payload: {
+            to: sandboxEmail(sandboxScenario.participantName),
+            subject: `Your ${sandboxScenario.service} shift on ${new Date().toISOString().slice(0, 10)}`,
+            html: `<p>Hi ${sandboxScenario.participantName}, your ${sandboxScenario.service} shift starts at ${sandboxScenario.shiftStart} in ${sandboxScenario.suburb}. Your support worker will arrive shortly before that time. Any questions, please reply to this email.</p>`,
+          },
+        });
+        return {
+          summary: `Sandbox NDIS brief sent to ${sandboxScenario.participantName}.`,
+          output: { sandbox: true, kind: 'ndis_brief' },
+        };
+      }
+
+      if (sandboxScenario.kind === 'high_volume') {
+        // → flag_for_review: crew capacity warning
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          target_table: 'orders',
+          target_id: sandboxId('capacity-alert'),
+          preview: `High volume alert: ${sandboxScenario.jobCount} jobs vs ${sandboxScenario.availableCrew} crew on ${sandboxScenario.date}`,
+          payload: { sandbox: true, ...sandboxScenario },
+          requiresApproval: true,
+        });
+        return {
+          summary: `Sandbox capacity flag: ${sandboxScenario.jobCount} jobs, ${sandboxScenario.availableCrew} crew on ${sandboxScenario.date}.`,
+          output: { sandbox: true, kind: 'high_volume' },
+        };
+      }
+
+      if (sandboxScenario.kind === 'crew_no_show') {
+        // → schedule_job (reassign) + send_email (notify customer)
+        const replacementOrderId = sandboxScenario.jobId;
+        const replacementCrewId = sandboxId('replacement-crew');
+        await ctx.proposeAction({
+          action_type: 'schedule_job',
+          target_table: 'orders',
+          target_id: replacementOrderId,
+          preview: `Reassign ${sandboxScenario.service} job — ${sandboxScenario.crewName} no-show ${sandboxScenario.hoursBeforeJob}h before`,
+          payload: {
+            order_id: replacementOrderId,
+            crew_id: replacementCrewId,
+            scheduled_date: new Date().toISOString().slice(0, 10),
+            scheduled_time: '9:00 AM',
+            rationale: `${sandboxScenario.crewName} no-show ${sandboxScenario.hoursBeforeJob}h before job start — reassigning to available crew.`,
+          },
+        });
+        await ctx.proposeAction({
+          action_type: 'send_email',
+          target_table: 'orders',
+          target_id: replacementOrderId,
+          preview: `Customer update: crew change for ${sandboxScenario.service} job`,
+          payload: {
+            to: sandboxEmail('customer'),
+            subject: 'Update on your booking',
+            html: `<p>Hi, we've made a small crew change for your ${sandboxScenario.service} booking today. A replacement crew member is on their way. Thank you for your understanding.</p>`,
+          },
+        });
+        return {
+          summary: `Sandbox crew no-show: reassigned job and notified customer.`,
+          output: { sandbox: true, kind: 'crew_no_show' },
+        };
+      }
+
+      // late_job → send_email (customer update) + flag_for_review (ops alert)
+      await ctx.proposeAction({
+        action_type: 'send_email',
+        target_table: 'orders',
+        target_id: sandboxScenario.jobId,
+        preview: `Customer update: ${sandboxScenario.crewName} running ${sandboxScenario.overdueMinutes}min late on ${sandboxScenario.service} job`,
+        payload: {
+          to: sandboxEmail('customer'),
+          subject: 'Your booking update',
+          html: `<p>Hi, we wanted to let you know your ${sandboxScenario.service} crew is running approximately ${sandboxScenario.overdueMinutes} minutes behind schedule. We apologise for the inconvenience.</p>`,
+        },
+      });
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'orders',
+        target_id: sandboxScenario.jobId,
+        preview: `Late job: ${sandboxScenario.crewName} — ${sandboxScenario.overdueMinutes}min overdue on ${sandboxScenario.service}`,
+        payload: { sandbox: true, ...sandboxScenario },
+        requiresApproval: true,
+      });
+      return {
+        summary: `Sandbox late job: ${sandboxScenario.crewName} ${sandboxScenario.overdueMinutes}min overdue.`,
+        output: { sandbox: true, kind: 'late_job' },
+      };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const tomorrow = new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10);
 
     // Confirmed jobs that have no crew yet (DayScheduler's "unassigned" state).

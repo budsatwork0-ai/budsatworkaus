@@ -14,6 +14,7 @@
  * runtime.executeApprovedAction.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxPriceSnapshot, sandboxId } from '../sandbox-input';
 
 interface PriceOptimizerConfig {
   min_quote_volume_28d?: number;
@@ -111,6 +112,43 @@ export const priceOptimizerAgent: AgentDefinition = {
   schedule: '0 5 * * 1', // 5am Mondays Brisbane time (server time may differ)
   config: DEFAULTS,
   async run(ctx: AgentContext) {
+    // ── Sandbox path ──────────────────────────────────────────────────────────
+    const sandboxSnap = detectSandboxPriceSnapshot(
+      (ctx.input ?? {}) as Record<string, unknown>,
+    );
+    if (sandboxSnap) {
+      const snapshot = {
+        service: sandboxSnap.service,
+        current_price_aud: sandboxSnap.currentRateAud,
+        market_low: sandboxSnap.marketLow,
+        market_high: sandboxSnap.marketHigh,
+        jobs_last_30d: sandboxSnap.jobsLast30d,
+        position_vs_market: sandboxSnap.currentRateAud > sandboxSnap.marketHigh
+          ? 'above_market'
+          : sandboxSnap.currentRateAud < sandboxSnap.marketLow
+          ? 'below_market'
+          : 'within_market',
+      };
+      let rationale = `${sandboxSnap.service} at A$${sandboxSnap.currentRateAud}: market range A$${sandboxSnap.marketLow}–A$${sandboxSnap.marketHigh}, ${sandboxSnap.jobsLast30d} jobs last 30d.`;
+      try {
+        const raw = await ctx.llm(JSON.stringify(snapshot, null, 2), { system: SYSTEM });
+        const parsed = parseJsonResponse(raw) as ModelOutput;
+        if (parsed.rationale) rationale = parsed.rationale;
+      } catch { /* use default rationale */ }
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'service_pricing',
+        target_id: sandboxId('pricing'),
+        preview: `Price review: ${sandboxSnap.service} A$${sandboxSnap.currentRateAud} — ${snapshot.position_vs_market}`,
+        payload: { sandbox: true, ...snapshot, rationale },
+        requiresApproval: true,
+      });
+      return {
+        summary: `Sandbox price review: ${sandboxSnap.service} at A$${sandboxSnap.currentRateAud} (market A$${sandboxSnap.marketLow}–${sandboxSnap.marketHigh}).`,
+        output: { sandbox: true, ...snapshot },
+      };
+    }
+    // ── Production path ───────────────────────────────────────────────────────
     const cfg = { ...DEFAULTS, ...(ctx.config as PriceOptimizerConfig) };
 
     // 1) Load current rate card

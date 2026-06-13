@@ -121,7 +121,7 @@ function stubResult(partial: Partial<ArenaRunResult> & { f1?: number; actions?: 
   return {
     trainingRunId: 'tr-1',
     agentRunId: 'resp-1',
-    status: 'completed',
+    status: 'complete',
     summary: 'ok',
     proposedActions: Array.from({ length: actions }, (_, i) => ({
       action_type: `act_${i}`,
