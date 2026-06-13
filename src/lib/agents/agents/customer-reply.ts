@@ -13,6 +13,7 @@
  * where first_response_at IS NULL (no reply sent yet).
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxCustomerMessage } from '../sandbox-input';
 
 const SYSTEM = `You are the Customer Reply agent for Buds At Work, a local
 services business in Logan & South Brisbane. You write warm, concise replies
@@ -70,6 +71,68 @@ export const customerReplyAgent: AgentDefinition = {
   category: 'support',
   autonomy: 'review',
   async run(ctx: AgentContext) {
+    // ── Sandbox scenario path ───────────────────────────────────────────
+    // The arena injects the message via ctx.input instead of the DB. Build
+    // a synthetic lead from it, skip all production queries, and guarantee
+    // at least one well-formed action (deterministic fallback if the LLM
+    // call fails). Synthetic IDs are sandbox- prefixed; no DB writes occur.
+    const sandboxMsg = detectSandboxCustomerMessage(ctx.input);
+    if (sandboxMsg) {
+      let draft: string | null = null;
+      try {
+        const raw = await ctx.llm(
+          `Inbound message from ${sandboxMsg.customerName}:\n"""\n${sandboxMsg.body}\n"""\nDraft a reply. ${
+            sandboxMsg.highRisk
+              ? 'This is a complaint: acknowledge it, apologise, explain what happens next (we review it and call back within one business day), and set expectations.'
+              : ''
+          }`,
+          { system: SYSTEM },
+        );
+        draft = raw && raw.trim().length > 0 ? raw.trim() : null;
+      } catch (err) {
+        ctx.log('sandbox: LLM draft failed, using fallback', { error: String(err) });
+      }
+
+      // Deterministic fallback — never returns an empty reply.
+      const html =
+        draft ??
+        `Hi ${sandboxMsg.customerName},\n\nThanks for getting in touch — and sorry for any frustration. We've received your message and one of our team is reviewing it now. We'll come back to you within one business day with next steps.\n\n— The Buds At Work crew`;
+
+      await ctx.proposeAction({
+        action_type: 'send_email',
+        target_table: 'leads',
+        target_id: sandboxMsg.leadId,
+        preview: `Email reply to ${sandboxMsg.customerName} · ${msgSnippet(sandboxMsg.body) ?? ''}`,
+        payload: {
+          to: sandboxMsg.email,
+          subject: sandboxMsg.highRisk ? 'We hear you — here is what happens next' : 'Re: your message',
+          html,
+          meta: { lead_id: sandboxMsg.leadId, conversation_id: sandboxMsg.conversationId, sandbox: true },
+        },
+      });
+
+      if (sandboxMsg.highRisk) {
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          target_table: 'leads',
+          target_id: sandboxMsg.leadId,
+          preview: `Complaint flagged for review — ${sandboxMsg.customerName}`,
+          payload: {
+            reason: 'complaint_or_high_risk_sentiment',
+            lead_id: sandboxMsg.leadId,
+            conversation_id: sandboxMsg.conversationId,
+            channel: 'email',
+            note: sandboxMsg.body.slice(0, 200),
+          },
+        });
+      }
+
+      return {
+        summary: `Sandbox: drafted reply${sandboxMsg.highRisk ? ' + flagged complaint for review' : ''}.`,
+        output: { sandbox: true, high_risk: sandboxMsg.highRisk, used_fallback: draft === null },
+      };
+    }
+
     const { data: inbound, error } = await ctx.supabase
       .from('lead_conversations')
       .select('id, lead_id, body, channel, created_at')

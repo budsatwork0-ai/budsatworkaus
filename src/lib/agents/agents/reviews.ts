@@ -3,6 +3,7 @@
  * negative feedback flagging.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxReviewCase } from '../sandbox-input';
 
 const SYSTEM = `You write short, warm post-service review requests for Buds At
 Work customers in Australian English. ≤ 80 words. Always include a clear
@@ -16,6 +17,68 @@ export const reviewsAgent: AgentDefinition = {
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
+    // ── Sandbox scenario path ───────────────────────────────────────────
+    // Arena scenarios inject the review/customer via ctx.input — the jobs
+    // queries below would return nothing. Build a synthetic case instead.
+    // Synthetic IDs are sandbox- prefixed; no production writes occur.
+    const sandboxCase = detectSandboxReviewCase(ctx.input);
+    if (sandboxCase) {
+      if (sandboxCase.kind === 'negative_review') {
+        await ctx.proposeAction({
+          action_type: 'flag_for_review',
+          target_table: 'ratings',
+          target_id: sandboxCase.reviewId,
+          preview: `${sandboxCase.rating}-star ${sandboxCase.platform} review flagged for review`,
+          payload: {
+            reason: 'negative_public_review',
+            resource_type: 'review',
+            review_id: sandboxCase.reviewId,
+            platform: sandboxCase.platform,
+            rating: sandboxCase.rating,
+            review_text: sandboxCase.reviewText,
+            internal_note:
+              'Negative public review. Do not auto-reply — owner should respond personally and investigate the job before posting.',
+          },
+        });
+        return {
+          summary: `Sandbox: flagged ${sandboxCase.rating}-star ${sandboxCase.platform} review for human review.`,
+          output: { sandbox: true, flagged: 1 },
+        };
+      }
+
+      // Satisfied customer → friendly review request email.
+      let msg: string | null = null;
+      try {
+        const raw = await ctx.llm(
+          `Customer: ${sandboxCase.customerName}. Service completed: ${sandboxCase.service}.`,
+          { system: SYSTEM },
+        );
+        msg = raw && raw.trim().length > 0 ? raw.trim() : null;
+      } catch (err) {
+        ctx.log('sandbox: LLM draft failed, using fallback', { error: String(err) });
+      }
+      const html =
+        msg ??
+        `Hi ${sandboxCase.customerName}, thanks for having us out for your ${sandboxCase.service}! If you have 30 seconds, a quick review would mean the world to our crew: {{REVIEW_URL}}. Cheers — the Buds At Work crew.`;
+
+      await ctx.proposeAction({
+        action_type: 'send_email',
+        target_table: 'jobs',
+        target_id: sandboxCase.jobId,
+        preview: `Review request → ${sandboxCase.email}`,
+        payload: {
+          to: sandboxCase.email,
+          subject: 'How did we do?',
+          html,
+          kind: 'review_initial',
+        },
+      });
+      return {
+        summary: 'Sandbox: queued 1 review request email.',
+        output: { sandbox: true, initial: 1, used_fallback: msg === null },
+      };
+    }
+
     const followUpDays = Number((ctx.config?.follow_up_after_days as number) ?? 3);
     const cutoff = new Date(Date.now() - followUpDays * 24 * 3600_000).toISOString();
 
