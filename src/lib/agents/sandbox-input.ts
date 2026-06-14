@@ -447,6 +447,188 @@ export function detectSandboxSchedulingScenario(
   return null;
 }
 
+// ── internal-qa ───────────────────────────────────────────────────────────────
+
+export interface SandboxInternalQaReview {
+  reviewId: string;
+  reviewWindowHours: number;
+  agentRunsCount: number;
+}
+
+/** Detects internal-qa arena scenarios: reviewing last N agent runs. */
+export function detectSandboxInternalQaReview(
+  input: Record<string, unknown>,
+): SandboxInternalQaReview | null {
+  const reviewWindowHours = asNumber(input.review_window_hours);
+  const agentRunsCount = asNumber(input.agent_runs);
+  if (reviewWindowHours === null && agentRunsCount === null) return null;
+  return {
+    reviewId: sandboxId('qa-review'),
+    reviewWindowHours: reviewWindowHours ?? 24,
+    agentRunsCount: agentRunsCount ?? 5,
+  };
+}
+
+// ── photo-qa ──────────────────────────────────────────────────────────────────
+
+export interface SandboxPhotoQaJob {
+  jobId: string;
+  service: string;
+  photoCount: number;
+}
+
+/** Detects photo-qa arena scenarios: before/after photo review for a job. */
+export function detectSandboxPhotoQaJob(
+  input: Record<string, unknown>,
+): SandboxPhotoQaJob | null {
+  const photoCount = asNumber(input.photo_count);
+  const jobId = asString(input.job_id);
+  if (photoCount === null && !jobId) return null;
+  return {
+    jobId: jobId ?? sandboxId('job'),
+    service: asString(input.service) ?? 'cleaning',
+    photoCount: photoCount ?? 1,
+  };
+}
+
+// ── stripe-dispute-manager ────────────────────────────────────────────────────
+
+export interface SandboxDispute {
+  disputeId: string;
+  amountAud: number;
+  reason: string;
+  service: string;
+  isRefundDemand: boolean;
+}
+
+/**
+ * Detects stripe-dispute-manager arena scenarios: chargeback (dispute_id present)
+ * or refund demand (refund_requested_aud present).
+ */
+export function detectSandboxDispute(
+  input: Record<string, unknown>,
+): SandboxDispute | null {
+  const disputeId = asString(input.dispute_id);
+  const refundAud = asNumber(input.refund_requested_aud);
+  const amountAud = asNumber(input.amount_aud) ?? refundAud;
+  const reason = asString(input.reason);
+  if (!disputeId && refundAud === null) return null;
+  return {
+    disputeId: disputeId ?? sandboxId('dispute'),
+    amountAud: amountAud ?? 0,
+    reason: reason ?? 'unknown',
+    service: asString(input.service) ?? 'unknown',
+    isRefundDemand: refundAud !== null,
+  };
+}
+
+// ── ndis-plan-matcher ─────────────────────────────────────────────────────────
+
+export interface SandboxNdisPlanMatch {
+  participantId: string;
+  participantName: string;
+  suburb: string | null;
+  planGoals: string[];
+}
+
+/**
+ * Detects ndis-plan-matcher arena scenarios. The arena sends support_categories
+ * instead of plan_goals — this helper normalises both shapes.
+ */
+export function detectSandboxNdisPlanMatch(
+  input: Record<string, unknown>,
+): SandboxNdisPlanMatch | null {
+  const participantName = asString(input.participant_name);
+  if (!participantName) return null;
+
+  const rawGoals = input.plan_goals;
+  const rawCategories = input.support_categories;
+
+  const goals: string[] = Array.isArray(rawGoals)
+    ? (rawGoals as unknown[]).map(String)
+    : Array.isArray(rawCategories)
+      ? (rawCategories as unknown[]).map(
+          (c) => `Support participant with ${String(c).replace(/-/g, ' ')}`,
+        )
+      : [];
+
+  if (!goals.length) return null;
+
+  return {
+    participantId: sandboxId('participant'),
+    participantName,
+    suburb: asString(input.suburb),
+    planGoals: goals,
+  };
+}
+
+// ── ndis-compliance ───────────────────────────────────────────────────────────
+
+export type SandboxNdisComplianceScenario =
+  | { kind: 'profile_creation'; workerName: string; screeningId: string; workerId: string }
+  | { kind: 'expiry_warning'; workerName: string; expiryDays: number; clearanceType: string; workerId: string }
+  | { kind: 'compliance_audit'; checkType: string; missingDocs: string[]; auditId: string }
+  | { kind: 'incident_report'; incidentType: string; severity: string; participantName: string; workerName: string; incidentId: string };
+
+/**
+ * Detects ndis-compliance arena scenarios (4 shapes). Returns null when no
+ * recognised sandbox keys are present, leaving the production DB path intact.
+ */
+export function detectSandboxNdisComplianceScenario(
+  input: Record<string, unknown>,
+): SandboxNdisComplianceScenario | null {
+  // Incident report: has incident_type + severity
+  const incidentType = asString(input.incident_type);
+  if (incidentType) {
+    return {
+      kind: 'incident_report',
+      incidentType,
+      severity: asString(input.severity) ?? 'moderate',
+      participantName: asString(input.participant_name) ?? 'participant',
+      workerName: asString(input.worker_name) ?? 'worker',
+      incidentId: sandboxId('ndis-incident'),
+    };
+  }
+
+  // Expiry warning: has expiry_days
+  const expiryDays = asNumber(input.expiry_days);
+  if (expiryDays !== null) {
+    return {
+      kind: 'expiry_warning',
+      workerName: asString(input.worker_name) ?? 'worker',
+      expiryDays,
+      clearanceType: asString(input.clearance_type) ?? 'worker-screening',
+      workerId: sandboxId('ndis-worker'),
+    };
+  }
+
+  // Compliance audit: has check_type or missing_docs
+  const checkType = asString(input.check_type);
+  const missingDocsRaw = input.missing_docs;
+  if (checkType || Array.isArray(missingDocsRaw)) {
+    return {
+      kind: 'compliance_audit',
+      checkType: checkType ?? 'monthly',
+      missingDocs: Array.isArray(missingDocsRaw) ? (missingDocsRaw as unknown[]).map(String) : [],
+      auditId: sandboxId('ndis-audit'),
+    };
+  }
+
+  // Profile creation: has worker_name + ndis_worker_screening_id
+  const workerName = asString(input.worker_name);
+  const screeningId = asString(input.ndis_worker_screening_id);
+  if (workerName && screeningId) {
+    return {
+      kind: 'profile_creation',
+      workerName,
+      screeningId,
+      workerId: sandboxId('ndis-worker'),
+    };
+  }
+
+  return null;
+}
+
 // ── whs-safety-reminder ───────────────────────────────────────────────────────
 
 export type SandboxWhsScenario =

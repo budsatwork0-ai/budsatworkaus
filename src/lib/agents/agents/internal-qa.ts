@@ -9,6 +9,7 @@
  * this agent falls back to full-text search on `body`.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxInternalQaReview } from '../sandbox-input';
 
 const SYSTEM = `You answer questions for the Buds At Work team using only
 the provided source snippets. Cite the source by title at the end of each
@@ -22,6 +23,23 @@ export const internalQaAgent: AgentDefinition = {
   autonomy: 'manual',
   preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ────────────────────────────────────────────────────────
+    const sandboxReview = detectSandboxInternalQaReview(ctx.input ?? {});
+    if (sandboxReview) {
+      const reviewPayload = { ...sandboxReview };
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'sandbox_agent_responses',
+        target_id: sandboxReview.reviewId,
+        preview: `QA review of last ${sandboxReview.agentRunsCount} agent runs (${sandboxReview.reviewWindowHours}h window) — sandbox`,
+        payload: reviewPayload,
+      });
+      return {
+        summary: `[sandbox] Flagged QA review of ${sandboxReview.agentRunsCount} agent run(s) for human inspection.`,
+        output: reviewPayload,
+      };
+    }
+
     const question = ctx.input?.question as string | undefined;
     if (!question) return { summary: 'No question provided.', output: { error: 'missing question' } };
 

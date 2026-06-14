@@ -8,6 +8,7 @@
  * consequences of getting this wrong are real money.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxDispute } from '../sandbox-input';
 
 const SYSTEM = `You write a Stripe dispute response. Given the booking, the
 customer's complaint reason, supporting evidence summaries, and signed
@@ -28,6 +29,23 @@ export const stripeDisputeManagerAgent: AgentDefinition = {
   category: 'finance',
   autonomy: 'review',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ────────────────────────────────────────────────────────
+    const sandboxDispute = detectSandboxDispute(ctx.input ?? {});
+    if (sandboxDispute) {
+      const disputePayload = { ...sandboxDispute };
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'stripe_disputes',
+        target_id: sandboxDispute.disputeId,
+        preview: `${sandboxDispute.isRefundDemand ? 'Refund demand' : 'Dispute'} $${sandboxDispute.amountAud} — ${sandboxDispute.reason} — sandbox`,
+        payload: disputePayload,
+      });
+      return {
+        summary: `[sandbox] Flagged dispute ${sandboxDispute.disputeId} ($${sandboxDispute.amountAud}) for review.`,
+        output: disputePayload,
+      };
+    }
+
     const { data: disputes } = await ctx.supabase
       .from('stripe_disputes')
       .select('id, charge_id, customer_id, amount_cents, reason, status, evidence_due_at')

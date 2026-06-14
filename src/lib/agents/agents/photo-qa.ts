@@ -5,6 +5,7 @@
  * missing-photo issues before invoicing.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxPhotoQaJob } from '../sandbox-input';
 
 const SYSTEM = `You are reviewing job photos for Buds At Work — a local
 home services business. For each photo, return a strict JSON object:
@@ -32,6 +33,23 @@ export const photoQaAgent: AgentDefinition = {
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ────────────────────────────────────────────────────────
+    const sandboxJob = detectSandboxPhotoQaJob(ctx.input ?? {});
+    if (sandboxJob) {
+      const jobPayload = { ...sandboxJob };
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'jobs',
+        target_id: sandboxJob.jobId,
+        preview: `Photo QA for job ${sandboxJob.jobId} (${sandboxJob.photoCount} photos, ${sandboxJob.service}) — sandbox`,
+        payload: jobPayload,
+      });
+      return {
+        summary: `[sandbox] Flagged ${sandboxJob.photoCount} photo(s) for job ${sandboxJob.jobId} for QA review.`,
+        output: jobPayload,
+      };
+    }
+
     const { data: photos } = await ctx.supabase
       .from('job_photos')
       .select('id, job_id, kind, storage_path, uploaded_at')

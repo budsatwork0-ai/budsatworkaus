@@ -48,8 +48,23 @@ type ReviewItem = {
   agent_id: string;
   title: string;
   observation: string;
+  recommendation: string | null;
   severity: string;
   created_at: string;
+};
+
+type RootCause = {
+  key: string;
+  title: string;
+  severity: 'critical' | 'warning';
+  agentId: string;
+  failureType: 'zero_action' | 'wrong_actions';
+  rootCauseSummary: string;
+  lessonCount: number;
+  latestAt: string;
+  exampleObservations: string[];
+  recommendedFix: string;
+  lessonIds: string[];
 };
 
 type HealthData = {
@@ -59,6 +74,7 @@ type HealthData = {
   regressions: HealthRow[];
   failingScenarios: FailingScenario[];
   needsReview: ReviewItem[];
+  rootCauses: RootCause[];
 };
 
 function TrendChip({ trend }: { trend: HealthRow['trend'] }) {
@@ -104,6 +120,121 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
 
 function fmtF1(v: number | null): string {
   return v === null ? '—' : Number(v).toFixed(2);
+}
+
+function SeverityChip({ severity }: { severity: string }) {
+  const isCritical = severity === 'critical';
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
+        isCritical ? 'bg-[#fde8e8] text-[#b42318]' : 'bg-[#fff6e0] text-[#9a6700]'
+      }`}
+    >
+      {severity}
+    </span>
+  );
+}
+
+function RootCauseCard({ rc, rawLessons }: { rc: RootCause; rawLessons: ReviewItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const related = rawLessons.filter((l) => rc.lessonIds.includes(l.id));
+
+  return (
+    <div className="rounded-[8px] border border-[#f3c7c3] bg-[#fff8f7] px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-[#17392b]">{rc.title}</p>
+            <SeverityChip severity={rc.severity} />
+          </div>
+          <p className="mt-1 text-xs font-semibold text-[#617269]">{rc.rootCauseSummary}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] font-black uppercase text-[#7f9187]">Lessons</p>
+          <p className="text-lg font-black text-[#b42318]">{rc.lessonCount}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold text-[#7f9187]">
+        <span>Agent: <span className="text-[#17392b]">{rc.agentId}</span></span>
+        <span>Type: <span className="text-[#17392b]">{rc.failureType === 'zero_action' ? 'Zero action' : 'Wrong actions'}</span></span>
+        <span>Latest: <span className="text-[#17392b]">{new Date(rc.latestAt).toLocaleString()}</span></span>
+      </div>
+
+      <div className="mt-2 rounded-[6px] bg-[#f0f9f4] px-3 py-2">
+        <p className="text-[10px] font-black uppercase text-[#617269]">Recommended fix</p>
+        <p className="mt-0.5 text-xs font-semibold text-[#17392b]">{rc.recommendedFix}</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-2 text-[10px] font-black text-[#1C7C54] hover:underline"
+      >
+        {expanded ? '▲ Hide details' : `▼ View ${related.length} lesson${related.length !== 1 ? 's' : ''}`}
+      </button>
+
+      {expanded && related.length > 0 && (
+        <div className="mt-2 grid gap-1.5">
+          {related.map((l) => (
+            <div key={l.id} className="rounded-[6px] border border-[#dfe9e2] bg-white px-3 py-2">
+              <p className="text-xs font-black text-[#17392b]">{l.title}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#617269]">{l.observation}</p>
+              {l.recommendation && (
+                <p className="mt-0.5 text-[11px] font-semibold text-[#1C7C54]">{l.recommendation}</p>
+              )}
+              <p className="mt-0.5 text-[10px] font-bold text-[#7f9187]">
+                {new Date(l.created_at).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NeedsReviewPanel({
+  rootCauses,
+  rawLessons,
+}: {
+  rootCauses: RootCause[];
+  rawLessons: ReviewItem[];
+}) {
+  const totalLessons = rawLessons.length;
+  const title =
+    rootCauses.length > 0
+      ? `Needs Review — ${rootCauses.length} root cause${rootCauses.length !== 1 ? 's' : ''} (${totalLessons} lesson${totalLessons !== 1 ? 's' : ''})`
+      : `Needs Review (${totalLessons})`;
+
+  return (
+    <Panel title={title}>
+      {rootCauses.length === 0 && totalLessons === 0 ? (
+        <p className="text-sm font-semibold text-[#7f9187]">Nothing critical in the last 7 days.</p>
+      ) : rootCauses.length > 0 ? (
+        <div className="grid gap-2">
+          {rootCauses.map((rc) => (
+            <RootCauseCard key={rc.key} rc={rc} rawLessons={rawLessons} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          {rawLessons.map((item) => (
+            <div key={item.id} className="rounded-[8px] border border-[#f3c7c3] bg-[#fff8f7] px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-sm font-black text-[#17392b]">{item.title}</p>
+                <SeverityChip severity={item.severity} />
+              </div>
+              <p className="mt-1 text-xs font-semibold text-[#617269]">{item.observation}</p>
+              <p className="mt-1 text-[10px] font-bold text-[#7f9187]">
+                {item.agent_id} — {new Date(item.created_at).toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
 }
 
 export default function HealthTab() {
@@ -183,31 +314,8 @@ export default function HealthTab() {
         )}
       </Panel>
 
-      {/* Needs review */}
-      <Panel title={`Needs Review (${data.needsReview.length})`}>
-        {data.needsReview.length === 0 ? (
-          <p className="text-sm font-semibold text-[#7f9187]">
-            Nothing critical in the last 7 days.
-          </p>
-        ) : (
-          <div className="grid gap-2">
-            {data.needsReview.map((item) => (
-              <div key={item.id} className="rounded-[8px] border border-[#f3c7c3] bg-[#fff8f7] px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="text-sm font-black text-[#17392b]">{item.title}</p>
-                  <span className="rounded-full bg-[#fde8e8] px-2 py-0.5 text-[10px] font-black uppercase text-[#b42318]">
-                    critical
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-[#617269]">{item.observation}</p>
-                <p className="mt-1 text-[10px] font-bold text-[#7f9187]">
-                  {item.agent_id} — {new Date(item.created_at).toLocaleString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
+      {/* Needs review — compressed root-cause view */}
+      <NeedsReviewPanel rootCauses={data.rootCauses ?? []} rawLessons={data.needsReview} />
 
       {/* Agent health trends */}
       <Panel title="Agent Health">

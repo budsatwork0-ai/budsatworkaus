@@ -7,6 +7,7 @@
  * Manual autonomy because each match should be reviewed before quoting.
  */
 import type { AgentDefinition, AgentContext } from '../types';
+import { detectSandboxNdisPlanMatch, sandboxId } from '../sandbox-input';
 
 const SYSTEM = `You map NDIS participant plan goals to Buds At Work services
 (home cleaning, yard care, dump runs, window cleaning, auto detailing).
@@ -27,6 +28,37 @@ export const ndisPlanMatcherAgent: AgentDefinition = {
   category: 'compliance',
   autonomy: 'manual',
   async run(ctx: AgentContext) {
+    // ── Sandbox path ────────────────────────────────────────────────────────
+    const sandboxMatch = detectSandboxNdisPlanMatch(ctx.input ?? {});
+    if (sandboxMatch) {
+      type LlmPlanResult = {
+        matched_services: Array<{ service: string; estimated_hours_per_fortnight: number; support_category: string; justification: string }>;
+        non_matches: Array<{ goal: string; reason: string }>;
+        estimated_total_aud_per_fortnight: number;
+      };
+      let sandboxParsed: LlmPlanResult | undefined;
+      try {
+        const raw = await ctx.llm(`Plan goals:\n- ${sandboxMatch.planGoals.join('\n- ')}`, { system: SYSTEM });
+        sandboxParsed = JSON.parse(raw) as LlmPlanResult;
+      } catch { /* fallback to goal count */ }
+
+      const matchRecordId = sandboxId('ndis-plan-match');
+      const matchCount = sandboxParsed?.matched_services?.length ?? sandboxMatch.planGoals.length;
+      const totalAud = sandboxParsed?.estimated_total_aud_per_fortnight ?? 0;
+
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'ndis_plan_matches',
+        target_id: matchRecordId,
+        preview: `${matchCount} service(s) matched for ${sandboxMatch.participantName} · ~$${totalAud}/fortnight — sandbox`,
+        payload: { sandboxMatch, result: sandboxParsed },
+      });
+      return {
+        summary: `[sandbox] Matched ${matchCount} service(s) for ${sandboxMatch.participantName}; est. $${totalAud}/fortnight.`,
+        output: { ...(sandboxParsed ?? sandboxMatch) },
+      };
+    }
+
     const participantId = ctx.input?.participant_id as string | undefined;
     const goals = ctx.input?.plan_goals as string[] | undefined;
     if (!goals?.length) return { summary: 'No plan goals provided.', output: { error: 'missing plan_goals' } };

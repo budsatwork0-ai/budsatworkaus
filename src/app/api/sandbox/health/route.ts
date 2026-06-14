@@ -51,9 +51,68 @@ type LessonRow = {
   agent_id: string;
   title: string;
   observation: string;
+  recommendation: string | null;
   severity: string;
   created_at: string;
 };
+
+type RootCause = {
+  key: string;
+  title: string;
+  severity: 'critical' | 'warning';
+  agentId: string;
+  failureType: 'zero_action' | 'wrong_actions';
+  rootCauseSummary: string;
+  lessonCount: number;
+  latestAt: string;
+  exampleObservations: string[];
+  recommendedFix: string;
+  lessonIds: string[];
+};
+
+function groupLessonsIntoRootCauses(lessons: LessonRow[]): RootCause[] {
+  const groups = new Map<string, { items: LessonRow[]; failureType: 'zero_action' | 'wrong_actions' }>();
+  for (const lesson of lessons) {
+    const isZeroAction =
+      lesson.observation.includes('[nothing]') ||
+      lesson.observation.includes('proposed []');
+    const failureType = isZeroAction ? 'zero_action' : 'wrong_actions';
+    const key = `${lesson.agent_id}::${failureType}`;
+    if (!groups.has(key)) groups.set(key, { items: [], failureType });
+    groups.get(key)!.items.push(lesson);
+  }
+
+  const result: RootCause[] = [];
+  for (const [key, { items, failureType }] of groups) {
+    const agentId = items[0].agent_id;
+    const severity = items.some((l) => l.severity === 'critical') ? 'critical' : 'warning';
+    result.push({
+      key,
+      title: failureType === 'zero_action'
+        ? `Zero-action failure — ${agentId}`
+        : `Wrong action types — ${agentId}`,
+      severity,
+      agentId,
+      failureType,
+      rootCauseSummary: failureType === 'zero_action'
+        ? 'Agent produces no proposed actions. DB query returns empty in sandbox (missing sandbox input detection).'
+        : 'Agent proposed action types that did not match expected. Review agent system prompt.',
+      lessonCount: items.length,
+      latestAt: items[0].created_at,
+      exampleObservations: items.slice(0, 3).map((l) => l.observation),
+      recommendedFix: failureType === 'zero_action'
+        ? 'Add detectSandbox* helper and deterministic fallback to the agent.'
+        : 'Review agent system prompt and scenario inputs to align action type coverage.',
+      lessonIds: items.map((l) => l.id),
+    });
+  }
+
+  return result.sort((a, b) => {
+    if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+    if (b.severity === 'critical' && a.severity !== 'critical') return 1;
+    return b.lessonCount - a.lessonCount;
+  });
+}
 
 export async function GET() {
   const user = await getAuthUser();
@@ -88,11 +147,11 @@ export async function GET() {
         .select('id, slug, title, category'),
       supabase
         .from('sandbox_lessons_learned')
-        .select('id, agent_id, title, observation, severity, created_at')
+        .select('id, agent_id, title, observation, recommendation, severity, created_at')
         .eq('severity', 'critical')
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false })
-        .limit(25),
+        .limit(50),
     ]);
 
     const batches = (batchesRes.data ?? []) as BatchRow[];
@@ -135,13 +194,17 @@ export async function GET() {
       }))
       .sort((a, b) => a.f1 - b.f1);
 
+    const needsReview = (lessonsRes.data ?? []) as LessonRow[];
+    const rootCauses = groupLessonsIntoRootCauses(needsReview);
+
     return NextResponse.json({
       lastCronRun,
       batches,
       health,
       regressions,
       failingScenarios,
-      needsReview: (lessonsRes.data ?? []) as LessonRow[],
+      needsReview,
+      rootCauses,
     });
   } catch (err) {
     return NextResponse.json(
