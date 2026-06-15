@@ -1,12 +1,20 @@
-import { AGENT_LIST } from '@/lib/agents/registry';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
-import type { AgentDefinition } from '@/lib/agents/types';
 import type {
   AgentIntegrityReport,
   AgentIntegrityStatus,
   IntegrityRequirement,
   RequirementStatus,
 } from './types';
+
+// Lightweight agent metadata — avoids pulling in the full registry (which has Node.js deps)
+// and is safe to import in client components.
+export type AgentMeta = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  autonomy: string;
+};
 
 // ── Static integrity specs ──────────────────────────────────────────────────
 
@@ -553,7 +561,7 @@ function deriveStatus(
 }
 
 function buildFixPrompt(
-  agent: AgentDefinition,
+  agent: AgentMeta,
   status: AgentIntegrityStatus,
   missing: string[],
   recommendation: string,
@@ -572,7 +580,7 @@ function buildFixPrompt(
 
 // ── Main derivation ────────────────────────────────────────────────────────
 
-export function deriveIntegrityReport(agent: AgentDefinition): AgentIntegrityReport {
+export function deriveIntegrityReport(agent: AgentMeta): AgentIntegrityReport {
   const spec = AGENT_SPECS[agent.id];
   const agentScenarioTitles = scenariosForAgent(agent.id);
   const scenarioCount = agentScenarioTitles.length;
@@ -729,8 +737,8 @@ export function deriveIntegrityReport(agent: AgentDefinition): AgentIntegrityRep
   };
 }
 
-export function deriveFleetIntegrityReports(): AgentIntegrityReport[] {
-  return AGENT_LIST.map(deriveIntegrityReport);
+export function deriveFleetIntegrityReports(agents: AgentMeta[]): AgentIntegrityReport[] {
+  return agents.map(deriveIntegrityReport);
 }
 
 export function integrityStatusLabel(status: AgentIntegrityStatus): string {

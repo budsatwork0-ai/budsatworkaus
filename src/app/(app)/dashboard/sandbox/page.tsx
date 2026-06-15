@@ -12,7 +12,7 @@ import { deriveManualSummary, historyRowToPackResult } from './_lib/results';
 import { packLabel, scenariosForPack } from './_lib/run-packs';
 import { AgentDetailDrawer, ScenarioResultDrawer } from './_components/SandboxDrawers';
 import { AgentsTab, DoctorTab, InfrastructureTab, LearningTab, OverviewTab, RunTab } from './_components/SandboxTabs';
-import { deriveFleetIntegrityReports } from './_lib/doctor';
+import type { AgentIntegrityReport } from './_lib/types';
 import { ExecutiveCommandStrip, ExecutiveSummary, PackRunConfirmationDialog } from './_components/RunControls';
 import { Alert, RunStatusPanel } from './_components/ui';
 
@@ -156,6 +156,17 @@ export default function SandboxPage() {
     }
   }, [activeTab, loadSandbox]);
 
+  // Lazy-load integrity reports the first time the Doctor tab opens.
+  useEffect(() => {
+    if (activeTab === 'doctor' && !integrityInitializedRef.current) {
+      integrityInitializedRef.current = true;
+      fetch('/api/sandbox/integrity', { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((payload: AgentIntegrityReport[]) => setAgentIntegrityReports(payload))
+        .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    }
+  }, [activeTab]);
+
   const activeRootCauses = useMemo(() => health?.activeRootCauses ?? health?.rootCauses ?? [], [health]);
   const resolvedRootCauses = useMemo(() => health?.resolvedRootCauses ?? [], [health]);
   const proposals = useMemo(() => health?.proposals ?? [], [health]);
@@ -212,7 +223,8 @@ export default function SandboxPage() {
     [activeRootCauses, agents, fleetHealth, health, history, lessons, readiness, resolvedRootCauses],
   );
 
-  const agentIntegrityReports = useMemo(() => deriveFleetIntegrityReports(), []);
+  const [agentIntegrityReports, setAgentIntegrityReports] = useState<AgentIntegrityReport[] | null>(null);
+  const integrityInitializedRef = useRef(false);
 
   const filteredScenarios = useMemo(() => {
     const query = scenarioSearch.trim().toLowerCase();
@@ -778,7 +790,13 @@ export default function SandboxPage() {
       ) : null}
 
       {activeTab === 'doctor' ? (
-        <DoctorTab reports={agentIntegrityReports} />
+        agentIntegrityReports ? (
+          <DoctorTab reports={agentIntegrityReports} />
+        ) : (
+          <div className="rounded-[8px] border border-[#dfe9e2] bg-white px-4 py-8 text-center text-sm font-semibold text-[#617269]">
+            Loading integrity reports…
+          </div>
+        )
       ) : null}
 
       {selectedAgent ? (

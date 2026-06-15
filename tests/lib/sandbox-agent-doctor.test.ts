@@ -4,8 +4,16 @@
  * for specced agents, critical-gate agents, and unspecced agents.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveIntegrityReport, deriveFleetIntegrityReports, integrityStatusLabel, integrityStatusColour } from '../../src/app/(app)/dashboard/sandbox/_lib/doctor';
+import { deriveIntegrityReport, deriveFleetIntegrityReports, integrityStatusLabel, integrityStatusColour, type AgentMeta } from '../../src/app/(app)/dashboard/sandbox/_lib/doctor';
 import { AGENT_LIST, AGENT_REGISTRY } from '../../src/lib/agents/registry';
+
+const AGENT_META_LIST: AgentMeta[] = AGENT_LIST.map((a) => ({
+  id: a.id,
+  name: a.name,
+  description: a.description,
+  category: a.category,
+  autonomy: a.autonomy,
+}));
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -19,7 +27,7 @@ function agent(id: string) {
 
 describe('deriveFleetIntegrityReports', () => {
   it('returns one report per agent in the registry', () => {
-    const reports = deriveFleetIntegrityReports();
+    const reports = deriveFleetIntegrityReports(AGENT_META_LIST);
     expect(reports).toHaveLength(AGENT_LIST.length);
   });
 
@@ -31,14 +39,14 @@ describe('deriveFleetIntegrityReports', () => {
       'missing_integration',
       'unsafe_to_promote',
     ]);
-    const reports = deriveFleetIntegrityReports();
+    const reports = deriveFleetIntegrityReports(AGENT_META_LIST);
     for (const report of reports) {
       expect(validStatuses.has(report.integrityStatus), `invalid status for ${report.agentId}: ${report.integrityStatus}`).toBe(true);
     }
   });
 
   it('every report has an integrityScore in [0, 100]', () => {
-    const reports = deriveFleetIntegrityReports();
+    const reports = deriveFleetIntegrityReports(AGENT_META_LIST);
     for (const report of reports) {
       expect(report.integrityScore).toBeGreaterThanOrEqual(0);
       expect(report.integrityScore).toBeLessThanOrEqual(100);
@@ -46,7 +54,7 @@ describe('deriveFleetIntegrityReports', () => {
   });
 
   it('every report has a non-empty generateFixPrompt', () => {
-    const reports = deriveFleetIntegrityReports();
+    const reports = deriveFleetIntegrityReports(AGENT_META_LIST);
     for (const report of reports) {
       expect(report.generateFixPrompt.length).toBeGreaterThan(0);
     }
