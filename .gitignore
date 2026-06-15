@@ -16,6 +16,7 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/tmp/screenshots/
 
 # next.js
 /.next/
@@ -39,6 +40,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# supabase generated temp
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo
