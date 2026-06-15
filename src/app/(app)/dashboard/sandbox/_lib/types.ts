@@ -200,12 +200,17 @@ export type HistoryRow = {
 export type RunStatus = {
   kind: 'scenario' | 'pack';
   label: string;
-  status: 'running' | 'complete' | 'failed';
+  status: 'running' | 'complete' | 'failed' | 'cancelled';
   startedAt: number;
   currentIndex: number;
   total: number;
   currentScenario?: string;
   message: string;
+  /** DB batch ID — present for SSE-driven pack runs; used by the cancel button. */
+  batchId?: string;
+  /** Live pass/fail counters streamed from SSE events. */
+  passCount?: number;
+  failCount?: number;
 };
 
 export type AgentRow = {

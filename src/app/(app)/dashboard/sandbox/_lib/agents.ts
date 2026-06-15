@@ -1,5 +1,5 @@
 import type { SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
-import type { AgentRow, FleetBucket, HealthData, ImprovementProposal, Lesson, OperatorPromotionStatus, PromotionStatus, RootCause } from './types';
+import type { AgentRow, FailingScenario, FleetBucket, HealthData, ImprovementProposal, Lesson, OperatorPromotionStatus, PromotionStatus, RootCause } from './types';
 import { fmtF1 } from './format';
 
 export function buildAgentRows(health: HealthData | null, lessons: Lesson[], scenarios: SandboxScenarioTemplate[]): AgentRow[] {
@@ -10,13 +10,38 @@ export function buildAgentRows(health: HealthData | null, lessons: Lesson[], sce
   health?.recommendations?.forEach((row) => agentIds.add(row.agentId));
   activeRootCauses.forEach((row) => agentIds.add(row.agentId));
 
+  // Build lookup maps once so the per-agent loop below is O(1) per field
+  // instead of O(n) .find()/.filter() calls on each of 30+ agents.
+  const healthByAgent = new Map(health?.health.map((row) => [row.agent_id, row]) ?? []);
+  const recsByAgent = new Map(health?.recommendations?.map((r) => [r.agentId, r]) ?? []);
+  const regressionSet = new Set(health?.regressions.map((r) => r.agent_id) ?? []);
+
+  const rootCausesByAgent = new Map<string, RootCause[]>();
+  for (const rc of activeRootCauses) {
+    const list = rootCausesByAgent.get(rc.agentId) ?? [];
+    list.push(rc);
+    rootCausesByAgent.set(rc.agentId, list);
+  }
+
+  const failingByAgent = new Map<string, FailingScenario[]>();
+  for (const s of health?.failingScenarios ?? []) {
+    const list = failingByAgent.get(s.agentId) ?? [];
+    list.push(s);
+    failingByAgent.set(s.agentId, list);
+  }
+
+  const lessonCountByAgent = new Map<string, number>();
+  for (const lesson of lessons) {
+    lessonCountByAgent.set(lesson.agentId, (lessonCountByAgent.get(lesson.agentId) ?? 0) + 1);
+  }
+
   return [...agentIds].sort().map((agentId) => {
-    const healthRow = health?.health.find((row) => row.agent_id === agentId);
-    const recommendation = health?.recommendations?.find((row) => row.agentId === agentId);
-    const rootCauses = activeRootCauses.filter((row) => row.agentId === agentId);
-    const failing = health?.failingScenarios.filter((row) => row.agentId === agentId) ?? [];
-    const isRegression = Boolean(health?.regressions.some((row) => row.agent_id === agentId));
-    const lessonCount = recommendation?.lessonCount ?? lessons.filter((lesson) => lesson.agentId === agentId).length;
+    const healthRow = healthByAgent.get(agentId);
+    const recommendation = recsByAgent.get(agentId);
+    const rootCauses = rootCausesByAgent.get(agentId) ?? [];
+    const failing = failingByAgent.get(agentId) ?? [];
+    const isRegression = regressionSet.has(agentId);
+    const lessonCount = recommendation?.lessonCount ?? lessonCountByAgent.get(agentId) ?? 0;
     const blockers = [
       ...rootCauses.map((row) => row.title),
       ...failing.map((row) => `Failing scenario: ${row.title}`),

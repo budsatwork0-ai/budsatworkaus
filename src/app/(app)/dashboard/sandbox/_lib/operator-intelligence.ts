@@ -38,12 +38,32 @@ export function buildOperatorIntelligence({
   const oneDay = 24 * 60 * 60 * 1000;
   const lastDayStart = now - oneDay;
   const previousDayStart = now - (oneDay * 2);
-  const recentLessons = lessons.filter((lesson) => inWindow(lesson.createdAt, lastDayStart, now)).length;
-  const previousLessons = lessons.filter((lesson) => inWindow(lesson.createdAt, previousDayStart, lastDayStart)).length;
-  const recentRootCauseEvents = [...activeRootCauses, ...resolvedRootCauses].filter((rc) => inWindow(rc.latestAt, lastDayStart, now)).length;
-  const previousRootCauseEvents = [...activeRootCauses, ...resolvedRootCauses].filter((rc) => inWindow(rc.latestAt, previousDayStart, lastDayStart)).length;
-  const recentRuns = history.filter((row) => inWindow(row.startedAt, lastDayStart, now));
-  const previousRuns = history.filter((row) => inWindow(row.startedAt, previousDayStart, lastDayStart));
+
+  // Single pass per collection instead of repeated .filter() calls.
+  let recentLessons = 0;
+  let previousLessons = 0;
+  for (const lesson of lessons) {
+    if (inWindow(lesson.createdAt, lastDayStart, now)) recentLessons++;
+    else if (inWindow(lesson.createdAt, previousDayStart, lastDayStart)) previousLessons++;
+  }
+
+  let recentRootCauseEvents = 0;
+  let previousRootCauseEvents = 0;
+  for (const rc of activeRootCauses) {
+    if (inWindow(rc.latestAt, lastDayStart, now)) recentRootCauseEvents++;
+    else if (inWindow(rc.latestAt, previousDayStart, lastDayStart)) previousRootCauseEvents++;
+  }
+  for (const rc of resolvedRootCauses) {
+    if (inWindow(rc.latestAt, lastDayStart, now)) recentRootCauseEvents++;
+    else if (inWindow(rc.latestAt, previousDayStart, lastDayStart)) previousRootCauseEvents++;
+  }
+
+  const recentRuns: HistoryRow[] = [];
+  const previousRuns: HistoryRow[] = [];
+  for (const row of history) {
+    if (inWindow(row.startedAt, lastDayStart, now)) recentRuns.push(row);
+    else if (inWindow(row.startedAt, previousDayStart, lastDayStart)) previousRuns.push(row);
+  }
   const recentPassRate = runPassRate(recentRuns);
   const previousPassRate = runPassRate(previousRuns);
   const latestCategoryGains = categoryF1Gains(recentRuns, previousRuns);
@@ -159,10 +179,25 @@ function latestScenarioPassCount(history: HistoryRow[]): number {
 }
 
 function categoryF1Gains(recentRuns: HistoryRow[], previousRuns: HistoryRow[]): string[] {
-  const categories = new Set([...recentRuns, ...previousRuns].map((row) => row.scenario.category));
+  // Group by category in a single pass over each array.
+  const recentByCategory = new Map<string, HistoryRow[]>();
+  for (const row of recentRuns) {
+    const cat = row.scenario.category;
+    const list = recentByCategory.get(cat) ?? [];
+    list.push(row);
+    recentByCategory.set(cat, list);
+  }
+  const previousByCategory = new Map<string, HistoryRow[]>();
+  for (const row of previousRuns) {
+    const cat = row.scenario.category;
+    const list = previousByCategory.get(cat) ?? [];
+    list.push(row);
+    previousByCategory.set(cat, list);
+  }
+  const categories = new Set([...recentByCategory.keys(), ...previousByCategory.keys()]);
   return [...categories].flatMap((category) => {
-    const recent = averageF1(recentRuns.filter((row) => row.scenario.category === category));
-    const previous = averageF1(previousRuns.filter((row) => row.scenario.category === category));
+    const recent = averageF1(recentByCategory.get(category) ?? []);
+    const previous = averageF1(previousByCategory.get(category) ?? []);
     if (recent === null || previous === null || Math.abs(recent - previous) < 0.05) return [];
     const verb = recent > previous ? 'improved' : 'fell';
     return [`${titleCase(category)} F1 ${verb} from ${previous.toFixed(2)} → ${recent.toFixed(2)}`];

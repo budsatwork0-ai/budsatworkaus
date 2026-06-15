@@ -70,21 +70,53 @@ export function ArenaActionButton({ label, description, busy, disabled, onClick,
   );
 }
 
-export function RunStatusPanel({ status }: { status: RunStatus }) {
+export function RunStatusPanel({ status, onCancel }: { status: RunStatus; onCancel?: () => void }) {
   const progress = status.total === 0 ? 0 : Math.round((status.currentIndex / status.total) * 100);
   const elapsed = Math.max(0, Math.round((Date.now() - status.startedAt) / 1000));
-  const tone = status.status === 'failed' ? 'border-red-200 bg-red-50 text-red-800' : status.status === 'complete' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900';
+  const tone =
+    status.status === 'failed'    ? 'border-red-200 bg-red-50 text-red-800'
+    : status.status === 'complete'  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+    : status.status === 'cancelled' ? 'border-[#dfe9e2] bg-[#f4faf6] text-[#617269]'
+    : 'border-amber-200 bg-amber-50 text-amber-900';
+
+  const kindLabel =
+    status.status === 'cancelled' ? 'Pack cancelled'
+    : status.status === 'complete'  ? (status.kind === 'pack' ? 'Pack complete' : 'Scenario complete')
+    : status.status === 'failed'    ? (status.kind === 'pack' ? 'Pack failed' : 'Scenario failed')
+    : status.kind === 'pack'        ? 'Pack running'
+    : 'Scenario running';
+
+  const showCancel = status.status === 'running' && status.kind === 'pack' && !!onCancel;
+
   return (
     <section className={`rounded-[8px] border px-4 py-4 shadow-sm ${tone}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em]">{status.kind === 'pack' ? 'Pack running' : 'Scenario running'}</p>
+          <p className="text-xs font-black uppercase tracking-[0.14em]">{kindLabel}</p>
           <h2 className="text-lg font-black">{status.label}</h2>
           <p className="text-sm font-semibold">{status.message}</p>
         </div>
-        <div className="text-right">
-          <p className="text-2xl font-black">{status.currentIndex}/{status.total}</p>
-          <p className="text-xs font-bold">{elapsed}s elapsed</p>
+        <div className="flex items-center gap-3">
+          {showCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-[6px] border border-amber-400 bg-white px-3 py-1.5 text-xs font-black text-amber-800 transition hover:bg-amber-50"
+            >
+              Cancel pack
+            </button>
+          ) : null}
+          <div className="text-right">
+            <p className="text-2xl font-black">{status.currentIndex}/{status.total}</p>
+            <p className="text-xs font-bold">{elapsed}s elapsed</p>
+            {(status.passCount !== undefined || status.failCount !== undefined) ? (
+              <p className="text-xs font-bold">
+                <span className="text-emerald-700">{status.passCount ?? 0}P</span>
+                {' / '}
+                <span className="text-red-700">{status.failCount ?? 0}F</span>
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/70">

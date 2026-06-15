@@ -143,7 +143,7 @@ export async function GET() {
           .from('sandbox_agent_health')
           .select('agent_id, runs, pass_rate, avg_f1, baseline_f1, delta_f1, trend, computed_at')
           .order('computed_at', { ascending: false })
-          .limit(200),
+          .limit(60),
         supabase
           .from('sandbox_decision_scores')
           .select('scenario_id, agent_id, f1_score, scored_at')
@@ -158,11 +158,10 @@ export async function GET() {
           .gte('created_at', sevenDaysAgo)
           .order('created_at', { ascending: false })
           .limit(50),
-        // Total lesson count per agent (all time, for recommendations)
-        supabase
-          .from('sandbox_lessons_learned')
-          .select('agent_id')
-          .eq('environment', 'sandbox'),
+        // Per-agent lesson counts via server-side COUNT(*) GROUP BY — no row cap.
+        // Replaces the previous .select('agent_id').limit(2000) approach which
+        // under-counted once the table exceeded 2000 rows.
+        (supabase as any).rpc('sandbox_lesson_counts_by_agent'),
       ]);
 
     const batches = (batchesRes.data ?? []) as BatchRow[];
@@ -222,11 +221,11 @@ export async function GET() {
     const proposals = buildProposals(activeRootCauses, healthByAgent);
 
     // ── Phase 2: promotion recommendations ────────────────────────────────
-    // Lesson counts per agent (all-time).
-    const lessonsByAgent = new Map<string, number>();
-    for (const row of (allLessonsCountRes.data ?? []) as Array<{ agent_id: string }>) {
-      lessonsByAgent.set(row.agent_id, (lessonsByAgent.get(row.agent_id) ?? 0) + 1);
-    }
+    // Lesson counts per agent (all-time) — from RPC COUNT(*) GROUP BY agent_id.
+    const lessonsByAgent = new Map<string, number>(
+      ((allLessonsCountRes.data ?? []) as Array<{ agent_id: string; lesson_count: number }>)
+        .map((row) => [row.agent_id, Number(row.lesson_count)]),
+    );
     const recommendations = buildRecommendations(
       health as AgentHealthInput[],
       activeRootCauses,

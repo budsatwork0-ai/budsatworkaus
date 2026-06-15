@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { ScenarioCategory, ScenarioDifficulty, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
 import CronCountdownCard from './CronCountdownCard';
@@ -218,17 +219,22 @@ export function AgentsTab({
   onFilter: (filter: FleetBucket | 'all') => void;
   onSelectAgent: (agentId: string) => void;
 }) {
-  const count = (bucket: FleetBucket) => allAgents.filter((agent) => bucketForAgent(agent) === bucket).length;
+  // Single pass over allAgents instead of four separate .filter() calls.
+  const bucketCounts = useMemo(() => {
+    const counts = { promote: 0, investigate: 0, blocked: 0, monitor: 0 };
+    for (const agent of allAgents) counts[bucketForAgent(agent)] += 1;
+    return counts;
+  }, [allAgents]);
 
   return (
     <section className="grid gap-5">
       <div className="flex flex-wrap gap-2">
         {[
           ['all', `All (${allAgents.length})`],
-          ['promote', `Promote (${count('promote')})`],
-          ['investigate', `Investigate (${count('investigate')})`],
-          ['blocked', `Blocked (${count('blocked')})`],
-          ['monitor', `Monitor (${count('monitor')})`],
+          ['promote', `Promote (${bucketCounts.promote})`],
+          ['investigate', `Investigate (${bucketCounts.investigate})`],
+          ['blocked', `Blocked (${bucketCounts.blocked})`],
+          ['monitor', `Monitor (${bucketCounts.monitor})`],
         ].map(([key, label]) => (
           <button
             key={key}

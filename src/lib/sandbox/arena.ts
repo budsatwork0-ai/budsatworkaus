@@ -559,11 +559,13 @@ export async function getSandboxReadiness(): Promise<{
   const supabase = adminClient();
 
   // Get most recent score per scenario.
+  // 500 rows is generous for ~40 scenarios; keeps payload bounded.
   const { data: scores, error: scoresErr } = await supabase
     .from('sandbox_decision_scores')
     .select('scenario_id, agent_id, f1_score, scored_at')
     .eq('environment', 'sandbox')
-    .order('scored_at', { ascending: false });
+    .order('scored_at', { ascending: false })
+    .limit(500);
 
   if (scoresErr) throw new Error(`Readiness query failed: ${scoresErr.message}`);
 

@@ -133,6 +133,7 @@ export async function GET() {
       agentActions,
       pendingAgentActions,
       pendingBudApprovals,
+      completedJobs,
     ] = await Promise.all([
       countRows(supabase, 'customers'),
       countRows(supabase, 'leads'),
@@ -143,9 +144,8 @@ export async function GET() {
       countRows(supabase, 'agent_actions', false),
       countRows(supabase, 'agent_actions', false, { status: 'pending' }),
       countRows(supabase, 'bud_approval_queue', false, { status: 'pending' }),
+      countRows(supabase, 'orders', true, { status: 'completed' }),
     ]);
-
-    const completedJobs = await countRows(supabase, 'orders', true, { status: 'completed' });
 
     return NextResponse.json({
       mode: 'sandbox',

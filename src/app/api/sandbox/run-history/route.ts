@@ -3,6 +3,10 @@
  *
  * Read-only run history for the Agent Training Arena.
  * Uses existing sandbox_* tables; no production data and no new persistence.
+ *
+ * Round-trip count: 2 (down from 3).
+ *   Wave 1 — training runs with inline scenario join.
+ *   Wave 2 — agent responses (with nested decision scores) + lessons (parallel).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
@@ -32,14 +36,6 @@ type TrainingRunRow = {
   sandbox_scenarios: ScenarioJoin | ScenarioJoin[];
 };
 
-type ResponseRow = {
-  id: string;
-  training_run_id: string;
-  summary: string | null;
-  proposed_actions: Array<{ action_type?: string; preview?: string }> | null;
-  llm_calls: number | null;
-};
-
 type ScoreRow = {
   response_id: string;
   precision_score: number | null;
@@ -47,6 +43,16 @@ type ScoreRow = {
   f1_score: number | null;
   hit: boolean | null;
   scored_at: string;
+};
+
+type ResponseWithScore = {
+  id: string;
+  training_run_id: string;
+  summary: string | null;
+  proposed_actions: Array<{ action_type?: string; preview?: string }> | null;
+  llm_calls: number | null;
+  // PostgREST returns one-to-many as an array; each response has at most one score.
+  sandbox_decision_scores: ScoreRow[] | null;
 };
 
 type LessonRow = {
@@ -71,6 +77,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? 25), 1), 100);
 
   try {
+    // Wave 1: training runs with inline scenario metadata.
     const { data: runs, error: runsError } = await (supabase as any)
       .from('sandbox_training_runs')
       .select(`
@@ -95,11 +102,16 @@ export async function GET(req: NextRequest) {
     const runIds = runRows.map((run) => run.id);
     const scenarioIds = runRows.map((run) => run.scenario_id).filter(Boolean);
 
+    // Wave 2 (parallel): responses with nested scores + lessons.
+    // The nested sandbox_decision_scores join follows the response_id FK and
+    // eliminates the previous wave-3 round trip for scores.
     const [responsesResult, lessonsResult] = await Promise.all([
       runIds.length > 0
         ? (supabase as any)
             .from('sandbox_agent_responses')
-            .select('id, training_run_id, summary, proposed_actions, llm_calls')
+            .select(
+              'id, training_run_id, summary, proposed_actions, llm_calls, sandbox_decision_scores(response_id, precision_score, recall_score, f1_score, hit, scored_at)',
+            )
             .in('training_run_id', runIds)
             .eq('environment', 'sandbox')
         : Promise.resolve({ data: [], error: null }),
@@ -115,23 +127,8 @@ export async function GET(req: NextRequest) {
     if (responsesResult.error) throw responsesResult.error;
     if (lessonsResult.error) throw lessonsResult.error;
 
-    const responses = (responsesResult.data ?? []) as ResponseRow[];
-    const responseIds = responses.map((response) => response.id);
-
-    const scoresResult = responseIds.length > 0
-      ? await (supabase as any)
-          .from('sandbox_decision_scores')
-          .select('response_id, precision_score, recall_score, f1_score, hit, scored_at')
-          .in('response_id', responseIds)
-          .eq('environment', 'sandbox')
-      : { data: [], error: null };
-
-    if (scoresResult.error) throw scoresResult.error;
-
-    const responseByRun = new Map(responses.map((response) => [response.training_run_id, response]));
-    const scoreByResponse = new Map(
-      ((scoresResult.data ?? []) as ScoreRow[]).map((score) => [score.response_id, score]),
-    );
+    const responses = (responsesResult.data ?? []) as ResponseWithScore[];
+    const responseByRun = new Map(responses.map((r) => [r.training_run_id, r]));
 
     const lessonCounts = new Map<string, number>();
     for (const lesson of (lessonsResult.data ?? []) as LessonRow[]) {
@@ -142,7 +139,8 @@ export async function GET(req: NextRequest) {
     const history = runRows.map((run) => {
       const scenario = firstJoin(run.sandbox_scenarios);
       const response = responseByRun.get(run.id) ?? null;
-      const score = response ? scoreByResponse.get(response.id) ?? null : null;
+      // Take the first (latest) score from the nested array.
+      const score = response?.sandbox_decision_scores?.[0] ?? null;
 
       return {
         id: run.id,
