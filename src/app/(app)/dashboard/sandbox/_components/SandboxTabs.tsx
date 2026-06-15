@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ScenarioCategory, ScenarioDifficulty, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
+import type { AgentIntegrityReport, AgentIntegrityStatus, RequirementStatus } from '../_lib/types';
+import { integrityStatusColour, integrityStatusLabel, requirementStatusColour } from '../_lib/doctor';
 import CronCountdownCard from './CronCountdownCard';
 import type { AgentRow, Batch, FleetBucket, HealthData, HistoryRow, ImprovementProposal, Lesson, OperatorIntelligence, PackKind, PackResult, PromotionRecommendation, ReadinessData, RootCause, RunResult, SandboxData } from '../_lib/types';
 import { CATEGORY_COLOURS, DIFFICULTY_COLOURS, fmtF1, isPass, pct, pctRatio, scenarioCategories } from '../_lib/format';
@@ -31,14 +33,14 @@ export function OverviewTab({
   resolvedRootCauses: RootCause[];
   proposals: ImprovementProposal[];
   recommendations: PromotionRecommendation[];
-  latestManualSummary: string;
+  latestManualSummary: string | null;
   intelligence: OperatorIntelligence;
   onFilterAgents: (bucket: FleetBucket) => void;
   onOpenDetails: (target: 'learning' | 'agents' | 'run') => void;
 }) {
   const requiredActions = buildRequiredActions(health, agents, activeRootCauses, proposals);
-  const lessonsThisWeek = (health?.needsReview ?? []).length;
   const resolvedThisWeek = resolvedRootCauses.length;
+  const actionableAgents = [...buckets.promote, ...buckets.investigate, ...buckets.blocked];
 
   return (
     <section className="grid gap-5">
@@ -58,6 +60,7 @@ export function OverviewTab({
 
       <ContradictionExplainer
         latestManualSummary={latestManualSummary}
+        lastCronRun={health?.lastCronRun ?? null}
         activeRootCauses={activeRootCauses.length}
         failingScenarios={health?.failingScenarios.length ?? 0}
         readyToPromote={recommendations.filter((row) => row.status === 'promote').length}
@@ -78,8 +81,8 @@ export function OverviewTab({
           <div className="grid grid-cols-2 gap-2">
             <MiniMetric label="Root causes found" value={String(activeRootCauses.length)} trend={intelligence.rootCausesTrend} />
             <MiniMetric label="Root causes resolved" value={String(resolvedThisWeek)} />
-            <MiniMetric label="Resolution rate" value={pctRatio(resolvedThisWeek, activeRootCauses.length + resolvedThisWeek)} />
-            <MiniMetric label="Lessons generated" value={String(lessonsThisWeek)} trend={intelligence.lessonsTrend} />
+            <MiniMetric label="Open lessons" value={String(intelligence.openLessons)} trend={intelligence.lessonsTrend} />
+            <MiniMetric label="New lessons (7d)" value={String(intelligence.lessonsThisWeek)} />
           </div>
         </Panel>
         <Panel title="Latest Discoveries">
@@ -94,11 +97,21 @@ export function OverviewTab({
           )}
         </Panel>
         <Panel title="Promotion Summary" action={<SmallButton onClick={() => onOpenDetails('agents')}>Agents</SmallButton>}>
-          <div className="grid gap-2">
-            <SummaryLine label="Promote" value={buckets.promote.map((a) => a.agentId).join(', ') || 'None'} />
-            <SummaryLine label="Investigate" value={buckets.investigate.map((a) => a.agentId).join(', ') || 'None'} />
-            <SummaryLine label="Blocked" value={buckets.blocked.map((a) => a.agentId).join(', ') || 'None'} />
-          </div>
+          {actionableAgents.length === 0 ? (
+            <EmptyState message="All agents in Monitor — no immediate action required." />
+          ) : (
+            <div className="grid gap-2">
+              {actionableAgents.map((agent) => (
+                <div key={agent.agentId} className="flex items-start justify-between gap-2 rounded-[8px] bg-[#f4faf6] px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-[#17392b]">{agent.agentId}</p>
+                    <p className="text-[11px] font-semibold text-[#617269]">{promotionReason(agent)}</p>
+                  </div>
+                  <PromotionChip status={agent.status} />
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
       </div>
     </section>
@@ -313,6 +326,12 @@ export function LearningTab({
 }) {
   const found = activeRootCauses.length + resolvedRootCauses.length;
   const resolved = resolvedRootCauses.length;
+  const allLessons = lessons ?? [];
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const newLessonsThisWeek = allLessons.filter((l) => new Date(l.createdAt).getTime() >= sevenDaysAgo).length;
+  const resolvedLessonIds = new Set(resolvedRootCauses.flatMap((rc) => rc.lessonIds));
+  const resolvedLessonsCount = allLessons.filter((l) => resolvedLessonIds.has(l.id)).length;
+  const openLessonsCount = allLessons.length - resolvedLessonsCount;
 
   return (
     <section className="grid gap-5">
@@ -321,9 +340,13 @@ export function LearningTab({
           <MiniMetric label="Root causes found" value={String(found)} />
           <MiniMetric label="Root causes resolved" value={String(resolved)} />
           <MiniMetric label="Resolution rate" value={pctRatio(resolved, found)} />
-          <MiniMetric label="Lessons generated" value={String(lessons?.length ?? health?.needsReview.length ?? 0)} />
-          <MiniMetric label="Trend" value={(health?.regressions.length ?? 0) > 0 ? 'Regressing' : resolved > 0 ? 'Learning' : 'Stable'} />
+          <MiniMetric label="Open lessons" value={String(openLessonsCount)} />
+          <MiniMetric label="New lessons (7d)" value={String(newLessonsThisWeek)} />
         </div>
+        <p className="text-xs font-semibold text-[#617269]">
+          {resolvedLessonsCount > 0 ? `${resolvedLessonsCount} lesson${resolvedLessonsCount === 1 ? '' : 's'} resolved via root cause fixes. ` : ''}
+          {(health?.regressions.length ?? 0) > 0 ? 'Regressions active — see Agent Health.' : resolved > 0 ? 'Loop is learning — root causes are being resolved.' : 'Stable — no regressions or resolved causes yet.'}
+        </p>
       </Panel>
 
       {resolvedRootCauses.length > 0 ? (
@@ -442,23 +465,45 @@ export function InfrastructureTab({
 
 function ContradictionExplainer({
   latestManualSummary,
+  lastCronRun,
   activeRootCauses,
   failingScenarios,
   readyToPromote,
 }: {
-  latestManualSummary: string;
+  latestManualSummary: string | null;
+  lastCronRun: Batch | null;
   activeRootCauses: number;
   failingScenarios: number;
   readyToPromote: number;
 }) {
+  const latestPackValue = latestManualSummary
+    ?? (lastCronRun?.status === 'complete'
+      ? `${lastCronRun.pass_count}/${lastCronRun.scenario_count} passed${lastCronRun.avg_f1 !== null ? ` — avg F1 ${lastCronRun.avg_f1.toFixed(2)}` : ''} (last cron)`
+      : 'No completed runs yet — use Run tab');
+
+  const sessionValue = latestManualSummary ?? 'No manual run in this browser session';
+
+  const fleetHealthValue = activeRootCauses === 0
+    ? 'Clean — no active root causes'
+    : `${activeRootCauses} active root cause${activeRootCauses === 1 ? '' : 's'} — see Learning tab`;
+
+  const promotionValue = readyToPromote === 0
+    ? 'No agents promotable yet — requires passing status, stability, and no active blockers'
+    : `${readyToPromote} agent${readyToPromote === 1 ? '' : 's'} ready — based on latest passing status, stability, and no active blockers`;
+
   return (
     <Panel title="What These Numbers Mean">
-      <div className="grid gap-3 lg:grid-cols-4">
-        <SummaryLine label="Latest manual pack result" value={latestManualSummary} />
-        <SummaryLine label="Fleet health" value={activeRootCauses > 0 ? `${activeRootCauses} unresolved historical issue${activeRootCauses === 1 ? '' : 's'}` : 'No unresolved root causes'} />
-        <SummaryLine label="Current failing scenarios" value={`${failingScenarios} failing latest-score scenario${failingScenarios === 1 ? '' : 's'}`} />
-        <SummaryLine label="Promotion readiness" value={`${readyToPromote} agent${readyToPromote === 1 ? '' : 's'} can still be clean while other agents have root causes`} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryLine label="Latest completed pack" value={latestPackValue} />
+        <SummaryLine label="This session" value={sessionValue} />
+        <SummaryLine label="Fleet health" value={fleetHealthValue} />
+        <SummaryLine label="Promotion readiness" value={promotionValue} />
       </div>
+      {failingScenarios > 0 ? (
+        <p className="text-xs font-semibold text-amber-700">
+          {failingScenarios} scenario{failingScenarios === 1 ? '' : 's'} failing latest score — see Run tab for details.
+        </p>
+      ) : null}
     </Panel>
   );
 }
@@ -649,5 +694,273 @@ function BatchTable({ batches }: { batches: Batch[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ── Bud Agent Doctor ──────────────────────────────────────────────────────
+
+function IntegrityChip({ status }: { status: AgentIntegrityStatus }) {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${integrityStatusColour(status)}`}>
+      {integrityStatusLabel(status)}
+    </span>
+  );
+}
+
+function RequirementChip({ status }: { status: RequirementStatus }) {
+  const colour = requirementStatusColour(status);
+  const label = status === 'present' ? '✓' : status === 'partial' ? '~' : '✗';
+  return (
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${colour}`}>{label}</span>
+  );
+}
+
+function IntegrityScoreBar({ score }: { score: number }) {
+  const colour =
+    score >= 80 ? 'bg-[#1C7C54]' : score >= 50 ? 'bg-amber-400' : 'bg-red-400';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#dfe9e2]">
+        <div className={`h-full rounded-full transition-all ${colour}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className="w-8 text-right text-[10px] font-black text-[#617269]">{score}</span>
+    </div>
+  );
+}
+
+function RequirementList({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ label: string; status: RequirementStatus; notes?: string }>;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">{title}</p>
+      <div className="grid gap-1">
+        {items.map((item, index) => (
+          <div key={`${item.label}-${index}`} className="flex items-start gap-2">
+            <RequirementChip status={item.status} />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#17392b]">{item.label}</p>
+              {item.notes ? <p className="text-[10px] text-[#617269]">{item.notes}</p> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentIntegrityCard({
+  report,
+  expanded,
+  onToggle,
+}: {
+  report: AgentIntegrityReport;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  function copyFixPrompt() {
+    void navigator.clipboard.writeText(report.generateFixPrompt);
+  }
+
+  return (
+    <div className="rounded-[8px] border border-[#dfe9e2] bg-white">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f4faf6]"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-[#17392b]">{report.agentName}</p>
+            <span className="rounded-full bg-[#f4faf6] px-2 py-0.5 text-[10px] font-semibold text-[#617269]">
+              {report.category}
+            </span>
+            <IntegrityChip status={report.integrityStatus} />
+            {report.scenarioCount > 0 ? (
+              <span className="text-[10px] font-semibold text-[#617269]">
+                {report.scenarioCount} scenario{report.scenarioCount !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-red-600">no scenarios</span>
+            )}
+          </div>
+          <div className="mt-1.5">
+            <IntegrityScoreBar score={report.integrityScore} />
+          </div>
+        </div>
+        <span className="mt-1 text-xs text-[#7f9187]">{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded ? (
+        <div className="grid gap-4 border-t border-[#dfe9e2] px-4 py-4">
+          <div>
+            <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Intended Capability</p>
+            <p className="text-xs font-semibold text-[#17392b]">{report.intendedCapability}</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <RequirementList title="Data Sources" items={report.dataSources} />
+            <RequirementList title="Integrations" items={report.integrations} />
+            <RequirementList title="Sandbox Fixtures" items={report.sandboxFixtures} />
+            <RequirementList title="Scenario Coverage" items={report.scenarioCoverage} />
+          </div>
+
+          {report.missingConnections.length > 0 ? (
+            <div className="rounded-[6px] bg-red-50 px-3 py-2">
+              <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-red-700">Missing Connections</p>
+              <div className="flex flex-wrap gap-1">
+                {report.missingConnections.map((c) => (
+                  <span key={c} className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-800">{c}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[6px] bg-[#f4faf6] px-3 py-2">
+              <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Recommendation</p>
+              <p className="text-xs font-semibold text-[#17392b]">{report.recommendation}</p>
+            </div>
+            <div className="rounded-[6px] bg-amber-50 px-3 py-2">
+              <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-amber-700">Risk if Promoted</p>
+              <p className="text-xs font-semibold text-amber-900">{report.riskIfPromoted}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={copyFixPrompt}
+              className="rounded-[6px] border border-[#1C7C54] px-3 py-1.5 text-xs font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
+            >
+              Generate Fix Prompt
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IntegrityFleetSummary({ reports }: { reports: AgentIntegrityReport[] }) {
+  const counts: Record<AgentIntegrityStatus, number> = {
+    ready_to_promote:    reports.filter((r) => r.integrityStatus === 'ready_to_promote').length,
+    ready_to_test:       reports.filter((r) => r.integrityStatus === 'ready_to_test').length,
+    missing_data:        reports.filter((r) => r.integrityStatus === 'missing_data').length,
+    missing_integration: reports.filter((r) => r.integrityStatus === 'missing_integration').length,
+    unsafe_to_promote:   reports.filter((r) => r.integrityStatus === 'unsafe_to_promote').length,
+  };
+
+  const statuses: AgentIntegrityStatus[] = [
+    'ready_to_promote',
+    'ready_to_test',
+    'missing_data',
+    'missing_integration',
+    'unsafe_to_promote',
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      {statuses.map((status) => (
+        <div key={status} className={`rounded-[8px] px-3 py-3 ${integrityStatusColour(status)}`}>
+          <p className="text-2xl font-black">{counts[status]}</p>
+          <p className="text-[10px] font-black uppercase tracking-wider opacity-75">
+            {integrityStatusLabel(status)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function DoctorTab({ reports }: { reports: AgentIntegrityReport[] }) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<AgentIntegrityStatus | 'all'>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    let result = reports;
+    if (statusFilter !== 'all') result = result.filter((r) => r.integrityStatus === statusFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.agentName.toLowerCase().includes(q) ||
+          r.agentId.toLowerCase().includes(q) ||
+          r.category.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [reports, statusFilter, search]);
+
+  const sorted = useMemo(() => {
+    const order: AgentIntegrityStatus[] = [
+      'unsafe_to_promote',
+      'missing_integration',
+      'missing_data',
+      'ready_to_test',
+      'ready_to_promote',
+    ];
+    return [...filtered].sort(
+      (a, b) => order.indexOf(a.integrityStatus) - order.indexOf(b.integrityStatus),
+    );
+  }, [filtered]);
+
+  return (
+    <section className="grid gap-5">
+      <Panel title="Agent Integrity Overview">
+        <p className="text-xs font-semibold text-[#617269]">
+          Derived from static integrity specs and live scenario coverage. All sandbox runs use mock
+          connectors — no real emails, calendar events, Stripe writes, or external API calls are
+          dispatched.
+        </p>
+        <IntegrityFleetSummary reports={reports} />
+      </Panel>
+
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search agents..."
+          className="min-w-[180px] flex-1 rounded-[6px] border border-[#dfe9e2] bg-white px-3 py-2 text-sm font-bold text-[#17392b] outline-none focus:border-[#1C7C54]"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as AgentIntegrityStatus | 'all')}
+          className="rounded-[6px] border border-[#dfe9e2] bg-white px-3 py-2 text-sm font-bold text-[#617269] outline-none focus:border-[#1C7C54]"
+        >
+          <option value="all">All statuses</option>
+          <option value="unsafe_to_promote">Unsafe to Promote</option>
+          <option value="missing_integration">Missing Integration</option>
+          <option value="missing_data">Missing Data</option>
+          <option value="ready_to_test">Ready to Test</option>
+          <option value="ready_to_promote">Ready to Promote</option>
+        </select>
+      </div>
+
+      <Panel title={`Agent Integrity Requirements (${sorted.length})`}>
+        {sorted.length === 0 ? (
+          <EmptyState message="No agents match the current filter." />
+        ) : (
+          <div className="grid gap-2">
+            {sorted.map((report) => (
+              <AgentIntegrityCard
+                key={report.agentId}
+                report={report}
+                expanded={expandedId === report.agentId}
+                onToggle={() =>
+                  setExpandedId(expandedId === report.agentId ? null : report.agentId)
+                }
+              />
+            ))}
+          </div>
+        )}
+      </Panel>
+    </section>
   );
 }

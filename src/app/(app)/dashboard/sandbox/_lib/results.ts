@@ -1,5 +1,35 @@
 import type { ScenarioCategory, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
-import type { HistoryRow, PackResult, RunResult } from './types';
+import type { Batch, HistoryRow, PackResult, RunResult } from './types';
+
+const PASS_THRESHOLD = 0.5;
+
+/**
+ * Derives the manual pack summary string for the current browser session.
+ * Returns null when no manual run has occurred this session (caller shows the
+ * last cron batch instead).
+ */
+export function deriveManualSummary(
+  packResults: PackResult[],
+  lastResult: RunResult | null,
+  lastScenario: SandboxScenarioTemplate | null,
+): string | null {
+  if (packResults.length > 0) {
+    const passed = packResults.filter((row) => row.result.score.f1Score >= PASS_THRESHOLD).length;
+    const avgF1 = packResults.reduce((sum, row) => sum + row.result.score.f1Score, 0) / packResults.length;
+    return `${passed}/${packResults.length} passed — avg F1 ${avgF1.toFixed(2)}`;
+  }
+  if (lastResult && lastScenario) {
+    const passed = lastResult.score.f1Score >= PASS_THRESHOLD;
+    return `${passed ? 'Pass' : 'Fail'} — ${lastScenario.title} — F1 ${lastResult.score.f1Score.toFixed(2)}`;
+  }
+  return null;
+}
+
+/** Formats the last known cron batch as a human-readable summary. */
+export function formatCronBatchSummary(batch: Batch): string {
+  const f1Part = batch.avg_f1 !== null ? ` — avg F1 ${batch.avg_f1.toFixed(2)}` : '';
+  return `${batch.pass_count}/${batch.scenario_count} passed${f1Part} (last cron run)`;
+}
 
 export function toPackResultStatic(scenario: SandboxScenarioTemplate, result: RunResult): PackResult {
   return {

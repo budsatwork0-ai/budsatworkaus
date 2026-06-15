@@ -38,14 +38,29 @@ export function buildOperatorIntelligence({
   const oneDay = 24 * 60 * 60 * 1000;
   const lastDayStart = now - oneDay;
   const previousDayStart = now - (oneDay * 2);
+  const weekStart = now - (oneDay * 7);
 
-  // Single pass per collection instead of repeated .filter() calls.
+  // Single pass — count lessons by time window and severity.
   let recentLessons = 0;
   let previousLessons = 0;
+  let recentCriticalLessons = 0;
+  let previousCriticalLessons = 0;
+  let lessonsThisWeek = 0;
   for (const lesson of lessons) {
-    if (inWindow(lesson.createdAt, lastDayStart, now)) recentLessons++;
-    else if (inWindow(lesson.createdAt, previousDayStart, lastDayStart)) previousLessons++;
+    if (inWindow(lesson.createdAt, weekStart, now)) lessonsThisWeek++;
+    if (inWindow(lesson.createdAt, lastDayStart, now)) {
+      recentLessons++;
+      if (lesson.severity === 'critical') recentCriticalLessons++;
+    } else if (inWindow(lesson.createdAt, previousDayStart, lastDayStart)) {
+      previousLessons++;
+      if (lesson.severity === 'critical') previousCriticalLessons++;
+    }
   }
+
+  // Open vs resolved: cross-reference with root cause lesson ID sets.
+  const resolvedLessonIds = new Set(resolvedRootCauses.flatMap((rc) => rc.lessonIds));
+  const resolvedLessons = lessons.filter((l) => resolvedLessonIds.has(l.id)).length;
+  const openLessons = lessons.length - resolvedLessons;
 
   let recentRootCauseEvents = 0;
   let previousRootCauseEvents = 0;
@@ -71,7 +86,12 @@ export function buildOperatorIntelligence({
   const rootCausesTrend = activeRootCauses.length === 0
     ? 'improving'
     : trendFromCounts(recentRootCauseEvents, previousRootCauseEvents, true);
-  const lessonsTrend = trendFromCounts(recentLessons, previousLessons, false);
+  // Worsening only if new critical lessons increased — historical lesson totals should not trigger worsening.
+  const lessonsTrend: TrendDirection = recentCriticalLessons > previousCriticalLessons
+    ? 'worsening'
+    : recentCriticalLessons < previousCriticalLessons
+      ? 'improving'
+      : 'unchanged';
   const passingScenariosTrend = previousPassRate === null || recentPassRate === null
     ? (regressions > 0 ? 'worsening' : 'unchanged')
     : trendFromValues(recentPassRate, previousPassRate, false);
@@ -113,6 +133,9 @@ export function buildOperatorIntelligence({
     }),
     recentChanges,
     healthyDays,
+    lessonsThisWeek,
+    openLessons,
+    resolvedLessons,
   };
 }
 

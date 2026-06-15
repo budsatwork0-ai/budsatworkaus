@@ -8,10 +8,11 @@ import type { FleetBucket, HealthData, HistoryRow, Lesson, PackKind, PackResult,
 import { buildAgentRows, bucketForAgent } from './_lib/agents';
 import { difficultyRank, isPass, titleCase } from './_lib/format';
 import { buildOperatorIntelligence } from './_lib/operator-intelligence';
-import { historyRowToPackResult } from './_lib/results';
+import { deriveManualSummary, historyRowToPackResult } from './_lib/results';
 import { packLabel, scenariosForPack } from './_lib/run-packs';
 import { AgentDetailDrawer, ScenarioResultDrawer } from './_components/SandboxDrawers';
-import { AgentsTab, InfrastructureTab, LearningTab, OverviewTab, RunTab } from './_components/SandboxTabs';
+import { AgentsTab, DoctorTab, InfrastructureTab, LearningTab, OverviewTab, RunTab } from './_components/SandboxTabs';
+import { deriveFleetIntegrityReports } from './_lib/doctor';
 import { ExecutiveCommandStrip, ExecutiveSummary, PackRunConfirmationDialog } from './_components/RunControls';
 import { Alert, RunStatusPanel } from './_components/ui';
 
@@ -180,17 +181,11 @@ export default function SandboxPage() {
     };
   }, [agents]);
 
-  const latestManualSummary = useMemo(() => {
-    if (packResults.length > 0) {
-      const passed = packResults.filter((row) => isPass(row.result)).length;
-      const avgF1 = packResults.reduce((sum, row) => sum + row.result.score.f1Score, 0) / packResults.length;
-      return `${passed}/${packResults.length} passed - avg F1 ${avgF1.toFixed(2)}`;
-    }
-    if (lastResult && lastScenario) {
-      return `${isPass(lastResult) ? 'Pass' : 'Fail'} - ${lastScenario.title} - F1 ${lastResult.score.f1Score.toFixed(2)}`;
-    }
-    return 'No manual pack in this session';
-  }, [lastResult, lastScenario, packResults]);
+  // null = no manual run has occurred in this browser session
+  const latestManualSummary = useMemo(
+    () => deriveManualSummary(packResults, lastResult, lastScenario),
+    [lastResult, lastScenario, packResults],
+  );
 
   const fleetHealth = useMemo(() => {
     if (agents.some((agent) => agent.status === 'Blocked')) return 'Blocked';
@@ -216,6 +211,8 @@ export default function SandboxPage() {
     }),
     [activeRootCauses, agents, fleetHealth, health, history, lessons, readiness, resolvedRootCauses],
   );
+
+  const agentIntegrityReports = useMemo(() => deriveFleetIntegrityReports(), []);
 
   const filteredScenarios = useMemo(() => {
     const query = scenarioSearch.trim().toLowerCase();
@@ -680,7 +677,7 @@ export default function SandboxPage() {
       ) : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-[#dfe9e2]">
-        {(['overview', 'run', 'agents', 'learning', 'infrastructure'] as OperationsTab[]).map((tab) => (
+        {(['overview', 'run', 'agents', 'learning', 'infrastructure', 'doctor'] as OperationsTab[]).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -778,6 +775,10 @@ export default function SandboxPage() {
             );
           }}
         />
+      ) : null}
+
+      {activeTab === 'doctor' ? (
+        <DoctorTab reports={agentIntegrityReports} />
       ) : null}
 
       {selectedAgent ? (

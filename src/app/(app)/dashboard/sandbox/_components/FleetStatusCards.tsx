@@ -21,7 +21,7 @@ export function FleetStatusCards({
     { key: 'promote', title: 'Ready to Promote', description: 'Passing, stable, and no active blockers', tone: 'border-[#b5d6c5] bg-[#f5fbf7]', trend: intelligence.readyToPromoteTrend },
     { key: 'investigate', title: 'Investigate', description: 'Root causes, regressions, or low confidence', tone: 'border-amber-300 bg-amber-50', trend: intelligence.rootCausesTrend },
     { key: 'blocked', title: 'Blocked', description: 'Critical issue or failing scenario blocks promotion', tone: 'border-red-200 bg-red-50', trend: intelligence.rootCausesTrend },
-    { key: 'monitor', title: 'Healthy / Monitor', description: 'Healthy enough to observe, not promote yet', tone: 'border-[#dfe9e2] bg-white', trend: 'unchanged' },
+    { key: 'monitor', title: 'Healthy / Monitor', description: 'Passing basic checks — needs more run volume, validation, or stability before promotion', tone: 'border-[#dfe9e2] bg-white', trend: 'unchanged' },
   ];
   const expandedAgents = expandedBucket ? buckets[expandedBucket] : [];
   const filteredExpandedAgents = expandedAgents.filter((agent) => {

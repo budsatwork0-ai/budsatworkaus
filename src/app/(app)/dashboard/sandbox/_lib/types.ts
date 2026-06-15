@@ -19,7 +19,40 @@ export type SandboxData = {
   };
 };
 
-export type OperationsTab = 'overview' | 'run' | 'agents' | 'learning' | 'infrastructure';
+export type OperationsTab = 'overview' | 'run' | 'agents' | 'learning' | 'infrastructure' | 'doctor';
+
+export type AgentIntegrityStatus =
+  | 'ready_to_promote'
+  | 'ready_to_test'
+  | 'missing_data'
+  | 'missing_integration'
+  | 'unsafe_to_promote';
+
+export type RequirementStatus = 'present' | 'missing' | 'partial';
+
+export type IntegrityRequirement = {
+  label: string;
+  status: RequirementStatus;
+  notes?: string;
+};
+
+export type AgentIntegrityReport = {
+  agentId: string;
+  agentName: string;
+  category: string;
+  intendedCapability: string;
+  integrityScore: number;
+  integrityStatus: AgentIntegrityStatus;
+  dataSources: IntegrityRequirement[];
+  integrations: IntegrityRequirement[];
+  missingConnections: string[];
+  sandboxFixtures: IntegrityRequirement[];
+  scenarioCoverage: IntegrityRequirement[];
+  scenarioCount: number;
+  recommendation: string;
+  riskIfPromoted: string;
+  generateFixPrompt: string;
+};
 
 export type Batch = {
   id: string;
@@ -241,6 +274,9 @@ export type OperatorIntelligence = {
   executiveSummary: string;
   recentChanges: string[];
   healthyDays: number;
+  lessonsThisWeek: number;
+  openLessons: number;
+  resolvedLessons: number;
 };
 
 export type TabTarget = 'learning' | 'agents' | 'run';
