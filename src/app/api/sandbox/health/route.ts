@@ -1,12 +1,15 @@
 /**
  * GET /api/sandbox/health
  *
- * Monitoring data for the Agent Training Arena Health tab:
+ * Monitoring data for the Agent Training Arena Health tab (Phase 1 + Phase 2):
  *   - last cron run + latest batch statuses
  *   - latest health snapshot per agent (trend, delta F1)
  *   - failing scenarios (latest score < 0.5)
  *   - regressions (degrading agents)
  *   - needs-review queue (critical lessons, last 7 days)
+ *   - [Phase 2] activeRootCauses / resolvedRootCauses (split by agent pass status)
+ *   - [Phase 2] improvement proposals (one per root cause, read-only)
+ *   - [Phase 2] promotion recommendations (one per agent with health data)
  *
  * Admin-gated. Read-only.
  */
@@ -14,12 +17,12 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { PASS_F1_THRESHOLD } from '@/lib/sandbox/runner';
+import { buildProposals, buildRecommendations } from '@/lib/sandbox/proposals';
+import type { RootCauseInput, AgentHealthInput } from '@/lib/sandbox/proposals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Local row types — sandbox_run_batches / sandbox_agent_health are not in the
-// generated Supabase Database types yet, so query rows are typed explicitly.
 type BatchRow = {
   id: string;
   agent_id: string;
@@ -56,7 +59,7 @@ type LessonRow = {
   created_at: string;
 };
 
-type RootCause = {
+type RootCause = RootCauseInput & {
   key: string;
   title: string;
   severity: 'critical' | 'warning';
@@ -88,21 +91,24 @@ function groupLessonsIntoRootCauses(lessons: LessonRow[]): RootCause[] {
     const severity = items.some((l) => l.severity === 'critical') ? 'critical' : 'warning';
     result.push({
       key,
-      title: failureType === 'zero_action'
-        ? `Zero-action failure — ${agentId}`
-        : `Wrong action types — ${agentId}`,
+      title:
+        failureType === 'zero_action'
+          ? `Zero-action failure — ${agentId}`
+          : `Wrong action types — ${agentId}`,
       severity,
       agentId,
       failureType,
-      rootCauseSummary: failureType === 'zero_action'
-        ? 'Agent produces no proposed actions. DB query returns empty in sandbox (missing sandbox input detection).'
-        : 'Agent proposed action types that did not match expected. Review agent system prompt.',
+      rootCauseSummary:
+        failureType === 'zero_action'
+          ? 'Agent produces no proposed actions. DB query returns empty in sandbox (missing sandbox input detection).'
+          : 'Agent proposed action types that did not match expected. Review agent system prompt.',
       lessonCount: items.length,
       latestAt: items[0].created_at,
       exampleObservations: items.slice(0, 3).map((l) => l.observation),
-      recommendedFix: failureType === 'zero_action'
-        ? 'Add detectSandbox* helper and deterministic fallback to the agent.'
-        : 'Review agent system prompt and scenario inputs to align action type coverage.',
+      recommendedFix:
+        failureType === 'zero_action'
+          ? 'Add ctx.input guard and deterministic fallback to the agent.'
+          : 'Review agent system prompt and scenario inputs to align action type coverage.',
       lessonIds: items.map((l) => l.id),
     });
   }
@@ -126,33 +132,38 @@ export async function GET() {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [batchesRes, healthRes, scoresRes, scenariosRes, lessonsRes] = await Promise.all([
-      supabase
-        .from('sandbox_run_batches')
-        .select('id, agent_id, trigger, status, scenario_count, pass_count, avg_f1, total_cost_cents, started_at, finished_at')
-        .order('started_at', { ascending: false })
-        .limit(15),
-      supabase
-        .from('sandbox_agent_health')
-        .select('agent_id, runs, pass_rate, avg_f1, baseline_f1, delta_f1, trend, computed_at')
-        .order('computed_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('sandbox_decision_scores')
-        .select('scenario_id, agent_id, f1_score, scored_at')
-        .order('scored_at', { ascending: false })
-        .limit(300),
-      supabase
-        .from('sandbox_scenarios')
-        .select('id, slug, title, category'),
-      supabase
-        .from('sandbox_lessons_learned')
-        .select('id, agent_id, title, observation, recommendation, severity, created_at')
-        .eq('severity', 'critical')
-        .gte('created_at', sevenDaysAgo)
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
+    const [batchesRes, healthRes, scoresRes, scenariosRes, lessonsRes, allLessonsCountRes] =
+      await Promise.all([
+        supabase
+          .from('sandbox_run_batches')
+          .select('id, agent_id, trigger, status, scenario_count, pass_count, avg_f1, total_cost_cents, started_at, finished_at')
+          .order('started_at', { ascending: false })
+          .limit(15),
+        supabase
+          .from('sandbox_agent_health')
+          .select('agent_id, runs, pass_rate, avg_f1, baseline_f1, delta_f1, trend, computed_at')
+          .order('computed_at', { ascending: false })
+          .limit(200),
+        supabase
+          .from('sandbox_decision_scores')
+          .select('scenario_id, agent_id, f1_score, scored_at')
+          .order('scored_at', { ascending: false })
+          .limit(300),
+        supabase.from('sandbox_scenarios').select('id, slug, title, category'),
+        // Critical lessons in the last 7 days for root-cause grouping
+        supabase
+          .from('sandbox_lessons_learned')
+          .select('id, agent_id, title, observation, recommendation, severity, created_at')
+          .eq('severity', 'critical')
+          .gte('created_at', sevenDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        // Total lesson count per agent (all time, for recommendations)
+        supabase
+          .from('sandbox_lessons_learned')
+          .select('agent_id')
+          .eq('environment', 'sandbox'),
+      ]);
 
     const batches = (batchesRes.data ?? []) as BatchRow[];
     const lastCronRun = batches.find((b) => b.trigger === 'cron') ?? null;
@@ -194,8 +205,33 @@ export async function GET() {
       }))
       .sort((a, b) => a.f1 - b.f1);
 
+    // Agents that still have at least one failing scenario.
+    const failingAgentIds = new Set(failingScenarios.map((s) => s.agentId));
+
     const needsReview = (lessonsRes.data ?? []) as LessonRow[];
-    const rootCauses = groupLessonsIntoRootCauses(needsReview);
+    const allRootCauses = groupLessonsIntoRootCauses(needsReview);
+
+    // ── Phase 2: split root causes into active / resolved ──────────────────
+    const activeRootCauses = allRootCauses.filter((rc) => failingAgentIds.has(rc.agentId));
+    const resolvedRootCauses = allRootCauses.filter((rc) => !failingAgentIds.has(rc.agentId));
+
+    // ── Phase 2: improvement proposals ────────────────────────────────────
+    const healthByAgent = new Map<string, AgentHealthInput>(
+      health.map((h) => [h.agent_id, h as AgentHealthInput]),
+    );
+    const proposals = buildProposals(activeRootCauses, healthByAgent);
+
+    // ── Phase 2: promotion recommendations ────────────────────────────────
+    // Lesson counts per agent (all-time).
+    const lessonsByAgent = new Map<string, number>();
+    for (const row of (allLessonsCountRes.data ?? []) as Array<{ agent_id: string }>) {
+      lessonsByAgent.set(row.agent_id, (lessonsByAgent.get(row.agent_id) ?? 0) + 1);
+    }
+    const recommendations = buildRecommendations(
+      health as AgentHealthInput[],
+      activeRootCauses,
+      lessonsByAgent,
+    );
 
     return NextResponse.json({
       lastCronRun,
@@ -204,7 +240,13 @@ export async function GET() {
       regressions,
       failingScenarios,
       needsReview,
-      rootCauses,
+      // Phase 1 compat — keep rootCauses = activeRootCauses
+      rootCauses: activeRootCauses,
+      // Phase 2
+      activeRootCauses,
+      resolvedRootCauses,
+      proposals,
+      recommendations,
     });
   } catch (err) {
     return NextResponse.json(

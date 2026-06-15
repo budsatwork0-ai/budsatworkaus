@@ -61,6 +61,41 @@ export const quoteTriageAgent: AgentDefinition = {
   async run(ctx: AgentContext) {
     const rawInput = (ctx.input ?? {}) as Record<string, unknown>;
 
+    // Operational surge/capacity signal: ctx.input carries demand metrics rather
+    // than an individual quote. Propose flag_for_review immediately without
+    // querying the DB or calling the LLM.
+    const isSurgeSignal =
+      typeof rawInput.quote_volume_7d === 'number' ||
+      typeof rawInput.capacity_utilisation === 'number';
+
+    if (isSurgeSignal) {
+      const volume = rawInput.quote_volume_7d as number | undefined;
+      const utilisation = rawInput.capacity_utilisation as number | undefined;
+      const season = rawInput.season as string | undefined;
+
+      await ctx.proposeAction({
+        action_type: 'flag_for_review',
+        target_table: 'quotes',
+        target_id: 'sandbox-surge-signal',
+        requiresApproval: true,
+        confidence: 0.9,
+        risk_level: 'medium',
+        preview: `Demand surge${season ? ` (${season})` : ''} — ${volume ?? '?'} quotes/7d · utilisation ${utilisation !== undefined ? `${Math.round(utilisation * 100)}%` : '?'}`,
+        payload: {
+          reason: 'surge_demand',
+          quote_volume_7d: volume,
+          capacity_utilisation: utilisation,
+          season,
+          recommendation: 'Consider dynamic pricing or capacity-limited bookings.',
+        },
+      });
+
+      return {
+        summary: `Surge demand detected: ${volume ?? '?'} quotes in 7 days, ${utilisation !== undefined ? `${Math.round(utilisation * 100)}%` : '?'} utilisation${season ? ` (${season} season)` : ''}. Flagged for ops review.`,
+        output: { surge: true, volume, capacity_utilisation: utilisation, season },
+      };
+    }
+
     // Sandbox mode detection: ctx.input has a quote-like shape when the arena
     // injects a scenario. Skip the DB query and process the injected data directly.
     const isSandboxInjection =

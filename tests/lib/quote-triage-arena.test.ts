@@ -197,6 +197,91 @@ describe('quote-triage — arena sandbox mode', () => {
   });
 });
 
+// ── Marketplace surge demand ───────────────────────────────────────────────
+
+describe('quote-triage — marketplace-surge-demand scenario', () => {
+  it('proposes flag_for_review when surge signals are present', async () => {
+    // Exact input from scenarios.ts slug: marketplace-surge-demand
+    const { ctx, proposed } = makeCtx({
+      input: { quote_volume_7d: 45, capacity_utilisation: 0.92, season: 'spring' },
+    });
+
+    const result = await quoteTriageAgent.run(ctx);
+
+    expect(proposed.length).toBeGreaterThan(0);
+    const actionTypes = proposed.map((a) => a.action_type);
+    expect(actionTypes).toContain('flag_for_review');
+    expect(result.summary).toMatch(/surge/i);
+  });
+
+  it('does not call the LLM for surge signals (no quote to parse)', async () => {
+    const { ctx } = makeCtx({
+      input: { quote_volume_7d: 45, capacity_utilisation: 0.92, season: 'spring' },
+    });
+
+    await quoteTriageAgent.run(ctx);
+
+    expect(ctx.llm).not.toHaveBeenCalled();
+  });
+
+  it('handles capacity_utilisation alone as a surge signal', async () => {
+    const { ctx, proposed } = makeCtx({
+      input: { capacity_utilisation: 0.88 },
+    });
+
+    await quoteTriageAgent.run(ctx);
+
+    const actionTypes = proposed.map((a) => a.action_type);
+    expect(actionTypes).toContain('flag_for_review');
+  });
+
+  it('surge flag_for_review action has required payload fields', async () => {
+    const { ctx, proposed } = makeCtx({
+      input: { quote_volume_7d: 45, capacity_utilisation: 0.92, season: 'spring' },
+    });
+
+    await quoteTriageAgent.run(ctx);
+
+    const action = proposed.find((a) => a.action_type === 'flag_for_review');
+    expect(action).toBeDefined();
+    expect(action?.target_table).toBe('quotes');
+    const payload = action?.payload as Record<string, unknown>;
+    expect(payload?.reason).toBe('surge_demand');
+    expect(payload?.quote_volume_7d).toBe(45);
+    expect(payload?.capacity_utilisation).toBe(0.92);
+  });
+
+  it('existing quote scenarios are unaffected — still produce send_email not flag_for_review', async () => {
+    // A normal cleaning quote has service + message, NOT surge fields.
+    // With the default mock LLM (high confidence, low estimate) it goes to send_email.
+    const { ctx, proposed } = makeCtx({
+      input: { service: 'cleaning', suburb: 'Underwood', message: 'Hi, I need a clean.' },
+    });
+
+    await quoteTriageAgent.run(ctx);
+
+    const actionTypes = proposed.map((a) => a.action_type);
+    expect(actionTypes).toContain('send_email');
+    // No surge path triggered
+    expect(ctx.llm).toHaveBeenCalled();
+  });
+
+  it('window cleaning scenario still produces send_email after surge detection added', async () => {
+    const { ctx, proposed } = makeCtx({
+      input: { service: 'windows', suburb: 'Sunnybank Hills', storeys: 2, message: 'Need windows done.' },
+      llmResponse: JSON.stringify({
+        service: 'windows', ndis: false, urgency: 'normal', estimated_aud: 290,
+        confidence: 0.8, draft_message: 'Window quote.', reason: '2-storey.',
+      }),
+    });
+
+    await quoteTriageAgent.run(ctx);
+
+    const actionTypes = proposed.map((a) => a.action_type);
+    expect(actionTypes).toContain('send_email');
+  });
+});
+
 // ── Scenario catalogue completeness ───────────────────────────────────────
 
 const REQUIRED_FIELDS = [

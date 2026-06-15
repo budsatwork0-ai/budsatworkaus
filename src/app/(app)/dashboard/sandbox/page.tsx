@@ -409,6 +409,7 @@ export default function SandboxPage() {
                     <th className="pb-2 text-right text-xs font-black uppercase tracking-wider text-[#7f9187]">Recall</th>
                     <th className="pb-2 text-right text-xs font-black uppercase tracking-wider text-[#7f9187]">Hit Rate</th>
                     <th className="pb-2 text-right text-xs font-black uppercase tracking-wider text-[#7f9187]">Cost</th>
+                    <th className="pb-2 text-left text-xs font-black uppercase tracking-wider text-[#7f9187]">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -426,6 +427,9 @@ export default function SandboxPage() {
                       <td className="py-2 text-right font-bold text-[#617269]">{pct(row.avgRecall)}</td>
                       <td className="py-2 text-right font-bold text-[#617269]">{pct(row.hitRate)}</td>
                       <td className="py-2 text-right font-bold text-[#617269]">{row.totalCostCents}¢</td>
+                      <td className="py-2">
+                        <LeaderboardStatusChip row={row} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -744,4 +748,39 @@ function EmptyState({ message }: { message: string }) {
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
+}
+
+// Simplified promotion status from F1 only (leaderboard has no root-cause context).
+type LeaderboardStatus = 'promote' | 'healthy' | 'monitor' | 'no data';
+
+function leaderboardStatus(row: LeaderboardRow): LeaderboardStatus {
+  if (row.scenarioCount === 0) return 'no data';
+  if (row.avgF1 >= 0.95) return 'promote';
+  if (row.avgF1 >= 0.80) return 'healthy';
+  return 'monitor';
+}
+
+const LEADERBOARD_STATUS_STYLES: Record<LeaderboardStatus, string> = {
+  promote:   'bg-[#e5f4ec] text-[#1C7C54]',
+  healthy:   'bg-[#e8f4fb] text-[#1a5f8a]',
+  monitor:   'bg-[#fff6e0] text-[#9a6700]',
+  'no data': 'bg-[#eef2f0] text-[#617269]',
+};
+
+const LEADERBOARD_STATUS_LABELS: Record<LeaderboardStatus, string> = {
+  promote:   '★ Promote',
+  healthy:   '✓ Healthy',
+  monitor:   '◎ Monitor',
+  'no data': '— No data',
+};
+
+function LeaderboardStatusChip({ row }: { row: LeaderboardRow }) {
+  const status = leaderboardStatus(row);
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${LEADERBOARD_STATUS_STYLES[status]}`}
+    >
+      {LEADERBOARD_STATUS_LABELS[status]}
+    </span>
+  );
 }
