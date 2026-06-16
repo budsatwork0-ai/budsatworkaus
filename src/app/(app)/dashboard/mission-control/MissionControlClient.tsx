@@ -109,8 +109,16 @@ export function MissionControlClient({
   }, [incomingQueueKey]);
 
   useEffect(() => {
-    const interval = setInterval(() => router.refresh(), 30_000);
-    return () => clearInterval(interval);
+    const maybeRefresh = () => {
+      if (document.visibilityState === 'visible') router.refresh();
+    };
+    const interval = setInterval(maybeRefresh, 30_000);
+    // Catch up immediately when the tab becomes visible after being hidden.
+    document.addEventListener('visibilitychange', maybeRefresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', maybeRefresh);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -139,6 +147,7 @@ export function MissionControlClient({
         }, ...prev].slice(0, 20));
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bud_tasks' }, () => {
+        if (document.visibilityState !== 'visible') return;
         if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
         refreshDebounceRef.current = setTimeout(() => router.refresh(), 10_000);
       })

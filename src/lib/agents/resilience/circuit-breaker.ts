@@ -18,7 +18,7 @@
  * the circuit is transitioning.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export type CircuitState = 'closed' | 'open' | 'half_open';
 
@@ -41,12 +41,17 @@ const CACHE_TTL_MS      = 20_000;
 
 let _cache: { state: CircuitState; resetsAt: string | null; expiresAt: number } | null = null;
 
+let _db: SupabaseClient | null = null;
+
 function db() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
+  if (!_db) {
+    _db = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } },
+    );
+  }
+  return _db;
 }
 
 export async function getCircuitState(): Promise<{ state: CircuitState; resetsAt: string | null }> {

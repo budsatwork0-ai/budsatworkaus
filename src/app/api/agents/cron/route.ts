@@ -14,7 +14,7 @@
  * so it is not duplicated across every agent invocation.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { runAgent } from '@/lib/agents/runtime';
 import {
   getCircuitState,
@@ -24,12 +24,17 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+let _client: SupabaseClient | null = null;
+
 function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
+  if (!_client) {
+    _client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } },
+    );
+  }
+  return _client;
 }
 
 export async function GET(req: NextRequest) {
@@ -44,10 +49,14 @@ export async function GET(req: NextRequest) {
 
   const supabase = adminClient();
 
-  // --- Guard 1: Circuit Breaker ---
-  // If the Anthropic API is overloaded, bail early. No point creating a run
-  // row that will immediately fail with a 529.
-  const { state: circuitState, resetsAt } = await getCircuitState();
+  // --- Guards 1 & 2: Circuit Breaker + Concurrency — run in parallel ---
+  // Both queries are independent; fetching them together saves one round-trip
+  // on every cron tick. Circuit open takes priority in the checks below.
+  const [{ state: circuitState, resetsAt }, activeRun] = await Promise.all([
+    getCircuitState(),
+    findActiveRun(supabase, agentId),
+  ]);
+
   if (circuitState === 'open') {
     const when = resetsAt ? ` Probing resumes at ${new Date(resetsAt).toISOString()}.` : '';
     console.log(`[cron:${agentId}] circuit OPEN — skipping run.${when}`);
@@ -63,10 +72,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // --- Guard 2: Concurrency Guard ---
-  // Skip if this agent is already running — prevents burst pile-ups when a
-  // slow run outlasts the cron interval.
-  const activeRun = await findActiveRun(supabase, agentId);
   if (activeRun) {
     console.log(
       `[cron:${agentId}] already running (run ${activeRun.runId}, ${activeRun.ageMinutes}m ago) — skipping`,
@@ -84,9 +89,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // --- All clear: run the agent ---
+  // --- All clear: run the agent, reusing the guard's client ---
   try {
-    const result = await runAgent({ agentId, trigger: 'cron' });
+    const result = await runAgent({ agentId, trigger: 'cron', supabase });
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

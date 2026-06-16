@@ -1,6 +1,5 @@
 'use client';
 
-import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { NotificationCenter } from './NotificationCenter';
 import type { NavBadgeKey } from './SidebarNav';
@@ -85,17 +84,11 @@ export function TopBar({
             >
               Create
             </button>
-            <AnimatePresence>
-              {newDropdownOpen ? (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={onToggleNewDropdown} />
-                  <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-xl"
-                  >
+            {newDropdownOpen ? (
+              <>
+                <div className="fixed inset-0 z-40" onClick={onToggleNewDropdown} />
+                <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-xl [animation:dropdownIn_0.15s_ease-out_both]">
+
                     <button
                       onClick={onCreateOrder}
                       className="block w-full px-5 py-3 text-left text-sm transition hover:bg-[#f1f7f3]"
@@ -110,10 +103,9 @@ export function TopBar({
                       <span className="block font-bold text-[#17392b]">New Subscription</span>
                       <span className="text-xs text-[#7f9187]">Recurring service</span>
                     </button>
-                  </motion.div>
-                </>
-              ) : null}
-            </AnimatePresence>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <button
@@ -148,12 +140,8 @@ export function TopBar({
                 {userInitials}
               </div>
             </summary>
-            <motion.div
-              className="absolute right-0 mt-3 w-48 overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-xl"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.15 }}
-            >
+            <div className="absolute right-0 mt-3 w-48 overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-xl [animation:dropdownIn_0.15s_ease-out_both]">
+
               <button
                 onClick={() => router.push('/dashboard/settings?group=account&panel=profile')}
                 className="block w-full px-5 py-3 text-left text-sm font-semibold text-[#17392b] hover:bg-[#f1f7f3]"
@@ -175,7 +163,7 @@ export function TopBar({
               >
                 Sign out
               </button>
-            </motion.div>
+            </div>
           </details>
         </div>
       </div>

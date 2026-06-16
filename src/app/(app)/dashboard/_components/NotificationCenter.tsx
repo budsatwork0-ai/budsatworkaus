@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardTheme } from '@/lib/design-system/themes';
 import type { AdminAlert } from '@/lib/admin-alerts';
 import { readCache } from '../hooks/useDashboardData';
@@ -129,16 +128,11 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
         )}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              className="fixed right-3 top-[76px] w-[calc(100vw-24px)] sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 rounded-2xl border border-black/10 bg-white shadow-xl overflow-hidden z-50"
-            >
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed right-3 top-[76px] w-[calc(100vw-24px)] sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 rounded-2xl border border-black/10 bg-white shadow-xl overflow-hidden z-50 [animation:dropdownIn_0.15s_ease-out_both]">
+
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <p className="text-sm font-semibold" style={{ color: dashboardTheme.color.text }}>Notifications</p>
                 <div className="flex items-center gap-3">
@@ -231,10 +225,9 @@ export function NotificationCenter({ onBadgesUpdate }: Props) {
                   })
                 )}
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 'use client';
 
-import { AnimatePresence, motion } from 'framer-motion';
 import type React from 'react';
 
 export function DashboardShell({
@@ -25,18 +24,12 @@ export function DashboardShell({
         <div className="flex min-w-0 flex-1 flex-col">
           {topBar}
           <main className="w-full flex-1 overflow-x-hidden px-3 pb-4 pt-2 sm:px-4 sm:pb-5 lg:px-5">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={pathname}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                className="w-full min-w-0 overflow-x-hidden"
-              >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+            <div
+              key={pathname}
+              className="w-full min-w-0 overflow-x-hidden [animation:dashFadeIn_0.25s_ease-out_both]"
+            >
+              {children}
+            </div>
           </main>
         </div>
       </div>

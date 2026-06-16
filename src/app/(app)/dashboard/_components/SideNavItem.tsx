@@ -8,7 +8,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
 
 export default function SideNavItem({
   href,
@@ -32,12 +31,7 @@ export default function SideNavItem({
   const showBadge = badge !== undefined && badge !== null && badge > 0;
 
   return (
-    <motion.div
-      className="relative"
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-    >
+    <div className="relative transition-transform duration-100 hover:-translate-y-px active:scale-[0.98]">
       <Link
         href={href}
         title={!showLabel ? label : undefined}
@@ -51,15 +45,12 @@ export default function SideNavItem({
           background: active ? '#3c8259' : 'transparent',
         }}
       >
-        <motion.span
+        <span
           className={`grid place-items-center shrink-0 ${nested ? 'h-5 w-5' : 'h-6 w-6'}`}
-          style={{
-            color: active ? '#fff' : '#7c9085',
-          }}
-          layout
+          style={{ color: active ? '#fff' : '#7c9085' }}
         >
           {icon ?? <span className="text-[10px]">•</span>}
-        </motion.span>
+        </span>
         {showLabel && (
           <span
             className={`${nested ? 'text-[13px]' : 'text-[15px]'} font-semibold`}
@@ -88,6 +79,6 @@ export default function SideNavItem({
           {badge! > 99 ? '99+' : badge}
         </Link>
       )}
-    </motion.div>
+    </div>
   );
 }

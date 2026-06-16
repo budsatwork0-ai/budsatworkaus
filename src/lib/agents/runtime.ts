@@ -7,7 +7,7 @@
  * provider you prefer. Defaults to Anthropic's Messages API.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { AGENT_REGISTRY } from './registry';
@@ -58,10 +58,15 @@ const PRICING_PER_MTOK: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
 };
 
-function adminClient() {
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
-    auth: { persistSession: false },
-  });
+let _adminClient: SupabaseClient | null = null;
+
+function adminClient(): SupabaseClient {
+  if (!_adminClient) {
+    _adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
+      auth: { persistSession: false },
+    });
+  }
+  return _adminClient;
 }
 
 interface CallModelResult {
@@ -287,6 +292,11 @@ export interface RunAgentArgs {
   parentCumulativeCostCents?: number;
   /** When true: run analysis only — no DB writes, no proposeAction calls. */
   dryRun?: boolean;
+  /**
+   * Reuse an existing admin Supabase client from the caller.
+   * Falls back to the module-level singleton when omitted.
+   */
+  supabase?: SupabaseClient;
 }
 
 export interface RunAgentResult {
@@ -307,13 +317,19 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   const def = AGENT_REGISTRY[args.agentId];
   if (!def) throw new Error(`Unknown agent: ${args.agentId}`);
 
-  const supabase = adminClient();
+  const supabase = args.supabase ?? adminClient();
 
-  const { data: agentRow, error: agentErr } = await supabase
-    .from('agents')
-    .select('id, status, autonomy, config')
-    .eq('id', args.agentId)
-    .single();
+  // Parallelize: fetch the agent row while warming the circuit-breaker's
+  // 20s module-level cache. The circuit result is discarded here — callModel()
+  // reads from the cache, so the first LLM call pays no extra DB round-trip.
+  const [{ data: agentRow, error: agentErr }] = await Promise.all([
+    supabase
+      .from('agents')
+      .select('id, status, autonomy, config')
+      .eq('id', args.agentId)
+      .single(),
+    getCircuitState(),
+  ]);
 
   if (agentErr || !agentRow) {
     throw new Error(`Agent ${args.agentId} not found in DB: ${agentErr?.message}`);
@@ -572,6 +588,7 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
         triggeredBy: args.triggeredBy,
         lineage,
         parentCumulativeCostCents: cumulativeCostCents,
+        supabase, // reuse parent's client — avoids one createClient() per nested hop
       });
       // costCents is now returned directly by runAgent — no extra DB read needed.
       cumulativeCostCents += childResult.costCents;

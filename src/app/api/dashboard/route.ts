@@ -639,15 +639,15 @@ export async function GET(request: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (client as any)
         .from('orders')
-        .select('*, customers(default_address)')
+        .select('id, status, final_price, customer_name, service_type, created_at, scheduled_date, scheduled_time, completed_at, notes, customers(default_address)')
         .neq('status', 'cancelled')
         .or(environmentFilter)
         .order('created_at', { ascending: false }),
 
-      // Completed orders (last 6 months for trend)
+      // Completed orders (last year for trend)
       client
         .from('orders')
-        .select('*')
+        .select('id, status, final_price, service_type, completed_at, created_at')
         .eq('status', 'completed')
         .or(environmentFilter)
         .gte('completed_at', yearAgo.toISOString()),
@@ -655,16 +655,16 @@ export async function GET(request: Request) {
       // Completed orders last month for comparison
       client
         .from('orders')
-        .select('*')
+        .select('id, final_price, status, completed_at')
         .eq('status', 'completed')
         .or(environmentFilter)
         .gte('completed_at', startOfLastMonth.toISOString())
         .lte('completed_at', endOfLastMonth.toISOString()),
 
-      // All payables
+      // Payables — project only columns used in processing and alerts
       client
         .from('payables')
-        .select('*')
+        .select('id, status, due_date, amount, category, paid_date, created_at, vendor_name, notes')
         .order('due_date', { ascending: true }),
 
       // Completed payments for receivables tracking

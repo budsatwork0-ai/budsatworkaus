@@ -165,3 +165,25 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
 }
+
+/* ── Dashboard motion replacements (framer-motion removed from shared bundle) ── */
+@keyframes dashFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-320px); }
+  to   { transform: translateX(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96) translateY(-8px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(0); }
+}

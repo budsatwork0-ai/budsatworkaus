@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import type React from 'react';
 import SideNavItem from './SideNavItem';
 
@@ -65,10 +64,9 @@ export function SidebarNav({
   onToggleSidebar: () => void;
 }) {
   return (
-    <motion.aside
-      animate={{ width: sidebarOpen ? 320 : 96 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="hidden h-[calc(100vh-24px)] shrink-0 flex-col gap-3 overflow-y-auto px-3 py-4 md:flex"
+    <aside
+      style={{ width: sidebarOpen ? 320 : 96 }}
+      className="hidden h-[calc(100vh-24px)] shrink-0 flex-col gap-3 overflow-y-auto px-3 py-4 md:flex transition-[width] duration-[280ms] [transition-timing-function:cubic-bezier(0.3,0,0,1)]"
     >
       <button
         type="button"
@@ -161,7 +159,7 @@ export function SidebarNav({
           ) : null}
         </div>
       </div>
-    </motion.aside>
+    </aside>
   );
 }
 
@@ -192,19 +190,12 @@ export function MobileSidebarNav({
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-40 bg-black/30 md:hidden"
+      <div
+        className="fixed inset-0 z-40 bg-black/30 md:hidden [animation:fadeIn_0.2s_ease-out_both]"
         onClick={onClose}
       />
-      <motion.aside
-        initial={{ x: -320 }}
-        animate={{ x: 0 }}
-        exit={{ x: -320 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 top-0 z-50 flex w-[312px] flex-col gap-4 overflow-y-auto bg-[#f4faf6] px-4 py-5 md:hidden"
+      <aside
+        className="fixed bottom-0 left-0 top-0 z-50 flex w-[312px] flex-col gap-4 overflow-y-auto bg-[#f4faf6] px-4 py-5 md:hidden [animation:slideInLeft_0.28s_cubic-bezier(0.3,0,0,1)_both]"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -281,7 +272,7 @@ export function MobileSidebarNav({
             </div>
           </div>
         </div>
-      </motion.aside>
+      </aside>
     </>
   );
 }

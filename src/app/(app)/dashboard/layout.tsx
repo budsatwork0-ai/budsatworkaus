@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Toaster } from 'sonner';
@@ -17,9 +17,10 @@ import { SoftLockModal } from '@/components/SoftLockModal';
 import { DashboardShell } from './_components/DashboardShell';
 import { MobileSidebarNav, SidebarNav, type NavBadgeKey, type NavGroup } from './_components/SidebarNav';
 import { TopBar } from './_components/TopBar';
-import { MessagingHub } from './_components/MessagingHub';
 import { useMessagingHubListener } from './hooks/useMessagingHub';
 import type { EntityContext } from '@/types/messaging';
+
+const MessagingHub = dynamic(() => import('./_components/MessagingHub').then((m) => ({ default: m.MessagingHub })), { ssr: false });
 
 const dashboardIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
 const scheduleIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
@@ -225,9 +226,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     .join('') || 'BW';
   const roleLabel = role === 'admin' ? 'Admin' : role === 'employee' ? 'Employee' : 'Customer';
 
-  // Block render until auth resolves; redirect fires via the effect above if not admin.
-  if (!isLoaded) return <div className="min-h-screen bg-[#f4faf6]" />;
-  if (!isAdmin) return null;
+  // Middleware has already confirmed admin before serving this layout, so render
+  // immediately. While the client hook is still settling (!isLoaded), assume admin
+  // so nav items don't flash hidden then visible. The effect above handles the
+  // redirect if the client-side check ever disagrees (e.g. stale cookie edge case).
+  const effectiveIsAdmin = !isLoaded || isAdmin;
 
   return (
     <>
@@ -238,7 +241,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         sidebar={(
           <SidebarNav
             groups={navGroups}
-            isAdmin={isAdmin}
+            isAdmin={effectiveIsAdmin}
             navBadges={navBadges}
             collapsed={collapsedGroups}
             sidebarOpen={sidebarOpen}
@@ -250,26 +253,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
         )}
         mobileSidebar={(
-          <AnimatePresence>
-            <MobileSidebarNav
-              open={mobileMenuOpen}
-              groups={navGroups}
-              isAdmin={isAdmin}
-              navBadges={navBadges}
-              collapsed={collapsedGroups}
-              userInitials={userInitials}
-              userDisplayName={userDisplayName}
-              roleLabel={roleLabel}
-              onClose={() => setMobileMenuOpen(false)}
-              onToggleGroup={toggleGroup}
-            />
-          </AnimatePresence>
+          <MobileSidebarNav
+            open={mobileMenuOpen}
+            groups={navGroups}
+            isAdmin={effectiveIsAdmin}
+            navBadges={navBadges}
+            collapsed={collapsedGroups}
+            userInitials={userInitials}
+            userDisplayName={userDisplayName}
+            roleLabel={roleLabel}
+            onClose={() => setMobileMenuOpen(false)}
+            onToggleGroup={toggleGroup}
+          />
         )}
         topBar={(
           <TopBar
             title={currentTitle}
             userInitials={userInitials}
-            role={role}
+            role={effectiveIsAdmin ? role : 'admin'}
             newDropdownOpen={newDropdownOpen}
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
             onOpenCommandPalette={() => setCommandPaletteOpen(true)}
@@ -292,23 +293,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </DashboardShell>
 
-      <AnimatePresence>
-        {shortcutsOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
-              onClick={() => setShortcutsOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={{ duration: 0.18 }}
-              className="fixed left-1/2 top-1/2 z-50 w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-black/10 bg-white shadow-2xl"
-            >
+      {shortcutsOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm [animation:fadeIn_0.18s_ease-out_both]"
+            onClick={() => setShortcutsOpen(false)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[340px] [animation:scaleIn_0.18s_ease-out_both] rounded-2xl border border-black/10 bg-white shadow-2xl">
+
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                 <p className="text-sm font-semibold text-slate-900">Keyboard shortcuts</p>
                 <button onClick={() => setShortcutsOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
@@ -332,10 +324,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                 ))}
               </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
 
       <CommandPalette
         isOpen={commandPaletteOpen}
