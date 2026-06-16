@@ -36,6 +36,87 @@ export type IntegrityRequirement = {
   notes?: string;
 };
 
+export type RepairSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type RepairPriority = 'critical' | 'high' | 'medium' | 'low';
+export type RepairRiskLevel = 'critical' | 'high' | 'medium' | 'low';
+export type RepairDisposition = 'repair_required' | 'validation_recommended' | 'no_repair_required';
+
+export type MissingIntegrationRepair = {
+  integration: string;
+  whyRequired: string;
+  blockedCapability: string;
+  severity: RepairSeverity;
+  recommendedFix: string;
+};
+
+export type MissingFixtureRepair = {
+  fixture: string;
+  whyItMatters: string;
+  recommendedFixture: string;
+};
+
+export type CoverageGapRepair = {
+  capability: string;
+  riskLevel: RepairRiskLevel;
+  recommendedScenario: string;
+};
+
+export type RepairPlanScenario = {
+  title: string;
+  category: string;
+  f1?: number;
+};
+
+export type AgentRepairPlan = {
+  disposition: RepairDisposition;
+  summary: string;
+  rootCauseSummary: string;
+  totalScenarios: number;
+  passedScenarios: number;
+  failingScenarios: RepairPlanScenario[];
+  missingIntegrations: MissingIntegrationRepair[];
+  missingFixtures: MissingFixtureRepair[];
+  coverageGaps: CoverageGapRepair[];
+  recommendedImplementation: string;
+  validationRecommendation: string | null;
+  likelyAffectedFiles: string[];
+  expectedOutcome: string;
+};
+
+export type RecommendedConnection = {
+  capability: string;
+  connection: string;
+  benefit: string;
+  priority: RepairPriority;
+  riskIfMissing: string;
+};
+
+export type IntegrationConnectionStatus = 'connected' | 'missing' | 'mocked' | 'unverified';
+
+export type IntegrationDetail = {
+  label: string;
+  purpose: string;
+  connectionStatus: IntegrationConnectionStatus;
+  required: boolean;
+  envVars: string[];
+  mockAvailable: boolean;
+  sandboxNote: string;
+  connectorName: string;
+};
+
+export type FleetRepairQueueItem = {
+  agentId: string;
+  agentName: string;
+  integrityStatus: AgentIntegrityStatus;
+  priority: RepairPriority;
+  rankScore: number;
+  promotionImpact: number;
+  rootCauseSeverity: number;
+  failingScenarioCount: number;
+  integrityScoreImpact: number;
+  primaryAction: string;
+};
+
 export type AgentIntegrityReport = {
   agentId: string;
   agentName: string;
@@ -52,6 +133,10 @@ export type AgentIntegrityReport = {
   recommendation: string;
   riskIfPromoted: string;
   generateFixPrompt: string;
+  repairPlan: AgentRepairPlan;
+  recommendedConnections: RecommendedConnection[];
+  repairPromptPreview: string;
+  integrationDetails: IntegrationDetail[];
 };
 
 export type Batch = {

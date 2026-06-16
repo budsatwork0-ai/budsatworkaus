@@ -791,7 +791,7 @@ export default function SandboxPage() {
 
       {activeTab === 'doctor' ? (
         agentIntegrityReports ? (
-          <DoctorTab reports={agentIntegrityReports} />
+          <DoctorTab reports={agentIntegrityReports} health={health} />
         ) : (
           <div className="rounded-[8px] border border-[#dfe9e2] bg-white px-4 py-8 text-center text-sm font-semibold text-[#617269]">
             Loading integrity reports…

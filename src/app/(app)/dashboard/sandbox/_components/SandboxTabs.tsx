@@ -1,10 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ScenarioCategory, ScenarioDifficulty, SandboxScenarioTemplate } from '@/lib/sandbox/scenarios';
 import { SANDBOX_SCENARIOS } from '@/lib/sandbox/scenarios';
-import type { AgentIntegrityReport, AgentIntegrityStatus, RequirementStatus } from '../_lib/types';
-import { integrityStatusColour, integrityStatusLabel, requirementStatusColour } from '../_lib/doctor';
+import type { AgentIntegrityReport, AgentIntegrityStatus, FleetRepairQueueItem, IntegrationDetail, RepairDisposition, RequirementStatus, RepairPriority } from '../_lib/types';
+import { deriveFleetRepairQueue, integrityStatusColour, integrityStatusLabel, requirementStatusColour, shouldShowSyntheticPreview } from '../_lib/doctor';
+import { generateSyntheticPreview } from '@/lib/sandbox/synthetic';
+import type { SyntheticFixturePreview } from '@/lib/sandbox/synthetic';
 import CronCountdownCard from './CronCountdownCard';
 import type { AgentRow, Batch, FleetBucket, HealthData, HistoryRow, ImprovementProposal, Lesson, OperatorIntelligence, PackKind, PackResult, PromotionRecommendation, ReadinessData, RootCause, RunResult, SandboxData } from '../_lib/types';
 import { CATEGORY_COLOURS, DIFFICULTY_COLOURS, fmtF1, isPass, pct, pctRatio, scenarioCategories } from '../_lib/format';
@@ -754,6 +757,494 @@ function RequirementList({
   );
 }
 
+function priorityClass(priority: RepairPriority) {
+  switch (priority) {
+    case 'critical': return 'bg-red-100 text-red-800';
+    case 'high': return 'bg-amber-100 text-amber-800';
+    case 'medium': return 'bg-yellow-100 text-yellow-800';
+    case 'low': return 'bg-blue-100 text-blue-800';
+  }
+}
+
+function RepairEmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-[6px] border border-dashed border-[#dfe9e2] bg-[#f8fbf9] px-3 py-3 text-xs font-semibold text-[#7f9187]">
+      {message}
+    </div>
+  );
+}
+
+function RepairPanel({
+  title,
+  emptyMessage,
+  children,
+  hasItems,
+}: {
+  title: string;
+  emptyMessage: string;
+  children: ReactNode;
+  hasItems: boolean;
+}) {
+  return (
+    <div className="rounded-[8px] border border-[#dfe9e2] bg-white px-3 py-3">
+      <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">{title}</p>
+      {hasItems ? children : <RepairEmptyState message={emptyMessage} />}
+    </div>
+  );
+}
+
+function RepairPlanPanel({ report }: { report: AgentIntegrityReport }) {
+  const plan = report.repairPlan;
+  const hasRepairActions =
+    plan.missingIntegrations.length > 0 ||
+    plan.missingFixtures.length > 0 ||
+    plan.coverageGaps.length > 0 ||
+    plan.failingScenarios.length > 0;
+
+  return (
+    <div className="rounded-[8px] border border-[#dfe9e2] bg-[#f8fbf9] px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Repair Plan</p>
+        <div className="flex flex-wrap gap-2">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${plan.disposition === 'repair_required' ? 'bg-red-100 text-red-800' : plan.disposition === 'validation_recommended' ? 'bg-blue-100 text-blue-800' : 'bg-[#e5f4ec] text-[#1C7C54]'}`}>
+            {plan.summary}
+          </span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-[#617269]">
+            {plan.passedScenarios}/{plan.totalScenarios} passed
+          </span>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Root Cause Summary</p>
+          <p className="text-xs font-semibold text-[#17392b]">{plan.rootCauseSummary}</p>
+        </div>
+        <div>
+          {plan.recommendedImplementation ? (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Recommended Implementation</p>
+              <p className="text-xs font-semibold text-[#17392b]">{plan.recommendedImplementation}</p>
+            </>
+          ) : plan.validationRecommendation ? (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Optional Validation</p>
+              <p className="text-xs font-semibold text-[#17392b]">{plan.validationRecommendation}</p>
+            </>
+          ) : null}
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Expected Outcome</p>
+          <p className="text-xs font-semibold text-[#17392b]">{plan.expectedOutcome}</p>
+        </div>
+        {!hasRepairActions ? <RepairEmptyState message="No repair actions required" /> : null}
+      </div>
+    </div>
+  );
+}
+
+function MissingIntegrationsPanel({ report }: { report: AgentIntegrityReport }) {
+  const items = report.repairPlan.missingIntegrations;
+  return (
+    <RepairPanel title="Missing Integrations" emptyMessage="No missing integrations" hasItems={items.length > 0}>
+      <div className="grid gap-2">
+        {items.map((item) => (
+          <div key={item.integration} className="rounded-[6px] bg-red-50 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black text-red-900">{item.integration}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${priorityClass(item.severity)}`}>{item.severity}</span>
+            </div>
+            <p className="mt-1 text-[10px] font-semibold text-red-800">Why: {item.whyRequired}</p>
+            <p className="mt-1 text-[10px] font-semibold text-red-800">Blocked: {item.blockedCapability}</p>
+            <p className="mt-1 text-[10px] font-semibold text-red-800">Fix: {item.recommendedFix}</p>
+          </div>
+        ))}
+      </div>
+    </RepairPanel>
+  );
+}
+
+function MissingFixturesPanel({ report }: { report: AgentIntegrityReport }) {
+  const items = report.repairPlan.missingFixtures;
+  return (
+    <RepairPanel title="Missing Fixtures" emptyMessage="No missing fixtures" hasItems={items.length > 0}>
+      <div className="grid gap-2">
+        {items.map((item) => (
+          <div key={item.fixture} className="rounded-[6px] bg-yellow-50 px-3 py-2">
+            <p className="text-xs font-black text-[#17392b]">{item.fixture}</p>
+            <p className="mt-1 text-[10px] font-semibold text-[#617269]">{item.whyItMatters}</p>
+            <p className="mt-1 text-[10px] font-semibold text-[#17392b]">{item.recommendedFixture}</p>
+          </div>
+        ))}
+      </div>
+    </RepairPanel>
+  );
+}
+
+function CoverageGapsPanel({ report }: { report: AgentIntegrityReport }) {
+  const items = report.repairPlan.coverageGaps;
+  return (
+    <RepairPanel title="Coverage Gaps" emptyMessage="No coverage gaps detected" hasItems={items.length > 0}>
+      <div className="grid gap-2">
+        {items.map((item, index) => (
+          <div key={`${item.capability}-${index}`} className="rounded-[6px] bg-amber-50 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black text-amber-950">{item.capability}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${priorityClass(item.riskLevel)}`}>{item.riskLevel}</span>
+            </div>
+            <p className="mt-1 text-[10px] font-semibold text-amber-900">{item.recommendedScenario}</p>
+          </div>
+        ))}
+      </div>
+    </RepairPanel>
+  );
+}
+
+function RecommendedConnectionsPanel({ report }: { report: AgentIntegrityReport }) {
+  const items = report.recommendedConnections;
+  return (
+    <RepairPanel title="Recommended Connections" emptyMessage="No recommended connections required" hasItems={items.length > 0}>
+      <div className="grid gap-2">
+        {items.map((item, index) => (
+          <div key={`${item.capability}-${item.connection}-${index}`} className="rounded-[6px] bg-[#f4faf6] px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-black text-[#17392b]">{item.capability} - {item.connection}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${priorityClass(item.priority)}`}>{item.priority}</span>
+            </div>
+            <p className="mt-1 text-[10px] font-semibold text-[#617269]">Benefit: {item.benefit}</p>
+            <p className="mt-1 text-[10px] font-semibold text-[#617269]">Risk if missing: {item.riskIfMissing}</p>
+          </div>
+        ))}
+      </div>
+    </RepairPanel>
+  );
+}
+
+function FailingScenariosPanel({ report }: { report: AgentIntegrityReport }) {
+  const items = report.repairPlan.failingScenarios;
+  return (
+    <RepairPanel title="Failing Scenarios" emptyMessage="No failing scenarios" hasItems={items.length > 0}>
+      <div className="grid gap-2">
+        {items.map((item, index) => (
+          <div key={`${item.title}-${index}`} className="rounded-[6px] bg-red-50 px-3 py-2">
+            <p className="text-xs font-black text-red-900">{item.title}</p>
+            <p className="text-[10px] font-semibold text-red-800">
+              {item.category}{typeof item.f1 === 'number' ? ` - F1 ${item.f1.toFixed(2)}` : ''}
+            </p>
+          </div>
+        ))}
+      </div>
+    </RepairPanel>
+  );
+}
+
+function FixPromptPanel({ report }: { report: AgentIntegrityReport }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    void navigator.clipboard.writeText(report.generateFixPrompt).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div data-testid="fix-prompt-panel">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full rounded-[6px] border border-[#1C7C54] px-3 py-2 text-xs font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
+        data-testid="generate-fix-prompt-button"
+      >
+        {open ? 'Hide Fix Prompt' : 'Generate Fix Prompt'}
+      </button>
+      {open ? (
+        <div className="mt-2 overflow-hidden rounded-[8px] border border-[#dfe9e2] bg-white" data-testid="fix-prompt-output">
+          <div className="flex items-center justify-between gap-2 border-b border-[#dfe9e2] px-3 py-2">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Fix Prompt</span>
+              <span className="ml-2 text-[10px] font-semibold text-[#617269]">{report.agentName} · {report.category}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={`rounded-[6px] px-3 py-1 text-[10px] font-black transition ${copied ? 'bg-[#e5f4ec] text-[#1C7C54]' : 'border border-[#dfe9e2] text-[#617269] hover:border-[#1C7C54] hover:text-[#1C7C54]'}`}
+              data-testid="copy-prompt-button"
+            >
+              {copied ? '✓ Copied' : 'Copy Prompt'}
+            </button>
+          </div>
+          <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap bg-[#0f1f18] px-4 py-3 text-[11px] font-semibold leading-5 text-[#e5f4ec]">
+            {report.generateFixPrompt}
+          </pre>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function integrationConnectionColour(status: IntegrationDetail['connectionStatus']): string {
+  switch (status) {
+    case 'connected':  return 'bg-[#e5f4ec] text-[#1C7C54]';
+    case 'mocked':     return 'bg-blue-100 text-blue-800';
+    case 'unverified': return 'bg-yellow-100 text-yellow-800';
+    case 'missing':    return 'bg-red-100 text-red-800';
+  }
+}
+
+function integrationConnectionLabel(status: IntegrationDetail['connectionStatus']): string {
+  switch (status) {
+    case 'connected':  return 'Connected';
+    case 'mocked':     return 'Mock Only';
+    case 'unverified': return 'Unverified';
+    case 'missing':    return 'Missing';
+  }
+}
+
+function IntegrationDetailCard({ detail }: { detail: IntegrationDetail }) {
+  const bg = detail.connectionStatus === 'missing' ? 'bg-red-50' : 'bg-[#f8fbf9]';
+  return (
+    <div className={`rounded-[6px] px-3 py-2 ${bg}`} data-testid={`integration-detail-${detail.label}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs font-black text-[#17392b]">{detail.label}</p>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${integrationConnectionColour(detail.connectionStatus)}`}>
+          {integrationConnectionLabel(detail.connectionStatus)}
+        </span>
+        {detail.required && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">Required</span>
+        )}
+      </div>
+      <p className="mt-1 text-[10px] font-semibold text-[#617269]">{detail.purpose}</p>
+      {detail.sandboxNote ? (
+        <p className="mt-1 text-[10px] font-semibold text-[#1C7C54]">Sandbox: {detail.sandboxNote}</p>
+      ) : null}
+      {detail.envVars.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {detail.envVars.map((v) => (
+            <code key={v} className="rounded bg-[#17392b]/8 px-1.5 py-0.5 text-[10px] font-semibold text-[#17392b]">{v}</code>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled
+          title="Sandbox only — real connections are never tested here"
+          className="cursor-not-allowed rounded-[4px] border border-[#dfe9e2] px-2 py-0.5 text-[10px] font-black text-[#7f9187] opacity-50"
+        >
+          Test connection
+        </button>
+        {detail.mockAvailable ? (
+          <span
+            title={`Mock connector: ${detail.connectorName}`}
+            className="rounded-[4px] bg-[#e5f4ec] px-2 py-0.5 text-[10px] font-black text-[#1C7C54]"
+          >
+            ✓ {detail.connectorName}
+          </span>
+        ) : (
+          <span className="rounded-[4px] bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">
+            No mock wired
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IntegrationWorkflowPanel({ report }: { report: AgentIntegrityReport }) {
+  const details = report.integrationDetails;
+  if (details.length === 0) return null;
+  return (
+    <div className="rounded-[8px] border border-[#dfe9e2] bg-white px-3 py-3">
+      <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">
+        Integration Connections ({details.length})
+      </p>
+      <p className="mb-3 text-[10px] font-semibold text-[#617269]">
+        Sandbox tests must use mock connectors only — no real emails, calendar events, Stripe writes, or external API calls.
+      </p>
+      <div className="grid gap-2">
+        {details.map((detail) => (
+          <IntegrationDetailCard key={detail.label} detail={detail} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RemediationActionsPanel({ report }: { report: AgentIntegrityReport }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copyPrompt(label: string) {
+    void navigator.clipboard.writeText(report.generateFixPrompt).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  const status = report.integrityStatus;
+  const disposition = report.repairPlan.disposition;
+
+  if (status === 'ready_to_promote' && disposition === 'no_repair_required') {
+    return (
+      <div className="rounded-[6px] border border-[#dfe9e2] bg-[#f4faf6] px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-[#1C7C54]">Ready to Promote</p>
+        <p className="mt-1 text-xs font-semibold text-[#617269]">
+          All integrity requirements are satisfied. Run a final scenario validation before promoting.
+        </p>
+        <button
+          type="button"
+          onClick={() => copyPrompt('audit')}
+          className="mt-2 rounded-[6px] border border-[#1C7C54] px-3 py-1 text-[10px] font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
+        >
+          {copied === 'audit' ? '✓ Copied' : 'Copy Promotion Audit Prompt'}
+        </button>
+      </div>
+    );
+  }
+
+  if (status === 'ready_to_test') {
+    return (
+      <div className="rounded-[6px] border border-blue-200 bg-blue-50 px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-blue-800">Ready to Test</p>
+        <p className="mt-1 text-xs font-semibold text-blue-700">
+          Scenarios exist but coverage is incomplete. Run the scenario pack and verify all expected action types pass.
+        </p>
+        <button
+          type="button"
+          onClick={() => copyPrompt('validate')}
+          className="mt-2 rounded-[6px] border border-blue-400 px-3 py-1 text-[10px] font-black text-blue-800 transition hover:bg-blue-100"
+        >
+          {copied === 'validate' ? '✓ Copied' : 'Copy Scenario Validation Prompt'}
+        </button>
+      </div>
+    );
+  }
+
+  if (status === 'missing_integration' || status === 'unsafe_to_promote') {
+    const tone = status === 'unsafe_to_promote' ? { border: 'border-red-200', bg: 'bg-red-50', text: 'text-red-800', label: 'text-red-900' } : { border: 'border-amber-200', bg: 'bg-amber-50', text: 'text-amber-700', label: 'text-amber-900' };
+    return (
+      <div className={`rounded-[6px] border ${tone.border} ${tone.bg} px-3 py-2`}>
+        <p className={`text-[10px] font-black uppercase tracking-wider ${tone.label}`}>
+          {status === 'unsafe_to_promote' ? 'Unsafe to Promote — Integration Required' : 'Missing Integration'}
+        </p>
+        <p className={`mt-1 text-xs font-semibold ${tone.text}`}>
+          Wire missing integrations through sandbox mock connectors before running scenarios.
+        </p>
+        <button
+          type="button"
+          onClick={() => copyPrompt('integration')}
+          className={`mt-2 rounded-[6px] border ${tone.border} px-3 py-1 text-[10px] font-black ${tone.label} transition hover:opacity-80`}
+        >
+          {copied === 'integration' ? '✓ Copied' : 'Copy Integration Setup Prompt'}
+        </button>
+      </div>
+    );
+  }
+
+  if (status === 'missing_data') {
+    return (
+      <div className="rounded-[6px] border border-yellow-200 bg-yellow-50 px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-yellow-800">Missing Data</p>
+        <p className="mt-1 text-xs font-semibold text-yellow-700">
+          No sandbox scenarios or fixtures exist yet. Seed fixture data and add at least one scenario before testing.
+        </p>
+        <button
+          type="button"
+          onClick={() => copyPrompt('fixture')}
+          className="mt-2 rounded-[6px] border border-yellow-400 px-3 py-1 text-[10px] font-black text-yellow-800 transition hover:bg-yellow-100"
+        >
+          {copied === 'fixture' ? '✓ Copied' : 'Copy Fixture & Scenario Prompt'}
+        </button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function SyntheticPreviewPanel({ preview }: { preview: SyntheticFixturePreview }) {
+  const previewRecords = preview.records.length > 3 ? preview.records.slice(0, 3) : preview.records;
+  const isTruncated = preview.records.length > previewRecords.length;
+
+  return (
+    <div className="mt-3 rounded-[8px] border border-[#1C7C54]/25 bg-[#f4faf6] px-3 py-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-[#1C7C54]">Synthetic Preview</p>
+        <span className="rounded-full bg-[#e5f4ec] px-2 py-0.5 text-[10px] font-black text-[#1C7C54]">
+          {preview.environment}
+        </span>
+        <span className="rounded-full border border-[#dfe9e2] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#617269]">
+          {preview.fixtureKind}
+        </span>
+        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-black text-yellow-800">
+          preview only — no DB writes
+        </span>
+      </div>
+
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Related Agent</p>
+          <p className="text-xs font-semibold text-[#17392b]">{preview.agentName}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Scenario Category</p>
+          <p className="text-xs font-semibold text-[#17392b]">{preview.category}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Risk Covered</p>
+          <p className="text-xs font-semibold text-[#17392b]">{preview.riskCovered}</p>
+        </div>
+      </div>
+
+      <div className="mb-2">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">
+          Generated Fixture ({preview.records.length} record{preview.records.length !== 1 ? 's' : ''})
+        </p>
+        <p className="mb-1 text-[11px] font-semibold text-[#617269]">
+          {preview.records.length} sandbox record{preview.records.length !== 1 ? 's' : ''} generated
+        </p>
+        {isTruncated ? (
+          <p className="mb-1 text-[11px] font-semibold text-[#617269]">
+            Showing first 3 records only — full fixture persistence comes in Phase 3B.
+          </p>
+        ) : null}
+        <pre className="max-h-48 overflow-auto rounded-[6px] bg-[#0f1f18] px-3 py-2 text-[10px] leading-4 text-[#e5f4ec]">
+          {JSON.stringify(previewRecords, null, 2)}
+        </pre>
+      </div>
+
+      <div className="mb-2">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Proposed Test Inputs</p>
+        <ul className="grid gap-1">
+          {preview.proposedTestInputs.map((input, i) => (
+            <li key={i} className="text-xs font-semibold text-[#17392b]">• {input}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mb-3">
+        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#7f9187]">Expected Action Types</p>
+        <div className="flex flex-wrap gap-1">
+          {preview.expectedActionTypes.map((action) => (
+            <span key={action} className="rounded-full border border-[#dfe9e2] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#617269]">
+              {action}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        disabled
+        className="w-full cursor-not-allowed rounded-[6px] border border-[#dfe9e2] bg-white px-3 py-1.5 text-xs font-black text-[#7f9187]"
+        title="Fixture persistence coming in Phase 3B"
+      >
+        Save fixture — coming later
+      </button>
+    </div>
+  );
+}
+
 function AgentIntegrityCard({
   report,
   expanded,
@@ -763,8 +1254,15 @@ function AgentIntegrityCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  function copyFixPrompt() {
-    void navigator.clipboard.writeText(report.generateFixPrompt);
+  const [syntheticPreview, setSyntheticPreview] = useState<SyntheticFixturePreview | null>(null);
+  const showSyntheticButton = shouldShowSyntheticPreview(report);
+
+  function handleGeneratePreview() {
+    if (syntheticPreview) {
+      setSyntheticPreview(null);
+    } else {
+      setSyntheticPreview(generateSyntheticPreview(report.agentId, report.agentName));
+    }
   }
 
   return (
@@ -803,6 +1301,8 @@ function AgentIntegrityCard({
             <p className="text-xs font-semibold text-[#17392b]">{report.intendedCapability}</p>
           </div>
 
+          <RemediationActionsPanel report={report} />
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <RequirementList title="Data Sources" items={report.dataSources} />
             <RequirementList title="Integrations" items={report.integrations} />
@@ -832,15 +1332,37 @@ function AgentIntegrityCard({
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={copyFixPrompt}
-              className="rounded-[6px] border border-[#1C7C54] px-3 py-1.5 text-xs font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
-            >
-              Generate Fix Prompt
-            </button>
+          {report.integrityStatus === 'ready_to_promote' && report.repairPlan.disposition === 'repair_required' ? (
+            <div className="rounded-[6px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+              Integrity spec passes — runtime data shows active issues. Resolve the items below before promoting.
+            </div>
+          ) : null}
+          <RepairPlanPanel report={report} />
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <MissingIntegrationsPanel report={report} />
+            <RecommendedConnectionsPanel report={report} />
+            <MissingFixturesPanel report={report} />
+            <CoverageGapsPanel report={report} />
+            <FailingScenariosPanel report={report} />
           </div>
+
+          <IntegrationWorkflowPanel report={report} />
+
+          {showSyntheticButton ? (
+            <div>
+              <button
+                type="button"
+                onClick={handleGeneratePreview}
+                className="w-full rounded-[6px] border border-[#1C7C54] px-3 py-2 text-xs font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
+              >
+                {syntheticPreview ? 'Hide Synthetic Preview' : 'Generate Synthetic Preview'}
+              </button>
+              {syntheticPreview ? <SyntheticPreviewPanel preview={syntheticPreview} /> : null}
+            </div>
+          ) : null}
+
+          <FixPromptPanel report={report} />
         </div>
       ) : null}
     </div>
@@ -869,7 +1391,7 @@ function IntegrityFleetSummary({ reports }: { reports: AgentIntegrityReport[] })
       {statuses.map((status) => (
         <div key={status} className={`rounded-[8px] px-3 py-3 ${integrityStatusColour(status)}`}>
           <p className="text-2xl font-black">{counts[status]}</p>
-          <p className="text-[10px] font-black uppercase tracking-wider opacity-75">
+          <p className="text-[10px] font-black uppercase leading-tight tracking-wider opacity-75">
             {integrityStatusLabel(status)}
           </p>
         </div>
@@ -878,13 +1400,146 @@ function IntegrityFleetSummary({ reports }: { reports: AgentIntegrityReport[] })
   );
 }
 
-export function DoctorTab({ reports }: { reports: AgentIntegrityReport[] }) {
+function RepairQueueItem({ item, index }: { item: FleetRepairQueueItem; index: number }) {
+  const [syntheticPreview, setSyntheticPreview] = useState<SyntheticFixturePreview | null>(null);
+
+  function handleGeneratePreview() {
+    if (syntheticPreview) {
+      setSyntheticPreview(null);
+    } else {
+      setSyntheticPreview(generateSyntheticPreview(item.agentId, item.agentName));
+    }
+  }
+
+  return (
+    <div className="rounded-[8px] border border-[#dfe9e2] bg-white px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-[#17392b] px-2 py-0.5 text-[10px] font-black text-white">#{index + 1}</span>
+        <p className="text-sm font-black text-[#17392b]">{item.agentName}</p>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${priorityClass(item.priority)}`}>{item.priority}</span>
+        <IntegrityChip status={item.integrityStatus} />
+        <span className="text-[10px] font-black text-[#617269]">score {item.rankScore}</span>
+      </div>
+      <p className="mt-2 text-xs font-semibold text-[#17392b]">{item.primaryAction}</p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-[#617269]">
+          <span>promotion impact {item.promotionImpact}</span>
+          <span>root cause {item.rootCauseSeverity}</span>
+          <span>failing scenarios {item.failingScenarioCount}</span>
+          <span>integrity impact {item.integrityScoreImpact}</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleGeneratePreview}
+          className="rounded-[6px] border border-[#1C7C54] px-2.5 py-1 text-[10px] font-black text-[#1C7C54] transition hover:bg-[#e5f4ec]"
+        >
+          {syntheticPreview ? 'Hide Synthetic Preview' : 'Generate Synthetic Preview'}
+        </button>
+      </div>
+      {syntheticPreview ? <SyntheticPreviewPanel preview={syntheticPreview} /> : null}
+    </div>
+  );
+}
+
+function RepairQueueCard({ queue }: { queue: FleetRepairQueueItem[] }) {
+  return (
+    <Panel title="Repair Queue">
+      {queue.length === 0 ? (
+        <RepairEmptyState message="No repair actions required" />
+      ) : (
+        <div className="grid gap-2">
+          {queue.slice(0, 10).map((item, index) => (
+            <RepairQueueItem key={item.agentId} item={item} index={index} />
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function DoctorTab({ reports, health }: { reports: AgentIntegrityReport[]; health?: HealthData | null }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<AgentIntegrityStatus | 'all'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const enrichedReports = useMemo(() => {
+    if (!health) return reports;
+    return reports.map((report) => {
+      const failing = health.failingScenarios.filter((scenario) => scenario.agentId === report.agentId);
+      const batch = health.batches.find((row) => row.agent_id === report.agentId);
+      const rootCauses = (health.activeRootCauses ?? health.rootCauses ?? []).filter((cause) => cause.agentId === report.agentId);
+      if (failing.length === 0 && !batch && rootCauses.length === 0) return report;
+      const hasActions =
+        report.repairPlan.missingIntegrations.length > 0 ||
+        report.repairPlan.missingFixtures.length > 0 ||
+        report.repairPlan.coverageGaps.length > 0 ||
+        failing.length > 0 ||
+        rootCauses.length > 0;
+      const disposition: RepairDisposition = hasActions
+        ? 'repair_required'
+        : report.integrityStatus === 'ready_to_promote'
+          ? 'no_repair_required'
+          : 'validation_recommended';
+      const repairPlan = {
+        ...report.repairPlan,
+        disposition,
+        summary: disposition === 'repair_required'
+          ? 'Repair required'
+          : disposition === 'validation_recommended'
+            ? 'Validation recommended'
+            : 'No repair required',
+        totalScenarios: batch?.scenario_count ?? report.repairPlan.totalScenarios,
+        passedScenarios: Math.min(
+          batch?.pass_count ?? Math.max(0, report.repairPlan.totalScenarios - failing.length),
+          batch?.scenario_count ?? report.repairPlan.totalScenarios,
+        ),
+        failingScenarios: failing.map((scenario) => ({
+          title: scenario.title,
+          category: scenario.category,
+          f1: scenario.f1,
+        })),
+        rootCauseSummary: rootCauses.length > 0
+          ? rootCauses.map((cause) => cause.rootCauseSummary).join(' ')
+          : report.repairPlan.rootCauseSummary,
+        recommendedImplementation: disposition === 'repair_required'
+          ? report.recommendation
+          : '',
+        validationRecommendation: disposition === 'validation_recommended'
+          ? report.recommendation
+          : report.repairPlan.validationRecommendation,
+        expectedOutcome: disposition === 'repair_required'
+          ? `${report.agentName} can be retested with sandbox-only fixtures and promoted only after missing requirements and failing scenarios are resolved.`
+          : report.repairPlan.expectedOutcome,
+      };
+      const failingText = repairPlan.failingScenarios.length > 0
+        ? repairPlan.failingScenarios.map((scenario) => `- ${scenario.title}${typeof scenario.f1 === 'number' ? ` (F1 ${scenario.f1.toFixed(2)})` : ''}`).join('\n')
+        : '- No failing scenarios';
+      let repairPromptPreview = report.repairPromptPreview.replace(
+        /Root cause summary:\n[\s\S]*?\n\nFailing scenarios:\n[\s\S]*?\n\nMissing integrations:/,
+        `Root cause summary:\n${repairPlan.rootCauseSummary}\n\nFailing scenarios:\n${failingText}\n\nMissing integrations:`,
+      );
+      repairPromptPreview = repairPromptPreview
+        .replace(/Repair status: .*/, `Repair status: ${repairPlan.summary}`)
+        .replace(/Expected outcome:\n[\s\S]*?\n\nConstraints:/, `Expected outcome:\n${repairPlan.expectedOutcome}\n\nConstraints:`);
+      if (repairPlan.recommendedImplementation && !repairPromptPreview.includes('Recommended implementation:')) {
+        repairPromptPreview = repairPromptPreview.replace(
+          /\nLikely affected files:/,
+          `\nRecommended implementation:\n${repairPlan.recommendedImplementation}\n\nLikely affected files:`,
+        );
+      }
+      return {
+        ...report,
+        repairPlan,
+        repairPromptPreview,
+        generateFixPrompt: repairPromptPreview,
+      };
+    });
+  }, [reports, health]);
+
+  const repairQueue = useMemo(() => deriveFleetRepairQueue(enrichedReports), [enrichedReports]);
+
   const filtered = useMemo(() => {
-    let result = reports;
+    let result = enrichedReports;
     if (statusFilter !== 'all') result = result.filter((r) => r.integrityStatus === statusFilter);
     if (search) {
       const q = search.toLowerCase();
@@ -896,7 +1551,7 @@ export function DoctorTab({ reports }: { reports: AgentIntegrityReport[] }) {
       );
     }
     return result;
-  }, [reports, statusFilter, search]);
+  }, [enrichedReports, statusFilter, search]);
 
   const sorted = useMemo(() => {
     const order: AgentIntegrityStatus[] = [
@@ -919,8 +1574,10 @@ export function DoctorTab({ reports }: { reports: AgentIntegrityReport[] }) {
           connectors — no real emails, calendar events, Stripe writes, or external API calls are
           dispatched.
         </p>
-        <IntegrityFleetSummary reports={reports} />
+        <IntegrityFleetSummary reports={enrichedReports} />
       </Panel>
+
+      <RepairQueueCard queue={repairQueue} />
 
       <div className="flex flex-wrap gap-2">
         <input
