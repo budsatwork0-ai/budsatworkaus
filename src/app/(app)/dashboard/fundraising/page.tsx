@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { glass } from '@/app/ui/theme';
 import type { FundraisingItem } from '@/app/api/fundraising/route';
 import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
+import type { SocialProofItem } from '@/app/api/social-proof/route';
 
-type View = 'list' | 'form' | 'stats';
+type View = 'list' | 'form' | 'stats' | 'social' | 'social-form';
 
 const STATUS_LABELS: Record<FundraisingItem['status'], string> = {
   draft: 'Draft',
@@ -47,6 +48,17 @@ const EMPTY_FORM: Omit<FundraisingItem, 'id' | 'created_at' | 'updated_at'> = {
   is_featured: false,
 };
 
+const EMPTY_SOCIAL_FORM: Omit<SocialProofItem, 'id' | 'created_at' | 'updated_at'> = {
+  title: '',
+  platform: 'tiktok',
+  source_url: '',
+  thumbnail_url: '',
+  posted_at: null,
+  status: 'draft',
+  sort_order: 0,
+  is_featured: false,
+};
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -61,6 +73,10 @@ export default function FundraisingPage() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [socialItems, setSocialItems] = useState<SocialProofItem[]>([]);
+  const [socialLoading, setSocialLoading] = useState(true);
+  const [editingSocialId, setEditingSocialId] = useState<string | null>(null);
+  const [socialForm, setSocialForm] = useState(EMPTY_SOCIAL_FORM);
   const [stats, setStats] = useState<Omit<SiteImpactStats, 'id' | 'updated_at'>>({
     participants_supported: 0,
     paid_jobs_completed: 0,
@@ -107,9 +123,25 @@ export default function FundraisingPage() {
     }
   }
 
+  async function loadSocialItems() {
+    setSocialLoading(true);
+    try {
+      const res = await fetch('/api/social-proof/admin');
+      if (res.ok) {
+        const { items: data } = (await res.json()) as { items: SocialProofItem[] };
+        setSocialItems(data ?? []);
+      }
+    } catch {
+      toast.error('Failed to load social videos');
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadItems();
     void loadStats();
+    void loadSocialItems();
   }, []);
 
   function openCreate() {
@@ -263,6 +295,81 @@ export default function FundraisingPage() {
     }
   }
 
+  function openCreateSocial() {
+    setEditingSocialId(null);
+    setSocialForm(EMPTY_SOCIAL_FORM);
+    setView('social-form');
+  }
+
+  function openEditSocial(item: SocialProofItem) {
+    setEditingSocialId(item.id);
+    setSocialForm({
+      title: item.title,
+      platform: item.platform,
+      source_url: item.source_url,
+      thumbnail_url: item.thumbnail_url ?? '',
+      posted_at: item.posted_at,
+      status: item.status,
+      sort_order: item.sort_order,
+      is_featured: item.is_featured,
+    });
+    setView('social-form');
+  }
+
+  async function handleSocialSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...socialForm,
+        thumbnail_url: socialForm.thumbnail_url || null,
+        posted_at: socialForm.posted_at || null,
+      };
+
+      const res = editingSocialId
+        ? await fetch(`/api/social-proof/${editingSocialId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/social-proof', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+      const data = (await res.json()) as { item?: SocialProofItem; error?: string };
+      if (!res.ok || data.error) {
+        toast.error(data.error ?? 'Save failed');
+        return;
+      }
+
+      toast.success(editingSocialId ? 'Video updated' : 'Video created');
+      await loadSocialItems();
+      setView('social');
+    } catch {
+      toast.error('Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleArchiveSocial(id: string) {
+    if (!confirm('Archive this social video? It will no longer appear publicly.')) return;
+    try {
+      const res = await fetch(`/api/social-proof/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Video archived');
+        await loadSocialItems();
+      } else {
+        toast.error('Archive failed');
+      }
+    } catch {
+      toast.error('Archive failed');
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       {/* Header */}
@@ -283,6 +390,12 @@ export default function FundraisingPage() {
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Impact Stats
+          </button>
+          <button
+            onClick={() => setView('social')}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Social Videos
           </button>
           <button
             onClick={openCreate}
@@ -744,6 +857,208 @@ export default function FundraisingPage() {
                 className="rounded-lg bg-emerald-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
               >
                 {statsLoading ? 'Saving…' : 'Save Stats'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── SOCIAL VIDEO LIST ───────────────────────────────────────────────── */}
+      {view === 'social' && (
+        <div className={`${glass} rounded-2xl overflow-hidden`}>
+          <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Social Videos</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Feature real Buds At Work TikTok, Instagram and Facebook videos on /get-involved.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setView('list')} className="text-sm text-slate-500 hover:text-slate-700">
+                Back to items
+              </button>
+              <button onClick={openCreateSocial} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">
+                + New Video
+              </button>
+            </div>
+          </div>
+          {socialLoading ? (
+            <div className="p-12 text-center text-sm text-slate-400">Loading...</div>
+          ) : socialItems.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-slate-500">No social videos yet.</p>
+              <button onClick={openCreateSocial} className="mt-4 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white">
+                Add the first video
+              </button>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="px-5 py-3">Video</th>
+                  <th className="px-5 py-3">Platform</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Order</th>
+                  <th className="px-5 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {socialItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/60">
+                    <td className="px-5 py-3">
+                      <p className="font-semibold text-slate-900">{item.title}</p>
+                      <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 underline">
+                        {item.source_url}
+                      </a>
+                    </td>
+                    <td className="px-5 py-3 capitalize text-slate-600">{item.platform}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        item.status === 'live' ? 'bg-emerald-100 text-emerald-700' : item.status === 'archived' ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {item.status}
+                      </span>
+                      {item.is_featured && (
+                        <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                          Featured
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-slate-500">{item.sort_order}</td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEditSocial(item)} className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                          Edit
+                        </button>
+                        {item.status !== 'archived' && (
+                          <button onClick={() => handleArchiveSocial(item.id)} className="rounded px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50">
+                            Archive
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── SOCIAL VIDEO FORM ───────────────────────────────────────────────── */}
+      {view === 'social-form' && (
+        <div className={`${glass} rounded-2xl p-6`}>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">
+              {editingSocialId ? 'Edit Social Video' : 'New Social Video'}
+            </h2>
+            <button onClick={() => setView('social')} className="text-sm text-slate-500 hover:text-slate-700">
+              Back to videos
+            </button>
+          </div>
+
+          <form onSubmit={handleSocialSave} className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Title *</label>
+                <input
+                  required
+                  value={socialForm.title}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Window cleaning shift update"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Platform</label>
+                <select
+                  value={socialForm.platform}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, platform: e.target.value as SocialProofItem['platform'] }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="tiktok">TikTok</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Video URL *</label>
+              <input
+                required
+                type="url"
+                value={socialForm.source_url}
+                onChange={(e) => setSocialForm((prev) => ({ ...prev, source_url: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                placeholder="https://www.tiktok.com/@buds.at.work/video/..."
+              />
+              <p className="mt-1 text-xs text-slate-400">Use Buds At Work TikTok, Instagram or Facebook links only.</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Thumbnail URL</label>
+                <input
+                  type="url"
+                  value={socialForm.thumbnail_url ?? ''}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, thumbnail_url: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Posted Date</label>
+                <input
+                  type="date"
+                  value={socialForm.posted_at ?? ''}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, posted_at: e.target.value || null }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sort Order</label>
+                <input
+                  type="number"
+                  value={socialForm.sort_order}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, sort_order: parseInt(e.target.value, 10) || 0 }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
+                <select
+                  value={socialForm.status}
+                  onChange={(e) => setSocialForm((prev) => ({ ...prev, status: e.target.value as SocialProofItem['status'] }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="live">Live</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={socialForm.is_featured}
+                    onChange={(e) => setSocialForm((prev) => ({ ...prev, is_featured: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  Feature this video
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setView('social')} className="text-sm text-slate-500 hover:text-slate-700">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-emerald-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+                {saving ? 'Saving...' : editingSocialId ? 'Save Changes' : 'Create Video'}
               </button>
             </div>
           </form>

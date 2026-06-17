@@ -1,6 +1,9 @@
 import React from 'react';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { FundraisingItem } from '@/app/api/fundraising/route';
 import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
+import type { SocialProofItem } from '@/app/api/social-proof/route';
 import GetInvolvedClient from './GetInvolvedClient';
 
 async function getFundraisingItems(): Promise<FundraisingItem[]> {
@@ -27,6 +30,18 @@ async function getImpactStats(): Promise<Omit<SiteImpactStats, 'id' | 'updated_a
   }
 }
 
+async function getSocialProofItems(): Promise<SocialProofItem[]> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+    const res = await fetch(`${baseUrl}/api/social-proof`, { next: { revalidate: 60 } });
+    if (!res.ok) return [];
+    const { items } = (await res.json()) as { items: SocialProofItem[] };
+    return items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 const defaultStats = {
   participants_supported: 1,
   paid_jobs_completed: 0,
@@ -35,7 +50,21 @@ const defaultStats = {
 };
 
 export default async function GetInvolvedPage() {
-  const [items, stats] = await Promise.all([getFundraisingItems(), getImpactStats()]);
+  const [items, stats, socialItems] = await Promise.all([
+    getFundraisingItems(),
+    getImpactStats(),
+    getSocialProofItems(),
+  ]);
 
-  return <GetInvolvedClient items={items} stats={stats} />;
+  const heroPath = path.join(process.cwd(), 'public/images/get-involved-hero.png');
+  const heroImageUrl = existsSync(heroPath) ? '/images/get-involved-hero.png' : null;
+
+  return (
+    <GetInvolvedClient
+      items={items}
+      stats={stats}
+      socialItems={socialItems}
+      heroImageUrl={heroImageUrl}
+    />
+  );
 }
