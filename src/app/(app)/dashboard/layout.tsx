@@ -56,6 +56,7 @@ const designIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const ndisMatchIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1" /><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" /></svg>;
 const messagesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
 const sandboxIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-5 9 5-9 5-9-5z" /><path d="M3 15l9 5 9-5" /><path d="M3 12l9 5 9-5" /></svg>;
+const fundraisingIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>;
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -89,6 +90,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/analytics/quote-funnel': 'Quote Funnel',
   '/dashboard/content-vault': 'Content Vault',
   '/dashboard/sandbox': 'Sandbox',
+  '/dashboard/fundraising': 'Fundraising',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -171,9 +173,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/content-vault',  label: 'Content Vault',  icon: contentVaultIcon },
     ] },
     { id: 'growth', label: 'Growth & marketing', adminOnly: true, items: [
-      { href: '/dashboard/growth-hq', label: 'Growth HQ',        icon: growthHqIcon },
-      { href: '/dashboard/marketing', label: 'Marketing Studio', icon: marketingIcon },
-      { href: '/dashboard/leads',     label: 'Bud Leads',        icon: leadsIcon },
+      { href: '/dashboard/growth-hq',    label: 'Growth HQ',        icon: growthHqIcon },
+      { href: '/dashboard/marketing',    label: 'Marketing Studio', icon: marketingIcon },
+      { href: '/dashboard/leads',        label: 'Bud Leads',        icon: leadsIcon },
+      { href: '/dashboard/fundraising',  label: 'Fundraising',      icon: fundraisingIcon },
     ] },
     { id: 'ndis', label: 'NDIS', adminOnly: true, items: [
       { href: '/dashboard/ndis',       label: 'Organisations', icon: ndisIcon },
