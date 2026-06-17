@@ -355,6 +355,24 @@ export default function FundraisingPage() {
     }
   }
 
+  async function handleGoLiveSocial(id: string) {
+    try {
+      const res = await fetch(`/api/social-proof/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'live' }),
+      });
+      if (res.ok) {
+        toast.success('Video is now live');
+        await loadSocialItems();
+      } else {
+        toast.error('Update failed');
+      }
+    } catch {
+      toast.error('Update failed');
+    }
+  }
+
   async function handleArchiveSocial(id: string) {
     if (!confirm('Archive this social video? It will no longer appear publicly.')) return;
     try {
@@ -930,6 +948,11 @@ export default function FundraisingPage() {
                         <button onClick={() => openEditSocial(item)} className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">
                           Edit
                         </button>
+                        {item.status === 'draft' && (
+                          <button onClick={() => handleGoLiveSocial(item.id)} className="rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                            Go Live
+                          </button>
+                        )}
                         {item.status !== 'archived' && (
                           <button onClick={() => handleArchiveSocial(item.id)} className="rounded px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50">
                             Archive

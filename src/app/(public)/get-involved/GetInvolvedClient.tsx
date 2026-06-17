@@ -257,7 +257,7 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
           {impactMetrics.map((metric) => (
             <div key={metric.label} className="rounded-[8px] border bg-white p-5" style={{ borderColor: 'rgba(0,58,52,0.10)' }}>
               <div className="text-4xl font-black leading-none" style={{ color: g.green }}>
-                {metric.value > 0 ? metric.value.toLocaleString() : '-'}
+                {metric.value != null ? metric.value.toLocaleString() : '-'}
               </div>
               <div className="mt-2 text-xs font-bold uppercase leading-5 tracking-[0.12em]" style={{ color: g.muted }}>
                 {metric.label}

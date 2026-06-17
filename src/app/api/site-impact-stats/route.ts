@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 
@@ -97,5 +98,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error.message }, { status: 500 });
   }
 
+  revalidatePath('/get-involved');
   return NextResponse.json({ stats: result.data });
 }

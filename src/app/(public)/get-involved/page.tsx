@@ -6,10 +6,15 @@ import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
 import type { SocialProofItem } from '@/app/api/social-proof/route';
 import GetInvolvedClient from './GetInvolvedClient';
 
+function getBaseUrl() {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+}
+
 async function getFundraisingItems(): Promise<FundraisingItem[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/fundraising`, { next: { revalidate: 60 } });
+    const res = await fetch(`${getBaseUrl()}/api/fundraising`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const { items } = (await res.json()) as { items: FundraisingItem[] };
     return items ?? [];
@@ -20,8 +25,7 @@ async function getFundraisingItems(): Promise<FundraisingItem[]> {
 
 async function getImpactStats(): Promise<Omit<SiteImpactStats, 'id' | 'updated_at'>> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/site-impact-stats`, { next: { revalidate: 60 } });
+    const res = await fetch(`${getBaseUrl()}/api/site-impact-stats`, { next: { revalidate: 60 } });
     if (!res.ok) return defaultStats;
     const { stats } = (await res.json()) as { stats: SiteImpactStats };
     return stats ?? defaultStats;
@@ -32,8 +36,7 @@ async function getImpactStats(): Promise<Omit<SiteImpactStats, 'id' | 'updated_a
 
 async function getSocialProofItems(): Promise<SocialProofItem[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/social-proof`, { next: { revalidate: 60 } });
+    const res = await fetch(`${getBaseUrl()}/api/social-proof`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const { items } = (await res.json()) as { items: SocialProofItem[] };
     return items ?? [];
