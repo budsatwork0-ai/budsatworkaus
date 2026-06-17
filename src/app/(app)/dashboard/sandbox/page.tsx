@@ -12,7 +12,16 @@ import { deriveManualSummary, historyRowToPackResult } from './_lib/results';
 import { packLabel, scenariosForPack } from './_lib/run-packs';
 import { AgentDetailDrawer, ScenarioResultDrawer } from './_components/SandboxDrawers';
 import { AgentsTab, DoctorTab, InfrastructureTab, LearningTab, OverviewTab, RunTab } from './_components/SandboxTabs';
+import { WorkshopTab } from './_components/WorkshopTab';
 import type { AgentIntegrityReport } from './_lib/types';
+import {
+  advanceWorkshopQueue,
+  buildWorkshopState,
+  readWorkshopQueue,
+  writeWorkshopQueue,
+  WORKSHOP_QUEUE_DEFAULT,
+  type PersistedWorkshopQueue,
+} from './_lib/workshop';
 import { ExecutiveCommandStrip, ExecutiveSummary, PackRunConfirmationDialog } from './_components/RunControls';
 import { Alert, RunStatusPanel } from './_components/ui';
 
@@ -38,7 +47,8 @@ export default function SandboxPage() {
   const [sandboxLoading, setSandboxLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<OperationsTab>('overview');
+  const [activeTab, setActiveTab] = useState<OperationsTab>('workshop');
+  const [workshopQueue, setWorkshopQueue] = useState<PersistedWorkshopQueue | null>(null);
   const [agentFilter, setAgentFilter] = useState<FleetBucket | 'all'>('all');
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState<PackResult | null>(null);
@@ -156,9 +166,9 @@ export default function SandboxPage() {
     }
   }, [activeTab, loadSandbox]);
 
-  // Lazy-load integrity reports the first time the Doctor tab opens.
+  // Lazy-load integrity reports the first time the Doctor or Workshop tab opens.
   useEffect(() => {
-    if (activeTab === 'doctor' && !integrityInitializedRef.current) {
+    if ((activeTab === 'doctor' || activeTab === 'workshop') && !integrityInitializedRef.current) {
       integrityInitializedRef.current = true;
       fetch('/api/sandbox/integrity', { cache: 'no-store' })
         .then((res) => res.json())
@@ -166,6 +176,11 @@ export default function SandboxPage() {
         .catch((err) => setError(err instanceof Error ? err.message : String(err)));
     }
   }, [activeTab]);
+
+  // Initialise Workshop queue from localStorage on mount (client-only).
+  useEffect(() => {
+    setWorkshopQueue(readWorkshopQueue());
+  }, []);
 
   const activeRootCauses = useMemo(() => health?.activeRootCauses ?? health?.rootCauses ?? [], [health]);
   const resolvedRootCauses = useMemo(() => health?.resolvedRootCauses ?? [], [health]);
@@ -225,6 +240,18 @@ export default function SandboxPage() {
 
   const [agentIntegrityReports, setAgentIntegrityReports] = useState<AgentIntegrityReport[] | null>(null);
   const integrityInitializedRef = useRef(false);
+
+  const workshopState = useMemo(
+    () =>
+      buildWorkshopState({
+        persistedQueue: workshopQueue,
+        health,
+        lessons: lessons ?? [],
+        integrityReports: agentIntegrityReports ?? [],
+        agentRows: agents,
+      }),
+    [workshopQueue, health, lessons, agentIntegrityReports, agents],
+  );
 
   const filteredScenarios = useMemo(() => {
     const query = scenarioSearch.trim().toLowerCase();
@@ -689,7 +716,7 @@ export default function SandboxPage() {
       ) : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-[#dfe9e2]">
-        {(['overview', 'run', 'agents', 'learning', 'infrastructure', 'doctor'] as OperationsTab[]).map((tab) => (
+        {(['workshop', 'overview', 'run', 'agents', 'learning', 'infrastructure', 'doctor'] as OperationsTab[]).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -797,6 +824,57 @@ export default function SandboxPage() {
             Loading integrity reports…
           </div>
         )
+      ) : null}
+
+      {activeTab === 'workshop' ? (
+        <WorkshopTab
+          workshopState={workshopState}
+          integrityReports={agentIntegrityReports}
+          health={health}
+          lessons={lessons ?? []}
+          agentRows={agents}
+          isBusy={isBusy}
+          onActivateAgent={(agentId) => {
+            const next: PersistedWorkshopQueue = {
+              version: 1,
+              activeAgentId: agentId,
+              statusOverrides: workshopQueue?.statusOverrides ?? {},
+              customOrder: workshopQueue?.customOrder,
+            };
+            writeWorkshopQueue(next);
+            setWorkshopQueue(next);
+          }}
+          onMoveToBacklog={(agentId) => {
+            const next: PersistedWorkshopQueue = {
+              version: 1,
+              activeAgentId: workshopQueue?.activeAgentId ?? (WORKSHOP_QUEUE_DEFAULT[0] as string),
+              statusOverrides: { ...(workshopQueue?.statusOverrides ?? {}), [agentId]: 'backlog' },
+              customOrder: workshopQueue?.customOrder,
+            };
+            writeWorkshopQueue(next);
+            setWorkshopQueue(next);
+          }}
+          onAdvanceWorkshop={() => {
+            const next = advanceWorkshopQueue(workshopQueue, workshopState);
+            writeWorkshopQueue(next);
+            setWorkshopQueue(next);
+          }}
+          onRunTests={() => {
+            setScenarioSearch(workshopState.activeAgentId);
+            setActiveTab('run');
+          }}
+          onViewDoctor={() => setActiveTab('doctor')}
+          onReorderQueue={(newOrder) => {
+            const next: PersistedWorkshopQueue = {
+              version: 1,
+              activeAgentId: workshopQueue?.activeAgentId ?? (WORKSHOP_QUEUE_DEFAULT[0] as string),
+              statusOverrides: workshopQueue?.statusOverrides ?? {},
+              customOrder: newOrder,
+            };
+            writeWorkshopQueue(next);
+            setWorkshopQueue(next);
+          }}
+        />
       ) : null}
 
       {selectedAgent ? (

@@ -19,7 +19,7 @@ export type SandboxData = {
   };
 };
 
-export type OperationsTab = 'overview' | 'run' | 'agents' | 'learning' | 'infrastructure' | 'doctor';
+export type OperationsTab = 'workshop' | 'overview' | 'run' | 'agents' | 'learning' | 'infrastructure' | 'doctor';
 
 export type AgentIntegrityStatus =
   | 'ready_to_promote'
@@ -367,3 +367,58 @@ export type OperatorIntelligence = {
 export type TabTarget = 'learning' | 'agents' | 'run';
 
 export type SandboxScenario = SandboxScenarioTemplate;
+
+// ── Workshop types ──────────────────────────────────────────────────────────
+
+/** Operator-visible lifecycle state of an agent in the Workshop queue. */
+export type WorkshopQueueStatus = 'active' | 'pending' | 'certified' | 'backlog';
+
+/**
+ * Derived certification signal for a Workshop queue item.
+ * Always computed from existing Sandbox health/integrity data — never stored.
+ */
+export type WorkshopCertificationStatus = 'certified' | 'blocked' | 'in_progress';
+
+/** A single entry in the Workshop queue. */
+export type WorkshopQueueItem = {
+  agentId: string;
+  /** 1-based position in the default queue order. */
+  position: number;
+  /** Operator-facing status (active = currently being worked on). */
+  status: WorkshopQueueStatus;
+  /** Data-derived certification gate. */
+  certificationStatus: WorkshopCertificationStatus;
+};
+
+/** Per-agent progress metrics surfaced to the operator in Workshop mode. */
+export type ActiveAgentProgress = {
+  /** 0–100 from AgentIntegrityReport.integrityScore (0 when no data). */
+  readinessPercentage: number;
+  /** Pass rate from the most recent batch run, null if no runs yet. */
+  passRate: number | null;
+  /** Number of active blockers on the agent row. */
+  blockerCount: number;
+  /** Open (unresolved) lesson count for this agent. */
+  openLessons: number;
+  /** Active root cause count for this agent. */
+  openRootCauses: number;
+  /** Single recommended next action string. */
+  nextAction: string;
+  /** Human-readable rough effort estimate. */
+  estimatedWork: string;
+};
+
+/** Top-level Workshop state derived on each page load. */
+export type WorkshopState = {
+  queue: WorkshopQueueItem[];
+  /** ID of the agent currently under active Workshop focus. */
+  activeAgentId: string;
+  /** Progress metrics for the active agent. */
+  activeAgentProgress: ActiveAgentProgress;
+  /** How many queue items have reached 'certified'. */
+  certifiedCount: number;
+  /** Total queue items (length of WORKSHOP_QUEUE_DEFAULT). */
+  totalCount: number;
+  /** certifiedCount / totalCount × 100, rounded. */
+  completionPercentage: number;
+};
