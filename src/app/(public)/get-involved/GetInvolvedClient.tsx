@@ -7,17 +7,20 @@ import type { FundraisingItem } from '@/app/api/fundraising/route';
 import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
 import type { SocialProofItem } from '@/app/api/social-proof/route';
 
-const g = {
+const c = {
   green: '#003A34',
+  forest: '#082C25',
   leaf: '#1C7C54',
+  mint: '#DDF0E6',
   mustard: '#E7A637',
+  paper: '#FFF9EB',
   cream: '#FAF0D9',
-  soft: '#FFF9EB',
   ink: '#12261E',
   muted: '#52645D',
+  line: 'rgba(0,58,52,0.14)',
 };
 
-const HERO_ALT = 'Buds At Work team after a window cleaning job.';
+const HERO_ALT = 'Jackson and Silvan after a Buds At Work window cleaning job.';
 
 interface Props {
   items: FundraisingItem[];
@@ -35,7 +38,7 @@ function formatAUD(cents: number) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return 'Date pending';
+  if (!value) return 'Recent update';
   return new Intl.DateTimeFormat('en-AU', { month: 'short', day: 'numeric', year: 'numeric' }).format(
     new Date(value)
   );
@@ -43,8 +46,16 @@ function formatDate(value: string | null) {
 
 function Arrow({ className = 'h-4 w-4' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className={className} aria-hidden="true">
       <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-4 w-4" aria-hidden="true">
+      <path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -57,19 +68,40 @@ function PlayIcon() {
   );
 }
 
+function ActionIcon({ type }: { type: 'hire' | 'equipment' | 'training' | 'experience' | 'shift' }) {
+  const paths: Record<typeof type, React.ReactNode> = {
+    hire: <path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Zm4 0V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M8 13h8" />,
+    equipment: <path d="M6 19V8l6-4 6 4v11M9 19v-7h6v7M4 19h16" />,
+    training: <path d="M4 7l8-4 8 4-8 4-8-4Zm3 4v4c0 1.7 2.2 3 5 3s5-1.3 5-3v-4" />,
+    experience: <path d="M7 20V6a2 2 0 0 1 2-2h9v16M4 20h17M11 9h3M11 13h3" />,
+    shift: <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-6 w-6" aria-hidden="true">
+      {paths[type]}
+    </svg>
+  );
+}
+
 function ProgressBar({ raised, goal }: { raised: number; goal: number }) {
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  const remaining = Math.max(0, goal - raised);
+  const funded = goal > 0 && raised >= goal;
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 text-sm font-semibold" style={{ color: g.green }}>
-        <span>{formatAUD(raised)} raised</span>
-        <span className="text-xs" style={{ color: g.muted }}>
+      <div className="flex items-center justify-between gap-3 text-sm font-black" style={{ color: c.green }}>
+        <span>{raised === 0 ? '$0 raised so far' : funded ? 'Funded' : `${formatAUD(raised)} raised`}</span>
+        <span className="text-xs" style={{ color: c.muted }}>
           {pct}% of {formatAUD(goal)}
         </span>
       </div>
-      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#E7E0CA]">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: g.mustard }} />
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#E7E0CA]">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: c.mustard }} />
       </div>
+      <p className="mt-2 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>
+        {funded ? 'Fully funded' : `${formatAUD(remaining)} remaining`}
+      </p>
     </div>
   );
 }
@@ -115,27 +147,27 @@ function SocialVideoCard({ item, featured = false }: { item: SocialProofItem; fe
 
   return (
     <article
-      className={`relative flex min-h-[360px] snap-center flex-col overflow-hidden rounded-[8px] border bg-white shadow-[0_18px_45px_rgba(0,58,52,0.10)] ${
-        featured ? 'md:min-h-[460px]' : ''
+      className={`relative flex snap-start flex-col overflow-hidden rounded-[8px] border bg-white shadow-[0_24px_60px_rgba(0,58,52,0.12)] ${
+        featured ? 'min-h-[520px]' : 'min-h-[410px]'
       }`}
-      style={{ borderColor: 'rgba(0,58,52,0.10)' }}
+      style={{ borderColor: c.line }}
     >
-      <div className="relative flex-1 bg-[#0B1F1A]">
+      <div className="relative flex-1 bg-[#071A16]">
         {loaded && embedUrl ? (
           <iframe
             src={embedUrl}
             title={item.title}
             loading="lazy"
             allow="fullscreen; clipboard-write; encrypted-media; picture-in-picture"
-            className="h-full min-h-[300px] w-full border-0"
+            className="h-full min-h-[330px] w-full border-0"
           />
         ) : (
           <a
             href={item.source_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group block h-full min-h-[300px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{ outlineColor: g.mustard }}
+            className="group block h-full min-h-[330px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: c.mustard }}
             onClick={(event) => {
               if (!embedUrl) return;
               event.preventDefault();
@@ -144,11 +176,13 @@ function SocialVideoCard({ item, featured = false }: { item: SocialProofItem; fe
           >
             {item.thumbnail_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.thumbnail_url} alt="" className="h-full min-h-[300px] w-full object-cover opacity-90 transition group-hover:scale-[1.02]" />
+              <img src={item.thumbnail_url} alt="" className="h-full min-h-[330px] w-full object-cover opacity-95 transition duration-500 group-hover:scale-[1.02]" />
             ) : (
-              <div className="flex h-full min-h-[300px] items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(231,166,55,0.24),transparent_34%),linear-gradient(145deg,#003A34,#0B1F1A)]" />
+              <div className="flex h-full min-h-[330px] items-center justify-center bg-[#071A16]">
+                <span className="text-sm font-black uppercase tracking-[0.18em] text-white/55">{PLATFORM_LABELS[item.platform]}</span>
+              </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/18 to-transparent" />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#003A34] shadow-lg transition group-hover:scale-105">
                 <PlayIcon />
@@ -158,15 +192,106 @@ function SocialVideoCard({ item, featured = false }: { item: SocialProofItem; fe
         )}
       </div>
       <div className="p-5">
-        <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em]" style={{ color: g.leaf }}>
+        <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>
           <span>{PLATFORM_LABELS[item.platform]}</span>
           <time dateTime={item.posted_at ?? undefined}>{formatDate(item.posted_at)}</time>
         </div>
-        <h3 className="mt-3 text-lg font-black leading-tight" style={{ color: g.green }}>
+        <h3 className="mt-3 text-lg font-black leading-tight" style={{ color: c.green }}>
           {item.title}
         </h3>
       </div>
     </article>
+  );
+}
+
+function SectionIntro({
+  eyebrow,
+  title,
+  body,
+  light = false,
+}: {
+  eyebrow: string;
+  title: string;
+  body?: string;
+  light?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: light ? c.cream : c.leaf }}>
+        {eyebrow}
+      </p>
+      <h2 className={`mt-3 text-3xl font-black leading-tight md:text-5xl ${light ? 'text-white' : ''}`} style={light ? undefined : { color: c.green }}>
+        {title}
+      </h2>
+      {body && (
+        <p className={`mt-4 max-w-2xl text-lg leading-8 ${light ? 'text-white/76' : ''}`} style={light ? undefined : { color: c.muted }}>
+          {body}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EmptySocialFallback() {
+  return (
+    <div className="mt-10 flex flex-col gap-4 border-y py-8 md:flex-row md:items-center md:justify-between" style={{ borderColor: c.line }}>
+      <p className="max-w-xl text-base leading-7" style={{ color: c.muted }}>
+        Follow the latest job updates directly on Buds At Work social channels while new featured videos are selected.
+      </p>
+      <SocialLinks />
+    </div>
+  );
+}
+
+function SocialLinks() {
+  return (
+    <div className="flex flex-wrap gap-2 text-sm font-black" style={{ color: c.green }}>
+      <a href="https://www.tiktok.com/@buds.at.work" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>TikTok</a>
+      <a href="https://www.instagram.com/budsatwork_aus" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>Instagram</a>
+      <a href="https://www.facebook.com/people/Buds-At-Work/61579013228527/" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>Facebook</a>
+    </div>
+  );
+}
+
+function Milestone({
+  status,
+  title,
+  detail,
+  value,
+}: {
+  status: 'done' | 'current' | 'next';
+  title: string;
+  detail: string;
+  value?: number;
+}) {
+  const isDone = status === 'done';
+  const isCurrent = status === 'current';
+
+  return (
+    <li className="relative flex gap-4 pb-8 last:pb-0">
+      <span className="absolute left-[17px] top-9 h-full w-px bg-[#D8E4DA] last:hidden" aria-hidden="true" />
+      <span
+        className="relative z-10 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-black"
+        style={{
+          background: isDone ? c.green : isCurrent ? c.mustard : '#fff',
+          borderColor: isDone || isCurrent ? 'transparent' : c.line,
+          color: isDone || isCurrent ? '#fff' : c.green,
+        }}
+      >
+        {isDone ? <CheckIcon /> : isCurrent ? '→' : '•'}
+      </span>
+      <div className="pt-1">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h3 className="text-lg font-black leading-tight" style={{ color: c.green }}>{title}</h3>
+          {typeof value === 'number' && (
+            <span className="text-sm font-black" style={{ color: c.leaf }}>
+              {value.toLocaleString()}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-sm leading-6" style={{ color: c.muted }}>{detail}</p>
+      </div>
+    </li>
   );
 }
 
@@ -177,6 +302,7 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
 
   const featuredSocial = socialItems.find((item) => item.is_featured) ?? socialItems[0];
   const previewSocial = socialItems.filter((item) => item.id !== featuredSocial?.id);
+  const featuredItems = [...items].sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
 
   async function handleDonate(amountCents: number) {
     if (donating) return;
@@ -196,27 +322,62 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
   }
 
   function handleItemCTA(item: FundraisingItem) {
+    if (item.is_funded) {
+      setShowSponsorModal(true);
+      return;
+    }
     if (item.payment_url) window.open(item.payment_url, '_blank', 'noopener,noreferrer');
     else setShowSponsorModal(true);
   }
 
-  const impactMetrics = [
-    { value: stats.participants_supported, label: 'Participants supported' },
-    { value: stats.paid_jobs_completed, label: 'Paid jobs completed' },
-    { value: stats.training_hours_delivered, label: 'Training hours delivered' },
-    { value: stats.employment_opportunities_created, label: 'Employment opportunities created' },
+  const nextJobsTarget = 10;
+  const currentPaidJobs = stats.paid_jobs_completed ?? 0;
+  const remainingJobs = Math.max(0, nextJobsTarget - currentPaidJobs);
+
+  const otherWays = [
+    {
+      icon: 'hire' as const,
+      title: 'Hire Buds At Work',
+      body: 'Book window cleaning, lawn care, cleaning or property work and turn a real local job into a paid shift.',
+      cta: 'Book A Job',
+      href: '/services',
+    },
+    {
+      icon: 'equipment' as const,
+      title: 'Donate Equipment',
+      body: 'Contribute tools, safety gear, cleaning supplies or transport support that increases job capacity.',
+      cta: 'Offer Equipment',
+    },
+    {
+      icon: 'training' as const,
+      title: 'Become A Training Partner',
+      body: 'Share practical skills, safety routines or workplace knowledge that helps participants grow on the job.',
+      cta: 'Partner With Us',
+    },
+    {
+      icon: 'experience' as const,
+      title: 'Offer Workplace Experience',
+      body: 'Open a structured, supported environment where people can learn routines and build confidence.',
+      cta: 'Start A Conversation',
+    },
+    {
+      icon: 'shift' as const,
+      title: 'Sponsor A Shift',
+      body: 'Fund a practical work opportunity that covers resources, supervision and the support around the job.',
+      cta: 'Sponsor A Shift',
+    },
   ];
 
   return (
     <div className="-mx-4 -mt-8 overflow-hidden bg-white md:-mx-8 md:-mt-10">
-      <section className="relative isolate flex min-h-[82svh] items-end overflow-hidden px-4 pb-12 pt-32 md:px-8 md:pb-16" style={{ backgroundColor: g.green }}>
+      <section className="relative isolate min-h-[88svh] overflow-hidden px-4 pb-10 pt-28 md:px-8 md:pb-14 md:pt-36" style={{ backgroundColor: c.green }}>
         {heroImageUrl && !heroMissing && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={heroImageUrl}
             alt={HERO_ALT}
             onError={() => setHeroMissing(true)}
-            className="absolute inset-0 -z-20 h-full w-full scale-105 object-cover object-center opacity-70"
+            className="absolute inset-0 -z-20 h-full w-full scale-[1.02] object-cover object-[58%_center] opacity-80 md:object-center"
           />
         )}
         <div
@@ -224,128 +385,211 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
           className="absolute inset-0 -z-10"
           style={{
             background:
-              'linear-gradient(90deg, rgba(0,58,52,0.98) 0%, rgba(0,58,52,0.88) 48%, rgba(0,58,52,0.55) 100%), linear-gradient(0deg, rgba(0,58,52,0.98) 0%, rgba(0,58,52,0.10) 64%)',
+              'linear-gradient(90deg, rgba(0,58,52,0.98) 0%, rgba(0,58,52,0.90) 45%, rgba(0,58,52,0.35) 100%), linear-gradient(0deg, rgba(0,58,52,1) 0%, rgba(0,58,52,0.08) 60%)',
           }}
         />
 
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto flex min-h-[calc(88svh-9rem)] w-full max-w-6xl flex-col justify-end">
           <div className="max-w-3xl">
-            <p className="text-xs font-bold uppercase tracking-[0.22em]" style={{ color: g.cream }}>
-              Buds At Work - Logan & South Brisbane
+            <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: c.cream }}>
+              Creating Real Paid Work Opportunities
             </p>
             <h1 className="mt-4 text-5xl font-black leading-[0.96] text-white md:text-7xl lg:text-8xl">
-              Help Create The Next Paid Shift
+              From First Shift To First Career
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-white/86 md:text-xl">
-              Buds At Work creates practical paid work opportunities for people with disabilities through local jobs, training, equipment and support.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-white/88 md:text-xl">
+              Buds At Work helps people with disabilities build confidence, skills and income through real local jobs across Logan and South Brisbane.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#wishlist" className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-7 py-3 text-sm font-black shadow-[0_18px_36px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: g.mustard, color: g.green }}>
-                Fund The Next Shift
+              <a href="#wishlist" className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-7 py-3 text-sm font-black shadow-[0_18px_36px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: c.mustard, color: c.green }}>
+                Support The Next Opportunity
                 <Arrow />
               </a>
-              <a href="#wishlist" className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-white/50 bg-white/12 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-                See What We Need
+              <a href="#meet-silvan" className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-white/50 bg-white/12 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                Meet Silvan
               </a>
             </div>
           </div>
+
+          <div className="mt-12 grid gap-3 border-t border-white/20 pt-5 text-white sm:grid-cols-3">
+            <div>
+              <p className="text-3xl font-black">{(stats.participants_supported ?? 0).toLocaleString()}</p>
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-white/68">Participant supported</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black">{currentPaidJobs.toLocaleString()}</p>
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-white/68">Paid jobs completed</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black">{remainingJobs}</p>
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-white/68">Jobs to next milestone</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="px-4 py-10 md:px-8" style={{ background: g.soft }}>
-        <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {impactMetrics.map((metric) => (
-            <div key={metric.label} className="rounded-[8px] border bg-white p-5" style={{ borderColor: 'rgba(0,58,52,0.10)' }}>
-              <div className="text-4xl font-black leading-none" style={{ color: g.green }}>
-                {metric.value != null ? metric.value.toLocaleString() : '-'}
-              </div>
-              <div className="mt-2 text-xs font-bold uppercase leading-5 tracking-[0.12em]" style={{ color: g.muted }}>
-                {metric.label}
+      <section id="meet-silvan" className="px-4 py-18 md:px-8 md:py-24" style={{ background: c.paper }}>
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="relative overflow-hidden rounded-[8px] bg-[#0B1F1A] shadow-[0_30px_80px_rgba(0,58,52,0.18)]">
+            {heroImageUrl && !heroMissing ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={heroImageUrl} alt={HERO_ALT} className="aspect-[4/5] w-full object-cover object-[70%_center] md:aspect-[5/6]" />
+            ) : (
+              <div className="aspect-[4/5] w-full" style={{ background: c.green }} />
+            )}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-5">
+              <p className="text-sm font-bold leading-6 text-white/90">A real window cleaning job, a real customer, and a real paid work pathway beginning to form.</p>
+            </div>
+          </div>
+          <div>
+            <SectionIntro
+              eyebrow="Meet Silvan"
+              title="The work starts with one person, one shift and one practical win at a time."
+              body="Silvan is one of the first people being supported through Buds At Work. He is building confidence through hands-on routines, clear expectations and paid jobs that happen in the community."
+            />
+            <div className="mt-8 grid gap-4 border-y py-6 sm:grid-cols-2" style={{ borderColor: c.line }}>
+              <p className="text-base leading-7" style={{ color: c.muted }}>
+                The goal is not a token activity. It is useful work with real standards: turning up, learning the task, using the tools safely and finishing a job someone values.
+              </p>
+              <p className="text-base leading-7" style={{ color: c.muted }}>
+                Every piece of support helps create the environment around that work: equipment, training, supervision, transport and the next customer opportunity.
+              </p>
+            </div>
+            <p className="mt-6 text-xl font-black leading-8" style={{ color: c.green }}>
+              This is how a first shift can become the start of a first career.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-18 md:px-8 md:py-24" style={{ background: '#fff' }}>
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+          <SectionIntro
+            eyebrow="Progress So Far"
+            title="A pathway is being built in public."
+            body="The numbers matter because they represent visible movement: first support, first jobs, first tools and the next milestone."
+          />
+          <ol className="rounded-[8px] border bg-white p-6 shadow-[0_20px_60px_rgba(0,58,52,0.08)] md:p-8" style={{ borderColor: c.line }}>
+            <Milestone
+              status={(stats.participants_supported ?? 0) > 0 ? 'done' : 'current'}
+              title="First participant supported"
+              detail="Silvan is being supported through practical work routines and real job expectations."
+              value={stats.participants_supported}
+            />
+            <Milestone
+              status={currentPaidJobs > 0 ? 'done' : 'current'}
+              title="First paid jobs completed"
+              detail="Window cleaning and local service jobs are turning community demand into paid shifts."
+              value={currentPaidJobs}
+            />
+            <Milestone
+              status={(stats.employment_opportunities_created ?? 0) > 0 ? 'done' : 'current'}
+              title="Equipment purchased and opportunities created"
+              detail="Tools and supplies are being added as the work expands into more service types."
+              value={stats.employment_opportunities_created}
+            />
+            <Milestone
+              status="next"
+              title="Next milestone: 10 paid jobs"
+              detail="The next target is proving repeatable work, repeatable training and repeatable customer value."
+              value={nextJobsTarget}
+            />
+          </ol>
+        </div>
+      </section>
+
+      <section className="px-4 py-18 md:px-8 md:py-24" style={{ background: c.paper }}>
+        <div className="mx-auto max-w-6xl">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <SectionIntro
+              eyebrow="Real Work. Real Progress."
+              title="Watch the journey as it happens."
+              body="The social feed brings the work closer: jobs, training, customer moments and the everyday progress behind the pathway."
+            />
+            <SocialLinks />
+          </div>
+
+          {socialItems.length === 0 ? (
+            <EmptySocialFallback />
+          ) : (
+            <div className="mt-10 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+              {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
+              <div className="flex snap-x gap-5 overflow-x-auto pb-3 lg:grid lg:grid-cols-1 lg:overflow-visible lg:pb-0">
+                {previewSocial.map((item) => (
+                  <div key={item.id} className="min-w-[82vw] sm:min-w-[360px] lg:min-w-0">
+                    <SocialVideoCard item={item} />
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          )}
         </div>
       </section>
 
-      <section className="px-4 py-20 md:px-8 md:py-24" style={{ background: g.soft }}>
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: g.leaf }}>
-              Building Real Paid Work Pathways
-            </p>
-            <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl" style={{ color: g.green }}>
-              Local work that builds skills, income and confidence.
-            </h2>
-          </div>
-          <div className="space-y-5 text-lg leading-8" style={{ color: g.muted }}>
-            <p>
-              Buds At Work is building accessible paid work pathways around real community jobs: window cleaning, lawn care, support tasks, equipment handling and workplace routines.
-            </p>
-            <p>
-              Silvan is one of the first people being supported. The bigger goal is a repeatable pathway where more people with disabilities can learn, earn and contribute through practical local work.
-            </p>
-            <p className="font-bold" style={{ color: g.green }}>
-              You&apos;re not funding equipment — you&apos;re funding opportunity.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="wishlist" className="px-4 py-20 md:px-8 md:py-28" style={{ background: g.green }}>
+      <section id="wishlist" className="px-4 py-18 md:px-8 md:py-28" style={{ background: c.green }}>
         <div className="mx-auto max-w-6xl">
-          <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: g.cream }}>
-            What We&apos;re Raising Money For
-          </p>
-          <h2 className="mt-3 max-w-2xl text-3xl font-black leading-tight text-white md:text-5xl">
-            Fund the practical pieces that make paid shifts possible.
-          </h2>
-          <p className="mt-4 max-w-xl text-lg leading-8 text-white/75">
-            Every card is framed around employment outcomes: safer work, more training, better transport, and more paid job capacity.
-          </p>
+          <SectionIntro
+            eyebrow="Opportunities To Fund"
+            title="Fund the practical pieces that create more paid work."
+            body="Each wishlist item is connected to a work outcome: safer jobs, better training, larger service capacity or more shifts."
+            light
+          />
 
-          {items.length === 0 ? (
-            <div className="mt-12 rounded-[8px] border border-white/20 bg-white/10 p-10 text-center backdrop-blur-sm">
-              <p className="text-lg text-white/78">
-                New wishlist items are being prepared. Check back soon, or{' '}
-                <a href="mailto:hello@budsatwork.com" className="font-bold text-white underline">
-                  contact us
-                </a>{' '}
-                to help directly.
+          {featuredItems.length === 0 ? (
+            <div className="mt-10 border-y border-white/20 py-8">
+              <p className="max-w-2xl text-lg leading-8 text-white/78">
+                The next funding needs are being prepared. You can still support the work directly or start a conversation about equipment, jobs and training.
               </p>
+              <button type="button" onClick={() => setShowSponsorModal(true)} className="mt-6 inline-flex min-h-[48px] items-center gap-2 rounded-full px-7 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: c.mustard, color: c.green }}>
+                Start A Conversation
+                <Arrow />
+              </button>
             </div>
           ) : (
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {items.map((item) => (
-                <article key={item.id} className="flex flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_22px_60px_rgba(0,0,0,0.16)]">
+              {featuredItems.map((item) => (
+                <article key={item.id} className="group flex flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
                   {item.image_url ? (
-                    <div className="relative h-48 overflow-hidden">
+                    <div className="relative h-56 overflow-hidden bg-[#0B1F1A]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
+                      <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                      <span className="absolute left-4 top-4 rounded-full bg-white/92 px-3 py-1 text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.green }}>
+                        {CATEGORY_LABELS[item.category] ?? item.category}
+                      </span>
                     </div>
                   ) : (
-                    <div className="flex h-36 items-center justify-center" style={{ background: '#F5E5BF' }}>
-                      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: g.muted }}>
+                    <div className="flex h-36 items-center justify-center" style={{ background: c.cream }}>
+                      <span className="text-xs font-black uppercase tracking-[0.14em]" style={{ color: c.green }}>
                         {CATEGORY_LABELS[item.category] ?? item.category}
                       </span>
                     </div>
                   )}
                   <div className="flex flex-1 flex-col p-6">
-                    <span className="inline-block w-fit rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.12em]" style={{ background: '#F5E5BF', color: g.green }}>
-                      {CATEGORY_LABELS[item.category] ?? item.category}
-                    </span>
-                    <h3 className="mt-4 text-xl font-black leading-tight" style={{ color: g.green }}>
-                      {item.title}
-                    </h3>
-                    {item.short_reason && <p className="mt-3 flex-1 text-sm leading-7" style={{ color: g.muted }}>{item.short_reason}</p>}
-                    {item.who_it_helps && <p className="mt-4 text-xs font-bold uppercase tracking-[0.08em]" style={{ color: g.leaf }}>Helps: {item.who_it_helps}</p>}
-                    {item.employment_impact && <p className="mt-2 text-sm font-semibold leading-6" style={{ color: g.green }}>{item.employment_impact}</p>}
+                    <div className="flex items-start justify-between gap-4">
+                      <h3 className="text-2xl font-black leading-tight" style={{ color: c.green }}>
+                        {item.title}
+                      </h3>
+                      {item.goal_amount_cents > 0 && (
+                        <span className="shrink-0 text-sm font-black" style={{ color: c.leaf }}>
+                          {formatAUD(item.goal_amount_cents)}
+                        </span>
+                      )}
+                    </div>
+                    {item.short_reason && <p className="mt-4 text-sm leading-7" style={{ color: c.muted }}>{item.short_reason}</p>}
+                    <div className="mt-5 border-l-2 pl-4" style={{ borderColor: c.mustard }}>
+                      <p className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>How this creates paid work</p>
+                      <p className="mt-2 text-sm font-bold leading-6" style={{ color: c.green }}>
+                        {item.employment_impact || 'This helps Buds At Work turn community demand into practical paid shifts with the right equipment, training and support.'}
+                      </p>
+                    </div>
+                    {item.who_it_helps && <p className="mt-4 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>Supports: {item.who_it_helps}</p>}
                     {item.goal_amount_cents > 0 && (
                       <div className="mt-5">
                         <ProgressBar raised={item.raised_amount_cents} goal={item.goal_amount_cents} />
                       </div>
                     )}
-                    <button type="button" onClick={() => handleItemCTA(item)} className="mt-6 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: g.green, color: '#fff' }}>
-                      {item.cta_label}
+                    <button type="button" onClick={() => handleItemCTA(item)} className="mt-6 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: item.is_funded ? c.leaf : c.green, color: '#fff' }}>
+                      {item.is_funded ? 'Funded' : item.cta_label || 'Help Fund This'}
                       <Arrow />
                     </button>
                   </div>
@@ -356,77 +600,49 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
         </div>
       </section>
 
-      <section className="px-4 py-20 md:px-8 md:py-28" style={{ background: '#fff' }}>
-        <div className="mx-auto max-w-6xl">
-          <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: g.leaf }}>
-            Real Work. Real Progress.
-          </p>
-          <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-3xl font-black leading-tight md:text-5xl" style={{ color: g.green }}>
-                Every job, lesson and milestone is shared as it happens.
-              </h2>
-              <p className="mt-4 max-w-2xl text-lg leading-8" style={{ color: g.muted }}>
-                Follow the real work through Buds At Work videos, reels and short-form updates from the job.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm font-bold" style={{ color: g.green }}>
-              <a href="https://www.tiktok.com/@buds.at.work" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 hover:bg-[#F1F7F3]">TikTok</a>
-              <a href="https://www.instagram.com/budsatwork_aus" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 hover:bg-[#F1F7F3]">Instagram</a>
-              <a href="https://www.facebook.com/people/Buds-At-Work/61579013228527/" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 hover:bg-[#F1F7F3]">Facebook</a>
-            </div>
+      <section className="px-4 py-18 md:px-8 md:py-24" style={{ background: '#fff' }}>
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+          <SectionIntro
+            eyebrow="Why We Started"
+            title="Many people want paid work. The opportunity is the missing piece."
+            body="Buds At Work was created to bridge that gap through practical jobs, community support and real employment pathways."
+          />
+          <div className="space-y-5 text-lg leading-8" style={{ color: c.muted }}>
+            <p>
+              Buds At Work is not a charity. It is a practical employment pathway built around useful services local customers already need.
+            </p>
+            <p>
+              Window cleaning, lawn mowing, property maintenance, cleaning and community work can become structured opportunities where people learn, earn and contribute.
+            </p>
+            <p className="font-black" style={{ color: c.green }}>
+              The support around the job is what makes the work possible.
+            </p>
           </div>
-
-          {socialItems.length === 0 ? (
-            <div className="mt-10 rounded-[8px] border p-8" style={{ borderColor: 'rgba(0,58,52,0.12)', background: g.soft }}>
-              <p className="text-base leading-7" style={{ color: g.muted }}>
-                New videos are being selected for this page. Follow Buds At Work on TikTok, Instagram or Facebook for the latest updates.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-10 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-              {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
-              <div className="flex snap-x gap-5 overflow-x-auto pb-3 lg:grid lg:grid-cols-1 lg:overflow-visible lg:pb-0">
-                {previewSocial.length > 0 ? previewSocial.map((item) => (
-                  <div key={item.id} className="min-w-[82vw] sm:min-w-[360px] lg:min-w-0">
-                    <SocialVideoCard item={item} />
-                  </div>
-                )) : (
-                  <div className="rounded-[8px] border p-6 text-sm leading-6" style={{ borderColor: 'rgba(0,58,52,0.12)', color: g.muted }}>
-                    Add more featured videos in the fundraising admin area to fill the carousel.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
-      <section id="ways-to-help" className="px-4 py-20 md:px-8 md:py-28" style={{ background: g.soft }}>
+      <section id="ways-to-help" className="px-4 py-18 md:px-8 md:py-24" style={{ background: c.paper }}>
         <div className="mx-auto max-w-6xl">
-          <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: g.leaf }}>
-            Other Ways To Help
-          </p>
-          <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl" style={{ color: g.green }}>
-            Support the pathway around the paid work.
-          </h2>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { title: 'Donate Equipment', body: 'Donate tools, safety gear or supplies that increase job capacity.', cta: 'Donate Equipment' },
-              { title: 'Hire Buds At Work', body: 'Book local work and create practical paid shifts in the community.', cta: 'Book a Job', href: '/services' },
-              { title: 'Partner With Us', body: 'Refer work, host training, sponsor shifts or open a pathway.', cta: 'Get in Touch' },
-              { title: 'Share Skills', body: 'Provide mentoring, training or workplace experience for participants.', cta: 'Get Involved' },
-            ].map((card) => (
-              <article key={card.title} className="flex flex-col rounded-[8px] border bg-white p-6 shadow-[0_18px_45px_rgba(0,58,52,0.08)]" style={{ borderColor: 'rgba(0,58,52,0.1)' }}>
-                <h3 className="text-xl font-black" style={{ color: g.green }}>{card.title}</h3>
-                <p className="mt-3 flex-1 text-sm leading-7" style={{ color: g.muted }}>{card.body}</p>
+          <SectionIntro
+            eyebrow="Other Ways To Help"
+            title="Support the pathway from more than one angle."
+            body="The strongest support is often practical: work to do, tools to use, people to learn from and shifts worth showing up for."
+          />
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {otherWays.map((card) => (
+              <article key={card.title} className="flex min-h-[280px] flex-col rounded-[8px] border bg-white p-5 shadow-[0_18px_45px_rgba(0,58,52,0.08)]" style={{ borderColor: c.line }}>
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full" style={{ background: c.mint, color: c.green }}>
+                  <ActionIcon type={card.icon} />
+                </div>
+                <h3 className="mt-5 text-lg font-black leading-tight" style={{ color: c.green }}>{card.title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-6" style={{ color: c.muted }}>{card.body}</p>
                 {card.href ? (
-                  <Link href={card.href} className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: g.green, color: '#fff' }}>
+                  <Link href={card.href} className="mt-5 inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: c.green, color: '#fff' }}>
                     {card.cta}
                     <Arrow />
                   </Link>
                 ) : (
-                  <button type="button" onClick={() => setShowSponsorModal(true)} className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: g.green, color: '#fff' }}>
+                  <button type="button" onClick={() => setShowSponsorModal(true)} className="mt-5 inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: c.green, color: '#fff' }}>
                     {card.cta}
                     <Arrow />
                   </button>
@@ -437,28 +653,35 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
         </div>
       </section>
 
-      <section className="relative overflow-hidden px-4 py-24 text-center md:px-8 md:py-32" style={{ background: g.green }}>
+      <section className="relative overflow-hidden px-4 py-24 md:px-8 md:py-32" style={{ background: c.forest }}>
         {heroImageUrl && !heroMissing && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-15" />
+          <img src={heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-18" />
         )}
-        <div className="relative mx-auto max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-[0.22em]" style={{ color: g.cream }}>
-            Help create the next paid shift
-          </p>
-          <h2 className="mt-4 text-4xl font-black leading-tight text-white md:text-6xl">
-            Practical support turns into real paid work.
-          </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/80">
-            Contributions help Buds At Work create more accessible opportunities for people with disabilities to learn, earn and build confidence through local jobs.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <a href="#wishlist" className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-8 py-3 text-sm font-black shadow-[0_18px_36px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: g.mustard, color: g.green }}>
-              Fund A Wishlist Item
+        <div className="absolute inset-0 bg-gradient-to-r from-[#082C25] via-[#082C25]/92 to-[#082C25]/70" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-6xl gap-8 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: c.cream }}>
+              Help Create The Next Opportunity
+            </p>
+            <h2 className="mt-4 max-w-3xl text-4xl font-black leading-tight text-white md:text-6xl">
+              Every contribution helps create more practical paid work opportunities.
+            </h2>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-white/78">
+              Support the equipment, training and resources that let people build confidence, skills and income through real local jobs.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
+            <a href="#wishlist" className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-black shadow-[0_18px_36px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: c.mustard, color: c.green }}>
+              Support A Wishlist Item
               <Arrow />
             </a>
-            <button type="button" onClick={() => handleDonate(5000)} disabled={donating} className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-white/50 bg-white/12 px-8 py-3 text-sm font-black text-white backdrop-blur-sm transition-transform hover:-translate-y-0.5 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-              Donate $50
+            <Link href="/services" className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/50 bg-white/12 px-8 py-3 text-sm font-black text-white backdrop-blur-sm transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+              Book A Job
+              <Arrow />
+            </Link>
+            <button type="button" onClick={() => handleDonate(5000)} disabled={donating} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/35 px-8 py-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+              Support $50
             </button>
           </div>
         </div>

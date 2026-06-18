@@ -39,6 +39,57 @@ async function logAudit(
   }
 }
 
+async function upsertFundraisingContribution(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any,
+  eventId: string,
+  payload: {
+    fundraisingItemId?: string | null;
+    amountCents: number;
+    currency?: string | null;
+    paymentReference?: string | null;
+    payerName?: string | null;
+    payerEmail?: string | null;
+    status: 'pending' | 'paid' | 'failed' | 'refunded';
+    paidAt?: string | null;
+  }
+) {
+  if (!payload.fundraisingItemId || !payload.paymentReference) return false;
+
+  await client
+    .from('fundraising_contributions')
+    .upsert([{
+      fundraising_item_id: payload.fundraisingItemId,
+      amount_cents: Math.max(0, Math.round(payload.amountCents)),
+      currency: (payload.currency ?? 'aud').toLowerCase(),
+      payment_provider: 'stripe',
+      payment_reference: payload.paymentReference,
+      stripe_event_id: eventId,
+      payer_name: payload.payerName ?? null,
+      payer_email: payload.payerEmail ?? null,
+      status: payload.status,
+      paid_at: payload.paidAt ?? null,
+    }], { onConflict: 'payment_provider,payment_reference' });
+
+  return true;
+}
+
+async function markFundraisingContributionRefunded(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any,
+  paymentReference: string,
+  eventId: string
+) {
+  await client
+    .from('fundraising_contributions')
+    .update({
+      status: 'refunded',
+      stripe_event_id: eventId,
+    })
+    .eq('payment_provider', 'stripe')
+    .eq('payment_reference', paymentReference);
+}
+
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -68,6 +119,26 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        const fundraisingItemId = session.metadata?.fundraising_item_id;
+        if (fundraisingItemId) {
+          await upsertFundraisingContribution(client, event.id, {
+            fundraisingItemId,
+            amountCents: session.amount_total ?? 0,
+            currency: session.currency,
+            paymentReference: typeof session.payment_intent === 'string' ? session.payment_intent : session.id,
+            payerName: session.customer_details?.name ?? null,
+            payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
+            status: 'paid',
+            paidAt: new Date().toISOString(),
+          });
+          logAudit(client, 'fundraising_item', fundraisingItemId, 'contribution_paid', {
+            stripe_session_id: session.id,
+            payment_intent: session.payment_intent,
+            amount_cents: session.amount_total ?? 0,
+          });
+          break;
+        }
+
         const orderId = session.metadata?.order_id;
         const quoteId = session.metadata?.quote_id;
 
@@ -317,6 +388,19 @@ export async function POST(req: NextRequest) {
 
       case 'payment_intent.payment_failed': {
         const failedPi = event.data.object as Stripe.PaymentIntent;
+        const fundraisingItemId = failedPi.metadata?.fundraising_item_id;
+        if (fundraisingItemId) {
+          await upsertFundraisingContribution(client, event.id, {
+            fundraisingItemId,
+            amountCents: failedPi.amount,
+            currency: failedPi.currency,
+            paymentReference: failedPi.id,
+            status: 'failed',
+            paidAt: null,
+          });
+          break;
+        }
+
         const metadataOrderId = failedPi.metadata?.order_id;
         const metadataQuoteId = failedPi.metadata?.quote_id;
 
@@ -394,6 +478,19 @@ export async function POST(req: NextRequest) {
         // arrive before checkout.session.completed. Resolve via the
         // PaymentIntent metadata copied during Checkout Session creation.
         const pi = event.data.object as Stripe.PaymentIntent;
+        const fundraisingItemId = pi.metadata?.fundraising_item_id;
+        if (fundraisingItemId) {
+          await upsertFundraisingContribution(client, event.id, {
+            fundraisingItemId,
+            amountCents: pi.amount_received || pi.amount,
+            currency: pi.currency,
+            paymentReference: pi.id,
+            status: 'paid',
+            paidAt: new Date().toISOString(),
+          });
+          break;
+        }
+
         const metadataOrderId = pi.metadata?.order_id;
         const metadataQuoteId = pi.metadata?.quote_id;
 
@@ -478,6 +575,10 @@ export async function POST(req: NextRequest) {
         const paymentIntentId = charge.payment_intent as string;
 
         if (!paymentIntentId) break;
+
+        if (charge.metadata?.fundraising_item_id || charge.payment_intent) {
+          await markFundraisingContributionRefunded(client, paymentIntentId, event.id);
+        }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: refundOrder } = await (client as any)

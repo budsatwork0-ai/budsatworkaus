@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import type { FundraisingItem } from '../route';
+import { attachFundraisingTotals } from '@/lib/fundraising/totals';
 
 // GET /api/fundraising/[id] — admin only, returns any item regardless of status
 export async function GET(
@@ -34,7 +35,17 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
-  return NextResponse.json({ item: data });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: contributions, error: contributionsError } = await (client as any)
+    .from('fundraising_contributions')
+    .select('fundraising_item_id, amount_cents, status')
+    .eq('fundraising_item_id', id);
+
+  if (contributionsError) {
+    return NextResponse.json({ error: contributionsError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ item: attachFundraisingTotals([data], contributions ?? [])[0] });
 }
 
 // PATCH /api/fundraising/[id] — admin only, partial update
@@ -64,9 +75,16 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // Strip id, created_at from the patch payload to prevent accidental overwrite
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, created_at: _created, ...updates } = body as FundraisingItem & { id?: string; created_at?: string };
+  // Strip read-only/system fields from the patch payload to prevent accidental overwrite.
+  const updates = { ...body };
+  delete updates.id;
+  delete updates.created_at;
+  delete updates.raised_amount_cents;
+  delete updates.verified_raised_amount_cents;
+  delete updates.contribution_count;
+  delete updates.progress_percentage;
+  delete updates.remaining_amount_cents;
+  delete updates.is_funded;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (client as any)
@@ -80,7 +98,17 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ item: data });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: contributions, error: contributionsError } = await (client as any)
+    .from('fundraising_contributions')
+    .select('fundraising_item_id, amount_cents, status')
+    .eq('fundraising_item_id', id);
+
+  if (contributionsError) {
+    return NextResponse.json({ error: contributionsError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ item: attachFundraisingTotals([data], contributions ?? [])[0] });
 }
 
 // DELETE /api/fundraising/[id] — admin only, soft-deletes by archiving

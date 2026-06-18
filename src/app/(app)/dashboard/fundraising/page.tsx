@@ -6,6 +6,7 @@ import { glass } from '@/app/ui/theme';
 import type { FundraisingItem } from '@/app/api/fundraising/route';
 import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
 import type { SocialProofItem } from '@/app/api/social-proof/route';
+import type { FundraisingContribution } from '@/lib/fundraising/totals';
 
 type View = 'list' | 'form' | 'stats' | 'social' | 'social-form';
 
@@ -39,11 +40,20 @@ const EMPTY_FORM: Omit<FundraisingItem, 'id' | 'created_at' | 'updated_at'> = {
   image_url: null,
   goal_amount_cents: 0,
   raised_amount_cents: 0,
+  verified_raised_amount_cents: 0,
+  manual_adjustment_cents: 0,
+  contribution_count: 0,
+  progress_percentage: 0,
+  remaining_amount_cents: 0,
+  is_funded: false,
   short_reason: '',
   who_it_helps: '',
   employment_impact: '',
   cta_label: 'Fund This',
   payment_url: '',
+  supplier_url: '',
+  stripe_payment_link_id: '',
+  stripe_price_id: '',
   sort_order: 0,
   is_featured: false,
 };
@@ -85,6 +95,12 @@ export default function FundraisingPage() {
   });
   const [statsLoading, setStatsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [productUrl, setProductUrl] = useState('');
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
+  const [contributionItemId, setContributionItemId] = useState<string | null>(null);
+  const [contributions, setContributions] = useState<FundraisingContribution[]>([]);
+  const [contributionsLoading, setContributionsLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function loadItems() {
@@ -147,6 +163,7 @@ export default function FundraisingPage() {
   function openCreate() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setProductUrl('');
     setView('form');
   }
 
@@ -160,15 +177,74 @@ export default function FundraisingPage() {
       image_url: item.image_url,
       goal_amount_cents: item.goal_amount_cents,
       raised_amount_cents: item.raised_amount_cents,
+      verified_raised_amount_cents: item.verified_raised_amount_cents ?? 0,
+      manual_adjustment_cents: item.manual_adjustment_cents ?? 0,
+      contribution_count: item.contribution_count ?? 0,
+      progress_percentage: item.progress_percentage ?? 0,
+      remaining_amount_cents: item.remaining_amount_cents ?? 0,
+      is_funded: item.is_funded ?? false,
       short_reason: item.short_reason ?? '',
       who_it_helps: item.who_it_helps ?? '',
       employment_impact: item.employment_impact ?? '',
       cta_label: item.cta_label,
       payment_url: item.payment_url ?? '',
+      supplier_url: item.supplier_url ?? '',
+      stripe_payment_link_id: item.stripe_payment_link_id ?? '',
+      stripe_price_id: item.stripe_price_id ?? '',
       sort_order: item.sort_order,
       is_featured: item.is_featured,
     });
+    setProductUrl(item.supplier_url ?? '');
     setView('form');
+  }
+
+  async function handleAutoFill() {
+    if (!productUrl || autoFilling) return;
+    setAutoFilling(true);
+    try {
+      const res = await fetch('/api/fundraising/auto-fill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: productUrl }),
+      });
+      const data = (await res.json()) as {
+        item?: Partial<FundraisingItem>;
+        missing?: Record<string, boolean>;
+        error?: string;
+      };
+      if (!res.ok || data.error || !data.item) {
+        toast.error(data.error ?? 'Auto-fill failed');
+        return;
+      }
+
+      setForm((prev) => {
+        const title = data.item?.title ?? prev.title;
+        return {
+          ...prev,
+          ...data.item,
+          title,
+          slug: prev.slug || slugify(title),
+          status: 'draft',
+          raised_amount_cents: prev.raised_amount_cents,
+          verified_raised_amount_cents: prev.verified_raised_amount_cents,
+          manual_adjustment_cents: prev.manual_adjustment_cents,
+          contribution_count: prev.contribution_count,
+          progress_percentage: prev.progress_percentage,
+          remaining_amount_cents: prev.remaining_amount_cents,
+          is_funded: prev.is_funded,
+        };
+      });
+
+      const missing = Object.entries(data.missing ?? {})
+        .filter(([, value]) => value)
+        .map(([key]) => key)
+        .join(', ');
+      toast.success(missing ? `Auto-filled. Please review missing: ${missing}` : 'Auto-filled item details');
+    } catch {
+      toast.error('Auto-fill failed');
+    } finally {
+      setAutoFilling(false);
+    }
   }
 
   async function handleUploadImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -202,11 +278,20 @@ export default function FundraisingPage() {
       const payload = {
         ...form,
         payment_url: form.payment_url || null,
+        supplier_url: form.supplier_url || productUrl || null,
+        stripe_payment_link_id: form.stripe_payment_link_id || null,
+        stripe_price_id: form.stripe_price_id || null,
         short_reason: form.short_reason || null,
         who_it_helps: form.who_it_helps || null,
         employment_impact: form.employment_impact || null,
         image_url: form.image_url || null,
       };
+      delete (payload as Partial<FundraisingItem>).raised_amount_cents;
+      delete (payload as Partial<FundraisingItem>).verified_raised_amount_cents;
+      delete (payload as Partial<FundraisingItem>).contribution_count;
+      delete (payload as Partial<FundraisingItem>).progress_percentage;
+      delete (payload as Partial<FundraisingItem>).remaining_amount_cents;
+      delete (payload as Partial<FundraisingItem>).is_funded;
 
       let res: Response;
       if (editingId) {
@@ -269,6 +354,48 @@ export default function FundraisingPage() {
       }
     } catch {
       toast.error('Update failed');
+    }
+  }
+
+  async function handleGeneratePaymentLink(item: FundraisingItem) {
+    setGeneratingLinkId(item.id);
+    try {
+      const res = await fetch(`/api/fundraising/${item.id}/checkout`, { method: 'POST' });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || data.error || !data.url) {
+        toast.error(data.error ?? 'Could not generate payment link');
+        return;
+      }
+      await navigator.clipboard?.writeText(data.url).catch(() => undefined);
+      toast.success('Payment link generated and copied');
+      await loadItems();
+    } catch {
+      toast.error('Could not generate payment link');
+    } finally {
+      setGeneratingLinkId(null);
+    }
+  }
+
+  async function handleViewContributions(item: FundraisingItem) {
+    if (contributionItemId === item.id) {
+      setContributionItemId(null);
+      setContributions([]);
+      return;
+    }
+    setContributionItemId(item.id);
+    setContributionsLoading(true);
+    try {
+      const res = await fetch(`/api/fundraising/${item.id}/contributions`);
+      const data = (await res.json()) as { contributions?: FundraisingContribution[]; error?: string };
+      if (!res.ok || data.error) {
+        toast.error(data.error ?? 'Could not load contributions');
+        return;
+      }
+      setContributions(data.contributions ?? []);
+    } catch {
+      toast.error('Could not load contributions');
+    } finally {
+      setContributionsLoading(false);
     }
   }
 
@@ -388,6 +515,11 @@ export default function FundraisingPage() {
     }
   }
 
+  const formProgress = form.goal_amount_cents > 0
+    ? Math.min(100, Math.round((form.raised_amount_cents / form.goal_amount_cents) * 100))
+    : 0;
+  const formRemaining = Math.max(0, form.goal_amount_cents - form.raised_amount_cents);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       {/* Header */}
@@ -452,77 +584,108 @@ export default function FundraisingPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {items.map((item) => {
-                  const pct =
-                    item.goal_amount_cents > 0
-                      ? Math.min(100, Math.round((item.raised_amount_cents / item.goal_amount_cents) * 100))
-                      : 0;
+                  const pct = item.progress_percentage ?? 0;
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/60">
-                      <td className="px-5 py-3">
-                        <p className="font-semibold text-slate-900">{item.title}</p>
-                        <p className="text-xs text-slate-400">{item.category} · /{item.slug}</p>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLOURS[item.status]}`}
-                        >
-                          {STATUS_LABELS[item.status]}
-                        </span>
-                        {item.is_featured && (
-                          <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                            Featured
+                    <React.Fragment key={item.id}>
+                      <tr className="hover:bg-slate-50/60">
+                        <td className="px-5 py-3">
+                          <p className="font-semibold text-slate-900">{item.title}</p>
+                          <p className="text-xs text-slate-400">{item.category} · /{item.slug}</p>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLOURS[item.status]}`}
+                          >
+                            {item.is_funded ? 'Funded' : STATUS_LABELS[item.status]}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
-                            <div
-                              className="h-full rounded-full bg-emerald-500"
-                              style={{ width: `${pct}%` }}
-                            />
+                          {item.is_featured && (
+                            <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                              Featured
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className="h-full rounded-full bg-emerald-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {formatAUD(item.raised_amount_cents)} / {formatAUD(item.goal_amount_cents)}
+                            </span>
                           </div>
-                          <span className="text-xs text-slate-500">
-                            {formatAUD(item.raised_amount_cents)} / {formatAUD(item.goal_amount_cents)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-slate-500">{item.sort_order}</td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {item.status !== 'live' && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {item.contribution_count ?? 0} paid contributions · {formatAUD(item.remaining_amount_cents ?? 0)} remaining
+                          </p>
+                        </td>
+                        <td className="px-5 py-3 text-slate-500">{item.sort_order}</td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            {item.status !== 'live' && item.status !== 'funded' && (
+                              <button
+                                onClick={() => handleQuickStatus(item.id, 'live')}
+                                className="rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                              >
+                                Go Live
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleQuickStatus(item.id, 'live')}
+                              onClick={() => handleViewContributions(item)}
+                              className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Contributions
+                            </button>
+                            <button
+                              onClick={() => handleGeneratePaymentLink(item)}
+                              disabled={generatingLinkId === item.id}
                               className="rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
                             >
-                              Go Live
+                              {generatingLinkId === item.id ? 'Generating...' : 'Generate Link'}
                             </button>
-                          )}
-                          {item.status === 'live' && (
                             <button
-                              onClick={() => handleQuickStatus(item.id, 'funded')}
-                              className="rounded px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                              onClick={() => openEdit(item)}
+                              className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                             >
-                              Mark Funded
+                              Edit
                             </button>
-                          )}
-                          <button
-                            onClick={() => openEdit(item)}
-                            className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Edit
-                          </button>
-                          {item.status !== 'archived' && (
-                            <button
-                              onClick={() => handleArchive(item.id)}
-                              className="rounded px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
-                            >
-                              Archive
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                            {item.status !== 'archived' && (
+                              <button
+                                onClick={() => handleArchive(item.id)}
+                                className="rounded px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50"
+                              >
+                                Archive
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {contributionItemId === item.id && (
+                        <tr>
+                          <td colSpan={5} className="bg-slate-50 px-5 py-4">
+                            {contributionsLoading ? (
+                              <p className="text-sm text-slate-500">Loading contributions...</p>
+                            ) : contributions.length === 0 ? (
+                              <p className="text-sm text-slate-500">No payment contributions recorded yet.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {contributions.map((contribution) => (
+                                  <div key={contribution.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                                    <span className="font-semibold text-slate-800">
+                                      {formatAUD(contribution.amount_cents)} · {contribution.status}
+                                    </span>
+                                    <span className="text-slate-500">
+                                      {contribution.payer_name || contribution.payer_email || contribution.payment_reference || 'Contribution'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -547,6 +710,32 @@ export default function FundraisingPage() {
           </div>
 
           <form onSubmit={handleSave} className="space-y-6">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                Paste product URL
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="url"
+                  value={productUrl}
+                  onChange={(e) => setProductUrl(e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="https://supplier.example/mower"
+                />
+                <button
+                  type="button"
+                  disabled={!productUrl || autoFilling}
+                  onClick={handleAutoFill}
+                  className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {autoFilling ? 'Auto-filling...' : 'Auto-fill item'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-emerald-900/70">
+                Suggestions are saved as draft details only. Review and edit everything before publishing.
+              </p>
+            </div>
+
             {/* Title + Slug */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -633,7 +822,7 @@ export default function FundraisingPage() {
               </div>
             </div>
 
-            {/* Goal + Raised */}
+            {/* Goal + Calculated raised */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -658,24 +847,34 @@ export default function FundraisingPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Amount Raised (AUD)
+                  Amount Raised
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.raised_amount_cents / 100}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        raised_amount_cents: Math.round(parseFloat(e.target.value || '0') * 100),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-slate-200 py-2 pl-7 pr-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    placeholder="0"
-                  />
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-sm font-bold text-slate-900">{formatAUD(form.raised_amount_cents)} calculated</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Calculated from verified payments. {formatAUD(form.verified_raised_amount_cents ?? 0)} verified
+                    {form.manual_adjustment_cents ? ` + ${formatAUD(form.manual_adjustment_cents)} manual adjustment` : ''}.
+                  </p>
                 </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Progress</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{formProgress}%</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Remaining</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{formatAUD(formRemaining)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contributions</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{form.contribution_count ?? 0}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Funding State</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{form.is_funded || formRemaining === 0 && form.goal_amount_cents > 0 ? 'Funded' : 'Open'}</p>
               </div>
             </div>
 
@@ -738,15 +937,44 @@ export default function FundraisingPage() {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Payment URL (optional — Stripe link)
                 </label>
-                <input
-                  type="url"
-                  value={form.payment_url ?? ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, payment_url: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  placeholder="https://buy.stripe.com/..."
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={form.payment_url ?? ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, payment_url: e.target.value }))}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="https://buy.stripe.com/..."
+                  />
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const item = items.find((nextItem) => nextItem.id === editingId);
+                        if (item) void handleGeneratePaymentLink(item);
+                      }}
+                      disabled={generatingLinkId === editingId}
+                      className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      {generatingLinkId === editingId ? 'Generating...' : 'Generate'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+
+            {form.supplier_url && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Supplier Source URL
+                </label>
+                <input
+                  type="url"
+                  value={form.supplier_url ?? ''}
+                  onChange={(e) => setForm((prev) => ({ ...prev, supplier_url: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            )}
 
             {/* Image upload */}
             <div>
