@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/server';
 import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
@@ -53,25 +54,51 @@ async function upsertFundraisingContribution(
     status: 'pending' | 'paid' | 'failed' | 'refunded';
     paidAt?: string | null;
   }
-) {
+): Promise<boolean> {
   if (!payload.fundraisingItemId || !payload.paymentReference) return false;
 
-  await client
-    .from('fundraising_contributions')
-    .upsert([{
-      fundraising_item_id: payload.fundraisingItemId,
-      amount_cents: Math.max(0, Math.round(payload.amountCents)),
-      currency: (payload.currency ?? 'aud').toLowerCase(),
-      payment_provider: 'stripe',
-      payment_reference: payload.paymentReference,
-      stripe_event_id: eventId,
-      payer_name: payload.payerName ?? null,
-      payer_email: payload.payerEmail ?? null,
-      status: payload.status,
-      paid_at: payload.paidAt ?? null,
-    }], { onConflict: 'payment_provider,payment_reference' });
+  const record = {
+    fundraising_item_id: payload.fundraisingItemId,
+    amount_cents: Math.max(0, Math.round(payload.amountCents)),
+    currency: (payload.currency ?? 'aud').toLowerCase(),
+    payment_provider: 'stripe',
+    payment_reference: payload.paymentReference,
+    stripe_event_id: eventId,
+    payer_name: payload.payerName ?? null,
+    payer_email: payload.payerEmail ?? null,
+    status: payload.status,
+    paid_at: payload.paidAt ?? null,
+  };
 
-  return true;
+  const { error: insertError } = await client
+    .from('fundraising_contributions')
+    .insert([record]);
+
+  if (!insertError) return true;
+
+  // Unique violation (23505) — record already exists, update status/metadata only
+  if (insertError.code === '23505') {
+    const { error: updateError } = await client
+      .from('fundraising_contributions')
+      .update({
+        status: record.status,
+        paid_at: record.paid_at,
+        stripe_event_id: eventId,
+        payer_name: record.payer_name,
+        payer_email: record.payer_email,
+      })
+      .eq('payment_provider', 'stripe')
+      .eq('payment_reference', payload.paymentReference);
+
+    if (updateError) {
+      console.error('[webhook] fundraising contribution update failed:', updateError.message, updateError.code);
+      return false;
+    }
+    return true;
+  }
+
+  console.error('[webhook] fundraising contribution insert failed:', insertError.message, insertError.code);
+  return false;
 }
 
 async function markFundraisingContributionRefunded(
@@ -121,7 +148,16 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const fundraisingItemId = session.metadata?.fundraising_item_id;
         if (fundraisingItemId) {
-          await upsertFundraisingContribution(client, event.id, {
+          // Only record when Stripe has confirmed the funds — async methods (bank transfer)
+          // fire checkout.session.completed before payment clears; those arrive later via
+          // checkout.session.async_payment_succeeded, which we don't yet handle. Skip them here
+          // to avoid recording an unpaid contribution as paid.
+          if (session.payment_status !== 'paid') {
+            console.warn('[webhook] fundraising checkout.session.completed with payment_status:', session.payment_status, '— skipping until payment clears');
+            break;
+          }
+
+          const recorded = await upsertFundraisingContribution(client, event.id, {
             fundraisingItemId,
             amountCents: session.amount_total ?? 0,
             currency: session.currency,
@@ -131,10 +167,16 @@ export async function POST(req: NextRequest) {
             status: 'paid',
             paidAt: new Date().toISOString(),
           });
+
+          if (recorded) {
+            try { revalidateTag('fundraising'); } catch {}
+          }
+
           logAudit(client, 'fundraising_item', fundraisingItemId, 'contribution_paid', {
             stripe_session_id: session.id,
             payment_intent: session.payment_intent,
             amount_cents: session.amount_total ?? 0,
+            recorded,
           });
           break;
         }
@@ -480,7 +522,7 @@ export async function POST(req: NextRequest) {
         const pi = event.data.object as Stripe.PaymentIntent;
         const fundraisingItemId = pi.metadata?.fundraising_item_id;
         if (fundraisingItemId) {
-          await upsertFundraisingContribution(client, event.id, {
+          const recorded = await upsertFundraisingContribution(client, event.id, {
             fundraisingItemId,
             amountCents: pi.amount_received || pi.amount,
             currency: pi.currency,
@@ -488,6 +530,9 @@ export async function POST(req: NextRequest) {
             status: 'paid',
             paidAt: new Date().toISOString(),
           });
+          if (recorded) {
+            try { revalidateTag('fundraising'); } catch {}
+          }
           break;
         }
 

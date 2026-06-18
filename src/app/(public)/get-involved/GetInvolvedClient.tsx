@@ -690,7 +690,13 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
     if (donating) return;
     setDonating(true);
     try {
-      const res = await fetch('/api/donate/checkout', {
+      // Route through the fundraising item checkout when items exist so the
+      // payment is attributed to the featured item and updates the progress bar.
+      const featuredItem = featuredItems[0];
+      const endpoint = featuredItem
+        ? `/api/fundraising/${featuredItem.id}/checkout`
+        : '/api/donate/checkout';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amountCents }),

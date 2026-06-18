@@ -848,7 +848,7 @@ export default function FundraisingPage() {
               </div>
             </div>
 
-            {/* Goal + Calculated raised */}
+            {/* Goal + Verified raised */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -873,14 +873,49 @@ export default function FundraisingPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Amount Raised
+                  Verified Raised (Stripe payments)
                 </label>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-sm font-bold text-slate-900">{formatAUD(form.raised_amount_cents)} calculated</p>
+                  <p className="text-sm font-bold text-slate-900">{formatAUD(form.verified_raised_amount_cents ?? 0)}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Calculated from verified payments. {formatAUD(form.verified_raised_amount_cents ?? 0)} verified
-                    {form.manual_adjustment_cents ? ` + ${formatAUD(form.manual_adjustment_cents)} manual adjustment` : ''}.
+                    {form.contribution_count ?? 0} paid contribution{(form.contribution_count ?? 0) !== 1 ? 's' : ''} via Stripe.
+                    {form.manual_adjustment_cents ? ` + ${formatAUD(form.manual_adjustment_cents)} manual adjustment.` : ''}
+                    {' '}Total raised: {formatAUD(form.raised_amount_cents)}.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Manual adjustment — for backfilling payments that missed the webhook */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Manual Adjustment (AUD)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.manual_adjustment_cents / 100}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        manual_adjustment_cents: Math.round(parseFloat(e.target.value || '0') * 100),
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 py-2 pl-7 pr-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="0"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Use only to backfill payments that bypassed the webhook (e.g. direct transfer, missed event).</p>
+              </div>
+              <div className="flex items-end">
+                <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Raised</p>
+                  <p className="mt-1 text-lg font-black text-slate-900">{formatAUD(form.raised_amount_cents)}</p>
+                  <p className="text-xs text-slate-500">= {formatAUD(form.verified_raised_amount_cents ?? 0)} verified + {formatAUD(form.manual_adjustment_cents)} manual</p>
                 </div>
               </div>
             </div>

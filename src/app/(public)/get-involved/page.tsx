@@ -14,7 +14,7 @@ function getBaseUrl() {
 
 async function getFundraisingItems(): Promise<FundraisingItem[]> {
   try {
-    const res = await fetch(`${getBaseUrl()}/api/fundraising`, { next: { revalidate: 60 } });
+    const res = await fetch(`${getBaseUrl()}/api/fundraising`, { next: { revalidate: 60, tags: ['fundraising'] } });
     if (!res.ok) return [];
     const { items } = (await res.json()) as { items: FundraisingItem[] };
     return items ?? [];
