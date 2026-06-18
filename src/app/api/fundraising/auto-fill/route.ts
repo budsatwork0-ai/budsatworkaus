@@ -3,6 +3,30 @@ import { getAuthUser } from '@/lib/auth';
 
 const PRICE_RE = /(?:AUD|\$)\s*([0-9][0-9,]*(?:\.[0-9]{2})?)/i;
 
+const TRACKING_PARAMS = [
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+  'gclid', 'fbclid', 'msclkid', 'mc_cid', 'mc_eid', 'ref', 'affiliate',
+];
+
+function stripTrackingParams(url: URL): URL {
+  const clean = new URL(url.toString());
+  for (const param of TRACKING_PARAMS) clean.searchParams.delete(param);
+  return clean;
+}
+
+function isBunnings(url: URL): boolean {
+  return /(?:^|\.)bunnings\.com\.au$/.test(url.hostname);
+}
+
+function titleFromSlug(url: URL): string | null {
+  const segments = url.pathname.split('/').filter(Boolean);
+  const last = segments[segments.length - 1];
+  if (!last) return null;
+  const slug = last.replace(/_p\w+$/, '').replace(/[_-]/g, ' ').trim();
+  if (!slug) return null;
+  return slug.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function meta(content: string, key: string) {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
@@ -76,8 +100,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only http and https URLs are supported' }, { status: 400 });
   }
 
+  const cleanUrl = stripTrackingParams(url);
+
+  function manualFallback(reason: string) {
+    const inferredTitle = titleFromSlug(cleanUrl);
+    const category = categoryFromText(`${inferredTitle ?? ''} ${cleanUrl.pathname}`);
+    return NextResponse.json({
+      item: {
+        title: inferredTitle ?? '',
+        category,
+        status: 'draft',
+        image_url: null,
+        goal_amount_cents: 0,
+        short_reason: inferredTitle ? `Help Buds At Work purchase ${inferredTitle}.` : '',
+        who_it_helps: 'Buds At Work participants and crew members',
+        employment_impact:
+          'Supports safer, better-equipped paid shifts and helps turn community demand into practical work.',
+        cta_label: 'Fund This',
+        supplier_url: cleanUrl.toString(),
+        payment_url: cleanUrl.toString(),
+      },
+      missing: { price: true, image: true, description: true },
+      manual_entry: true,
+      manual_entry_reason: reason,
+    });
+  }
+
+  if (isBunnings(cleanUrl)) {
+    return manualFallback(
+      "Bunnings blocks automatic product fetching. We've saved the URL — please add the item details manually.",
+    );
+  }
+
   try {
-    const response = await fetch(url.toString(), {
+    const response = await fetch(cleanUrl.toString(), {
       headers: {
         accept: 'text/html,application/xhtml+xml',
         'user-agent': 'BudsAtWorkAdmin/1.0 (+https://budsatwork.com)',
@@ -85,17 +141,25 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(10_000),
     });
 
+    if (response.status === 403 || response.status === 401 || response.status === 429) {
+      return manualFallback(
+        `This retailer blocks automatic product fetching. We've saved the URL — please add the item details manually.`,
+      );
+    }
+
     if (!response.ok) {
-      return NextResponse.json({ error: `Could not fetch product page (${response.status})` }, { status: 502 });
+      return manualFallback(
+        `Could not fetch product page (${response.status}). We've saved the URL — please add the item details manually.`,
+      );
     }
 
     const html = await response.text();
-    const title = meta(html, 'og:title') ?? meta(html, 'twitter:title') ?? titleFromHtml(html) ?? url.hostname;
+    const title = meta(html, 'og:title') ?? meta(html, 'twitter:title') ?? titleFromHtml(html) ?? cleanUrl.hostname;
     const description = meta(html, 'og:description') ?? meta(html, 'description') ?? '';
-    const image = absoluteUrl(meta(html, 'og:image') ?? meta(html, 'twitter:image'), url);
+    const image = absoluteUrl(meta(html, 'og:image') ?? meta(html, 'twitter:image'), cleanUrl);
     const priceText = meta(html, 'product:price:amount') ?? html.match(PRICE_RE)?.[1] ?? null;
     const price = priceText ? Math.round(Number(priceText.replaceAll(',', '')) * 100) : 0;
-    const category = categoryFromText(`${title} ${description} ${url.pathname}`);
+    const category = categoryFromText(`${title} ${description} ${cleanUrl.pathname}`);
 
     return NextResponse.json({
       item: {
@@ -109,7 +173,7 @@ export async function POST(req: NextRequest) {
         employment_impact:
           'Supports safer, better-equipped paid shifts and helps turn community demand into practical work.',
         cta_label: 'Fund This',
-        supplier_url: url.toString(),
+        supplier_url: cleanUrl.toString(),
       },
       missing: {
         price: !price,
@@ -119,6 +183,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Auto-fill failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return manualFallback(`Auto-fill encountered an error (${message}). We've saved the URL — please add the item details manually.`);
   }
 }

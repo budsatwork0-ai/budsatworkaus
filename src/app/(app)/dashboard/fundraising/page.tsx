@@ -97,6 +97,7 @@ export default function FundraisingPage() {
   const [uploading, setUploading] = useState(false);
   const [productUrl, setProductUrl] = useState('');
   const [autoFilling, setAutoFilling] = useState(false);
+  const [autoFillNotice, setAutoFillNotice] = useState<string | null>(null);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
   const [contributionItemId, setContributionItemId] = useState<string | null>(null);
   const [contributions, setContributions] = useState<FundraisingContribution[]>([]);
@@ -164,10 +165,12 @@ export default function FundraisingPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setProductUrl('');
+    setAutoFillNotice(null);
     setView('form');
   }
 
   function openEdit(item: FundraisingItem) {
+    setAutoFillNotice(null);
     setEditingId(item.id);
     setForm({
       title: item.title,
@@ -201,6 +204,7 @@ export default function FundraisingPage() {
   async function handleAutoFill() {
     if (!productUrl || autoFilling) return;
     setAutoFilling(true);
+    setAutoFillNotice(null);
     try {
       const res = await fetch('/api/fundraising/auto-fill', {
         method: 'POST',
@@ -211,35 +215,44 @@ export default function FundraisingPage() {
         item?: Partial<FundraisingItem>;
         missing?: Record<string, boolean>;
         error?: string;
+        manual_entry?: boolean;
+        manual_entry_reason?: string;
       };
-      if (!res.ok || data.error || !data.item) {
+
+      if (!res.ok && !data.item) {
         toast.error(data.error ?? 'Auto-fill failed');
         return;
       }
 
-      setForm((prev) => {
-        const title = data.item?.title ?? prev.title;
-        return {
-          ...prev,
-          ...data.item,
-          title,
-          slug: prev.slug || slugify(title),
-          status: 'draft',
-          raised_amount_cents: prev.raised_amount_cents,
-          verified_raised_amount_cents: prev.verified_raised_amount_cents,
-          manual_adjustment_cents: prev.manual_adjustment_cents,
-          contribution_count: prev.contribution_count,
-          progress_percentage: prev.progress_percentage,
-          remaining_amount_cents: prev.remaining_amount_cents,
-          is_funded: prev.is_funded,
-        };
-      });
+      if (data.item) {
+        setForm((prev) => {
+          const title = data.item?.title ?? prev.title;
+          return {
+            ...prev,
+            ...data.item,
+            title,
+            slug: prev.slug || slugify(title),
+            status: 'draft',
+            raised_amount_cents: prev.raised_amount_cents,
+            verified_raised_amount_cents: prev.verified_raised_amount_cents,
+            manual_adjustment_cents: prev.manual_adjustment_cents,
+            contribution_count: prev.contribution_count,
+            progress_percentage: prev.progress_percentage,
+            remaining_amount_cents: prev.remaining_amount_cents,
+            is_funded: prev.is_funded,
+          };
+        });
+      }
 
-      const missing = Object.entries(data.missing ?? {})
-        .filter(([, value]) => value)
-        .map(([key]) => key)
-        .join(', ');
-      toast.success(missing ? `Auto-filled. Please review missing: ${missing}` : 'Auto-filled item details');
+      if (data.manual_entry) {
+        setAutoFillNotice(data.manual_entry_reason ?? "We've saved the URL — please add the item details manually.");
+      } else {
+        const missing = Object.entries(data.missing ?? {})
+          .filter(([, value]) => value)
+          .map(([key]) => key)
+          .join(', ');
+        toast.success(missing ? `Auto-filled. Please review missing: ${missing}` : 'Auto-filled item details');
+      }
     } catch {
       toast.error('Auto-fill failed');
     } finally {
@@ -718,7 +731,7 @@ export default function FundraisingPage() {
                 <input
                   type="url"
                   value={productUrl}
-                  onChange={(e) => setProductUrl(e.target.value)}
+                  onChange={(e) => { setProductUrl(e.target.value); setAutoFillNotice(null); }}
                   className="min-w-0 flex-1 rounded-lg border border-emerald-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   placeholder="https://supplier.example/mower"
                 />
@@ -734,6 +747,19 @@ export default function FundraisingPage() {
               <p className="mt-2 text-xs text-emerald-900/70">
                 Suggestions are saved as draft details only. Review and edit everything before publishing.
               </p>
+              {autoFillNotice && (
+                <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <p className="text-xs text-amber-800">{autoFillNotice}</p>
+                  <button
+                    type="button"
+                    onClick={() => setAutoFillNotice(null)}
+                    className="shrink-0 text-xs text-amber-600 hover:text-amber-800"
+                    aria-label="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Title + Slug */}
