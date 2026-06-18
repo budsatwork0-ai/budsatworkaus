@@ -33,7 +33,7 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ? await (client as any)
         .from('fundraising_contributions')
-        .select('fundraising_item_id, amount_cents, status')
+        .select('fundraising_item_id, amount_cents, gross_amount_cents, stripe_fee_cents, net_amount_cents, status')
         .in('fundraising_item_id', itemIds)
     : { data: [], error: null };
 

@@ -47,6 +47,9 @@ async function upsertFundraisingContribution(
   payload: {
     fundraisingItemId?: string | null;
     amountCents: number;
+    grossAmountCents?: number | null;
+    stripeFee?: number | null;
+    netAmountCents?: number | null;
     currency?: string | null;
     paymentReference?: string | null;
     payerName?: string | null;
@@ -57,9 +60,16 @@ async function upsertFundraisingContribution(
 ): Promise<boolean> {
   if (!payload.fundraisingItemId || !payload.paymentReference) return false;
 
+  const gross = Math.max(0, Math.round(payload.grossAmountCents ?? payload.amountCents));
+  const fee   = Math.max(0, Math.round(payload.stripeFee ?? 0));
+  const net   = Math.max(0, Math.round(payload.netAmountCents ?? gross - fee));
+
   const record = {
     fundraising_item_id: payload.fundraisingItemId,
-    amount_cents: Math.max(0, Math.round(payload.amountCents)),
+    amount_cents:        gross,
+    gross_amount_cents:  gross,
+    stripe_fee_cents:    fee,
+    net_amount_cents:    net,
     currency: (payload.currency ?? 'aud').toLowerCase(),
     payment_provider: 'stripe',
     payment_reference: payload.paymentReference,
@@ -81,11 +91,14 @@ async function upsertFundraisingContribution(
     const { error: updateError } = await client
       .from('fundraising_contributions')
       .update({
-        status: record.status,
-        paid_at: record.paid_at,
-        stripe_event_id: eventId,
-        payer_name: record.payer_name,
-        payer_email: record.payer_email,
+        status:             record.status,
+        paid_at:            record.paid_at,
+        stripe_event_id:    eventId,
+        payer_name:         record.payer_name,
+        payer_email:        record.payer_email,
+        gross_amount_cents: record.gross_amount_cents,
+        stripe_fee_cents:   record.stripe_fee_cents,
+        net_amount_cents:   record.net_amount_cents,
       })
       .eq('payment_provider', 'stripe')
       .eq('payment_reference', payload.paymentReference);
@@ -157,11 +170,34 @@ export async function POST(req: NextRequest) {
             break;
           }
 
+          const grossAmountCents = session.amount_total ?? 0;
+          let stripeFee = 0;
+          let netAmountCents = grossAmountCents;
+          const piId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+          if (piId) {
+            try {
+              const expandedPi = await stripe.paymentIntents.retrieve(piId, {
+                expand: ['latest_charge.balance_transaction'],
+              });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const balanceTx = (expandedPi as any).latest_charge?.balance_transaction;
+              if (balanceTx && typeof balanceTx === 'object') {
+                stripeFee     = balanceTx.fee  ?? 0;
+                netAmountCents = balanceTx.net  ?? grossAmountCents - stripeFee;
+              }
+            } catch (e) {
+              console.warn('[webhook] fundraising: could not retrieve balance transaction for fee calc:', e);
+            }
+          }
+
           const recorded = await upsertFundraisingContribution(client, event.id, {
             fundraisingItemId,
-            amountCents: session.amount_total ?? 0,
+            amountCents:      grossAmountCents,
+            grossAmountCents,
+            stripeFee,
+            netAmountCents,
             currency: session.currency,
-            paymentReference: typeof session.payment_intent === 'string' ? session.payment_intent : session.id,
+            paymentReference: piId ?? session.id,
             payerName: session.customer_details?.name ?? null,
             payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
             status: 'paid',
@@ -522,9 +558,29 @@ export async function POST(req: NextRequest) {
         const pi = event.data.object as Stripe.PaymentIntent;
         const fundraisingItemId = pi.metadata?.fundraising_item_id;
         if (fundraisingItemId) {
+          const grossPi = pi.amount_received || pi.amount;
+          let feePi = 0;
+          let netPi = grossPi;
+          try {
+            const expandedPi = await stripe.paymentIntents.retrieve(pi.id, {
+              expand: ['latest_charge.balance_transaction'],
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const balanceTx = (expandedPi as any).latest_charge?.balance_transaction;
+            if (balanceTx && typeof balanceTx === 'object') {
+              feePi = balanceTx.fee ?? 0;
+              netPi = balanceTx.net ?? grossPi - feePi;
+            }
+          } catch (e) {
+            console.warn('[webhook] fundraising pi.succeeded: could not retrieve balance transaction:', e);
+          }
+
           const recorded = await upsertFundraisingContribution(client, event.id, {
             fundraisingItemId,
-            amountCents: pi.amount_received || pi.amount,
+            amountCents:      grossPi,
+            grossAmountCents: grossPi,
+            stripeFee:        feePi,
+            netAmountCents:   netPi,
             currency: pi.currency,
             paymentReference: pi.id,
             status: 'paid',

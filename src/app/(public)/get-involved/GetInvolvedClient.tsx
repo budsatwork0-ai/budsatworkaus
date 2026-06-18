@@ -388,6 +388,11 @@ function ProgressBar({ raised, goal }: { raised: number; goal: number }) {
       <p className="mt-2 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>
         {funded ? 'Fully funded' : `${formatAUD(remaining)} remaining`}
       </p>
+      {!funded && (
+        <p className="mt-1 text-xs" style={{ color: c.muted, opacity: 0.7 }}>
+          Payment processing fees may reduce the final amount received.
+        </p>
+      )}
     </div>
   );
 }

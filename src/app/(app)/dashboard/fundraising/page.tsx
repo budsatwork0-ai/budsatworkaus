@@ -46,6 +46,9 @@ const EMPTY_FORM: Omit<FundraisingItem, 'id' | 'created_at' | 'updated_at'> = {
   progress_percentage: 0,
   remaining_amount_cents: 0,
   is_funded: false,
+  verified_stripe_fees_cents: 0,
+  verified_net_amount_cents: 0,
+  net_remaining_amount_cents: 0,
   short_reason: '',
   who_it_helps: '',
   employment_impact: '',
@@ -186,6 +189,9 @@ export default function FundraisingPage() {
       progress_percentage: item.progress_percentage ?? 0,
       remaining_amount_cents: item.remaining_amount_cents ?? 0,
       is_funded: item.is_funded ?? false,
+      verified_stripe_fees_cents: item.verified_stripe_fees_cents ?? 0,
+      verified_net_amount_cents: item.verified_net_amount_cents ?? 0,
+      net_remaining_amount_cents: item.net_remaining_amount_cents ?? 0,
       short_reason: item.short_reason ?? '',
       who_it_helps: item.who_it_helps ?? '',
       employment_impact: item.employment_impact ?? '',
@@ -631,6 +637,9 @@ export default function FundraisingPage() {
                           </div>
                           <p className="mt-1 text-xs text-slate-400">
                             {item.contribution_count ?? 0} paid contributions · {formatAUD(item.remaining_amount_cents ?? 0)} remaining
+                            {(item.verified_stripe_fees_cents ?? 0) > 0 && (
+                              <> · <span className="text-red-400">−{formatAUD(item.verified_stripe_fees_cents)} fees</span> · <span className="text-emerald-600">{formatAUD(item.verified_net_amount_cents)} net</span></>
+                            )}
                           </p>
                         </td>
                         <td className="px-5 py-3 text-slate-500">{item.sort_order}</td>
@@ -682,17 +691,51 @@ export default function FundraisingPage() {
                             ) : contributions.length === 0 ? (
                               <p className="text-sm text-slate-500">No payment contributions recorded yet.</p>
                             ) : (
-                              <div className="space-y-2">
-                                {contributions.map((contribution) => (
-                                  <div key={contribution.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-                                    <span className="font-semibold text-slate-800">
-                                      {formatAUD(contribution.amount_cents)} · {contribution.status}
-                                    </span>
-                                    <span className="text-slate-500">
-                                      {contribution.payer_name || contribution.payer_email || contribution.payment_reference || 'Contribution'}
-                                    </span>
-                                  </div>
-                                ))}
+                                <div className="space-y-2">
+                                {contributions.filter(c => c.status === 'paid').length > 1 && (() => {
+                                  const paid = contributions.filter(c => c.status === 'paid');
+                                  const totalGross = paid.reduce((s, c) => s + (c.gross_amount_cents ?? c.amount_cents), 0);
+                                  const totalFees  = paid.reduce((s, c) => s + (c.stripe_fee_cents ?? 0), 0);
+                                  const totalNet   = paid.reduce((s, c) => s + (c.net_amount_cents ?? c.amount_cents), 0);
+                                  return (
+                                    <div className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+                                      <div className="flex flex-wrap gap-x-5 gap-y-0.5 font-semibold text-slate-700">
+                                        <span>Gross funded: {formatAUD(totalGross)}</span>
+                                        <span className="text-red-500">Stripe fees: −{formatAUD(totalFees)}</span>
+                                        <span className="text-emerald-700">Net received: {formatAUD(totalNet)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                                {contributions.map((contribution) => {
+                                  const gross = contribution.gross_amount_cents ?? contribution.amount_cents;
+                                  const fee   = contribution.stripe_fee_cents ?? 0;
+                                  const net   = contribution.net_amount_cents  ?? contribution.amount_cents;
+                                  const hasFee = fee > 0;
+                                  return (
+                                    <div key={contribution.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                          <span className="font-semibold text-slate-800">{formatAUD(gross)}</span>
+                                          {hasFee && (
+                                            <span className="text-red-500">fee −{formatAUD(fee)}</span>
+                                          )}
+                                          {hasFee && (
+                                            <span className="font-semibold text-emerald-700">net {formatAUD(net)}</span>
+                                          )}
+                                          <span className={`rounded-full px-2 py-0.5 font-bold ${
+                                            contribution.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                                            contribution.status === 'refunded' ? 'bg-red-50 text-red-500' :
+                                            'bg-slate-100 text-slate-500'
+                                          }`}>{contribution.status}</span>
+                                        </div>
+                                        <span className="text-slate-500">
+                                          {contribution.payer_name || contribution.payer_email || contribution.payment_reference || 'Contribution'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </td>
@@ -926,16 +969,17 @@ export default function FundraisingPage() {
                 <p className="mt-1 text-lg font-black text-slate-900">{formProgress}%</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Remaining</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Remaining (gross)</p>
                 <p className="mt-1 text-lg font-black text-slate-900">{formatAUD(formRemaining)}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contributions</p>
-                <p className="mt-1 text-lg font-black text-slate-900">{form.contribution_count ?? 0}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Stripe fees</p>
+                <p className="mt-1 text-lg font-black text-red-500">{formatAUD(form.verified_stripe_fees_cents ?? 0)}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Funding State</p>
-                <p className="mt-1 text-lg font-black text-slate-900">{form.is_funded || formRemaining === 0 && form.goal_amount_cents > 0 ? 'Funded' : 'Open'}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Net remaining</p>
+                <p className="mt-1 text-lg font-black text-emerald-700">{formatAUD(form.net_remaining_amount_cents ?? formRemaining)}</p>
+                <p className="text-xs text-slate-400">purchase readiness</p>
               </div>
             </div>
 

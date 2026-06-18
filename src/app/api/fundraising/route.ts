@@ -18,6 +18,10 @@ export interface FundraisingItem {
   progress_percentage: number;
   remaining_amount_cents: number;
   is_funded: boolean;
+  // Fee breakdown (admin-facing)
+  verified_stripe_fees_cents: number;
+  verified_net_amount_cents: number;
+  net_remaining_amount_cents: number;
   short_reason: string | null;
   who_it_helps: string | null;
   employment_impact: string | null;
@@ -55,7 +59,7 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ? await (client as any)
         .from('fundraising_contributions')
-        .select('fundraising_item_id, amount_cents, status')
+        .select('fundraising_item_id, amount_cents, gross_amount_cents, stripe_fee_cents, net_amount_cents, status')
         .in('fundraising_item_id', itemIds)
     : { data: [], error: null };
 
