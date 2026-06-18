@@ -68,6 +68,30 @@ function PlayIcon() {
   );
 }
 
+function PlatformIcon({ platform, className = 'h-4 w-4' }: { platform: 'tiktok' | 'instagram' | 'facebook'; className?: string }) {
+  if (platform === 'tiktok') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34l-.01-8.45a8.14 8.14 0 0 0 4.78 1.55V5.02a4.85 4.85 0 0 1-1-.33z" />
+      </svg>
+    );
+  }
+  if (platform === 'instagram') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  );
+}
+
 function ActionIcon({ type }: { type: 'hire' | 'equipment' | 'training' | 'experience' | 'shift' }) {
   const paths: Record<typeof type, React.ReactNode> = {
     hire: <path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Zm4 0V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M8 13h8" />,
@@ -403,66 +427,148 @@ function getEmbedUrl(item: SocialProofItem) {
   return null;
 }
 
-function SocialVideoCard({ item, featured = false }: { item: SocialProofItem; featured?: boolean }) {
-  const [loaded, setLoaded] = useState(false);
+function SocialCard({ item }: { item: SocialProofItem }) {
+  const [embedState, setEmbedState] = useState<'idle' | 'loading' | 'ready'>('idle');
   const embedUrl = getEmbedUrl(item);
 
   return (
     <article
-      className={`relative flex snap-start flex-col overflow-hidden rounded-[8px] border bg-white shadow-[0_24px_60px_rgba(0,58,52,0.12)] ${
-        featured ? 'min-h-[600px]' : 'min-h-[410px]'
-      }`}
+      className="group flex flex-col overflow-hidden rounded-xl border bg-white shadow-[0_4px_24px_rgba(0,58,52,0.09)] transition-shadow hover:shadow-[0_8px_32px_rgba(0,58,52,0.14)]"
       style={{ borderColor: c.line }}
     >
-      <div className="relative flex-1 bg-[#071A16]">
-        {loaded && embedUrl ? (
+      {/* Media — locked to portrait 9:16 */}
+      <div className="relative aspect-[9/16] overflow-hidden bg-[#071A16]">
+
+        {/* Skeleton shimmer while iframe initialises */}
+        {embedState === 'loading' && (
+          <div
+            className="absolute inset-0 z-10 animate-pulse"
+            style={{ background: 'linear-gradient(135deg, #0B2A22 0%, #0d3328 100%)' }}
+          />
+        )}
+
+        {/* Iframe — rendered only after user triggers play */}
+        {embedState !== 'idle' && embedUrl && (
           <iframe
             src={embedUrl}
             title={item.title}
             loading="lazy"
-            allow="fullscreen; clipboard-write; encrypted-media; picture-in-picture"
-            className="h-full min-h-[330px] w-full border-0"
+            allow="autoplay; fullscreen; clipboard-write; encrypted-media; picture-in-picture"
+            onLoad={() => setEmbedState('ready')}
+            className="absolute inset-0 h-full w-full border-0"
           />
-        ) : (
+        )}
+
+        {/* Thumbnail / play trigger — visible until embed loads */}
+        {embedState === 'idle' && (
+          embedUrl ? (
+            <button
+              type="button"
+              onClick={() => setEmbedState('loading')}
+              className="absolute inset-0 w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#E7A637]"
+              aria-label={`Play: ${item.title}`}
+            >
+              {item.thumbnail_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.thumbnail_url}
+                  alt=""
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full flex-col items-center justify-center gap-3"
+                  style={{ background: `linear-gradient(160deg, ${c.forest} 0%, ${c.green} 100%)` }}
+                >
+                  <PlatformIcon platform={item.platform} className="h-10 w-10 text-white/25" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-[#003A34] shadow-xl backdrop-blur-sm transition duration-200 group-hover:scale-110 group-hover:bg-white">
+                  <PlayIcon />
+                </span>
+              </span>
+            </button>
+          ) : (
+            /* No embeddable URL — link directly to platform */
+            <a
+              href={item.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute inset-0 flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#E7A637]"
+            >
+              {item.thumbnail_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.thumbnail_url}
+                  alt=""
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full flex-col items-center justify-center gap-3"
+                  style={{ background: `linear-gradient(160deg, ${c.forest} 0%, ${c.green} 100%)` }}
+                >
+                  <PlatformIcon platform={item.platform} className="h-10 w-10 text-white/25" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+              <span className="absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/15 px-4 py-1.5 text-xs font-black text-white backdrop-blur-sm">
+                Watch on {PLATFORM_LABELS[item.platform]} ↗
+              </span>
+            </a>
+          )
+        )}
+
+        {/* Platform badge */}
+        <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 backdrop-blur-sm">
+          <PlatformIcon platform={item.platform} className="h-3 w-3 text-white" />
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+            {PLATFORM_LABELS[item.platform]}
+          </span>
+        </div>
+      </div>
+
+      {/* Card footer */}
+      <div className="flex flex-col p-4">
+        <h3 className="line-clamp-2 text-sm font-black leading-snug" style={{ color: c.green }}>
+          {item.title}
+        </h3>
+        <div className="mt-3 flex items-center justify-between">
+          <time className="text-xs font-bold" style={{ color: c.muted }} dateTime={item.posted_at ?? undefined}>
+            {formatDate(item.posted_at)}
+          </time>
           <a
             href={item.source_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group block h-full min-h-[330px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{ outlineColor: c.mustard }}
-            onClick={(event) => {
-              if (!embedUrl) return;
-              event.preventDefault();
-              setLoaded(true);
-            }}
+            className="text-xs font-black transition-opacity hover:opacity-70"
+            style={{ color: c.leaf }}
           >
-            {item.thumbnail_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.thumbnail_url} alt="" className="h-full min-h-[330px] w-full object-cover opacity-95 transition duration-500 group-hover:scale-[1.02]" />
-            ) : (
-              <div className="flex h-full min-h-[330px] items-center justify-center bg-[#071A16]">
-                <span className="text-sm font-black uppercase tracking-[0.18em] text-white/55">{PLATFORM_LABELS[item.platform]}</span>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/18 to-transparent" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#003A34] shadow-lg transition group-hover:scale-105">
-                <PlayIcon />
-              </span>
-            </div>
+            View ↗
           </a>
-        )}
-      </div>
-      <div className="p-5">
-        <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>
-          <span>{PLATFORM_LABELS[item.platform]}</span>
-          <time dateTime={item.posted_at ?? undefined}>{formatDate(item.posted_at)}</time>
         </div>
-        <h3 className="mt-3 text-lg font-black leading-tight" style={{ color: c.green }}>
-          {item.title}
-        </h3>
       </div>
     </article>
+  );
+}
+
+function SocialFeed({ items }: { items: SocialProofItem[] }) {
+  return (
+    /* -mx-4/px-4 lets the carousel bleed to viewport edges on mobile */
+    <div className="mt-10 -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-3 xl:grid-cols-4">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="w-[68vw] max-w-[260px] shrink-0 snap-start md:w-auto md:max-w-none"
+          >
+            <SocialCard item={item} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -505,12 +611,28 @@ function EmptySocialFallback() {
   );
 }
 
+const SOCIAL_CHANNELS = [
+  { label: 'TikTok', platform: 'tiktok' as const, href: 'https://www.tiktok.com/@buds.at.work' },
+  { label: 'Instagram', platform: 'instagram' as const, href: 'https://www.instagram.com/budsatwork_aus' },
+  { label: 'Facebook', platform: 'facebook' as const, href: 'https://www.facebook.com/people/Buds-At-Work/61579013228527/' },
+];
+
 function SocialLinks() {
   return (
-    <div className="flex flex-wrap gap-2 text-sm font-black" style={{ color: c.green }}>
-      <a href="https://www.tiktok.com/@buds.at.work" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>TikTok</a>
-      <a href="https://www.instagram.com/budsatwork_aus" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>Instagram</a>
-      <a href="https://www.facebook.com/people/Buds-At-Work/61579013228527/" target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 transition hover:bg-[#F1F7F3]" style={{ borderColor: c.line }}>Facebook</a>
+    <div className="flex flex-wrap gap-2">
+      {SOCIAL_CHANNELS.map((ch) => (
+        <a
+          key={ch.platform}
+          href={ch.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-black transition hover:bg-[#F1F7F3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{ borderColor: c.line, color: c.green }}
+        >
+          <PlatformIcon platform={ch.platform} className="h-3.5 w-3.5" />
+          {ch.label}
+        </a>
+      ))}
     </div>
   );
 }
@@ -562,8 +684,6 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
   const [donating, setDonating] = useState(false);
   const [heroMissing, setHeroMissing] = useState(false);
 
-  const featuredSocial = socialItems.find((item) => item.is_featured) ?? socialItems[0];
-  const previewSocial = socialItems.filter((item) => item.id !== featuredSocial?.id);
   const featuredItems = [...items].sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
 
   async function handleDonate(amountCents: number) {
@@ -800,21 +920,8 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
 
           {socialItems.length === 0 ? (
             <EmptySocialFallback />
-          ) : previewSocial.length > 0 ? (
-            <div className="mt-10 grid gap-5 lg:grid-cols-[1.6fr_0.8fr]">
-              {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
-              <div className="flex snap-x gap-5 overflow-x-auto pb-3 lg:grid lg:grid-cols-1 lg:overflow-visible lg:pb-0">
-                {previewSocial.map((item) => (
-                  <div key={item.id} className="min-w-[82vw] sm:min-w-[360px] lg:min-w-0">
-                    <SocialVideoCard item={item} />
-                  </div>
-                ))}
-              </div>
-            </div>
           ) : (
-            <div className="mt-10">
-              {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
-            </div>
+            <SocialFeed items={socialItems} />
           )}
         </div>
       </section>
