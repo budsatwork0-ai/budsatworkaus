@@ -84,6 +84,268 @@ function ActionIcon({ type }: { type: 'hire' | 'equipment' | 'training' | 'exper
   );
 }
 
+const AMOUNT_PRESETS = [
+  { label: '$20', cents: 2000 },
+  { label: '$50', cents: 5000 },
+  { label: '$100', cents: 10000 },
+];
+
+function FundraisingCard({ item }: { item: FundraisingItem }) {
+  const [picking, setPicking] = useState(false);
+  const defaultCents = (() => {
+    const rem = item.goal_amount_cents - item.raised_amount_cents;
+    if (rem > 0 && rem <= 500_000) return Math.min(rem, 10000);
+    return 5000;
+  })();
+  const [selectedCents, setSelectedCents] = useState<number | null>(defaultCents);
+  const [isCustom, setIsCustom] = useState(false);
+  const [customStr, setCustomStr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const customCents = (() => {
+    const val = parseFloat(customStr);
+    return Number.isFinite(val) && val >= 5 ? Math.round(val * 100) : null;
+  })();
+
+  const contributionCents = isCustom ? customCents : selectedCents;
+  const isValid = contributionCents !== null && contributionCents >= 500;
+  const remainingCents = Math.max(0, item.goal_amount_cents - item.raised_amount_cents);
+
+  function selectPreset(cents: number) {
+    setIsCustom(false);
+    setSelectedCents(cents);
+    setErr(null);
+  }
+
+  function selectCustom() {
+    setIsCustom(true);
+    setSelectedCents(null);
+    setErr(null);
+  }
+
+  function cancel() {
+    setPicking(false);
+    setErr(null);
+  }
+
+  async function handleContribute() {
+    if (!isValid || !contributionCents || loading) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/fundraising/${item.id}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amountCents: contributionCents }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+        return; // stay loading while navigating
+      }
+      // API failed — try stored payment_url as last resort
+      if (item.payment_url) {
+        window.open(item.payment_url, '_blank', 'noopener,noreferrer');
+        setLoading(false);
+        return;
+      }
+      setErr(data.error ?? 'Payment unavailable. Please try again.');
+    } catch {
+      if (item.payment_url) {
+        window.open(item.payment_url, '_blank', 'noopener,noreferrer');
+      } else {
+        setErr('Payment unavailable. Please try again.');
+      }
+    }
+    setLoading(false);
+  }
+
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+      {item.image_url ? (
+        <div className="relative h-56 overflow-hidden bg-[#0B1F1A]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          <span className="absolute left-4 top-4 rounded-full bg-white/92 px-3 py-1 text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.green }}>
+            {CATEGORY_LABELS[item.category] ?? item.category}
+          </span>
+        </div>
+      ) : (
+        <div className="flex h-36 items-center justify-center" style={{ background: c.cream }}>
+          <span className="text-xs font-black uppercase tracking-[0.14em]" style={{ color: c.green }}>
+            {CATEGORY_LABELS[item.category] ?? item.category}
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col p-6">
+        <div className="flex items-start justify-between gap-4">
+          <h3 className="text-2xl font-black leading-tight" style={{ color: c.green }}>
+            {item.title}
+          </h3>
+          {item.goal_amount_cents > 0 && (
+            <span className="shrink-0 text-sm font-black" style={{ color: c.leaf }}>
+              {formatAUD(item.goal_amount_cents)}
+            </span>
+          )}
+        </div>
+
+        {item.short_reason && (
+          <p className="mt-4 text-sm leading-7" style={{ color: c.muted }}>{item.short_reason}</p>
+        )}
+
+        <div className="mt-5 border-l-2 pl-4" style={{ borderColor: c.mustard }}>
+          <p className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>How this creates paid work</p>
+          <p className="mt-2 text-sm font-bold leading-6" style={{ color: c.green }}>
+            {item.employment_impact || 'This helps Buds At Work turn community demand into practical paid shifts with the right equipment, training and support.'}
+          </p>
+        </div>
+
+        {item.who_it_helps && (
+          <p className="mt-4 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>
+            Supports: {item.who_it_helps}
+          </p>
+        )}
+
+        {item.goal_amount_cents > 0 && (
+          <div className="mt-5">
+            <ProgressBar raised={item.raised_amount_cents} goal={item.goal_amount_cents} />
+            {(item.contribution_count ?? 0) > 0 && (
+              <p className="mt-2 text-xs font-bold" style={{ color: c.muted }}>
+                {item.contribution_count} {item.contribution_count === 1 ? 'person has' : 'people have'} contributed
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Amount picker / CTA ──────────────────────────────────── */}
+        {item.is_funded ? (
+          <div
+            className="mt-6 rounded-[8px] border-2 py-4 text-center"
+            style={{ borderColor: c.leaf, background: c.mint }}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: c.leaf }}>✦ Fully Funded ✦</p>
+            <p className="mt-1 text-sm font-bold" style={{ color: c.green }}>Thank you to everyone who contributed.</p>
+          </div>
+        ) : picking ? (
+          <div className="mt-6 space-y-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.muted }}>
+              Choose amount
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {AMOUNT_PRESETS.map(({ label, cents }) => {
+                const active = !isCustom && selectedCents === cents;
+                return (
+                  <button
+                    key={cents}
+                    type="button"
+                    onClick={() => selectPreset(cents)}
+                    className="rounded-full border py-2.5 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      background: active ? c.green : 'transparent',
+                      color: active ? '#fff' : c.green,
+                      borderColor: c.green,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={selectCustom}
+                className="rounded-full border py-2.5 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  background: isCustom ? c.green : 'transparent',
+                  color: isCustom ? '#fff' : c.green,
+                  borderColor: c.green,
+                }}
+              >
+                Custom
+              </button>
+            </div>
+
+            {isCustom && (
+              <div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: c.muted }}>$</span>
+                  <input
+                    type="number"
+                    min={5}
+                    step="any"
+                    value={customStr}
+                    onChange={(e) => { setCustomStr(e.target.value); setErr(null); }}
+                    placeholder="Amount"
+                    className="w-full rounded-xl border py-3 pl-7 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#003A34]"
+                    style={{ borderColor: c.line }}
+                      autoFocus
+                  />
+                </div>
+                <p className="mt-1 text-xs" style={{ color: c.muted }}>Minimum $5</p>
+              </div>
+            )}
+
+            {isValid && contributionCents && remainingCents > 0 && (
+              <p className="text-xs font-bold text-center" style={{ color: c.leaf }}>
+                You&apos;d be funding {Math.min(100, Math.round((contributionCents / remainingCents) * 100))}% of the remaining goal
+              </p>
+            )}
+
+            {err && <p className="text-xs font-bold text-red-600">{err}</p>}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancel}
+                className="flex-1 rounded-full border py-3 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ borderColor: c.line, color: c.muted }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContribute}
+                disabled={!isValid || loading}
+                className="flex-[2] min-h-[46px] rounded-full py-3 text-sm font-black transition-transform hover:-translate-y-0.5 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ background: c.green, color: '#fff' }}
+              >
+                {loading
+                  ? 'Redirecting…'
+                  : `Contribute${isValid && contributionCents ? ` ${formatAUD(contributionCents)}` : ''}`}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {item.goal_amount_cents > 0 && remainingCents > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-bold" style={{ color: c.mustard }}>
+                  {formatAUD(remainingCents)} still needed
+                </p>
+                {Math.round((item.raised_amount_cents / item.goal_amount_cents) * 100) >= 70 && (
+                  <span className="rounded-full px-2 py-0.5 text-xs font-black uppercase tracking-[0.1em]" style={{ background: c.mustard, color: c.green }}>
+                    Almost there!
+                  </span>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ background: c.green, color: '#fff' }}
+            >
+              {item.cta_label || 'Help Fund This'}
+              <Arrow />
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function ProgressBar({ raised, goal }: { raised: number; goal: number }) {
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
   const remaining = Math.max(0, goal - raised);
@@ -148,7 +410,7 @@ function SocialVideoCard({ item, featured = false }: { item: SocialProofItem; fe
   return (
     <article
       className={`relative flex snap-start flex-col overflow-hidden rounded-[8px] border bg-white shadow-[0_24px_60px_rgba(0,58,52,0.12)] ${
-        featured ? 'min-h-[520px]' : 'min-h-[410px]'
+        featured ? 'min-h-[600px]' : 'min-h-[410px]'
       }`}
       style={{ borderColor: c.line }}
     >
@@ -321,15 +583,6 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
     }
   }
 
-  function handleItemCTA(item: FundraisingItem) {
-    if (item.is_funded) {
-      setShowSponsorModal(true);
-      return;
-    }
-    if (item.payment_url) window.open(item.payment_url, '_blank', 'noopener,noreferrer');
-    else setShowSponsorModal(true);
-  }
-
   const nextJobsTarget = 10;
   const currentPaidJobs = stats.paid_jobs_completed ?? 0;
   const remainingJobs = Math.max(0, nextJobsTarget - currentPaidJobs);
@@ -411,6 +664,22 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
             </div>
           </div>
 
+          {items.length > 0 && (() => {
+            const sumGoal = items.reduce((acc, it) => acc + it.goal_amount_cents, 0);
+            const sumRaised = items.reduce((acc, it) => acc + it.raised_amount_cents, 0);
+            if (sumGoal <= 0) return null;
+            const overallPct = Math.round((sumRaised / sumGoal) * 100);
+            return (
+              <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/12 px-5 py-2.5 backdrop-blur-sm">
+                <span className="text-sm font-black text-white">
+                  {overallPct >= 100
+                    ? 'Wishlist fully funded — thank you!'
+                    : `✦  ${overallPct}% of our current wishlist is funded — help us reach 100%`}
+                </span>
+              </div>
+            );
+          })()}
+
           <div className="mt-12 grid gap-3 border-t border-white/20 pt-5 text-white sm:grid-cols-3">
             <div>
               <p className="text-3xl font-black">{(stats.participants_supported ?? 0).toLocaleString()}</p>
@@ -462,6 +731,26 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
         </div>
       </section>
 
+      {[stats.participants_supported, stats.paid_jobs_completed, stats.employment_opportunities_created].some(v => (v ?? 0) > 0) && (
+        <section className="px-4 py-18 md:px-8 md:py-24" style={{ background: c.green }}>
+          <div className="mx-auto max-w-6xl">
+            <SectionIntro eyebrow="Impact So Far" title="Real work. Real outcomes." light />
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { label: 'Participant Supported', value: stats.participants_supported ?? 0 },
+                { label: 'Paid Jobs Completed', value: stats.paid_jobs_completed ?? 0 },
+                { label: 'Equipment Purchased', value: stats.employment_opportunities_created ?? 0 },
+              ].filter(s => s.value > 0).map(s => (
+                <div key={s.label} className="rounded-[8px] bg-white/10 p-6 text-center">
+                  <p className="text-4xl font-black text-white">{s.value.toLocaleString()}</p>
+                  <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-white/70">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="px-4 py-18 md:px-8 md:py-24" style={{ background: '#fff' }}>
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
           <SectionIntro
@@ -511,8 +800,8 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
 
           {socialItems.length === 0 ? (
             <EmptySocialFallback />
-          ) : (
-            <div className="mt-10 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          ) : previewSocial.length > 0 ? (
+            <div className="mt-10 grid gap-5 lg:grid-cols-[1.6fr_0.8fr]">
               {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
               <div className="flex snap-x gap-5 overflow-x-auto pb-3 lg:grid lg:grid-cols-1 lg:overflow-visible lg:pb-0">
                 {previewSocial.map((item) => (
@@ -521,6 +810,10 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
                   </div>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div className="mt-10">
+              {featuredSocial && <SocialVideoCard item={featuredSocial} featured />}
             </div>
           )}
         </div>
@@ -548,52 +841,7 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
           ) : (
             <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {featuredItems.map((item) => (
-                <article key={item.id} className="group flex flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
-                  {item.image_url ? (
-                    <div className="relative h-56 overflow-hidden bg-[#0B1F1A]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-                      <span className="absolute left-4 top-4 rounded-full bg-white/92 px-3 py-1 text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.green }}>
-                        {CATEGORY_LABELS[item.category] ?? item.category}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex h-36 items-center justify-center" style={{ background: c.cream }}>
-                      <span className="text-xs font-black uppercase tracking-[0.14em]" style={{ color: c.green }}>
-                        {CATEGORY_LABELS[item.category] ?? item.category}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-1 flex-col p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <h3 className="text-2xl font-black leading-tight" style={{ color: c.green }}>
-                        {item.title}
-                      </h3>
-                      {item.goal_amount_cents > 0 && (
-                        <span className="shrink-0 text-sm font-black" style={{ color: c.leaf }}>
-                          {formatAUD(item.goal_amount_cents)}
-                        </span>
-                      )}
-                    </div>
-                    {item.short_reason && <p className="mt-4 text-sm leading-7" style={{ color: c.muted }}>{item.short_reason}</p>}
-                    <div className="mt-5 border-l-2 pl-4" style={{ borderColor: c.mustard }}>
-                      <p className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>How this creates paid work</p>
-                      <p className="mt-2 text-sm font-bold leading-6" style={{ color: c.green }}>
-                        {item.employment_impact || 'This helps Buds At Work turn community demand into practical paid shifts with the right equipment, training and support.'}
-                      </p>
-                    </div>
-                    {item.who_it_helps && <p className="mt-4 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>Supports: {item.who_it_helps}</p>}
-                    {item.goal_amount_cents > 0 && (
-                      <div className="mt-5">
-                        <ProgressBar raised={item.raised_amount_cents} goal={item.goal_amount_cents} />
-                      </div>
-                    )}
-                    <button type="button" onClick={() => handleItemCTA(item)} className="mt-6 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: item.is_funded ? c.leaf : c.green, color: '#fff' }}>
-                      {item.is_funded ? 'Funded' : item.cta_label || 'Help Fund This'}
-                      <Arrow />
-                    </button>
-                  </div>
-                </article>
+                <FundraisingCard key={item.id} item={item} />
               ))}
             </div>
           )}
