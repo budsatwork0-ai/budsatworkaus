@@ -83,6 +83,7 @@ export function getInitialState(): WizardState {
     yardPolygon: [],
     yardArea: null,
     yardPerimeter: null,
+    manualYardAreaM2: null,
     yardJobs: [createYardJob()],
     yardActiveJobId: null,
 

@@ -503,6 +503,98 @@ export function quoteDiscountOfferEmail({
   };
 }
 
+// ─── Admin: new quote notification ──────────────────────────────────────────
+// Fires server-side immediately after a new quote is inserted.
+
+export type AdminNewQuoteParams = {
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  serviceLabel: string;
+  total: number;
+  quoteId: string;
+  serviceAddress: string | null;
+  dashboardUrl: string;
+};
+
+export function adminNewQuoteEmail({
+  customerName,
+  customerEmail,
+  customerPhone,
+  serviceLabel,
+  total,
+  quoteId,
+  serviceAddress,
+  dashboardUrl,
+}: AdminNewQuoteParams): { subject: string; html: string } {
+  const contactLine = [customerEmail, customerPhone].filter(Boolean).join(' · ');
+  return {
+    subject: `New quote — ${serviceLabel} from ${customerName}`,
+    html: layout(`
+      <h1 style="font-size:20px;font-weight:700;color:${PRIMARY};margin:0 0 6px;">New quote received</h1>
+      <p style="color:${MUTED};margin:0 0 20px;font-size:14px;">Review and approve it within 2–4 hours to keep conversion high.</p>
+      <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Customer</div>
+        <div style="font-size:16px;font-weight:600;color:${PRIMARY};margin-bottom:8px;">${customerName}</div>
+        ${contactLine ? `<div style="font-size:13px;color:${MUTED};">${contactLine}</div>` : ''}
+        ${serviceAddress ? `<div style="font-size:13px;color:${MUTED};margin-top:6px;">${serviceAddress}</div>` : ''}
+        <div style="margin-top:12px;font-size:13px;color:${MUTED};">Service</div>
+        <div style="font-size:15px;font-weight:600;color:${PRIMARY};">${serviceLabel}</div>
+        <div style="margin-top:8px;font-size:13px;color:${MUTED};">Quoted total</div>
+        <div style="font-size:20px;font-weight:700;color:${PRIMARY};">$${total.toFixed(2)}</div>
+        <div style="font-size:11px;color:${MUTED};margin-top:4px;">Quote #${quoteId.slice(0, 8).toUpperCase()}</div>
+      </div>
+      <a href="${dashboardUrl}" style="display:inline-block;background:${PRIMARY};color:#fff;text-decoration:none;border-radius:10px;padding:12px 24px;font-weight:600;font-size:15px;margin-bottom:16px;">
+        Review &amp; approve →
+      </a>
+    `),
+  };
+}
+
+// ─── Admin: payment received notification ────────────────────────────────────
+// Fires from the Stripe webhook when checkout.session.completed confirms payment.
+
+export type AdminPaymentReceivedParams = {
+  customerName: string;
+  customerEmail: string | null;
+  serviceLabel: string;
+  amount: number;
+  orderId: string;
+  quoteId: string | null;
+  dashboardUrl: string;
+};
+
+export function adminPaymentReceivedEmail({
+  customerName,
+  customerEmail,
+  serviceLabel,
+  amount,
+  orderId,
+  quoteId,
+  dashboardUrl,
+}: AdminPaymentReceivedParams): { subject: string; html: string } {
+  return {
+    subject: `Payment received — $${amount.toFixed(2)} from ${customerName}`,
+    html: layout(`
+      <h1 style="font-size:20px;font-weight:700;color:${PRIMARY};margin:0 0 6px;">Payment confirmed 💰</h1>
+      <p style="color:${MUTED};margin:0 0 20px;font-size:14px;">Time to schedule the job and confirm with the customer.</p>
+      <div style="background:#f0faf5;border-radius:12px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Customer</div>
+        <div style="font-size:16px;font-weight:600;color:${PRIMARY};margin-bottom:8px;">${customerName}</div>
+        ${customerEmail ? `<div style="font-size:13px;color:${MUTED};">${customerEmail}</div>` : ''}
+        <div style="margin-top:12px;font-size:13px;color:${MUTED};">Service</div>
+        <div style="font-size:15px;font-weight:600;color:${PRIMARY};">${serviceLabel}</div>
+        <div style="margin-top:8px;font-size:13px;color:${MUTED};">Amount paid</div>
+        <div style="font-size:24px;font-weight:700;color:#047857;">$${amount.toFixed(2)} AUD</div>
+        <div style="font-size:11px;color:${MUTED};margin-top:4px;">Order #${orderId.slice(0, 8).toUpperCase()}${quoteId ? ` · Quote #${quoteId.slice(0, 8).toUpperCase()}` : ''}</div>
+      </div>
+      <a href="${dashboardUrl}" style="display:inline-block;background:${PRIMARY};color:#fff;text-decoration:none;border-radius:10px;padding:12px 24px;font-weight:600;font-size:15px;margin-bottom:16px;">
+        View order →
+      </a>
+    `),
+  };
+}
+
 export type WeeklyKpiEmailParams = {
   periodLabel: string;
   quoteVolume: number;

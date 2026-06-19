@@ -311,13 +311,13 @@ export default function HomePage() {
           >
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
-                href="/services"
+                href="/services?service=yard"
                 data-track="hero_quote_click"
-                data-track-label="Homepage hero quote"
+                data-track-label="Homepage hero lawn quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
                 style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
-                Get a free quote {icons.arrowRight}
+                Get a lawn quote {icons.arrowRight}
               </Link>
             </motion.div>
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
@@ -440,9 +440,10 @@ export default function HomePage() {
                         {s.icon}
                       </div>
                       <p className="font-semibold text-[15px]" style={{ color: BRAND.text }}>{s.label}</p>
+                      <p className="text-[12px] mt-0.5" style={{ color: BRAND.muted }}>From ${s.from}</p>
 
                       <div
-                        className="mt-3 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        className="mt-2 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                         style={{ color: BRAND.accent }}
                       >
                         Get quote {icons.arrowRight}

@@ -124,7 +124,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     applicants: 0,
   });
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Default-collapse groups that are not on the revenue path for the current sprint.
+  // Admin can expand any group by clicking it. Revenue-critical groups (work, money,
+  // people, overview, settings) stay open.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(['content', 'growth', 'ndis', 'system'])
+  );
   const toggleGroup = useCallback((id: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);

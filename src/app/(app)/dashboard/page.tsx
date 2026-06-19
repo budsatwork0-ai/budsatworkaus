@@ -95,6 +95,31 @@ export default function DashboardHome() {
     return count || leadAvatars.length;
   }, [channelLeads, leadAvatars.length, quotes]);
 
+  const pipeline = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const normalise = (q: { status: string }) => normalizeQuoteStatus(q.status);
+
+    const newThisWeek = quotes.filter((q) => new Date(q.created_at).getTime() >= weekAgo).length;
+    const awaitingApproval = quotes.filter((q) => ['submitted', 'in_review'].includes(normalise(q))).length;
+    const awaitingPayment = quotes.filter((q) => ['finalized', 'payment_pending'].includes(normalise(q))).length;
+    const paidCount = quotes.filter((q) => normalise(q) === 'paid').length;
+
+    const effectiveTotal = (q: typeof quotes[0]) =>
+      Number(q.reviewed_total ?? q.submitted_total ?? q.total ?? 0);
+
+    const pipelineValue = quotes
+      .filter((q) => ['finalized', 'payment_pending'].includes(normalise(q)))
+      .reduce((sum, q) => sum + effectiveTotal(q), 0);
+
+    const revenueThisWeek = moneyFlow.series
+      .filter((pt) => new Date(pt.date).getTime() >= weekAgo)
+      .reduce((sum, pt) => sum + Math.max(0, pt.revenue), 0);
+
+    const revenueThisMonth = moneyFlow.overview.revenueThisMonth;
+
+    return { newThisWeek, awaitingApproval, awaitingPayment, paidCount, pipelineValue, revenueThisWeek, revenueThisMonth };
+  }, [quotes, moneyFlow]);
+
   const revenuePoints = useMemo(() => {
     if (moneyFlow.series.length === 0) return SAMPLE_REVENUE;
     const points = moneyFlow.series.slice(-9).map((point) => ({
@@ -145,6 +170,17 @@ export default function DashboardHome() {
       <div className="text-[13px] font-semibold text-[#7f9187]">
         <span className="mr-2 text-[#3c8259]">✣</span>
         Live business overview. Sample visual data is used only where revenue/service history is empty.
+      </div>
+
+      {/* Revenue pipeline — real-time from loaded quote data */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        <RevenuePill label="New quotes" value={String(pipeline.newThisWeek)} sub="this week" tone="slate" href="/dashboard/quotes?workspace=review" />
+        <RevenuePill label="Need approval" value={String(pipeline.awaitingApproval)} sub="pending" tone="amber" href="/dashboard/quotes?workspace=review" />
+        <RevenuePill label="Awaiting payment" value={String(pipeline.awaitingPayment)} sub="link sent" tone="blue" href="/dashboard/quotes?workspace=approved" />
+        <RevenuePill label="Paid" value={String(pipeline.paidCount)} sub="all time" tone="emerald" href="/dashboard/quotes?workspace=archive" />
+        <RevenuePill label="Pipeline value" value={formatCurrency(pipeline.pipelineValue)} sub="open quotes" tone="indigo" href="/dashboard/quotes?workspace=approved" />
+        <RevenuePill label="Revenue — week" value={formatCurrency(pipeline.revenueThisWeek)} sub="last 7 days" tone="green" href="/dashboard/payments" />
+        <RevenuePill label="Revenue — month" value={formatCurrency(pipeline.revenueThisMonth)} sub="this month" tone="green" href="/dashboard/payments" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -270,6 +306,41 @@ function getCreatedAt(entry: DashboardLead | DashboardQuote) {
 
 function getName(entry: DashboardLead | DashboardQuote) {
   return 'customer_name' in entry ? entry.customer_name : null;
+}
+
+function RevenuePill({
+  label,
+  value,
+  sub,
+  tone,
+  href,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone: 'slate' | 'amber' | 'blue' | 'emerald' | 'indigo' | 'green';
+  href: string;
+}) {
+  const colors = {
+    slate:   { bg: 'rgba(148,163,184,0.10)', fg: '#475569', accent: '#94a3b8' },
+    amber:   { bg: 'rgba(251,191,36,0.10)',  fg: '#92400e', accent: '#d97706' },
+    blue:    { bg: 'rgba(59,130,246,0.10)',  fg: '#1d4ed8', accent: '#3b82f6' },
+    emerald: { bg: 'rgba(16,185,129,0.10)',  fg: '#065f46', accent: '#10b981' },
+    indigo:  { bg: 'rgba(99,102,241,0.10)',  fg: '#3730a3', accent: '#6366f1' },
+    green:   { bg: 'rgba(34,197,94,0.10)',   fg: '#14532d', accent: '#22c55e' },
+  } as const;
+  const c = colors[tone];
+  return (
+    <Link
+      href={href}
+      className="flex flex-col gap-1 rounded-2xl border border-black/[0.06] px-4 py-3 shadow-sm transition hover:shadow-md"
+      style={{ background: c.bg }}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: c.accent }}>{label}</span>
+      <span className="text-[18px] font-bold leading-none" style={{ color: c.fg }}>{value}</span>
+      <span className="text-[11px]" style={{ color: c.accent }}>{sub}</span>
+    </Link>
+  );
 }
 
 function firstName(name: string) {

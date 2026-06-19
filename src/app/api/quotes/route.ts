@@ -9,7 +9,10 @@ import {
   verifyTurnstile,
 } from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
-import { quoteReceivedEmail, ndisForwardQuoteEmail } from '@/lib/email/templates';
+import { quoteReceivedEmail, ndisForwardQuoteEmail, adminNewQuoteEmail } from '@/lib/email/templates';
+
+const ADMIN_EMAIL = 'admin@budsatwork.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://budsatwork.com';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
 import { resolveLeadSource } from '@/lib/leads/source';
 
@@ -309,6 +312,26 @@ export async function POST(request: NextRequest) {
       });
       resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
         console.error('[email] quote_received send failed:', err);
+      });
+    }
+  }
+
+  // Notify admin a new quote landed — fire and forget
+  if (data) {
+    const resend = getResendClient();
+    if (resend) {
+      const { subject, html } = adminNewQuoteEmail({
+        customerName: body.customer_name as string,
+        customerEmail: body.customer_email as string | null ?? null,
+        customerPhone: body.customer_phone as string | null ?? null,
+        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+        total: submittedTotal,
+        quoteId: data.id,
+        serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
+        dashboardUrl: `${SITE_URL}/dashboard/quotes`,
+      });
+      resend.emails.send({ from: FROM_ADDRESS, to: ADMIN_EMAIL, subject, html }).catch((err) => {
+        console.error('[email] admin_new_quote send failed:', err);
       });
     }
   }

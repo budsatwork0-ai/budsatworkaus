@@ -107,6 +107,7 @@ export default function PayPage() {
   const [paypalReady, setPaypalReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
   const paypalMode = process.env.NEXT_PUBLIC_PAYPAL_MODE === 'live' ? '' : '-sandbox';
@@ -145,6 +146,23 @@ export default function PayPage() {
   const handlePaypalSuccess = () => {
     setPaid(true);
     router.push(`/services/checkout/success?paypal=1&quote_id=${quoteId}`);
+  };
+
+  const handleRegenerateCheckout = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/checkout`, { method: 'POST' });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error ?? 'Could not create a new payment link. Please contact us.');
+        return;
+      }
+      setQuote((prev) => prev ? { ...prev, stripe_checkout_url: data.url ?? null } : prev);
+    } catch {
+      setError('Could not create a new payment link. Please contact us.');
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   if (loading) {
@@ -270,7 +288,7 @@ export default function PayPage() {
           </div>
 
           {/* Stripe option */}
-          {quote.stripe_checkout_url && (
+          {quote.stripe_checkout_url ? (
             <div style={{ marginBottom: 16 }}>
               <a
                 href={quote.stripe_checkout_url}
@@ -293,10 +311,36 @@ export default function PayPage() {
                 Also accepts Apple Pay &amp; Google Pay
               </p>
             </div>
-          )}
+          ) : quote.is_ready ? (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                onClick={handleRegenerateCheckout}
+                disabled={regenerating}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  background: regenerating ? '#9ca3af' : PRIMARY,
+                  color: '#fff',
+                  border: 'none',
+                  cursor: regenerating ? 'not-allowed' : 'pointer',
+                  borderRadius: 12,
+                  padding: '14px 20px',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  textAlign: 'center',
+                  fontFamily: 'system-ui, sans-serif',
+                }}
+              >
+                {regenerating ? 'Loading payment…' : 'Pay with Card, Afterpay or Zip'}
+              </button>
+              <p style={{ fontSize: 11, color: MUTED, textAlign: 'center', margin: '6px 0 0' }}>
+                Also accepts Apple Pay &amp; Google Pay
+              </p>
+            </div>
+          ) : null}
 
           {/* Divider */}
-          {quote.stripe_checkout_url && clientId && (
+          {(quote.stripe_checkout_url || quote.is_ready) && clientId && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
               <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
               <span style={{ fontSize: 12, color: MUTED }}>or</span>

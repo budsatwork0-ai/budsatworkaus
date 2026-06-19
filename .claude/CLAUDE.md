@@ -1,331 +1,365 @@
-# graphify
-- **graphify** (`.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
-When the user types `/graphify`, invoke the Skill tool with `skill: "graphify"` before doing anything else.
+# Bud OS Evolution Principles (2026)
 
-# Bud OS Global Architecture Constitution
+## Core Shift
 
-You are working on the Buds at Work platform, Bud OS, Mission Control, Graphify, Supabase, Claude Code integrations, and the runtime agent fleet.
+Bud OS is not a collection of AI agents.
 
-Before making any changes, understand the core principle:
+Bud OS is a self-improving operating system.
 
-The goal is not to add more AI.
+The objective is not to generate outputs.
 
-The goal is to reduce confusion, increase truthfulness, and create a self-improving system that can be understood by humans, Claude Code, Codex, Graphify, and future developers.
+The objective is to generate verified outcomes.
 
 ---
 
-# Primary Mission
+# Loop Engineering First
 
-Mission Control must answer one question:
+Do not design prompts.
 
-"What requires attention right now?"
+Design loops.
 
-If a feature does not help answer that question, it probably belongs somewhere else.
+Every important workflow should follow:
 
-Mission Control is not a dumping ground for tools, reports, experiments, diagnostics, prototypes, architecture diagrams, or future ideas.
+Discover
+→ Plan
+→ Execute
+→ Verify
+→ Learn
 
-Mission Control is an operational cockpit.
+If verification fails:
+
+Do not stop.
+
+Iterate until the success criteria are met.
+
+Humans define the standards.
+
+Loops enforce them.
 
 ---
 
-# Authority Hierarchy
+# Closed Loops Over Open Loops
 
-Bud OS has a clear chain of command.
+Prefer bounded loops over autonomous exploration.
+
+Every loop should define:
+
+* Goal
+* Inputs
+* Success Criteria
+* Stop Conditions
+* Escalation Path
+
+Avoid infinite exploration.
+
+Avoid agent wandering.
+
+Avoid "thinking" without measurable progress.
+
+---
+
+# Verification Before Intelligence
+
+Never trust a single model output.
+
+Every important output should be reviewed by a separate evaluator.
+
+Examples:
+
+Research Agent
+→ Research Judge
+
+Builder Agent
+→ QA Judge
+
+Marketing Agent
+→ Taste Judge
+
+Runtime Agent
+→ Safety Judge
+
+Makers and checkers should be separate.
+
+Agents should never mark their own homework.
+
+---
+
+# Council Pattern
+
+For strategic decisions:
+
+Do not rely on a single perspective.
+
+Use multiple viewpoints.
+
+Examples:
+
+* Practitioner
+* Skeptic
+* Operator
+* Financial
+* Historical
+* Technical
+
+Synthesize findings.
+
+Record disagreements.
+
+Truth often exists inside contradictions.
+
+---
+
+# STORM Research Pattern
+
+For major research tasks:
+
+1. Multi-perspective analysis
+2. Contradiction mapping
+3. Synthesis
+4. Self-review
+
+Research should not stop at summaries.
+
+Research should identify:
+
+* consensus
+* disagreements
+* blind spots
+* uncertainty
+
+---
+
+# Memory Philosophy
+
+Agents do not remember.
+
+Agents read.
+
+Memory belongs to Bud OS.
+
+Memory must be:
+
+* explicit
+* inspectable
+* editable
+* attributable
+
+Store memory in:
+
+* Graphify
+* knowledge repositories
+* lessons
+* operating procedures
+
+Avoid hidden memory systems.
+
+Avoid opaque behavioral drift.
+
+---
+
+# Graphify Is The Brain
+
+Graphify is the long-term memory layer.
+
+Graphify stores:
+
+* relationships
+* ownership
+* architecture
+* decisions
+* lessons
+* dependencies
+
+Before major decisions:
+
+Query Graphify.
+
+Before major deletions:
+
+Query Graphify.
+
+Before major additions:
+
+Query Graphify.
+
+---
+
+# Fleet Engineering Principles
+
+Agent creation is easy.
+
+Agent governance is hard.
+
+Every runtime agent must have:
+
+* owner
+* purpose
+* permissions
+* observability
+* audit trail
+
+No anonymous agents.
+
+No orphaned agents.
+
+No agents without measurable value.
+
+---
+
+# Agent Hierarchy
 
 Bud
 → Orchestrator
 
 Bud Observer
-→ Watches systems and detects issues
+→ Monitoring and detection
 
 Graphify
-→ Brain and knowledge graph
+→ Knowledge and memory
 
-Claude Code
-→ Builder and implementer
+Runtime Workers
+→ Execution
 
-Runtime Agents
-→ Workers that perform actions
-
-Reports
-→ Information only
-
-Planned Systems
-→ Future work
-
-Never present these categories as equals.
-
----
-
-# Runtime Truth Rules
-
-An agent is only Active if it has:
-
-* a runtime execution path
-* a cron trigger
-* a queue
-* a webhook
-* a job runner
-* a real API execution route
-
-If none of those exist:
-
-Do not call it Active.
-
-Instead label it:
-
-* Report Only
-* Planned
-* Prototype
-* Needs Wiring
-
-Never fake runtime status.
-
-Never imply automation where none exists.
-
----
-
-# Mission Control Structure
-
-Mission Control Home contains:
-
-1. Attention Queue
-2. System Health
-3. Business Snapshot
-4. Approval Queue
-5. Activity Feed
-6. Next Recommended Action
-
-Only operational information belongs here.
-
----
-
-# Development Command Structure
-
-Development Command contains:
-
-* Graphify
-* Bud Terminal
-* Dev OS
-* Design System
-* Evidence
-* Architecture
-* Claude Memory
-
-Development tools do not belong on the operational dashboard.
-
----
-
-# Graphify Rules
-
-Graphify is the source of architectural truth.
-
-Before major refactors:
-
-1. Query Graphify.
-2. Identify dependencies.
-3. Identify ownership.
-4. Identify duplicate logic.
-5. Identify dead code.
-
-Do not perform large refactors without consulting Graphify first.
-
-Graphify should reduce uncertainty.
-
-Never ignore Graphify findings.
-
----
-
-# Supabase Rules
-
-Supabase is not a dumping ground.
-
-Every table must belong to a domain.
-
-Domains:
-
-Core Business
-
-* customers
-* jobs
-* quotes
-* leads
-
-Operations
-
-* agent_runs
-* approvals
-* tasks
-* logs
-
-Knowledge
-
-* graph_nodes
-* graph_edges
-* memory
-
-Analytics
-
-* events
-* metrics
-
-If a table has no clear owner, investigate before adding more data.
-
----
-
-# Refactor Rules
-
-Prefer deletion over addition.
-
-Prefer consolidation over duplication.
-
-Prefer truth over appearance.
-
-Before creating:
-
-* new component
-* new hook
-* new table
-* new agent
-* new route
-
-Check whether an existing solution already exists.
-
-If duplication exists:
-eliminate duplication before creating new architecture.
-
----
-
-# Design System Rules
-
-Do not use fake metrics.
-
-Do not use fake revenue.
-
-Do not use fake jobs counts.
-
-Do not use fake business data.
-
-If data is not real:
-
-Label it:
-
-Sample Data
-
-or
-
-Placeholder
-
-Never allow placeholder content to look operational.
-
----
-
-# Agent Rules
-
-Separate these categories:
-
-Workers
-
-* Quote Triage
-* Customer Reply
-* Reviews
-* Scheduling
-* etc
-
-Orchestrator
-
-* Bud
-
-Watchers
-
-* Bud Observer
-
-Knowledge
-
-* Graphify
-
-Builders
-
-* Claude Code
+Judges
+→ Verification
 
 Personas
+→ Thinking frameworks
 
-* bud-memory
-* bud-architect
-* bud-qa
-* bud-taste
+Claude Code
+→ Builder
 
-Personas are not runtime agents.
-
-Do not mix them together.
+Never blur these responsibilities.
 
 ---
 
-# Codebase Cleanup Rules
+# Runtime Truth Principle
 
-Always search for:
+An agent only exists if it performs real work.
 
-* dead files
-* dead exports
-* dead imports
-* duplicate components
-* duplicate queries
-* duplicate logic
+An agent is not real because:
 
-before adding new functionality.
+* a prompt exists
+* a page exists
+* a dashboard exists
+* a concept exists
 
-Reducing confusion is more valuable than adding features.
+An agent is real when it:
 
----
+* executes
+* monitors
+* decides
+* acts
 
-# Overview-V2 Rule
+Otherwise classify it as:
 
-The current codebase contains legacy architecture and dormant logic.
-
-Treat large files with caution.
-
-Before editing:
-
-* determine what is actually used
-* identify dormant exports
-* identify dependent files
-* produce a deletion plan
-
-Never assume a large file is important simply because it is large.
+* Planned
+* Prototype
+* Report Only
+* Needs Wiring
 
 ---
 
-# Mission Control Success Test
+# Taste Is Separate From Correctness
 
-After every change ask:
+Bud OS must distinguish:
 
-Can a new developer explain:
+Correct
+vs
+Good
 
-1. What Bud does?
-2. What Bud Observer does?
-3. What Graphify does?
-4. What Claude Code does?
-5. What the Runtime Fleet does?
-6. What needs attention right now?
+Verification evaluates:
 
-If not:
+* correctness
+* safety
+* accuracy
 
-The architecture is still too confusing.
+Taste evaluates:
+
+* trust
+* persuasion
+* clarity
+* brand alignment
+* emotional impact
+
+A correct output is not automatically a good output.
+
+Use dedicated Taste Judges where appropriate.
 
 ---
 
-# Final Principle
+# Local First Infrastructure
 
-The objective is not to build the most impressive AI platform.
+Default hierarchy:
 
-The objective is to build the clearest, most truthful, most maintainable operating system possible for Buds at Work.
+Local Models
+→ First
 
-Every refactor should reduce uncertainty.
+Cloud Models
+→ Escalation
 
-Every dashboard should increase clarity.
+Frontier Models
+→ Strategic Work
 
-Every agent should have a real purpose.
+Use expensive intelligence only when necessary.
 
-Every piece of data should have a source of truth.
+Routine operations should remain inexpensive and repeatable.
 
-Every system should have a clear owner.
+---
+
+# Two Track Development
+
+Always separate:
+
+Specification
+→ Human-intensive
+
+Implementation
+→ Agent-intensive
+
+Do not begin implementation before:
+
+* requirements exist
+* architecture exists
+* success criteria exist
+
+Specifications are usually the bottleneck.
+
+Protect specification quality.
+
+---
+
+# Jane Street Principle
+
+Prefer reliability over novelty.
+
+Prefer correctness over cleverness.
+
+Prefer maintainability over complexity.
+
+A simpler system with fewer failures is more valuable than a sophisticated system nobody understands.
+
+---
+
+# Bud OS Success Test
+
+The system succeeds when:
+
+* humans understand it
+* agents understand it
+* Graphify understands it
+* future developers understand it
+
+The goal is not maximum autonomy.
+
+The goal is trustworthy autonomy.
+
+Every loop should reduce uncertainty.
+
+Every memory should increase clarity.
+
+Every agent should have a measurable purpose.
+
+Every decision should have evidence.
+
+Every system should have a source of truth.

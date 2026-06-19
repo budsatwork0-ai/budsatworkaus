@@ -44,8 +44,15 @@ function createCheckoutIdempotencyKey(payload: {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const authUser = await getAuthUser();
-  if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Auth is optional for this route. Admin/employee calls come from the dashboard
+  // (authenticated). Guest customer calls come from the /pay/[quoteId] page —
+  // the quote ID acts as the bearer token for admin-approved quotes.
+  let authUser: Awaited<ReturnType<typeof getAuthUser>> = null;
+  try {
+    authUser = await getAuthUser();
+  } catch {
+    // Non-critical — proceed as anonymous
+  }
 
   const { id } = await params;
   const client = createServiceClientSafe();
@@ -62,17 +69,30 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
   }
 
-  const canAccess =
-    authUser.role === 'admin' ||
-    authUser.role === 'employee' ||
-    (authUser.role === 'customer' &&
-      (quote.customer_id === authUser.id ||
-        (!!quote.customer_email &&
-          !!authUser.email &&
-          quote.customer_email.toLowerCase() === authUser.email.toLowerCase())));
+  // Access control:
+  // - Authenticated admin/employee: full access
+  // - Authenticated customer: must own the quote (by id or email match)
+  // - Unauthenticated guest: only allowed if the quote has already been admin-approved
+  //   (status finalized/payment_pending). The quote UUID is the bearer token.
+  if (authUser) {
+    const canAccess =
+      authUser.role === 'admin' ||
+      authUser.role === 'employee' ||
+      (authUser.role === 'customer' &&
+        (quote.customer_id === authUser.id ||
+          (!!quote.customer_email &&
+            !!authUser.email &&
+            quote.customer_email.toLowerCase() === authUser.email.toLowerCase())));
 
-  if (!canAccess) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!canAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } else {
+    // Guest path: only permit for admin-approved quotes
+    const approvedStatuses = ['finalized', 'payment_pending', 'approved'];
+    if (!approvedStatuses.includes(quote.status)) {
+      return NextResponse.json({ error: 'Quote is not yet approved for payment' }, { status: 403 });
+    }
   }
 
   const quoteStatus =
@@ -329,7 +349,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   void recordAnalyticsEvent({
     sessionId: quote.analytics_session_id ?? null,
     eventName: 'checkout_started',
-    page: authUser.role === 'customer' ? '/portal/quotes' : '/dashboard/quotes',
+    page: authUser?.role === 'customer' ? '/portal/quotes' : '/dashboard/quotes',
     source: 'server',
     quoteId: quote.id,
     orderId,

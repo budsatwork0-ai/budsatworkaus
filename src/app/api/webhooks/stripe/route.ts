@@ -4,7 +4,10 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
-import { bookingConfirmedEmail, checkoutExpiredEmail } from '@/lib/email/templates';
+import { bookingConfirmedEmail, checkoutExpiredEmail, adminPaymentReceivedEmail } from '@/lib/email/templates';
+
+const ADMIN_EMAIL = 'admin@budsatwork.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://budsatwork.com';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -380,19 +383,40 @@ export async function POST(req: NextRequest) {
 
         // Send booking confirmed email — fire and forget
         const customerEmail = paymentEmail;
+        const serviceType = session.metadata?.service_type ?? '';
+        const customerName = session.metadata?.customer_name ?? 'there';
+        const serviceLabel = SERVICE_LABELS[serviceType] ?? serviceType;
+
         if (customerEmail) {
           const resend = getResendClient();
           if (resend) {
-            const serviceType = session.metadata?.service_type ?? '';
-            const customerName = session.metadata?.customer_name ?? 'there';
             const { subject, html } = bookingConfirmedEmail({
               customerName,
-              serviceLabel: SERVICE_LABELS[serviceType] ?? serviceType,
+              serviceLabel,
               total: paymentAmount,
               orderId: resolvedOrderId,
             });
             resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
               console.error('[email] booking_confirmed send failed:', err);
+            });
+          }
+        }
+
+        // Notify admin payment received — fire and forget
+        {
+          const resend = getResendClient();
+          if (resend) {
+            const { subject, html } = adminPaymentReceivedEmail({
+              customerName,
+              customerEmail: customerEmail ?? null,
+              serviceLabel,
+              amount: paymentAmount,
+              orderId: resolvedOrderId,
+              quoteId: quoteId ?? null,
+              dashboardUrl: `${SITE_URL}/dashboard/orders`,
+            });
+            resend.emails.send({ from: FROM_ADDRESS, to: ADMIN_EMAIL, subject, html }).catch((err) => {
+              console.error('[email] admin_payment_received send failed:', err);
             });
           }
         }

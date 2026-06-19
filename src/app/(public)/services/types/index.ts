@@ -320,6 +320,7 @@ export type WizardState = {
   yardPolygon: { lat: number; lng: number }[][];
   yardArea: number | null;
   yardPerimeter: number | null;
+  manualYardAreaM2: number | null;
   yardJobs: YardJob[];
   yardActiveJobId: string | null;
   floorPlanLayout: string;

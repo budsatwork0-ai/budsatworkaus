@@ -250,6 +250,13 @@ class Step2ErrorBoundary extends React.Component<
 // NDIS caps, min/max hours, and suggestion helpers now live in
 // lib/pricing/ndis.ts so the Quote Assistant can share the same source of truth.
 
+const YARD_SIZE_BUCKETS = [
+  { label: 'Small courtyard', areaM2: 50 },
+  { label: 'Suburban block', areaM2: 400 },
+  { label: 'Large block', areaM2: 800 },
+  { label: 'Acreage', areaM2: 2000 },
+] as const;
+
 
 function ServicesPageContent() {
   const searchParams = useSearchParams();
@@ -790,10 +797,14 @@ function ServicesPageContent() {
   const yardMeasurementUnit = YARD_MEASUREMENT_UNITS[yardMeasurementConfig.mode];
   // Sum across all zones in the active job
   const activeYardZones = activeYardJob?.polygon_geojson ?? [];
-  const activeMeasurementValue =
+  const activePolygonMeasurement =
     yardMeasurementConfig.mode === 'perimeter'
       ? activeYardZones.reduce((sum, zone) => sum + computePerimeterFromPath(zone), 0)
       : activeYardZones.reduce((sum, zone) => sum + computeAreaFromPath(zone), 0);
+  const activeMeasurementValue =
+    activePolygonMeasurement === 0 && yardMeasurementConfig.mode === 'area' && S.manualYardAreaM2
+      ? S.manualYardAreaM2
+      : activePolygonMeasurement;
   const activeMeasurementLabel =
     activeMeasurementValue > 0
       ? `${yardMeasurementConfig.label}: ${Math.round(activeMeasurementValue)} ${yardMeasurementUnit}`
@@ -1358,7 +1369,7 @@ function ServicesPageContent() {
         : S.service === 'yard'
         ? {
             ...(S.paramsByService[S.service] || {}),
-            yard_area: S.yardArea ?? (S.paramsByService[S.service] as any)?.yard_area,
+            yard_area: S.yardArea ?? S.manualYardAreaM2 ?? (S.paramsByService[S.service] as any)?.yard_area,
           }
         : S.service === 'laundry_sneakers'
         ? {
@@ -1384,6 +1395,7 @@ function ServicesPageContent() {
     S.cleaningAddons,
     S.secondStorey,
     S.yardArea,
+    S.manualYardAreaM2,
     S.laundryTier,
     S.laundryLoads,
     S.sneakerTier,
@@ -1405,14 +1417,17 @@ function ServicesPageContent() {
         return isNdisMmmEligible ? hasWork && S.address.trim().length > 0 : hasWork;
       case 'windows':
         return S.winRows.some((r) => (r.int ?? 0) > 0 || (r.ext ?? 0) > 0);
-      case 'yard':
-        return (
-          (!isNdisMmmEligible || S.address.trim().length > 0) &&
+      case 'yard': {
+        const isAreaScope = S.scope !== 'yard_hedge' && S.scope !== 'gutter_clean';
+        const hasPolygons =
           (S.yardJobs?.length ?? 0) > 0 &&
           (S.yardJobs ?? []).every((job: { polygon_geojson?: unknown[][] }) =>
             (job.polygon_geojson ?? []).some((z) => z.length >= 3)
-          )
-        );
+          );
+        const hasFallbackArea =
+          isAreaScope && (S.manualYardAreaM2 ?? 0) > 0 && (S.yardJobs?.length ?? 0) <= 1;
+        return (!isNdisMmmEligible || S.address.trim().length > 0) && (hasPolygons || hasFallbackArea);
+      }
       case 'auto':
         return !!S.carModelType;
       case 'dump':
@@ -1422,7 +1437,7 @@ function ServicesPageContent() {
       default:
         return hasWork;
     }
-  }, [S.service, S.address, S.winRows, S.yardJobs, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork, isNdisMmmEligible]);
+  }, [S.service, S.scope, S.address, S.winRows, S.yardJobs, S.manualYardAreaM2, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork, isNdisMmmEligible]);
 
   const conditionMult = useMemo(() => {
     // Flags
@@ -1522,7 +1537,7 @@ function ServicesPageContent() {
     commFrequency: S.commFrequency,
     yardParams:
       S.service === 'yard'
-        ? { ...S.paramsByService.yard, yard_area: S.yardArea ?? S.paramsByService.yard?.yard_area }
+        ? { ...S.paramsByService.yard, yard_area: S.yardArea ?? S.manualYardAreaM2 ?? S.paramsByService.yard?.yard_area }
         : undefined,
     windowsMinutesOverride:
       S.service === 'windows'
@@ -1565,6 +1580,7 @@ function ServicesPageContent() {
       S.paramsByService.dump?.binPlan,
       S.paramsByService.yard,
       S.yardArea,
+      S.manualYardAreaM2,
       S.dumpRun,
       S.commPreset,
       S.commFrequency,
@@ -1826,11 +1842,21 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
     const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
     const hasValidNdisForwardEmail =
       !ndisForwardEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ndisForwardEmail);
+    // Yard jobs with all polygons drawn don't require a typed address (polygon defines the site).
+    // NDIS yard jobs still require an address for MMM region detection.
+    const yardHasAllPolygons =
+      S.service === 'yard' &&
+      !isNdisContext &&
+      (S.yardJobs ?? []).length > 0 &&
+      (S.yardJobs ?? []).every(
+        (job: { polygon_geojson?: unknown[][] }) =>
+          (job.polygon_geojson ?? []).some((z: unknown[]) => z.length >= 3)
+      );
     const okInputs =
       S.fullName?.trim().length >= 2 &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '') &&
       normalisedPhone.length >= 10 &&
-      S.address.trim().length > 0 &&
+      (yardHasAllPolygons || S.address.trim().length > 0) &&
       (!isNdisContext || !!S.ndisManagementType) &&
       hasValidNdisForwardEmail;
 
@@ -1839,7 +1865,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         (!S.fullName?.trim() || S.fullName.trim().length < 2) && 'name',
         !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) && 'email',
         normalisedPhone.length < 10 && 'phone',
-        !S.address.trim() && 'address',
+        (!yardHasAllPolygons && !S.address.trim()) && 'address',
         (isNdisContext && !S.ndisManagementType) && 'ndis_management',
         (isNdisContext && !hasValidNdisForwardEmail) && 'ndis_forward_email',
       ].filter(Boolean).join(',');
@@ -1847,13 +1873,15 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       toast.error(
         isNdisContext
           ? 'Please complete your details, service address, and NDIS routing fields.'
+          : yardHasAllPolygons
+          ? 'Please complete your name, email, and phone number.'
           : 'Please complete your details and confirm your service address.'
       );
       const firstInvalid =
         (!S.fullName?.trim() || S.fullName.trim().length < 2) ? 's3-fullname'
         : !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(S.email || '')) ? 's3-email'
         : normalisedPhone.length < 10 ? 's3-phone'
-        : !S.address.trim() ? 's3-service-address'
+        : (!yardHasAllPolygons && !S.address.trim()) ? 's3-service-address'
         : isNdisContext && !S.ndisManagementType ? 's3-ndis-routing'
         : isNdisContext && !hasValidNdisForwardEmail ? 's3-ndis-forward-email'
         : null;
@@ -1949,6 +1977,15 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               : '',
             isNdisContext
               ? 'NDIS quote flow supported under the Buds At Work x MaluCare partnership.'
+              : '',
+            S.service === 'yard' && yardMeasurementConfig.mode === 'area' && (S.yardArea ?? S.manualYardAreaM2)
+              ? `Yard area: ~${Math.round((S.yardArea ?? S.manualYardAreaM2) ?? 0)} sqm${yardHasAllPolygons ? ' (polygon-measured)' : ' (self-estimated)'}`
+              : '',
+            S.service === 'yard' && yardMeasurementConfig.mode === 'perimeter' && (S.yardPerimeter ?? 0) > 0
+              ? `Perimeter: ~${Math.round(S.yardPerimeter ?? 0)} m (polygon-measured)`
+              : '',
+            S.service === 'yard' && yardHasAllPolygons && !S.address.trim()
+              ? `No typed address — location defined by satellite polygon (${(S.yardJobs ?? []).length} zone${(S.yardJobs ?? []).length !== 1 ? 's' : ''})`
               : '',
           ].filter(Boolean).join('\n').trim() || '',
         }),
@@ -3564,6 +3601,31 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             Search your address, tap <strong>Draw</strong>, outline your yard, then tap <strong>Done</strong>.
           </div>
         );
+        const yardSizeFallback = !hasZones && yardMeasurementConfig.mode === 'area' ? (
+          <div className="mt-3 px-1">
+            <div className="text-[11px] font-medium text-slate-400 mb-2">Or pick a size estimate</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {YARD_SIZE_BUCKETS.map((b) => (
+                <button
+                  key={b.areaM2}
+                  type="button"
+                  onClick={() => {
+                    set('manualYardAreaM2', b.areaM2);
+                    set('yardArea', b.areaM2);
+                  }}
+                  className={cls(
+                    'px-2.5 py-2 rounded-xl border text-[11px] font-medium text-left transition-colors',
+                    S.manualYardAreaM2 === b.areaM2
+                      ? 'border-[color:var(--accent)] bg-[color:var(--accent)]/5 text-[color:var(--accent)]'
+                      : 'border-black/10 text-slate-600 hover:border-slate-300 bg-white/60'
+                  )}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null;
         const sitesWidget = (S.yardJobs?.length ?? 0) <= 1 ? (
           <button
             type="button"
@@ -3652,6 +3714,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                         {ndisCard}
                         {clearZonesBtn}
                         {instructionText}
+                        {yardSizeFallback}
                         {sitesWidget}
                       </div>
                     )}
@@ -3720,6 +3783,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     <div className="flex flex-col gap-2">
                       {clearZonesBtn}
                       {instructionText}
+                      {yardSizeFallback}
                       {sitesWidget}
                     </div>
                   )}
@@ -3797,7 +3861,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         ) : (
           <div className="grid lg:grid-cols-3 gap-6 min-w-0">
             {/* MAIN: form */}
-            <div className="min-w-0 lg:col-span-2 space-y-4 order-2 lg:order-1">
+            <div className="min-w-0 lg:col-span-2 space-y-4 lg:order-1">
               {/* Header */}
               <div className="pb-1">
                 <h3 className="text-xl sm:text-2xl font-semibold text-slate-900">
@@ -3836,6 +3900,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-fullname">Full name <span className="text-red-500">*</span></label>
                     <input
                       id="s3-fullname"
+                      type="text"
+                      autoComplete="name"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
                         fieldTouched.fullName && (!authedUser || profileHydrated) && !S.fullName.trim() ? "border-red-400" : "border-black/10"
@@ -3859,6 +3925,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-email">Email <span className="text-red-500">*</span></label>
                     <input
                       id="s3-email"
+                      type="email"
+                      autoComplete="email"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
                         fieldTouched.email && (!authedUser || profileHydrated) && !S.email.trim() ? "border-red-400" : "border-black/10"
@@ -3890,6 +3958,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="s3-phone">Phone <span className="text-red-500">*</span></label>
                     <input
                       id="s3-phone"
+                      type="tel"
+                      autoComplete="tel"
                       className={cls(
                         "w-full rounded-xl border bg-white/80 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 focus:border-[color:var(--accent)]",
                         fieldTouched.phone && (!authedUser || profileHydrated) && !S.phone.trim() ? "border-red-400" : "border-black/10"
@@ -4265,7 +4335,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             </div>
 
             {/* SIDEBAR */}
-            <aside className={cls('min-w-0 lg:col-span-1 h-fit order-1 lg:order-2', !yardActive && 'lg:sticky lg:top-6')}>
+            <aside className={cls('min-w-0 lg:col-span-1 h-fit lg:order-2', !yardActive && 'lg:sticky lg:top-6')}>
               <S3_Card className="relative overflow-hidden">
                 <div
                   className="absolute inset-x-0 -top-1 h-1 rounded-t-2xl"
@@ -4820,7 +4890,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
     yard_hedge: 220, gutter_clean: 160,
   };
   const isPerimeterScope = S.scope === 'yard_hedge' || S.scope === 'gutter_clean';
-  const measurement = isPerimeterScope ? (S.yardPerimeter ?? 0) : (S.yardArea ?? 0);
+  const measurement = isPerimeterScope ? (S.yardPerimeter ?? 0) : (S.yardArea ?? S.manualYardAreaM2 ?? 0);
   const visitCap = isPerimeterScope ? (YARD_VISIT_MAX_M[S.scope] ?? null) : (YARD_VISIT_MAX_M2[S.scope] ?? null);
   const isLargeProperty = visitCap !== null && measurement > visitCap;
   const unit = isPerimeterScope ? 'm' : 'm²';

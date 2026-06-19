@@ -105,6 +105,8 @@ export default function FundraisingPage() {
   const [contributionItemId, setContributionItemId] = useState<string | null>(null);
   const [contributions, setContributions] = useState<FundraisingContribution[]>([]);
   const [contributionsLoading, setContributionsLoading] = useState(false);
+  const [backfillInput, setBackfillInput] = useState('');
+  const [backfilling, setBackfilling] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function loadItems() {
@@ -418,6 +420,44 @@ export default function FundraisingPage() {
     }
   }
 
+  async function handleBackfillPayment(itemId: string) {
+    const val = backfillInput.trim();
+    if (!val || backfilling) return;
+    const isSession = val.startsWith('cs_');
+    const isPI      = val.startsWith('pi_');
+    if (!isSession && !isPI) {
+      toast.error('Enter a Stripe session ID (cs_…) or payment intent ID (pi_…)');
+      return;
+    }
+    setBackfilling(true);
+    try {
+      const body = isSession
+        ? { stripe_session_id: val }
+        : { stripe_payment_intent_id: val };
+      const res = await fetch(`/api/fundraising/${itemId}/backfill-stripe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as { success?: boolean; contribution?: { gross_amount_cents: number }; error?: string };
+      if (!res.ok || data.error) {
+        toast.error(data.error ?? 'Backfill failed');
+        return;
+      }
+      toast.success(`Backfilled $${((data.contribution?.gross_amount_cents ?? 0) / 100).toFixed(2)} — refreshing…`);
+      setBackfillInput('');
+      // Reload both the item totals and the contributions list
+      const cRes = await fetch(`/api/fundraising/${itemId}/contributions`);
+      const cData = (await cRes.json()) as { contributions?: FundraisingContribution[] };
+      setContributions(cData.contributions ?? []);
+      await loadItems();
+    } catch {
+      toast.error('Backfill failed');
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   async function handleStatsSave(e: React.FormEvent) {
     e.preventDefault();
     if (statsLoading) return;
@@ -689,7 +729,29 @@ export default function FundraisingPage() {
                             {contributionsLoading ? (
                               <p className="text-sm text-slate-500">Loading contributions...</p>
                             ) : contributions.length === 0 ? (
-                              <p className="text-sm text-slate-500">No payment contributions recorded yet.</p>
+                              <div className="space-y-3">
+                                <p className="text-sm text-slate-500">No payment contributions recorded yet.</p>
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                  <p className="mb-2 text-xs font-semibold text-amber-800">Backfill a missed payment</p>
+                                  <p className="mb-2 text-xs text-amber-700">If Stripe fired a webhook that didn&apos;t land, paste the checkout session ID (<code>cs_…</code>) or payment intent ID (<code>pi_…</code>) from the Stripe dashboard.</p>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={backfillInput}
+                                      onChange={(e) => setBackfillInput(e.target.value)}
+                                      placeholder="cs_live_… or pi_…"
+                                      className="min-w-0 flex-1 rounded border border-amber-300 px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                                    />
+                                    <button
+                                      onClick={() => void handleBackfillPayment(item.id)}
+                                      disabled={!backfillInput.trim() || backfilling}
+                                      className="rounded bg-amber-600 px-3 py-1 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                                    >
+                                      {backfilling ? 'Linking…' : 'Link Payment'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             ) : (
                                 <div className="space-y-2">
                                 {contributions.filter(c => c.status === 'paid').length > 1 && (() => {
@@ -707,6 +769,22 @@ export default function FundraisingPage() {
                                     </div>
                                   );
                                 })()}
+                                <div className="mt-2 flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={backfillInput}
+                                      onChange={(e) => setBackfillInput(e.target.value)}
+                                      placeholder="Backfill missed payment — cs_live_… or pi_…"
+                                      className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-xs focus:border-emerald-400 focus:outline-none"
+                                    />
+                                    <button
+                                      onClick={() => void handleBackfillPayment(item.id)}
+                                      disabled={!backfillInput.trim() || backfilling}
+                                      className="rounded bg-slate-700 px-3 py-1 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                                    >
+                                      {backfilling ? 'Linking…' : 'Backfill'}
+                                    </button>
+                                  </div>
                                 {contributions.map((contribution) => {
                                   const gross = contribution.gross_amount_cents ?? contribution.amount_cents;
                                   const fee   = contribution.stripe_fee_cents ?? 0;

@@ -277,6 +277,20 @@ function QuotesPageContent() {
     }
   }, [fetchQuotes]);
 
+  const sendReminder = useCallback(async (quote: Quote) => {
+    setActionLoadingId(quote.id);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/remind`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send reminder');
+      toast.success(`Reminder sent to ${data.sent_to ?? quote.customer_email ?? quote.customer_name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send reminder');
+    } finally {
+      setActionLoadingId(null);
+    }
+  }, []);
+
   const copyPaymentLink = useCallback(async (quote: Quote) => {
     setActionLoadingId(quote.id);
     try {
@@ -567,6 +581,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
 
               <Section
@@ -589,6 +604,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
             </div>
           )}
@@ -615,6 +631,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
 
               <Section
@@ -637,6 +654,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
             </div>
           )}
@@ -663,6 +681,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
 
               <Section
@@ -685,6 +704,7 @@ function QuotesPageContent() {
                   setCancelReason('');
                 }}
                 onNdisStamp={handleNdisStamp}
+                onSendReminder={sendReminder}
               />
             </div>
           )}
@@ -855,6 +875,7 @@ function Section({
   onCopyPaymentLink,
   onCancelApproved,
   onNdisStamp,
+  onSendReminder,
 }: {
   title: string;
   subtitle: string;
@@ -869,6 +890,7 @@ function Section({
   onCopyPaymentLink: (quote: Quote) => void;
   onCancelApproved: (quote: Quote) => void;
   onNdisStamp: (quote: Quote, field: 'ndis_forwarded_at' | 'ndis_accepted_at' | 'ndis_booked_at') => void;
+  onSendReminder: (quote: Quote) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -1035,6 +1057,16 @@ function Section({
                       className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-60"
                     >
                       Copy payment link
+                    </button>
+                  )}
+
+                  {quote.status === 'payment_pending' && quote.customer_email && (
+                    <button
+                      onClick={() => onSendReminder(quote)}
+                      disabled={loading}
+                      className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-200 disabled:opacity-60"
+                    >
+                      Send reminder
                     </button>
                   )}
 
