@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     console.error('[api/campaign-factory/runs] POST:', error.message);
-    return NextResponse.json({ error: 'Failed to create Campaign Factory run' }, { status: 500 });
+    return NextResponse.json({ error: `Failed to create Campaign Factory run: ${error.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ ...data, artifacts: [] }, { status: 201 });

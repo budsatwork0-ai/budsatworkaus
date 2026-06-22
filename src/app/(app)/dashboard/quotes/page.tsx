@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -916,7 +917,14 @@ function Section({
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-1">
-                    <div className="font-semibold text-slate-900">{quote.customer_name}</div>
+                    <div className="font-semibold text-slate-900">
+                      <Link
+                        href={`/dashboard/quotes/${quote.id}`}
+                        className="hover:underline"
+                      >
+                        {quote.customer_name}
+                      </Link>
+                    </div>
                     <div className="text-sm text-slate-600">
                       {SERVICE_TYPE_LABELS[quote.service_type as keyof typeof SERVICE_TYPE_LABELS] || quote.service_type}
                       {' · '}
@@ -1009,6 +1017,13 @@ function Section({
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    href={`/dashboard/quotes/${quote.id}`}
+                    className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+                  >
+                    View details
+                  </Link>
+
                   {(quote.status === 'submitted' || quote.status === 'in_review' || quote.status === 'finalized') && (
                     <button
                       onClick={() => onAdjust(quote)}

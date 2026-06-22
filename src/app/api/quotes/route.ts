@@ -14,7 +14,7 @@ import { quoteReceivedEmail, ndisForwardQuoteEmail, adminNewQuoteEmail } from '@
 const ADMIN_EMAIL = 'admin@budsatwork.com';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://budsatwork.com';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
-import { resolveLeadSource } from '@/lib/leads/source';
+import { resolveLeadSource, coerceLeadSource } from '@/lib/leads/source';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -228,12 +228,19 @@ export async function POST(request: NextRequest) {
     typeof body.notes === 'string' ? body.notes : '',
   ].filter(Boolean).join('\n') || null;
 
-  // Resolve the lead source (module 9 attribution). The client passes any
-  // utm_* params + document.referrer captured on landing; we map those to a
-  // LeadSource, falling back to 'website' so the column is never null for
-  // form-submitted quotes.
+  // Extract lead_id for post-insert linkage. UUID format validated here so the
+  // INSERT never fails due to a malformed value arriving from the client.
+  const QUOTE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const rawLeadId = typeof body.lead_id === 'string' ? body.lead_id.trim() : null;
+  const validLeadId = rawLeadId && QUOTE_UUID_RE.test(rawLeadId) ? rawLeadId : null;
+
+  // Resolve the lead source (module 9 attribution). When the quote originates
+  // from a known lead (admin converting via Mission Control), use that lead's
+  // source directly so Messenger/phone attribution is not overwritten by the
+  // 'website' default. Falls back to UTM/referrer resolution for all other paths.
   const referrerHeader = request.headers.get('referer') || request.headers.get('referrer');
-  const leadSource = resolveLeadSource({
+  const providedLeadSrc = typeof body.lead_src === 'string' ? coerceLeadSource(body.lead_src) : null;
+  const leadSource = providedLeadSrc ?? resolveLeadSource({
     source: typeof body.source === 'string' ? body.source : null,
     utm_source: typeof body.utm_source === 'string' ? body.utm_source : null,
     utm_medium: typeof body.utm_medium === 'string' ? body.utm_medium : null,
@@ -277,6 +284,18 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error('[api/quotes] POST failed:', error.message);
     return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
+  }
+
+  // Link lead → quote. Best-effort: a failure here must not fail the quote response.
+  if (validLeadId && data?.id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    void (client as any)
+      .from('leads')
+      .update({ quote_id: data.id, response_status: 'quoted' })
+      .eq('id', validLeadId)
+      .then(({ error: linkErr }: { error: { message: string } | null }) => {
+        if (linkErr) console.error('[api/quotes] lead link failed:', linkErr.message);
+      });
   }
 
   void recordAnalyticsEvent({

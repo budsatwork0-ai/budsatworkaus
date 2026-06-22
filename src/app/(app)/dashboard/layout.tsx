@@ -109,6 +109,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/automations': 'Automations',
   '/dashboard/audit-log': 'Audit Log',
   '/dashboard/design': 'Design System',
+  '/dashboard/design/records': 'Record Framework',
   '/dashboard/mission-control': 'Bud OS',
   '/dashboard/sandbox': 'Sandbox',
   '/dashboard/agents': 'Agents',

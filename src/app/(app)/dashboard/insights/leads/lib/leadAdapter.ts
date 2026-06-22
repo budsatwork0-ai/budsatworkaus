@@ -345,7 +345,7 @@ export function dashboardLeadsToLeads(leads: DashboardLead[], now: Date = new Da
       isAbandoned: false,
       isStale,
       attentionReason,
-      href: `/dashboard/quotes?lead=${encodeURIComponent(row.id)}`,
+      href: `/dashboard/leads/${row.id}`,
       leadScore: null,
     };
   });

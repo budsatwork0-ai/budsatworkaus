@@ -134,7 +134,7 @@ export function OpenEnquiriesPanel({ rows }: { rows: OpenEnquiryRow[] }) {
                 Archive
               </button>
               <Link
-                href="/services"
+                href={`/services?lead_id=${row.id}`}
                 target="_blank"
                 className="rounded-lg border border-sky-400/25 bg-sky-500/[0.06] px-2.5 py-1 text-[11px] font-semibold text-sky-300 transition hover:bg-sky-500/15"
               >

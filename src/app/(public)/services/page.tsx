@@ -284,6 +284,12 @@ function ServicesPageContent() {
     context: S.context,
   });
   const [urlServiceHandled, setUrlServiceHandled] = useState(false);
+  // Lead prefill — set when admin opens the wizard from Mission Control.
+  // Only the lead UUID travels in the URL; PII is fetched server-side.
+  const leadIdParam = searchParams?.get('lead_id') ?? null;
+  const [quoteLeadId, setQuoteLeadId] = useState<string | null>(null);
+  const [quoteLeadSource, setQuoteLeadSource] = useState<string | null>(null);
+  const leadPrefillDoneRef = useRef(false);
   // Detect rebook mode from URL before params are cleared (read once at mount).
   const [isRebook] = useState(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('rebook')
@@ -1476,6 +1482,44 @@ function ServicesPageContent() {
     // logic (e.g. analytics) has an obvious place to live.
   }, [isClient]);
 
+  // Lead prefill — fires once after client hydration when lead_id is in the URL.
+  // Fetches name/email/phone/service from the admin-only lead endpoint.
+  // Falls back silently if the caller is not an admin or the lead does not exist.
+  const LEAD_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const VALID_LEAD_SERVICES = new Set<string>(['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers']);
+  useEffect(() => {
+    if (!isClient || leadPrefillDoneRef.current) return;
+    if (!leadIdParam || !LEAD_UUID_RE.test(leadIdParam)) return;
+    leadPrefillDoneRef.current = true;
+    void fetch(`/api/leads/${leadIdParam}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: {
+        lead?: {
+          customer_name: string | null;
+          customer_email: string | null;
+          customer_phone: string | null;
+          service_type: string | null;
+          source: string;
+        };
+      } | null) => {
+        if (!data?.lead) return;
+        const { lead } = data;
+        setQuoteLeadId(leadIdParam);
+        setQuoteLeadSource(lead.source ?? null);
+        const { fullName, email, phone } = wizardContactRef.current;
+        const prefill: Partial<WizardState> = {};
+        if (!fullName.trim() && lead.customer_name) prefill.fullName = lead.customer_name;
+        if (!email.trim() && lead.customer_email) prefill.email = lead.customer_email;
+        if (!phone.trim() && lead.customer_phone) prefill.phone = lead.customer_phone;
+        if (lead.service_type && VALID_LEAD_SERVICES.has(lead.service_type)) {
+          prefill.service = lead.service_type as ServiceType;
+        }
+        if (Object.keys(prefill).length > 0) dispatch({ type: 'merge', value: prefill });
+      })
+      .catch(() => {}); // non-admin session or invalid lead — silent ignore
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClient]);
+
   // Ensure at least one yard job exists
   useEffect(() => {
     if (S.yardJobs && S.yardJobs.length > 0) return;
@@ -1939,6 +1983,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
           referrer: attribution?.referrer ?? null,
           landing_path: attribution?.landing_path ?? null,
           ...(isGuest && guestToken ? { turnstileToken: guestToken } : {}),
+          ...(quoteLeadId ? { lead_id: quoteLeadId, lead_src: quoteLeadSource } : {}),
           submitted_total: effectiveTotal,
           total: effectiveTotal,
           service_address: S.address.trim(),
