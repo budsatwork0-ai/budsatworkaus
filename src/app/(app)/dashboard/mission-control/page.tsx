@@ -332,10 +332,18 @@ async function loadData() {
 
   const ordersThisMonth = ordersSnapshotRes.data ?? [];
 
-  const { count: pendingEnquiriesCount } = await supabase
-    .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .eq('response_status', 'awaiting_response');
+  const [{ count: pendingEnquiriesCount }, openEnquiriesRes] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('response_status', 'awaiting_response'),
+    supabase
+      .from('leads')
+      .select('id, customer_name, customer_email, customer_phone, service_type, source, reply_channel, created_at')
+      .eq('response_status', 'awaiting_response')
+      .order('created_at', { ascending: true })
+      .limit(20),
+  ]);
 
   const businessSnapshot = {
     mtd_revenue: ordersThisMonth.reduce((sum, o) => sum + ((o.final_price as number | null) ?? 0), 0),
@@ -384,6 +392,7 @@ async function loadData() {
     latestRuns,
     devOs,
     businessSnapshot,
+    openEnquiries: (openEnquiriesRes.data ?? []) as import('./MissionControlClient').OpenEnquiryRow[],
     agentImpact,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     commandState,

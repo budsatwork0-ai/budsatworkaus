@@ -32,7 +32,8 @@ import {
   type AgentStatusDerived,
 } from '@/lib/bud/os-view-model';
 import { deriveGlobalTruth, type GlobalTruthState } from '@/lib/bud/overview-v2';
-import type { BusinessSnapshotData } from '../MissionControlClient';
+import type { BusinessSnapshotData, OpenEnquiryRow } from '../MissionControlClient';
+import { OpenEnquiriesPanel } from './OpenEnquiriesPanel';
 
 /* ── section label ───────────────────────────────────────────────────────── */
 
@@ -102,6 +103,7 @@ const AGENT_STATUS_TONE: Record<AgentStatusDerived, string> = {
 type Props = {
   commandState: MissionControlHealth;
   businessSnapshot: BusinessSnapshotData;
+  openEnquiries?: OpenEnquiryRow[];
   agentImpact?: AgentImpactMap;
   queue: BudOsQueueItem[];
   activity: BudActivityEvent[];
@@ -119,6 +121,7 @@ type Props = {
 export function OverviewCore({
   commandState,
   businessSnapshot,
+  openEnquiries = [],
   agentImpact,
   queue,
   activity,
@@ -136,6 +139,19 @@ export function OverviewCore({
     <div className="space-y-5">
       <SectionLabel label="Business" badge="Active" />
       <BusinessSnapshot snapshot={businessSnapshot} />
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/30">
+            Open enquiries
+            {openEnquiries.length > 0 && (
+              <span className="ml-2 inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-1.5 py-px text-[9px] font-bold text-red-300">
+                {openEnquiries.length}
+              </span>
+            )}
+          </p>
+        </div>
+        <OpenEnquiriesPanel rows={openEnquiries} />
+      </div>
       <SectionLabel label="Runtime" badge="Active" />
       <StateAndAsk truth={truth} commandState={commandState} />
       <Vitals commandState={commandState} />

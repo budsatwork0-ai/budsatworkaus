@@ -41,12 +41,24 @@ export type BusinessSnapshotData = {
   pending_enquiries: number;
 };
 
+export type OpenEnquiryRow = {
+  id: string;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  service_type: string | null;
+  source: string;
+  reply_channel: string | null;
+  created_at: string;
+};
+
 type Props = {
   agents?: AgentRow[];
   latestRuns?: Record<string, { confidence_score: number | null; finished_at: string | null }>;
   budActivity?: BudActivityEvent[];
   commandState: MissionControlHealth;
   businessSnapshot: BusinessSnapshotData;
+  openEnquiries?: OpenEnquiryRow[];
   agentImpact?: AgentImpactMap;
   budOs: {
     actionQueue: BudOsQueueItem[];
@@ -77,6 +89,7 @@ export function MissionControlClient({
   latestRuns = {},
   commandState,
   businessSnapshot,
+  openEnquiries = [],
   agentImpact,
   budOs,
   budActivity = [],
@@ -327,6 +340,7 @@ export function MissionControlClient({
             <OverviewCore
               commandState={commandState}
               businessSnapshot={businessSnapshot}
+              openEnquiries={openEnquiries}
               agentImpact={agentImpact}
               queue={queue}
               activity={liveActivity}
