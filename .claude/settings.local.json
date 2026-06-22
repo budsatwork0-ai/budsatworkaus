@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(graphify query *)",
+      "Bash(graphify explain *)",
+      "Bash(graphify update *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(xargs ls -la)",
+      "Bash(npx eslint *)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(awk -F'public\\\\.' '{print $2}')",
+      "Bash(awk '{print $1}')",
+      "WebFetch(domain:claude.ai)",
+      "mcp__7d20ea22-f480-4bc4-9b0b-2312daf576d5__deploy_to_vercel",
+      "Bash(vercel deploy *)",
+      "Bash(npx vercel *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}
