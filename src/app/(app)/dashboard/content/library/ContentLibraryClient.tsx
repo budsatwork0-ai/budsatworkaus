@@ -35,6 +35,7 @@ export function ContentLibraryClient({ initialItems }: Props) {
         item.searchable_text,
         ...item.tags,
         ...item.campaign_history.map((history) => `${history.run_title} ${history.goal} ${history.status}`),
+        ...item.learning_records.map((learning) => `${learning.campaign_title} ${learning.goal} ${learning.status}`),
       ].join(' ').toLowerCase().includes(needle);
     });
   }, [initialItems, itemType, query, status]);
@@ -119,7 +120,7 @@ function LibraryCard({ item }: { item: ContentLibraryItemWithMemory }) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+      <div className="mt-4 grid gap-3 lg:grid-cols-4">
         <InfoPanel title="Campaign History">
           {item.campaign_history.length > 0 ? item.campaign_history.slice(0, 3).map((history) => (
             <p key={`${history.run_id}-${history.role}`} className="text-sm leading-5 text-slate-600">
@@ -127,6 +128,17 @@ function LibraryCard({ item }: { item: ContentLibraryItemWithMemory }) {
             </p>
           )) : (
             <p className="text-sm text-slate-500">No campaign run linked yet.</p>
+          )}
+        </InfoPanel>
+
+        <InfoPanel title="Learnings">
+          {item.learning_records.length > 0 ? item.learning_records.slice(0, 2).map((learning) => (
+            <div key={learning.id} className="grid gap-1 text-sm leading-5 text-slate-600">
+              <p>{learning.goal} · {String(learning.outcome_score?.result ?? learning.status)}</p>
+              <p>{firstLearningTitle(learning.what_worked) || firstLearningTitle(learning.what_failed) || 'Learning recorded.'}</p>
+            </div>
+          )) : (
+            <p className="text-sm text-slate-500">No learning record yet.</p>
           )}
         </InfoPanel>
 
@@ -152,6 +164,11 @@ function LibraryCard({ item }: { item: ContentLibraryItemWithMemory }) {
   );
 
   return href ? <Link href={href}>{content}</Link> : content;
+}
+
+function firstLearningTitle(items: Array<Record<string, unknown>>) {
+  const title = items[0]?.title;
+  return typeof title === 'string' ? title : '';
 }
 
 function InfoPanel({ title, children }: { title: string; children: React.ReactNode }) {

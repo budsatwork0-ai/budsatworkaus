@@ -34,7 +34,19 @@ export type ContentLibraryCampaignHistoryItem = {
   created_at: string;
 };
 
+export type ContentLibraryLearningSummary = {
+  id: string;
+  learning_artifact_id: string | null;
+  goal: string;
+  campaign_title: string;
+  outcome_score: Record<string, unknown>;
+  what_worked: Array<Record<string, unknown>>;
+  what_failed: Array<Record<string, unknown>>;
+  status: string;
+};
+
 export type ContentLibraryItemWithMemory = ContentLibraryItem & {
   version_visibility: ContentLibraryVersionSummary | null;
   campaign_history: ContentLibraryCampaignHistoryItem[];
+  learning_records: ContentLibraryLearningSummary[];
 };

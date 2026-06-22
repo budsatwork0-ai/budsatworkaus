@@ -5,6 +5,7 @@ import {
   type ContentLibraryCampaignHistoryItem,
   type ContentLibraryItem,
   type ContentLibraryItemWithMemory,
+  type ContentLibraryLearningSummary,
   type ContentLibraryVersionSummary,
 } from '@/types/content-library';
 
@@ -48,17 +49,55 @@ export async function GET(req: NextRequest) {
     loadVersionSummaries(client as any, artifactIds),
     loadCampaignHistory(client as any, artifactIds),
   ]);
+  const learningRecords = await loadLearningRecords(client as any, artifactIds);
 
   if ('error' in versionSummaries) return versionSummaries.error;
   if ('error' in campaignHistory) return campaignHistory.error;
+  if ('error' in learningRecords) return learningRecords.error;
 
   const enriched: ContentLibraryItemWithMemory[] = items.map((item: ContentLibraryItem) => ({
     ...item,
     version_visibility: item.artifact_id ? versionSummaries.byArtifactId.get(item.artifact_id) ?? null : null,
     campaign_history: item.artifact_id ? campaignHistory.byArtifactId.get(item.artifact_id) ?? [] : [],
+    learning_records: item.artifact_id ? learningRecords.byArtifactId.get(item.artifact_id) ?? [] : [],
   }));
 
   return NextResponse.json({ items: enriched });
+}
+
+async function loadLearningRecords(client: any, artifactIds: string[]) {
+  const byArtifactId = new Map<string, ContentLibraryLearningSummary[]>();
+  if (artifactIds.length === 0) return { byArtifactId };
+
+  const { data, error } = await client
+    .from('content_learning_records')
+    .select('id,learning_artifact_id,goal,campaign_title,outcome_score,what_worked,what_failed,status,source_artifact_ids')
+    .overlaps('source_artifact_ids', artifactIds)
+    .order('updated_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[api/content-library] learnings:', error.message);
+    return { error: NextResponse.json({ error: 'Failed to fetch content learnings' }, { status: 500 }) };
+  }
+
+  for (const record of data ?? []) {
+    const summary: ContentLibraryLearningSummary = {
+      id: record.id,
+      learning_artifact_id: record.learning_artifact_id,
+      goal: record.goal,
+      campaign_title: record.campaign_title,
+      outcome_score: record.outcome_score ?? {},
+      what_worked: record.what_worked ?? [],
+      what_failed: record.what_failed ?? [],
+      status: record.status,
+    };
+    for (const artifactId of record.source_artifact_ids ?? []) {
+      byArtifactId.set(artifactId, [...(byArtifactId.get(artifactId) ?? []), summary]);
+    }
+  }
+
+  return { byArtifactId };
 }
 
 async function loadVersionSummaries(client: any, artifactIds: string[]) {

@@ -6,6 +6,7 @@ import {
   type CampaignFactoryResearchFinding,
   type CampaignFactoryStrategy,
 } from '@/types/campaign-factory-mvp';
+import { getLearningGuidance } from '@/lib/content-feedback/engine';
 import { type StoryIntelligenceRecommendation } from '@/types/story-intelligence';
 
 type DbClient = {
@@ -30,6 +31,7 @@ export async function buildResearchServiceOutput(
   goal: CampaignFactoryGoal,
   recommendation: StoryIntelligenceRecommendation,
 ): Promise<CampaignFactoryResearch> {
+  const learningGuidance = await getLearningGuidance(client, goal);
   const { data: trends } = await client
     .from('research_trends')
     .select('id,platform,title,description,trend_type,urgency,adaptation_angle,adaptation_score,adaptation_reason,status')
@@ -57,6 +59,16 @@ export async function buildResearchServiceOutput(
 
   const findings = [
     ...storyFindings,
+    ...learningGuidance.use.slice(0, 3).map((item) => ({
+      title: 'Approved learning to use',
+      detail: `${item.action}: ${item.rationale}`,
+      source: 'content_learning_records',
+    })),
+    ...learningGuidance.avoid.slice(0, 3).map((item) => ({
+      title: 'Approved learning to avoid',
+      detail: `${item.title}: ${item.detail}`,
+      source: 'content_learning_records',
+    })),
     ...trendFindings,
     {
       title: 'Campaign scope intentionally limited',
@@ -70,6 +82,7 @@ export async function buildResearchServiceOutput(
     recommendation,
     findings,
     emotionalTriggers: emotionalTriggersFor(goal, recommendation),
+    learningGuidance,
     formatGuidance: [
       { platform: 'Facebook', format: 'Short post', rationale: 'Best for local trust, context, and clear calls to action.' },
       { platform: 'Instagram', format: 'Caption + visual direction', rationale: 'Best for emotional proof and mission visibility.' },
@@ -97,6 +110,11 @@ export function buildStrategyOutput(
     positioning: positioningFor(goal, recommendation),
     proofPoints: [...new Set(proofPoints)].slice(0, 6),
     callsToAction: callsToActionFor(goal),
+    appliedLearning: {
+      use: research.learningGuidance.use.map((item) => item.action).slice(0, 5),
+      avoid: research.learningGuidance.avoid.map((item) => item.title).slice(0, 5),
+      learningArtifactIds: research.learningGuidance.learningArtifactIds,
+    },
     deliverables: [...CAMPAIGN_FACTORY_DELIVERABLES],
   };
 }
@@ -211,6 +229,25 @@ export function buildStrategyArtifact(strategy: CampaignFactoryStrategy): Campai
             approvalNote: 'Approval stops at artifact review. No publishing is triggered.',
           },
         },
+        {
+          id: 'applied-learning',
+          type: 'recommendation_list',
+          title: 'Applied Learning',
+          data: {
+            recommendations: [
+              ...strategy.appliedLearning.use.map((item) => ({
+                title: `Use: ${item}`,
+                rationale: 'Approved Content Feedback Engine learning for this business goal.',
+                priority: 'high',
+              })),
+              ...strategy.appliedLearning.avoid.map((item) => ({
+                title: `Avoid: ${item}`,
+                rationale: 'Historically weak approach from approved learning records.',
+                priority: 'medium',
+              })),
+            ],
+          },
+        },
       ],
     },
   };
@@ -280,6 +317,25 @@ export function buildCampaignArtifact(
           title: 'Supporting Signals',
           data: {
             insights: memory.signalInsights,
+          },
+        },
+        {
+          id: 'applied-learning',
+          type: 'recommendation_list',
+          title: 'Applied Learning',
+          data: {
+            recommendations: [
+              ...strategy.appliedLearning.use.map((item) => ({
+                title: `Use: ${item}`,
+                rationale: 'Applied from human-reviewed outcome learning.',
+                priority: 'high',
+              })),
+              ...strategy.appliedLearning.avoid.map((item) => ({
+                title: `Avoid: ${item}`,
+                rationale: 'Avoiding weak historical approach from learning records.',
+                priority: 'medium',
+              })),
+            ],
           },
         },
         {

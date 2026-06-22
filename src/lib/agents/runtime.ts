@@ -912,7 +912,7 @@ async function sendEmailEffect(action: AgentActionEffectRow): Promise<void> {
     const now = new Date().toISOString();
     await supabase
       .from('leads')
-      .update({ first_response_at: now })
+      .update({ first_response_at: now, response_status: 'in_conversation' })
       .eq('id', action.target_id)
       .is('first_response_at', null);
     await supabase.from('lead_conversations').insert({
@@ -970,7 +970,7 @@ async function sendMessengerEffect(action: AgentActionEffectRow): Promise<void> 
     const now = new Date().toISOString();
     await supabase
       .from('leads')
-      .update({ first_response_at: now })
+      .update({ first_response_at: now, response_status: 'in_conversation' })
       .eq('id', p.lead_id)
       .is('first_response_at', null);
     await supabase.from('lead_conversations').insert({

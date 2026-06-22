@@ -1,155 +1,82 @@
 'use client';
 
+import type React from 'react';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { ErrorMessage } from './components/shared';
 import { useDashboardData } from './hooks/useDashboardData';
 import { formatCurrency } from '@/lib/dashboard/utils';
-import { normalizeQuoteStatus, type DashboardLead, type DashboardQuote, type JobRecord } from '@/types/dashboard';
-import { OverviewCard } from './_components/OverviewCard';
-import { RevenueChartCard } from './_components/RevenueChartCard';
-import { PopularServicesCard, type PopularService } from './_components/PopularServicesCard';
-import { RecentFeedbackCard, type FeedbackItem } from './_components/RecentFeedbackCard';
+import { normalizeQuoteStatus, type JobRecord, type DashboardAlert } from '@/types/dashboard';
 import { StatusPill } from './_components/StatusPill';
 
-const SAMPLE_REVENUE = [
-  { label: 'Mon', value: 1300 },
-  { label: 'Tue', value: 1900 },
-  { label: 'Wed', value: 1500 },
-  { label: 'Thu', value: 2400 },
-  { label: 'Fri', value: 1700 },
-  { label: 'Sat', value: 2800 },
-  { label: 'Sun', value: 2100 },
-  { label: 'Next', value: 1600 },
-  { label: 'Plan', value: 2600 },
-];
-
-const DEFAULT_SERVICES: PopularService[] = [
-  { name: 'Window clean', status: 'Active', price: '$120', shade: 'dark' },
-  { name: 'Weekly clean', status: 'Active', price: '$180/wk', shade: 'mid' },
-  { name: 'Yard care', status: 'Active', price: '$140', shade: 'mid' },
-  { name: 'Car detail', status: 'Offline', price: '$160', shade: 'soft' },
-  { name: 'Bond clean', status: 'Active', price: '$520', shade: 'dark' },
-];
-
-const DEFAULT_FEEDBACK: FeedbackItem[] = [
-  { initials: 'J', customer: 'Joyce', service: 'Bond clean', quote: 'Spotless, arrived on time.', rating: 5 },
-  { initials: 'M', customer: 'Marina', service: 'Yard care', quote: 'Great job, will rebook weekly.', rating: 5 },
-];
-
-export default function DashboardHome() {
+export default function MissionControl() {
   const {
     metrics,
     moneyFlow,
     jobs,
     quotes,
     channelLeads,
-    recentActivity,
+    alertsFeed,
+    applicantCount,
+    lastUpdated,
     isLoading,
     error,
     refetch,
   } = useDashboardData();
 
   const todayKey = new Date().toISOString().split('T')[0];
+  const todayLabel = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const todayJobs = useMemo(
-    () => jobs.filter((job) => job.scheduledDate === todayKey).sort(compareJobs).slice(0, 2),
-    [jobs, todayKey],
-  );
-
+  // Priority 1 — action items
   const reviewQuotes = useMemo(
-    () => quotes.filter((quote) => ['submitted', 'in_review'].includes(normalizeQuoteStatus(quote.status))).slice(0, 2),
+    () => quotes.filter((q) => ['submitted', 'in_review'].includes(normalizeQuoteStatus(q.status))),
     [quotes],
   );
 
-  const customersCount = useMemo(() => {
-    const names = new Set<string>();
-    jobs.forEach((job) => names.add(job.customer));
-    quotes.forEach((quote) => {
-      if (quote.customer_name) names.add(quote.customer_name);
-    });
-    channelLeads.forEach((lead) => {
-      if (lead.customer_name) names.add(lead.customer_name);
-    });
-    return names.size || channelLeads.length || quotes.length || jobs.length;
-  }, [channelLeads, jobs, quotes]);
+  const awaitingPayment = useMemo(
+    () => quotes.filter((q) => ['finalized', 'payment_pending'].includes(normalizeQuoteStatus(q.status))),
+    [quotes],
+  );
 
-  const leadAvatars = useMemo(() => {
-    const source = [...channelLeads, ...quotes]
-      .sort((left, right) => new Date(getCreatedAt(right)).getTime() - new Date(getCreatedAt(left)).getTime())
-      .slice(0, 5);
+  const criticalAlerts = useMemo(
+    () => alertsFeed.filter((a) => a.severity === 'critical').slice(0, 3),
+    [alertsFeed],
+  );
 
-    const avatars = source.map((entry, index) => {
-      const name = getName(entry) || ['Gladyce', 'Elbert', 'Dash', 'Joyce', 'Marina'][index] || 'Lead';
-      return { name: firstName(name), initials: getInitials(name) };
-    });
+  const overdueCount = metrics.alerts.overdueCount;
+  const overdueAmount = metrics.alerts.overdueAmount;
 
-    return avatars.length > 0
-      ? avatars
-      : ['Gladyce', 'Elbert', 'Dash', 'Joyce', 'Marina'].map((name) => ({ name, initials: getInitials(name) }));
-  }, [channelLeads, quotes]);
+  // Priority 2 — work queue
+  const todayJobs = useMemo(
+    () => jobs.filter((j) => j.scheduledDate === todayKey).sort(compareJobs),
+    [jobs, todayKey],
+  );
 
+  const unscheduledJobs = useMemo(
+    () => jobs.filter((j) => !j.scheduledDate && !['completed', 'cancelled'].includes(j.status)).slice(0, 5),
+    [jobs],
+  );
+
+  // Priority 4 — awareness metrics
+  const revenueThisMonth = moneyFlow.overview.revenueThisMonth;
+  const pipelineValue = useMemo(
+    () => awaitingPayment.reduce((sum, q) => sum + Number(q.reviewed_total ?? q.submitted_total ?? q.total ?? 0), 0),
+    [awaitingPayment],
+  );
   const newLeadsThisWeek = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const count = [...channelLeads, ...quotes].filter((entry) => new Date(getCreatedAt(entry)).getTime() >= weekAgo).length;
-    return count || leadAvatars.length;
-  }, [channelLeads, leadAvatars.length, quotes]);
+    return [...channelLeads, ...quotes].filter((e) => {
+      const ts = 'created_at' in e ? e.created_at : '';
+      return ts && new Date(ts).getTime() >= weekAgo;
+    }).length;
+  }, [channelLeads, quotes]);
+  const jobsCompleted = metrics.operationsSnapshot.jobsCompleted || jobs.filter((j) => j.status === 'completed').length;
 
-  const pipeline = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const normalise = (q: { status: string }) => normalizeQuoteStatus(q.status);
-
-    const newThisWeek = quotes.filter((q) => new Date(q.created_at).getTime() >= weekAgo).length;
-    const awaitingApproval = quotes.filter((q) => ['submitted', 'in_review'].includes(normalise(q))).length;
-    const awaitingPayment = quotes.filter((q) => ['finalized', 'payment_pending'].includes(normalise(q))).length;
-    const paidCount = quotes.filter((q) => normalise(q) === 'paid').length;
-
-    const effectiveTotal = (q: typeof quotes[0]) =>
-      Number(q.reviewed_total ?? q.submitted_total ?? q.total ?? 0);
-
-    const pipelineValue = quotes
-      .filter((q) => ['finalized', 'payment_pending'].includes(normalise(q)))
-      .reduce((sum, q) => sum + effectiveTotal(q), 0);
-
-    const revenueThisWeek = moneyFlow.series
-      .filter((pt) => new Date(pt.date).getTime() >= weekAgo)
-      .reduce((sum, pt) => sum + Math.max(0, pt.revenue), 0);
-
-    const revenueThisMonth = moneyFlow.overview.revenueThisMonth;
-
-    return { newThisWeek, awaitingApproval, awaitingPayment, paidCount, pipelineValue, revenueThisWeek, revenueThisMonth };
-  }, [quotes, moneyFlow]);
-
-  const revenuePoints = useMemo(() => {
-    if (moneyFlow.series.length === 0) return SAMPLE_REVENUE;
-    const points = moneyFlow.series.slice(-9).map((point) => ({
-      label: new Date(point.date).toLocaleDateString('en-AU', { weekday: 'short' }),
-      value: Math.max(0, Math.round(point.revenue)),
-    }));
-    return points.length > 0 ? points : SAMPLE_REVENUE;
-  }, [moneyFlow.series]);
-
-  const services = useMemo<PopularService[]>(() => {
-    if (metrics.revenueByService.length === 0) return DEFAULT_SERVICES;
-    return metrics.revenueByService.slice(0, 5).map((service, index) => ({
-      name: service.service,
-      status: 'Active',
-      price: formatCurrency(service.amount),
-      shade: index === 0 || index === 4 ? 'dark' : index === 3 ? 'soft' : 'mid',
-    }));
-  }, [metrics.revenueByService]);
-
-  const feedback = useMemo<FeedbackItem[]>(() => {
-    const completed = recentActivity.filter((item) => item.type === 'job_completed').slice(0, 2);
-    if (completed.length === 0) return DEFAULT_FEEDBACK;
-    return completed.map((item) => ({
-      initials: getInitials(item.title),
-      customer: item.title.replace(/^Completed\s+/i, '').split(' for ')[0] || 'Customer',
-      service: item.description.split(' · ')[0] || 'Service',
-      quote: 'Completed and ready for follow-up.',
-      rating: 5,
-    }));
-  }, [recentActivity]);
+  const hasActionItems =
+    reviewQuotes.length > 0 ||
+    overdueCount > 0 ||
+    applicantCount > 0 ||
+    criticalAlerts.length > 0;
 
   if (error) {
     return (
@@ -160,211 +87,358 @@ export default function DashboardHome() {
   }
 
   if (isLoading) {
-    return <DashboardLoading />;
+    return <MissionControlLoading />;
   }
 
-  const jobsCompleted = metrics.operationsSnapshot.jobsCompleted || jobs.filter((job) => job.status === 'completed').length;
-
   return (
-    <div className="grid gap-4 px-1 pb-4 sm:px-2">
-      <div className="text-[13px] font-semibold text-[#7f9187]">
-        <span className="mr-2 text-[#3c8259]">✣</span>
-        Live business overview. Sample visual data is used only where revenue/service history is empty.
+    <div className="grid gap-5 px-1 pb-8 sm:px-2">
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-[#7f9187]">
+          {lastUpdated
+            ? `Updated ${new Date(lastUpdated).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`
+            : 'Live'}
+        </p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="text-[13px] font-semibold text-[#3c8259] hover:underline"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Revenue pipeline — real-time from loaded quote data */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        <RevenuePill label="New quotes" value={String(pipeline.newThisWeek)} sub="this week" tone="slate" href="/dashboard/quotes?workspace=review" />
-        <RevenuePill label="Need approval" value={String(pipeline.awaitingApproval)} sub="pending" tone="amber" href="/dashboard/quotes?workspace=review" />
-        <RevenuePill label="Awaiting payment" value={String(pipeline.awaitingPayment)} sub="link sent" tone="blue" href="/dashboard/quotes?workspace=approved" />
-        <RevenuePill label="Paid" value={String(pipeline.paidCount)} sub="all time" tone="emerald" href="/dashboard/quotes?workspace=archive" />
-        <RevenuePill label="Pipeline value" value={formatCurrency(pipeline.pipelineValue)} sub="open quotes" tone="indigo" href="/dashboard/quotes?workspace=approved" />
-        <RevenuePill label="Revenue — week" value={formatCurrency(pipeline.revenueThisWeek)} sub="last 7 days" tone="green" href="/dashboard/payments" />
-        <RevenuePill label="Revenue — month" value={formatCurrency(pipeline.revenueThisMonth)} sub="this month" tone="green" href="/dashboard/payments" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="grid gap-4 xl:col-span-8">
-          <OverviewCard
-            customers={formatCount(customersCount)}
-            revenue={formatCompactCurrency(metrics.goals.currentRevenue || moneyFlow.overview.revenueThisMonth)}
-            customerDelta="↘ 4.2%"
-            revenueDelta={`↗ ${Math.abs(metrics.goals.revenueChange || 8).toFixed(1)}%`}
-            newLeadsCount={newLeadsThisWeek}
-            leads={leadAvatars}
-          />
-
-          <RevenueChartCard points={revenuePoints} />
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TodayScheduleCard jobs={todayJobs} />
-            <QuotesReviewCard quotes={reviewQuotes} />
+      {/* Priority 1 — Requires Attention */}
+      {hasActionItems && (
+        <section>
+          <SectionLabel>Requires attention</SectionLabel>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {reviewQuotes.length > 0 && (
+              <ActionCard
+                href="/dashboard/quotes?workspace=review"
+                count={reviewQuotes.length}
+                noun="quote"
+                label="awaiting review"
+                detail="Submitted and waiting for your approval"
+                tone="amber"
+              />
+            )}
+            {overdueCount > 0 && (
+              <ActionCard
+                href="/dashboard/invoices?tab=invoices&status=Overdue"
+                count={overdueCount}
+                noun="overdue invoice"
+                label={`· ${formatCurrency(overdueAmount)} outstanding`}
+                detail="Payment is past due — follow up now"
+                tone="red"
+              />
+            )}
+            {applicantCount > 0 && (
+              <ActionCard
+                href="/dashboard/applicants?filter=awaiting_approval"
+                count={applicantCount}
+                noun="applicant"
+                label="awaiting approval"
+                detail="Review their applications"
+                tone="blue"
+              />
+            )}
+            {criticalAlerts.map((alert) => (
+              <AlertCard key={alert.id} alert={alert} />
+            ))}
           </div>
+        </section>
+      )}
+
+      {/* Priority 2 — Today's schedule */}
+      <section>
+        <div className="mb-2.5 flex items-center justify-between">
+          <SectionLabel noMargin>Today · {todayLabel}</SectionLabel>
+          <Link href="/dashboard/schedule?view=day" className="text-[12px] font-bold text-[#3c8259]">
+            Full schedule
+          </Link>
         </div>
+        <div className="overflow-hidden rounded-[28px] border border-[#dfe9e2] bg-white shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
+          {todayJobs.length === 0 ? (
+            <p className="px-4 py-5 text-[14px] font-semibold text-[#7f9187]">
+              No jobs scheduled today.
+            </p>
+          ) : (
+            <div className="divide-y divide-[#f0f5f1]">
+              {todayJobs.map((job) => (
+                <JobRow key={job.id} job={job} href="/dashboard/schedule?view=day" showTime />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
-        <aside className="grid content-start gap-4 xl:col-span-4">
-          <PopularServicesCard services={services} />
-          <RecentFeedbackCard feedback={feedback} />
-          <div className="grid grid-cols-2 gap-3">
-            <MiniKpi label="Jobs completed" value={String(jobsCompleted)} />
-            <MiniKpi label="Quotes awaiting review" value={String(reviewQuotes.length)} />
+      {/* Priority 2 — Quotes to review (expanded) */}
+      {reviewQuotes.length > 0 && (
+        <section>
+          <div className="mb-2.5 flex items-center justify-between">
+            <SectionLabel noMargin>Quotes to review</SectionLabel>
+            <Link href="/dashboard/quotes?workspace=review" className="text-[12px] font-bold text-[#3c8259]">
+              Open queue
+            </Link>
           </div>
-        </aside>
-      </div>
+          <div className="overflow-hidden rounded-[28px] border border-[#dfe9e2] bg-white shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
+            <div className="divide-y divide-[#f0f5f1]">
+              {reviewQuotes.slice(0, 8).map((q) => (
+                <Link
+                  key={q.id}
+                  href="/dashboard/quotes?workspace=review"
+                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#f8fbf9]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-extrabold text-[#273f34]">
+                      {q.customer_name || 'New customer'}
+                    </p>
+                    <p className="truncate text-[12px] font-semibold text-[#87968d]">
+                      {q.service_type || 'Service quote'}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <p className="text-[14px] font-extrabold text-[#273f34]">
+                      {formatCurrency(Number(q.reviewed_total ?? q.submitted_total ?? q.total ?? 0))}
+                    </p>
+                    <span className="text-[12px] font-semibold text-[#3c8259]">Review →</span>
+                  </div>
+                </Link>
+              ))}
+              {reviewQuotes.length > 8 && (
+                <Link
+                  href="/dashboard/quotes?workspace=review"
+                  className="flex items-center justify-center px-4 py-3 text-[13px] font-bold text-[#3c8259] hover:bg-[#f8fbf9]"
+                >
+                  {reviewQuotes.length - 8} more →
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Priority 2 — Needs scheduling */}
+      {unscheduledJobs.length > 0 && (
+        <section>
+          <div className="mb-2.5 flex items-center justify-between">
+            <SectionLabel noMargin>Needs scheduling</SectionLabel>
+            <Link
+              href="/dashboard/schedule?view=list&scheduleState=unscheduled"
+              className="text-[12px] font-bold text-[#3c8259]"
+            >
+              Schedule all
+            </Link>
+          </div>
+          <div className="overflow-hidden rounded-[28px] border border-[#dfe9e2] bg-white shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
+            <div className="divide-y divide-[#f0f5f1]">
+              {unscheduledJobs.map((job) => (
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  href="/dashboard/schedule?view=list&scheduleState=unscheduled"
+                  badge={<span className="text-[12px] font-semibold text-[#d97706]">Unscheduled</span>}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Priority 4 — Awareness strip */}
+      <section>
+        <SectionLabel>This month</SectionLabel>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <AwarenessKpi
+            label="Revenue"
+            value={formatCompact(revenueThisMonth)}
+            href="/dashboard/invoices"
+          />
+          <AwarenessKpi
+            label="Pipeline"
+            value={formatCompact(pipelineValue)}
+            href="/dashboard/quotes?workspace=approved"
+          />
+          <AwarenessKpi
+            label="New leads"
+            value={String(newLeadsThisWeek)}
+            sub="this week"
+            href="/dashboard/leads"
+          />
+          <AwarenessKpi
+            label="Jobs done"
+            value={String(jobsCompleted)}
+            href="/dashboard/orders"
+          />
+        </div>
+      </section>
     </div>
   );
 }
 
-function DashboardLoading() {
+// ─── Sub-components ────────────────────────────────────────────────────────
+
+function SectionLabel({ children, noMargin }: { children: React.ReactNode; noMargin?: boolean }) {
   return (
-    <div className="grid gap-4 px-1 pb-4 sm:px-2 xl:grid-cols-12">
-      <div className="grid gap-4 xl:col-span-8">
-        <div className="h-[220px] animate-pulse rounded-[30px] bg-white/80" />
-        <div className="h-[260px] animate-pulse rounded-[30px] bg-white/80" />
-      </div>
-      <div className="grid content-start gap-4 xl:col-span-4">
-        <div className="h-[320px] animate-pulse rounded-[30px] bg-white/80" />
-        <div className="h-[240px] animate-pulse rounded-[30px] bg-white/80" />
-      </div>
-    </div>
+    <p className={`text-[11px] font-bold uppercase tracking-[0.12em] text-[#a1b0a8] ${noMargin ? '' : 'mb-2.5'}`}>
+      {children}
+    </p>
   );
 }
 
-function TodayScheduleCard({ jobs }: { jobs: JobRecord[] }) {
+function ActionCard({
+  href,
+  count,
+  noun,
+  label,
+  detail,
+  tone,
+}: {
+  href: string;
+  count: number;
+  noun: string;
+  label: string;
+  detail: string;
+  tone: 'amber' | 'red' | 'blue';
+}) {
+  const styles = {
+    amber: { border: '#fbbf24', bg: 'rgba(251,191,36,0.07)', dot: '#d97706', text: '#92400e' },
+    red:   { border: '#fca5a5', bg: 'rgba(239,68,68,0.07)',  dot: '#dc2626', text: '#7f1d1d' },
+    blue:  { border: '#93c5fd', bg: 'rgba(59,130,246,0.07)', dot: '#2563eb', text: '#1e3a5f' },
+  } as const;
+  const s = styles[tone];
+
   return (
-    <section className="max-h-[170px] overflow-hidden rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[18px] font-extrabold text-[#17392b]">Today&apos;s schedule</h2>
-        <Link href="/dashboard/schedule?view=day" className="text-[13px] font-bold text-[#3c8259]">Open</Link>
+    <Link
+      href={href}
+      className="flex flex-col gap-1.5 rounded-[22px] border px-4 py-4 shadow-sm transition hover:shadow-md"
+      style={{ borderColor: s.border, background: s.bg }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.dot }} />
+        <span className="text-[13px] font-bold" style={{ color: s.text }}>
+          {count} {noun}{count !== 1 ? 's' : ''} {label}
+        </span>
       </div>
-      <div className="mt-3 space-y-2">
-        {jobs.length === 0 ? (
-          <p className="rounded-[20px] bg-[#f4faf6] px-3 py-3 text-sm font-semibold text-[#7f9187]">No jobs scheduled today.</p>
-        ) : (
-          jobs.map((job) => (
-            <Link key={job.id} href="/dashboard/schedule?view=day" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-extrabold text-[#273f34]">{job.customer}</p>
-                <p className="truncate text-[12px] font-semibold text-[#87968d]">{job.service}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-[13px] font-extrabold text-[#273f34]">{job.scheduledTime || 'TBD'}</p>
-                <StatusPill tone={job.status === 'completed' ? 'green' : 'neutral'}>{job.status.replace('_', ' ')}</StatusPill>
-              </div>
-            </Link>
-          ))
+      <p className="text-[12px] font-medium text-[#87968d]">{detail}</p>
+      <p className="mt-0.5 text-[12px] font-bold" style={{ color: s.dot }}>Take action →</p>
+    </Link>
+  );
+}
+
+function AlertCard({ alert }: { alert: DashboardAlert }) {
+  return (
+    <Link
+      href={alert.href || '/dashboard/alerts'}
+      className="flex flex-col gap-1.5 rounded-[22px] border border-[#fca5a5] px-4 py-4 shadow-sm transition hover:shadow-md"
+      style={{ background: 'rgba(239,68,68,0.07)' }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-[#dc2626]" />
+        <span className="text-[13px] font-bold text-[#7f1d1d] truncate">{alert.title}</span>
+      </div>
+      <p className="text-[12px] font-medium text-[#87968d] line-clamp-2">{alert.message}</p>
+      <p className="mt-0.5 text-[12px] font-bold text-[#dc2626]">View alert →</p>
+    </Link>
+  );
+}
+
+function JobRow({
+  job,
+  href,
+  showTime,
+  badge,
+}: {
+  job: JobRecord;
+  href: string;
+  showTime?: boolean;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#f8fbf9]"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        {showTime && (
+          <span className="w-16 shrink-0 text-[13px] font-bold text-[#3c8259]">
+            {job.scheduledTime || 'TBD'}
+          </span>
         )}
+        <div className="min-w-0">
+          <p className="truncate text-[14px] font-extrabold text-[#273f34]">{job.customer}</p>
+          <p className="truncate text-[12px] font-semibold text-[#87968d]">{job.service}</p>
+        </div>
       </div>
-    </section>
+      {badge ?? (
+        <StatusPill tone={job.status === 'completed' ? 'green' : 'neutral'}>
+          {job.status.replace('_', ' ')}
+        </StatusPill>
+      )}
+    </Link>
   );
 }
 
-function QuotesReviewCard({ quotes }: { quotes: DashboardQuote[] }) {
+function AwarenessKpi({
+  label,
+  value,
+  sub,
+  href,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  href: string;
+}) {
   return (
-    <section className="max-h-[170px] overflow-hidden rounded-[30px] border border-[#dfe9e2] bg-white px-4 py-4 shadow-[0_18px_48px_rgba(15,61,46,0.07)]">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[18px] font-extrabold text-[#17392b]">Quotes awaiting review</h2>
-        <Link href="/dashboard/quotes?workspace=review" className="text-[13px] font-bold text-[#3c8259]">Open</Link>
-      </div>
-      <div className="mt-3 space-y-2">
-        {quotes.length === 0 ? (
-          <p className="rounded-[20px] bg-[#f4faf6] px-3 py-3 text-sm font-semibold text-[#7f9187]">No quotes are waiting for review.</p>
-        ) : (
-          quotes.map((quote) => (
-            <Link key={quote.id} href="/dashboard/quotes?workspace=review" className="flex items-center justify-between gap-3 rounded-[20px] bg-[#f4faf6] px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-extrabold text-[#273f34]">{quote.customer_name || 'New customer'}</p>
-                <p className="truncate text-[12px] font-semibold text-[#87968d]">{quote.service_type || 'Service quote'}</p>
-              </div>
-              <p className="shrink-0 text-[14px] font-extrabold text-[#273f34]">{formatCurrency(Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0))}</p>
-            </Link>
-          ))
-        )}
-      </div>
-    </section>
-  );
-}
-
-function MiniKpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[24px] border border-[#dfe9e2] bg-white px-4 py-3 shadow-[0_18px_48px_rgba(15,61,46,0.06)]">
-      <p className="text-[26px] font-extrabold leading-none text-[#17392b]">{value}</p>
+    <Link
+      href={href}
+      className="rounded-[22px] border border-[#dfe9e2] bg-white px-4 py-3.5 shadow-[0_18px_48px_rgba(15,61,46,0.05)] transition hover:shadow-md"
+    >
+      <p className="text-[24px] font-extrabold leading-none text-[#17392b]">{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] font-semibold text-[#87968d]">{sub}</p>}
       <p className="mt-1 text-[12px] font-bold text-[#839188]">{label}</p>
+    </Link>
+  );
+}
+
+function MissionControlLoading() {
+  return (
+    <div className="grid gap-5 px-1 pb-8 sm:px-2">
+      <div className="h-5 w-32 animate-pulse rounded-full bg-white/80" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="h-24 animate-pulse rounded-[22px] bg-white/80" />
+        <div className="h-24 animate-pulse rounded-[22px] bg-white/80" />
+        <div className="h-24 animate-pulse rounded-[22px] bg-white/80" />
+      </div>
+      <div className="h-[200px] animate-pulse rounded-[28px] bg-white/80" />
+      <div className="h-[160px] animate-pulse rounded-[28px] bg-white/80" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-20 animate-pulse rounded-[22px] bg-white/80" />
+        ))}
+      </div>
     </div>
   );
 }
 
-function compareJobs(a: Pick<JobRecord, 'scheduledDate' | 'scheduledTime'>, b: Pick<JobRecord, 'scheduledDate' | 'scheduledTime'>) {
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function compareJobs(
+  a: Pick<JobRecord, 'scheduledDate' | 'scheduledTime'>,
+  b: Pick<JobRecord, 'scheduledDate' | 'scheduledTime'>,
+) {
   const left = new Date(`${a.scheduledDate || '9999-12-31'}T${a.scheduledTime || '23:59:59'}`);
   const right = new Date(`${b.scheduledDate || '9999-12-31'}T${b.scheduledTime || '23:59:59'}`);
   return left.getTime() - right.getTime();
 }
 
-function getCreatedAt(entry: DashboardLead | DashboardQuote) {
-  return 'created_at' in entry ? entry.created_at : new Date().toISOString();
-}
-
-function getName(entry: DashboardLead | DashboardQuote) {
-  return 'customer_name' in entry ? entry.customer_name : null;
-}
-
-function RevenuePill({
-  label,
-  value,
-  sub,
-  tone,
-  href,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tone: 'slate' | 'amber' | 'blue' | 'emerald' | 'indigo' | 'green';
-  href: string;
-}) {
-  const colors = {
-    slate:   { bg: 'rgba(148,163,184,0.10)', fg: '#475569', accent: '#94a3b8' },
-    amber:   { bg: 'rgba(251,191,36,0.10)',  fg: '#92400e', accent: '#d97706' },
-    blue:    { bg: 'rgba(59,130,246,0.10)',  fg: '#1d4ed8', accent: '#3b82f6' },
-    emerald: { bg: 'rgba(16,185,129,0.10)',  fg: '#065f46', accent: '#10b981' },
-    indigo:  { bg: 'rgba(99,102,241,0.10)',  fg: '#3730a3', accent: '#6366f1' },
-    green:   { bg: 'rgba(34,197,94,0.10)',   fg: '#14532d', accent: '#22c55e' },
-  } as const;
-  const c = colors[tone];
-  return (
-    <Link
-      href={href}
-      className="flex flex-col gap-1 rounded-2xl border border-black/[0.06] px-4 py-3 shadow-sm transition hover:shadow-md"
-      style={{ background: c.bg }}
-    >
-      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: c.accent }}>{label}</span>
-      <span className="text-[18px] font-bold leading-none" style={{ color: c.fg }}>{value}</span>
-      <span className="text-[11px]" style={{ color: c.accent }}>{sub}</span>
-    </Link>
-  );
-}
-
-function firstName(name: string) {
-  return name.split(' ').filter(Boolean)[0] || name;
-}
-
-function getInitials(name: string | null | undefined) {
-  if (!name) return 'BW';
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('') || 'BW';
-}
-
-function formatCount(value: number) {
-  return new Intl.NumberFormat('en-AU').format(value);
-}
-
-function formatCompactCurrency(value: number) {
+function formatCompact(value: number) {
   if (value >= 1000) {
     const amount = value / 1000;
-    return `$${amount.toFixed(amount >= 10 ? 1 : 1)}k`;
+    return `$${amount.toFixed(amount >= 10 ? 0 : 1)}k`;
   }
   return formatCurrency(value);
 }

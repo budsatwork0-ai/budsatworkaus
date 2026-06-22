@@ -1,5 +1,6 @@
 import { evaluateOpportunity } from '@/lib/story/opportunity-scoring';
 import { type ArtifactContent } from '@/types/artifact';
+import { type ContentFutureAction } from '@/types/content-feedback';
 import {
   type ScoreBreakdown,
   type StoryArc,
@@ -9,6 +10,7 @@ import {
 } from '@/types/story-engine';
 import {
   type StoryBriefArtifactResult,
+  type StoryIntelligenceLearningContext,
   type StoryIntelligenceRecommendation,
   type StoryIntelligenceResponse,
   type StoryIntelligenceSignal,
@@ -73,6 +75,17 @@ type EventRow = {
   created_at: string;
 };
 
+type LearningRow = {
+  id: string;
+  goal: string;
+  campaign_title: string;
+  learning_artifact_id: string | null;
+  outcome_score: Record<string, unknown> | null;
+  recommended_future_actions: ContentFutureAction[] | null;
+  supporting_evidence: Array<Record<string, unknown>> | null;
+  confidence: number;
+};
+
 type Context = {
   opportunities: StoryOpportunity[];
   arcs: StoryArc[];
@@ -82,6 +95,7 @@ type Context = {
   ratings: RatingRow[];
   leads: LeadRow[];
   events: EventRow[];
+  learnings: LearningRow[];
 };
 
 const MAX_RECOMMENDATIONS = 8;
@@ -100,6 +114,7 @@ export async function buildStoryIntelligenceRecommendations(client: DbClient): P
     ratingsRes,
     leadsRes,
     eventsRes,
+    learningsRes,
   ] = await Promise.all([
     client
       .from('story_opportunities')
@@ -157,6 +172,14 @@ export async function buildStoryIntelligenceRecommendations(client: DbClient): P
       .gte('created_at', thirtyDaysAgo)
       .order('created_at', { ascending: false })
       .limit(30),
+
+    client
+      .from('content_learning_records')
+      .select('id,goal,campaign_title,learning_artifact_id,outcome_score,recommended_future_actions,supporting_evidence,confidence')
+      .eq('status', 'approved')
+      .order('confidence', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(25),
   ]);
 
   const context: Context = {
@@ -168,6 +191,7 @@ export async function buildStoryIntelligenceRecommendations(client: DbClient): P
     ratings: ratingsRes.data ?? [],
     leads: leadsRes.data ?? [],
     events: eventsRes.data ?? [],
+    learnings: learningsRes.data ?? [],
   };
 
   return {
@@ -286,11 +310,14 @@ function buildRecommendation(
     relatedReviews,
     relatedLeads,
   });
+  const learningContext = buildLearningContext(businessGoal, searchText, context.learnings);
+  const learningBonus = Math.min(8, learningContext.length * 4);
   const why = buildWhy({
     scoreBreakdown,
     signals,
     businessGoal,
     opportunity,
+    learningContext,
   });
 
   return {
@@ -298,10 +325,10 @@ function buildRecommendation(
     opportunityId: opportunity.id,
     title: opportunity.title,
     recommendedStory: opportunity.title,
-    score,
+    score: Math.min(100, score + learningBonus),
     baseStoryScore,
-    recommendationBonus,
-    scoreFormula: `min(100, base story score ${baseStoryScore} + visible signal bonus ${recommendationBonus})`,
+    recommendationBonus: recommendationBonus + learningBonus,
+    scoreFormula: `min(100, base story score ${baseStoryScore} + visible signal bonus ${recommendationBonus} + approved outcome learning bonus ${learningBonus})`,
     scoreBreakdown,
     storyCategory,
     businessGoal,
@@ -319,6 +346,7 @@ function buildRecommendation(
     relatedReviews,
     relatedLeads,
     relatedMilestones,
+    learningContext,
     suggestedFormat: opportunity.suggested_format,
     suggestedPlatform: opportunity.suggested_platform,
     contentAngle: opportunity.content_angle,
@@ -428,6 +456,7 @@ function buildWhy(input: {
   signals: StoryIntelligenceSignal[];
   businessGoal: string;
   opportunity: StoryOpportunity;
+  learningContext: StoryIntelligenceLearningContext[];
 }) {
   const reasons = [
     ...(input.scoreBreakdown?.reasons.slice(0, 4) ?? []),
@@ -436,6 +465,7 @@ function buildWhy(input: {
       .sort((a, b) => b.weight - a.weight)
       .slice(0, 4)
       .map((signal) => signal.detail),
+    ...input.learningContext.slice(0, 2).map((learning) => learning.detail),
     `Supports business goal: ${input.businessGoal}.`,
   ];
 
@@ -444,6 +474,36 @@ function buildWhy(input: {
   }
 
   return [...new Set(reasons)];
+}
+
+function buildLearningContext(
+  businessGoal: string,
+  searchText: string,
+  learnings: LearningRow[],
+): StoryIntelligenceLearningContext[] {
+  return learnings
+    .filter((learning) => {
+      if (learning.goal === businessGoal) return true;
+      const evidenceText = [
+        learning.campaign_title,
+        ...(learning.recommended_future_actions ?? []).map((action) => `${action.action} ${action.rationale}`),
+        ...(learning.supporting_evidence ?? []).map((item) => Object.values(item).join(' ')),
+      ].join(' ').toLowerCase();
+      return overlaps(searchText, evidenceText);
+    })
+    .slice(0, 3)
+    .map((learning) => {
+      const action = (learning.recommended_future_actions ?? [])[0];
+      const outcome = learning.outcome_score?.result ? `Outcome: ${learning.outcome_score.result}.` : 'Approved outcome learning.';
+      return {
+        title: learning.campaign_title,
+        detail: action
+          ? `${outcome} ${action.action}: ${action.rationale}`
+          : `${outcome} Similar campaign performance is available for this recommendation.`,
+        confidence: Number(learning.confidence ?? 0),
+        sourceLearningArtifactId: learning.learning_artifact_id ?? learning.id,
+      };
+    });
 }
 
 export function buildStoryBriefArtifact(input: StoryIntelligenceRecommendation): StoryBriefArtifactResult {

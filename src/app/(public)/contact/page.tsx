@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { brand, cx, glass, glassSoft } from '../../ui/theme';
+import { ContactForm } from './ContactForm';
 
 export const metadata: Metadata = {
   title: 'Contact Us',
@@ -44,15 +45,6 @@ function ClockIcon() {
     <svg {...iconProps} className="h-6 w-6">
       <circle cx="12" cy="12" r="10" />
       <path d="M12 6v6l4 2" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg {...iconProps} className="h-5 w-5">
-      <path d="M22 2L11 13" />
-      <path d="M22 2l-7 20-4-9-9-4z" />
     </svg>
   );
 }
@@ -188,145 +180,7 @@ export default function ContactPage() {
               </p>
             </div>
 
-            <form
-              action="https://formsubmit.co/admin@budsatwork.com"
-              method="POST"
-              className="space-y-6"
-            >
-              {/* Honeypot for spam prevention */}
-              <input type="text" name="_honey" style={{ display: 'none' }} />
-              {/* Disable captcha */}
-              <input type="hidden" name="_captcha" value="false" />
-              {/* Success redirect */}
-              <input type="hidden" name="_next" value="https://budsatwork.com/contact?success=true" />
-              {/* Subject */}
-              <input type="hidden" name="_subject" value="New contact form submission from Buds At Work" />
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: brand.text }}
-                  >
-                    Your name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    required
-                    placeholder="John Smith"
-                    className="w-full px-4 py-3 rounded-xl border bg-white/80 focus:outline-none focus:ring-2 transition-shadow"
-                    style={{
-                      borderColor: brand.border,
-                      color: brand.text,
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: brand.text }}
-                  >
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    required
-                    placeholder="john@example.com"
-                    className="w-full px-4 py-3 rounded-xl border bg-white/80 focus:outline-none focus:ring-2 transition-shadow"
-                    style={{
-                      borderColor: brand.border,
-                      color: brand.text,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: brand.text }}
-                >
-                  Phone number <span style={{ color: brand.muted }}>(optional)</span>
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  placeholder="0400 000 000"
-                  className="w-full px-4 py-3 rounded-xl border bg-white/80 focus:outline-none focus:ring-2 transition-shadow"
-                  style={{
-                    borderColor: brand.border,
-                    color: brand.text,
-                  }}
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="service"
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: brand.text }}
-                >
-                  What service are you interested in?
-                </label>
-                <select
-                  id="service"
-                  name="service"
-                  className="w-full px-4 py-3 rounded-xl border bg-white/80 focus:outline-none focus:ring-2 transition-shadow"
-                  style={{
-                    borderColor: brand.border,
-                    color: brand.text,
-                  }}
-                >
-                  <option value="">Select a service (optional)</option>
-                  <option value="home-cleaning">Home Cleaning</option>
-                  <option value="window-cleaning">Window Cleaning</option>
-                  <option value="yard-care">Yard Care</option>
-                  <option value="dump-runs">Dump Runs</option>
-                  <option value="car-detailing">Laundry &amp; Sneaker Care</option>
-                  <option value="ndis">NDIS Support</option>
-                  <option value="other">Other / General Enquiry</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: brand.text }}
-                >
-                  Your message
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  required
-                  rows={5}
-                  placeholder="Tell us about what you need..."
-                  className="w-full px-4 py-3 rounded-xl border bg-white/80 focus:outline-none focus:ring-2 transition-shadow resize-none"
-                  style={{
-                    borderColor: brand.border,
-                    color: brand.text,
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-base font-semibold shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
-                style={{ background: brand.primary, color: '#fff' }}
-              >
-                Send message <SendIcon />
-              </button>
-            </form>
+            <ContactForm />
           </div>
         </section>
 

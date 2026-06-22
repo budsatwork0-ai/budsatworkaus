@@ -1,4 +1,5 @@
 import { type ArtifactContent } from './artifact';
+import { type LearningGuidance } from './content-feedback';
 import { type StoryIntelligenceRecommendation } from './story-intelligence';
 
 export const CAMPAIGN_FACTORY_GOALS = [
@@ -34,6 +35,7 @@ export type CampaignFactoryResearch = {
   recommendation: StoryIntelligenceRecommendation;
   findings: CampaignFactoryResearchFinding[];
   emotionalTriggers: string[];
+  learningGuidance: LearningGuidance;
   formatGuidance: Array<{
     platform: string;
     format: string;
@@ -49,6 +51,11 @@ export type CampaignFactoryStrategy = {
   positioning: string;
   proofPoints: string[];
   callsToAction: string[];
+  appliedLearning: {
+    use: string[];
+    avoid: string[];
+    learningArtifactIds: string[];
+  };
   deliverables: CampaignFactoryDeliverable[];
 };
 

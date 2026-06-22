@@ -38,6 +38,7 @@ export type BusinessSnapshotData = {
   completed_mtd: number;
   in_progress: number;
   jobs_today: number;
+  pending_enquiries: number;
 };
 
 type Props = {

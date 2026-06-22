@@ -331,12 +331,19 @@ async function loadData() {
   });
 
   const ordersThisMonth = ordersSnapshotRes.data ?? [];
+
+  const { count: pendingEnquiriesCount } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .eq('response_status', 'awaiting_response');
+
   const businessSnapshot = {
     mtd_revenue: ordersThisMonth.reduce((sum, o) => sum + ((o.final_price as number | null) ?? 0), 0),
     mtd_orders:  ordersThisMonth.length,
     completed_mtd: ordersThisMonth.filter((o) => o.status === 'completed').length,
     in_progress:   ordersThisMonth.filter((o) => o.status === 'in_progress' || o.status === 'confirmed').length,
-    jobs_today:  (todayJobsRes.data ?? []).length,
+    jobs_today:    (todayJobsRes.data ?? []).length,
+    pending_enquiries: pendingEnquiriesCount ?? 0,
   };
 
   // Repair quarantine — fetched separately to avoid disrupting the destructured Promise.all

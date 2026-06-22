@@ -146,6 +146,7 @@ function recommendationFor(scenario: (typeof SCENARIOS)[number]): StoryIntellige
     relatedReviews: [],
     relatedLeads: [],
     relatedMilestones: [],
+    learningContext: [],
     suggestedFormat: 'Campaign artifact',
     suggestedPlatform: 'Content Library',
     contentAngle: scenario.businessSignal,
@@ -174,6 +175,12 @@ function researchFor(
       },
     ],
     emotionalTriggers: ['Proof', 'Momentum'],
+    learningGuidance: {
+      use: [],
+      avoid: [],
+      evidence: [],
+      learningArtifactIds: [],
+    },
     formatGuidance: [
       { platform: 'Facebook', format: 'Short post', rationale: 'Local trust and context.' },
       { platform: 'Instagram', format: 'Caption', rationale: 'Mission proof.' },

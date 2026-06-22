@@ -5,6 +5,7 @@ import {
   type ContentLibraryCampaignHistoryItem,
   type ContentLibraryItem,
   type ContentLibraryItemWithMemory,
+  type ContentLibraryLearningSummary,
   type ContentLibraryVersionSummary,
 } from '@/types/content-library';
 import { ContentLibraryClient } from './ContentLibraryClient';
@@ -43,11 +44,13 @@ async function loadContentLibraryItems(client: any): Promise<ContentLibraryItemW
     loadVersionSummaries(client, artifactIds),
     loadCampaignHistory(client, artifactIds),
   ]);
+  const learningRecords = await loadLearningRecords(client, artifactIds);
 
   return (items ?? []).map((item: ContentLibraryItem) => ({
     ...item,
     version_visibility: item.artifact_id ? versionSummaries.get(item.artifact_id) ?? null : null,
     campaign_history: item.artifact_id ? campaignHistory.get(item.artifact_id) ?? [] : [],
+    learning_records: item.artifact_id ? learningRecords.get(item.artifact_id) ?? [] : [],
   }));
 }
 
@@ -130,6 +133,41 @@ async function loadCampaignHistory(client: any, artifactIds: string[]) {
       created_at: run.created_at,
     };
     byArtifactId.set(link.artifact_id, [...(byArtifactId.get(link.artifact_id) ?? []), history]);
+  }
+
+  return byArtifactId;
+}
+
+async function loadLearningRecords(client: any, artifactIds: string[]) {
+  const byArtifactId = new Map<string, ContentLibraryLearningSummary[]>();
+  if (artifactIds.length === 0) return byArtifactId;
+
+  const { data, error } = await client
+    .from('content_learning_records')
+    .select('id,learning_artifact_id,goal,campaign_title,outcome_score,what_worked,what_failed,status,source_artifact_ids')
+    .overlaps('source_artifact_ids', artifactIds)
+    .order('updated_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[content/library] learnings:', error.message);
+    return byArtifactId;
+  }
+
+  for (const record of data ?? []) {
+    const summary: ContentLibraryLearningSummary = {
+      id: record.id,
+      learning_artifact_id: record.learning_artifact_id,
+      goal: record.goal,
+      campaign_title: record.campaign_title,
+      outcome_score: record.outcome_score ?? {},
+      what_worked: record.what_worked ?? [],
+      what_failed: record.what_failed ?? [],
+      status: record.status,
+    };
+    for (const artifactId of record.source_artifact_ids ?? []) {
+      byArtifactId.set(artifactId, [...(byArtifactId.get(artifactId) ?? []), summary]);
+    }
   }
 
   return byArtifactId;

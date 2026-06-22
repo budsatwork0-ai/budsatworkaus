@@ -30,6 +30,13 @@ export type StoryIntelligenceSourceRef = {
   href?: string;
 };
 
+export type StoryIntelligenceLearningContext = {
+  title: string;
+  detail: string;
+  confidence: number;
+  sourceLearningArtifactId: string;
+};
+
 export type StoryIntelligenceRecommendation = {
   id: string;
   opportunityId: string;
@@ -56,6 +63,7 @@ export type StoryIntelligenceRecommendation = {
   relatedReviews: StoryIntelligenceSourceRef[];
   relatedLeads: StoryIntelligenceSourceRef[];
   relatedMilestones: StoryIntelligenceSourceRef[];
+  learningContext: StoryIntelligenceLearningContext[];
   suggestedFormat: string;
   suggestedPlatform: string;
   contentAngle: string;

@@ -381,10 +381,16 @@ function BusinessSnapshot({ snapshot }: { snapshot: BusinessSnapshotData }) {
       sub: 'scheduled today',
       tone: snapshot.jobs_today > 0 ? 'text-sky-300' : 'text-white/60',
     },
+    {
+      label: 'Open enquiries',
+      value: String(snapshot.pending_enquiries),
+      sub: 'awaiting response',
+      tone: snapshot.pending_enquiries > 0 ? 'text-violet-300' : 'text-white/60',
+    },
   ];
 
   return (
-    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {cells.map((c) => (
         <div key={c.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{c.label}</p>
