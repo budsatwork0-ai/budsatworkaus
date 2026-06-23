@@ -281,8 +281,10 @@ export default function HomePage() {
                   {ROTATING_WORDS[wordIndex].charAt(0).toUpperCase() + ROTATING_WORDS[wordIndex].slice(1)}
                 </motion.span>
               </AnimatePresence>
+              {/* Comma inside the span so it follows the word directly — no gap from minWidth */}
+              ,
             </span>
-            , <br />
+            <br />
             <span style={{
               color: '#7BBFA0',
               padding: '0 10px 4px',
@@ -317,7 +319,7 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
                 style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
-                Get a lawn quote {icons.arrowRight}
+                Get a quote {icons.arrowRight}
               </Link>
             </motion.div>
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
