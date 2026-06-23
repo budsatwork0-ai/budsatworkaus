@@ -376,12 +376,6 @@ export default function HomePage() {
       {/* Clean white below the hero — no overlap, no floating band */}
       <div className="relative overflow-hidden">
 
-        {/* Very subtle background tint */}
-        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
-          <div className="absolute top-0 right-0 w-[700px] h-[500px] rounded-full" style={{ background: `radial-gradient(circle, ${BRAND.accent}09, transparent 70%)` }} />
-          <div className="absolute top-[50%] left-0 w-[500px] h-[500px] rounded-full" style={{ background: `radial-gradient(circle, ${BRAND.primary}06, transparent 70%)` }} />
-        </div>
-
         {/* ── Stats band — flush below hero, no overlap ── */}
         <FadeUp>
           <div className="mx-auto max-w-5xl px-5 sm:px-8 pt-14">

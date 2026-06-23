@@ -14,7 +14,7 @@ export type Brand = {
 };
 
 export const brand: Brand = {
-  bg: '#F6FBF7',
+  bg: '#FFFFFF',
   card: '#FFFFFF',
   border: '#D7E7DD',
   primary: '#0F3D2E',   // deep green
