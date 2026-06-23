@@ -2216,22 +2216,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         data-yard-active={yardActive ? '' : undefined}
         style={{ ['--accent' as any]: ACCENT }}
       >
-        {S.service !== 'yard' && (
-          <>
-            <div
-              className="fixed inset-0 -z-20"
-              aria-hidden
-              style={{
-                background:
-                  'radial-gradient(600px circle at 18% 20%, #e8f5ee 0, transparent 40%), radial-gradient(800px circle at 85% 0%, #fdf2f2 0, transparent 45%), linear-gradient(180deg, #f9fbfd 0%, #eef3f7 100%)',
-              }}
-            />
-            <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-              <div className="absolute blob blob-a" />
-              <div className="absolute blob blob-b" />
-            </div>
-          </>
-        )}
 
         <Toaster richColors position="top-center" />
 
@@ -2256,16 +2240,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             )}
 
             <div className="space-y-8">
-          {S.service !== 'yard' && (
-            <div
-              className="pointer-events-none fixed inset-0 -z-10"
-              aria-hidden
-              style={{
-                background:
-                  'radial-gradient(750px circle at 20% 12%, #e6f6ef 0, transparent 50%), radial-gradient(950px circle at 80% 5%, #e8f4ec 0, transparent 55%)',
-              }}
-            />
-          )}
             <section className={cls('mb-12', S.service === 'yard' && 'hidden')}>
               <div>
                   <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">Build your quote</h1>
@@ -5044,74 +5018,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 })()}
         </div>
       </main>
-      {S.service !== 'yard' && (
-        <style jsx global>{`
-          [data-yard-active] .blob,
-          [data-yard-active] [class*='motion'],
-          [data-yard-active] [style*='will-change'],
-          [data-yard-active] [style*='filter'] {
-            animation: none !important;
-            transition: none !important;
-            filter: none !important;
-            will-change: auto !important;
-          }
-          .blob {
-            width: 560px;
-            height: 560px;
-            border-radius: 9999px;
-            filter: blur(50px);
-            opacity: 0.35;
-            will-change: transform;
-            animation-duration: 24s;
-            animation-timing-function: ease-in-out;
-            animation-iteration-count: infinite;
-          }
-          .blob-a {
-            background: radial-gradient(closest-side, ${ACCENT}55, transparent 70%);
-            animation-name: blobFloatA;
-            top: -160px;
-            right: -140px;
-            position: absolute;
-          }
-          .blob-b {
-            background: radial-gradient(closest-side, #ff6b6b55, transparent 70%);
-            animation-name: blobFloatB;
-            bottom: -180px;
-            left: -120px;
-            position: absolute;
-          }
-          @keyframes blobFloatA {
-            0% {
-              transform: translate(0, 0);
-            }
-            50% {
-              transform: translate(20px, -20px);
-            }
-            100% {
-              transform: translate(0, 0);
-            }
-          }
-          @keyframes blobFloatB {
-            0% {
-              transform: translate(0, 0);
-            }
-            50% {
-              transform: translate(-20px, 20px);
-            }
-            100% {
-              transform: translate(0, 0);
-            }
-          }
-
-          /* Subtle page background */
-          body {
-            background:
-              radial-gradient(600px circle at 18% 20%, #e8f5ee 0, transparent 40%),
-              radial-gradient(800px circle at 85% 0, #fdf2f2 0, transparent 45%),
-              linear-gradient(180deg, #f9fbfd 0%, #eef3f7 100%);
-          }
-        `}</style>
-      )}
       </div>
 
       {/* Quote Assistant — floating trigger + slide-in panel */}
