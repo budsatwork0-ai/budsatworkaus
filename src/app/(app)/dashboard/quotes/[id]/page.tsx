@@ -153,44 +153,26 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     contextRaw === 'ndis' ? 'NDIS' :
     contextRaw === 'commercial' ? 'Commercial' : 'Residential';
 
-  // ── Timeline (newest first) ───────────────────────────────────────────────
+  // ── Timeline — sort by raw ISO descending so out-of-order stamps display correctly ──
 
-  const timelineEvents: TimelineEvent[] = [];
+  const rawQuoteEvents: Array<{ label: string; rawTs: string; actor?: string }> = [];
 
-  if (quote.paid_at) {
-    timelineEvents.push({ label: 'Payment received', timestamp: fmtDateTime(quote.paid_at as string) });
-  }
-  if (quote.cancelled_at) {
-    timelineEvents.push({
-      label: 'Quote cancelled',
-      timestamp: fmtDateTime(quote.cancelled_at as string),
-      actor: (quote.cancelled_by as string | null) ?? undefined,
-    });
-  }
-  if (quote.payment_requested_at) {
-    timelineEvents.push({ label: 'Payment link sent', timestamp: fmtDateTime(quote.payment_requested_at as string) });
-  }
-  if (quote.finalized_at) {
-    timelineEvents.push({
-      label: 'Approved',
-      timestamp: fmtDateTime(quote.finalized_at as string),
-      actor: (quote.finalized_by as string | null) ?? undefined,
-    });
-  }
-  if (quote.ndis_booked_at) {
-    timelineEvents.push({ label: 'NDIS booking confirmed', timestamp: fmtDateTime(quote.ndis_booked_at as string) });
-  }
-  if (quote.ndis_accepted_at) {
-    timelineEvents.push({ label: 'NDIS accepted', timestamp: fmtDateTime(quote.ndis_accepted_at as string) });
-  }
-  if (quote.ndis_forwarded_at) {
-    timelineEvents.push({ label: 'Forwarded to NDIS coordinator', timestamp: fmtDateTime(quote.ndis_forwarded_at as string) });
-  }
-  timelineEvents.push({
-    label: 'Quote submitted',
-    timestamp: fmtDateTime(quote.created_at as string),
-    actor: (quote.source as string | null) ? cap(quote.source as string) : undefined,
-  });
+  if (quote.paid_at)             rawQuoteEvents.push({ label: 'Payment received',             rawTs: quote.paid_at as string });
+  if (quote.cancelled_at)        rawQuoteEvents.push({ label: 'Quote cancelled',               rawTs: quote.cancelled_at as string, actor: (quote.cancelled_by as string | null) ?? undefined });
+  if (quote.payment_requested_at) rawQuoteEvents.push({ label: 'Payment link sent',            rawTs: quote.payment_requested_at as string });
+  if (quote.finalized_at)        rawQuoteEvents.push({ label: 'Approved',                      rawTs: quote.finalized_at as string, actor: (quote.finalized_by as string | null) ?? undefined });
+  if (quote.ndis_booked_at)      rawQuoteEvents.push({ label: 'NDIS booking confirmed',        rawTs: quote.ndis_booked_at as string });
+  if (quote.ndis_accepted_at)    rawQuoteEvents.push({ label: 'NDIS accepted',                 rawTs: quote.ndis_accepted_at as string });
+  if (quote.ndis_forwarded_at)   rawQuoteEvents.push({ label: 'Forwarded to NDIS coordinator', rawTs: quote.ndis_forwarded_at as string });
+  rawQuoteEvents.push({ label: 'Quote submitted', rawTs: quote.created_at as string, actor: (quote.source as string | null) ? cap(quote.source as string) : undefined });
+
+  rawQuoteEvents.sort((a, b) => b.rawTs.localeCompare(a.rawTs));
+
+  const timelineEvents: TimelineEvent[] = rawQuoteEvents.map(e => ({
+    label: e.label,
+    timestamp: fmtDateTime(e.rawTs),
+    ...(e.actor !== undefined ? { actor: e.actor } : {}),
+  }));
 
   const title = `${name} · ${serviceLabel}`;
   const description = `Submitted ${ageString(quote.created_at as string)} · ${total || 'no total'}`;
@@ -209,7 +191,6 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           <QuoteDetailActions
             quoteId={quote.id as string}
             status={rawStatus}
-            stripeCheckoutUrl={(quote.stripe_checkout_url as string | null) ?? null}
             customerEmail={(quote.customer_email as string | null) ?? null}
           />
         }

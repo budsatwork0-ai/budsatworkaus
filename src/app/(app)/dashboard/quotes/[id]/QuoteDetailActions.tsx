@@ -8,7 +8,6 @@ import { brand } from '@/app/ui/theme';
 type Props = {
   quoteId: string;
   status: string;
-  stripeCheckoutUrl: string | null;
   customerEmail: string | null;
 };
 
@@ -68,8 +67,10 @@ export function QuoteDetailActions({
 
   async function handleApproveAndSend() {
     setPending(true);
+    let approved = false;
     try {
       await patchQuote({ status: 'finalized' });
+      approved = true;
       setLocalStatus('finalized');
 
       const data = await postCheckout();
@@ -77,7 +78,12 @@ export function QuoteDetailActions({
       handleCheckoutResult(data, 'Quote approved and payment link sent');
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed');
+      if (approved) {
+        toast.error('Quote approved — payment link failed. Click Send Payment Link to retry.');
+        router.refresh();
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Action failed');
+      }
     } finally {
       setPending(false);
     }
@@ -176,77 +182,75 @@ export function QuoteDetailActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        {canApprove && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void handleApproveAndSend()}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            style={{ background: brand.accent }}
-          >
-            {pending ? 'Working…' : 'Approve & Send Payment'}
-          </button>
-        )}
+      {canApprove && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void handleApproveAndSend()}
+          className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ background: brand.accent }}
+        >
+          {pending ? 'Working…' : 'Approve & Send Payment'}
+        </button>
+      )}
 
-        {canSendPayment && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void handleSendPaymentLink()}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            style={{ background: brand.accent }}
-          >
-            {pending ? 'Sending…' : localStatus === 'payment_pending' ? 'Resend Payment Link' : 'Send Payment Link'}
-          </button>
-        )}
+      {canSendPayment && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void handleSendPaymentLink()}
+          className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          style={{ background: brand.accent }}
+        >
+          {pending ? 'Sending…' : localStatus === 'payment_pending' ? 'Resend Payment Link' : 'Send Payment Link'}
+        </button>
+      )}
 
-        {canAdjust && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => setShowAdjust(true)}
-            className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50"
-            style={{ color: brand.text }}
-          >
-            Adjust Price
-          </button>
-        )}
+      {canAdjust && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setShowAdjust(true)}
+          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50"
+          style={{ color: brand.text }}
+        >
+          Adjust Price
+        </button>
+      )}
 
-        {canRemind && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void handleRemind()}
-            className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-amber-50 disabled:opacity-50"
-            style={{ color: brand.text }}
-          >
-            Send Reminder
-          </button>
-        )}
+      {canRemind && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void handleRemind()}
+          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-amber-50 disabled:opacity-50"
+          style={{ color: brand.text }}
+        >
+          Send Reminder
+        </button>
+      )}
 
-        {canDeny && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void handleDeny()}
-            className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-          >
-            Deny
-          </button>
-        )}
+      {canDeny && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => void handleDeny()}
+          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+        >
+          Deny
+        </button>
+      )}
 
-        {canCancel && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => setShowCancel(true)}
-            className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:opacity-50"
-          >
-            Cancel Quote
-          </button>
-        )}
-      </div>
+      {canCancel && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setShowCancel(true)}
+          className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:opacity-50"
+        >
+          Cancel Quote
+        </button>
+      )}
 
       {/* Adjust Price modal */}
       {showAdjust && (

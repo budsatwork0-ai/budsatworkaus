@@ -102,9 +102,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
-  const paymentUrl =
-    quote.stripe_checkout_url ||
-    `${siteUrl.replace(/\/$/, '')}/portal/payments`;
+  // Always send customers to the custom pay page, not the raw Stripe URL.
+  // The pay page supports all payment methods and never expires.
+  const paymentUrl = `${siteUrl.replace(/\/$/, '')}/pay/${id}`;
 
   const resend = getResendClient();
   if (!resend) {

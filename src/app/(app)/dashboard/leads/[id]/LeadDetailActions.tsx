@@ -41,7 +41,7 @@ export function LeadDetailActions({ leadId, responseStatus, hasQuote }: Props) {
   const canArchive = localStatus !== 'lost' && localStatus !== 'completed';
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       {canMarkContacted && (
         <button
           type="button"
@@ -72,6 +72,6 @@ export function LeadDetailActions({ leadId, responseStatus, hasQuote }: Props) {
           Archive
         </button>
       )}
-    </div>
+    </>
   );
 }

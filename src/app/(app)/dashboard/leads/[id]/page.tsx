@@ -76,7 +76,7 @@ const QUOTE_STATUS_MAP: Record<string, { label: string; tone: RecordTone }> = {
   payment_pending: { label: 'Awaiting Payment', tone: 'warning'  },
   paid:            { label: 'Paid',             tone: 'success'  },
   cancelled:       { label: 'Cancelled',        tone: 'danger'   },
-  declined:        { label: 'Declined',         tone: 'danger'   },
+  denied:          { label: 'Denied',           tone: 'danger'   },
 };
 
 function quoteStatusDisplay(raw: string): { label: string; tone: RecordTone } {
@@ -154,33 +154,24 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const phone = (lead.customer_phone as string | null) ?? null;
   const suburb = (lead.suburb as string | null) ?? null;
   const address = (lead.service_address as string | null) ?? null;
+  const temperature = (lead.temperature as string | null) ?? null;
   const createdAt = lead.created_at as string;
 
-  // ── Timeline (newest event first) ────────────────────────────────────────
+  // ── Timeline — sort by raw ISO descending so out-of-order stamps display correctly ──
 
-  const timelineEvents: TimelineEvent[] = [];
+  const rawEvents: Array<{ label: string; rawTs: string; actor?: string }> = [];
+  if (lead.lost_at)          rawEvents.push({ label: 'Marked as lost',     rawTs: lead.lost_at as string });
+  if (lead.completed_at)     rawEvents.push({ label: 'Job completed',       rawTs: lead.completed_at as string });
+  if (lead.booked_at)        rawEvents.push({ label: 'Booked',              rawTs: lead.booked_at as string });
+  if (lead.first_response_at) rawEvents.push({ label: 'First response sent', rawTs: lead.first_response_at as string, actor: 'Admin' });
+  rawEvents.push({ label: 'Enquiry received', rawTs: createdAt, actor: sourceName });
+  rawEvents.sort((a, b) => b.rawTs.localeCompare(a.rawTs));
 
-  if (lead.lost_at) {
-    timelineEvents.push({ label: 'Marked as lost', timestamp: fmtDateTime(lead.lost_at as string) });
-  }
-  if (lead.completed_at) {
-    timelineEvents.push({ label: 'Job completed', timestamp: fmtDateTime(lead.completed_at as string) });
-  }
-  if (lead.booked_at) {
-    timelineEvents.push({ label: 'Booked', timestamp: fmtDateTime(lead.booked_at as string) });
-  }
-  if (lead.first_response_at) {
-    timelineEvents.push({
-      label: 'First response sent',
-      timestamp: fmtDateTime(lead.first_response_at as string),
-      actor: 'Admin',
-    });
-  }
-  timelineEvents.push({
-    label: 'Enquiry received',
-    timestamp: fmtDateTime(createdAt),
-    actor: sourceName,
-  });
+  const timelineEvents: TimelineEvent[] = rawEvents.map(e => ({
+    label: e.label,
+    timestamp: fmtDateTime(e.rawTs),
+    ...(e.actor !== undefined ? { actor: e.actor } : {}),
+  }));
 
   const title = `${name} · ${serviceLabel}`;
   const description = `Received ${ageString(createdAt)} · via ${sourceName}`;
@@ -226,6 +217,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
               <FieldRow label="Service" value={serviceLabel} />
               {suburb && <FieldRow label="Suburb" value={suburb} />}
               {address && <FieldRow label="Address" value={address} />}
+              {temperature && <FieldRow label="Temperature" value={cap(temperature)} />}
               {!suburb && !address && (
                 <p className="py-2 text-sm text-slate-400">No location provided.</p>
               )}

@@ -38,13 +38,26 @@ export async function PATCH(
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
+  // Only stamp first_response_at the first time a lead enters in_conversation.
+  // Fetch the current value so we don't overwrite a previous timestamp if the lead
+  // is re-contacted after going to no_response.
+  let firstResponsePatch: { first_response_at: string } | Record<string, never> = {};
+  if (body.status === 'in_conversation') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: current } = await (client as any)
+      .from('leads')
+      .select('first_response_at')
+      .eq('id', id)
+      .single();
+    if (!current?.first_response_at) {
+      firstResponsePatch = { first_response_at: new Date().toISOString() };
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (client as any)
     .from('leads')
-    .update({
-      response_status: body.status,
-      ...(body.status === 'in_conversation' ? { first_response_at: new Date().toISOString() } : {}),
-    })
+    .update({ response_status: body.status, ...firstResponsePatch })
     .eq('id', id);
 
   if (error) {
