@@ -37,7 +37,7 @@ export function CookieBanner() {
     <div
       role="dialog"
       aria-label="Cookie preferences"
-      className={`fixed bottom-0 left-0 right-0 z-50 ${publicTheme.glassSoft}`}
+      className={`fixed top-0 sm:top-auto sm:bottom-0 left-0 right-0 z-50 ${publicTheme.glassSoft}`}
     >
       <div className="mx-auto max-w-7xl px-6 py-4">
         {!showPrefs ? (

@@ -764,7 +764,7 @@ function ServicesPageContent() {
 
   React.useEffect(() => {
     // Yard step 2 always uses the inline (fixed) layout — match the body-scroll lock to that.
-    const usesInline = mapVisible && (isDesktop || S.service === 'yard');
+    const usesInline = mapVisible && isDesktop;
     if (usesInline) {
       setHeaderH(document.querySelector('header')?.getBoundingClientRect().height ?? 72);
       document.body.style.overflow = 'hidden';
@@ -3724,9 +3724,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
           </div>
         );
 
-        // For yard care we always want the side-by-side layout (cards left, map right),
-        // so the cards stay "in line with" the map at any width — not stacked below.
-        const inlineLayout = isDesktop || S.service === 'yard';
+        // Desktop gets the side-by-side layout (cards left, map right). Mobile always
+        // stacks vertically: heading → cards → map → price bar.
+        const inlineLayout = isDesktop;
 
         return (
           <>
@@ -3836,7 +3836,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               </div>
 
               {/* Stacked-mobile sticky price dock — only when we're not using the inline layout */}
-              {!inlineLayout && mapVisible && (
+              {!inlineLayout && mapVisible && S.service !== 'yard' && (
                 <div
                   className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/60 px-4 pt-3"
                   style={{
