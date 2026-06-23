@@ -266,6 +266,7 @@ export default function HomePage() {
                 verticalAlign: 'baseline',
                 lineHeight: 'inherit',
                 minWidth: '5ch',
+                textAlign: 'left',
               }}
               aria-live="polite"
             >
