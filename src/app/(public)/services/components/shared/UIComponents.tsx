@@ -7,8 +7,10 @@ import { glass } from '../../lib/pricing/constants';
 export const glassCard = (active: boolean = false) =>
   cls(
     'rounded-2xl p-4 cursor-pointer select-none',
-    glass,
-    active ? 'ring-2 ring-[var(--accent)]' : 'ring-1 ring-black/10'
+    'bg-white/75 backdrop-blur-2xl shadow-[0_10px_30px_rgba(2,6,23,0.08)]',
+    active
+      ? 'border-2 border-[color:var(--accent)] shadow-[0_4px_20px_rgba(15,61,46,0.12)]'
+      : 'border border-black/10'
   );
 
 // Disclaimer component
