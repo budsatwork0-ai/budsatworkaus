@@ -3313,15 +3313,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                       'space-y-6',
                       !(S.service === 'yard' && isDesktop) && 'mt-4'
                     )}>
-                      {S.service !== 'yard' && !hasInteractedStep2 && (
-                        <p className="flex items-center gap-1.5 text-[12px] font-medium text-slate-600 select-none -mb-3">
-                          <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-emerald-600">
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M12 8v4M12 16h.01" />
-                          </svg>
-                          Tip: tap a service card to see everything included.
-                        </p>
-                      )}
                       <div className={cls('grid gap-4 md:gap-5', mapVisible ? 'grid-cols-1' : 'md:grid-cols-2')}>
                         {(() => {
                           const scopes =
