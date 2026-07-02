@@ -65,6 +65,54 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ items: enriched });
 }
 
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
+  const client = createServiceClientSafe();
+  if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 });
+
+  const summary = typeof body.summary === 'string' ? body.summary.slice(0, 150) : '';
+  const tags = Array.isArray(body.tags) ? (body.tags as string[]).filter((t) => typeof t === 'string') : [];
+  const searchableText = [title, summary, ...tags].filter(Boolean).join(' ');
+
+  const insert = {
+    title,
+    summary,
+    item_type:      typeof body.item_type === 'string' ? body.item_type : 'artifact',
+    source_table:   'content_package',
+    source_id:      crypto.randomUUID(),
+    platform:       typeof body.platform === 'string' ? body.platform : null,
+    status:         typeof body.status === 'string' ? body.status : 'draft',
+    tags,
+    performance:    {},
+    searchable_text: searchableText,
+  };
+
+  const { data, error } = await (client as any)
+    .from('content_library_items')
+    .insert(insert)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[api/content-library] POST:', error.message);
+    return NextResponse.json({ error: 'Failed to save to library' }, { status: 500 });
+  }
+
+  return NextResponse.json(data, { status: 201 });
+}
+
 async function loadLearningRecords(client: any, artifactIds: string[]) {
   const byArtifactId = new Map<string, ContentLibraryLearningSummary[]>();
   if (artifactIds.length === 0) return { byArtifactId };

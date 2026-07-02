@@ -80,6 +80,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/content': 'Campaign Factory',
   '/dashboard/content/library': 'Library',
   '/dashboard/content/artifacts': 'Story Artifacts',
+  '/dashboard/content/learn': 'Content Learn',
   '/dashboard/story-engine': 'Story Engine',
   '/dashboard/story-engine/journal': 'Journal',
   '/dashboard/story-engine/arcs': 'Story Arcs',
@@ -190,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/content/story-intelligence', label: 'Ideas',   icon: storyEngineIcon },
       { href: '/dashboard/content',                    label: 'Create',  icon: contentStudioIcon },
       { href: '/dashboard/content/library',            label: 'Library', icon: contentVaultIcon },
-      { href: '/dashboard/story-engine/journal',       label: 'Learn',   icon: feedbackIcon },
+      { href: '/dashboard/content/learn',               label: 'Learn',   icon: feedbackIcon },
     ] },
     { id: 'finance', label: 'Finance', adminOnly: true, items: [
       { href: '/dashboard/invoices',      label: 'Invoices',      icon: moneyIcon,        badgeKey: 'invoices' },
