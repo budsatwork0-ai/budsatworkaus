@@ -1,0 +1,112 @@
+##
+## architecture-doctor-advisory.yml
+##
+## Advisory-only Architecture Doctor reporting.
+## This workflow must not block on architecture findings. It may fail only when
+## dependencies fail to install, typecheck fails, tests fail, or the doctor
+## command crashes.
+##
+
+name: Architecture Doctor Advisory Only
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: architecture-doctor-advisory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-doctor-advisory:
+    name: Architecture Doctor advisory-only report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Architecture Doctor unit tests
+        run: npm run test:unit -- architecture-doctor
+
+      - name: Restore previous health report for trend diffing
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_RUN=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow architecture-doctor-blocking-dry-run.yml \
+            --branch main \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null)
+          if [ -n "$LAST_RUN" ] && [ "$LAST_RUN" != "null" ]; then
+            mkdir -p /tmp/arch-doctor-prev
+            gh run download "$LAST_RUN" \
+              --repo "${{ github.repository }}" \
+              --name architecture-doctor-blocking-dry-run-reports \
+              --dir /tmp/arch-doctor-prev 2>/dev/null || true
+            if [ -f "/tmp/arch-doctor-prev/architecture-health.json" ]; then
+              cp /tmp/arch-doctor-prev/architecture-health.json \
+                "Buds At Work/01 Architecture/Architecture Doctor/architecture-health.json"
+              echo "Previous health report restored (run $LAST_RUN) — trend diffing enabled."
+            fi
+          fi
+
+      - name: Generate Architecture Doctor advisory-only reports
+        run: npx tsx scripts/architecture-doctor.ts --format all --output "Buds At Work/01 Architecture/Architecture Doctor" --ci-advisory
+
+      - name: Publish Architecture Doctor advisory summary
+        if: always()
+        run: |
+          SUMMARY="Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-pr-summary.md"
+          if [ -f "$SUMMARY" ]; then
+            cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Emit Architecture Doctor advisory annotations
+        if: always()
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = "Buds At Work/01 Architecture/Architecture Doctor/architecture-health.json";
+            if (!fs.existsSync(path)) process.exit(0);
+            const report = JSON.parse(fs.readFileSync(path, "utf8"));
+            for (const annotation of (report.advisoryGithub?.annotations ?? []).slice(0, 10)) {
+              const level = annotation.level === "warning" ? "warning" : "notice";
+              const file = annotation.file ? ` file=${annotation.file},` : " ";
+              const title = (annotation.title ?? "Architecture Doctor").replace(/\r?\n/g, " ");
+              const message = (annotation.message ?? "").replace(/\r?\n/g, " ");
+              console.log(`::${level}${file}title=${title}::${message}`);
+            }
+          '
+
+      - name: Upload Architecture Doctor advisory-only reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-doctor-advisory-only-reports
+          path: |
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-health.json
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-drift-report.md
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-ci-plan.md
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-pr-summary.md
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-threshold-dry-run.md
+            Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-release-cycle-evidence.md
+          if-no-files-found: warn

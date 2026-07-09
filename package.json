@@ -10,6 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "architecture:doctor:advisory": "npx tsx scripts/architecture-doctor.ts --format all --output \"Buds At Work/01 Architecture/Architecture Doctor\" --ci-advisory",
+    "architecture:doctor:blocking-dry-run": "npx tsx scripts/architecture-doctor.ts --format all --output \"Buds At Work/01 Architecture/Architecture Doctor\"",
     "test:unit": "vitest run",
     "test": "playwright test",
     "test:ui": "playwright test --ui",

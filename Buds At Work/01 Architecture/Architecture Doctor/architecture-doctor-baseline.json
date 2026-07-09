@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "acceptedFindings": [
+    {
+      "id": "SEC-2026-07-09-001",
+      "key": "atlas_table_missing|table|ndis_roles|C08",
+      "type": "atlas_table_missing",
+      "asset": "ndis_roles",
+      "capabilityId": "C08",
+      "capability": "NDIS Partner and Participant Matching",
+      "owner": "Operations / Compliance",
+      "severity": "high",
+      "disposition": "needs_manual_review",
+      "accepted_by": "Architecture Doctor Phase 11",
+      "accepted_reason": "Migration 20260502004639_035_ndis_roles.sql is a production-applied stub with no local SQL body, so the repository cannot prove whether the physical table exists or has RLS. Do not create a replacement table blindly.",
+      "reason": "Production schema evidence is outside the repository; verify Supabase production state and backfill reviewed SQL/evidence metadata.",
+      "risk": "NDIS role data may be sensitive; if production RLS is absent, participant/organisation role relationships could be overexposed.",
+      "smallest_safe_remediation": "Manually inspect production Supabase for ndis_roles table existence, grants, RLS enablement, and policies; then add a reviewed reconciliation migration or atlas correction.",
+      "code_or_migration_required": "manual review",
+      "score_impact": "light",
+      "accepted_at": "2026-07-09T00:00:00.000Z",
+      "review_date": "2026-08-08",
+      "review_after": "2026-08-08",
+      "expiry_date": "2026-10-07"
+    },
+    {
+      "id": "SEC-2026-07-09-002",
+      "key": "rls_unknown|table|ndis_roles|C08",
+      "type": "rls_unknown",
+      "asset": "ndis_roles",
+      "capabilityId": "C08",
+      "capability": "NDIS Partner and Participant Matching",
+      "owner": "Operations / Compliance",
+      "severity": "medium",
+      "disposition": "needs_manual_review",
+      "accepted_by": "Architecture Doctor Phase 11",
+      "accepted_reason": "Static RLS coverage cannot be determined because the only local ndis_roles migration is a production-applied stub.",
+      "reason": "RLS state must be verified against production before deciding whether a migration is needed.",
+      "risk": "Unknown RLS coverage on NDIS role data could become a blocking issue if production verification shows missing policies.",
+      "smallest_safe_remediation": "Verify production RLS/policy coverage and add a reviewed evidence migration or Architecture Doctor evidence metadata.",
+      "code_or_migration_required": "manual review",
+      "score_impact": "light",
+      "accepted_at": "2026-07-09T00:00:00.000Z",
+      "review_date": "2026-08-08",
+      "review_after": "2026-08-08",
+      "expiry_date": "2026-10-07"
+    }
+  ]
+}
