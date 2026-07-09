@@ -60,3 +60,13 @@ graphify-out/**/.graphify_*
 # Generated architecture exports (keep GRAPH_REPORT.md and *.md)
 Buds At Work/architecture/Graphify/graph.json
 Buds At Work/architecture/Graphify/*.html
+
+# Architecture Doctor — generated outputs (CI artifacts only)
+# Committed: baseline.json, enforcement.json, release-cycle-history.json, all docs
+Buds At Work/01 Architecture/Architecture Doctor/architecture-health.json
+Buds At Work/01 Architecture/Architecture Doctor/architecture-drift-report.md
+Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-pr-summary.md
+Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-ci-plan.md
+Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-threshold-dry-run.md
+Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-release-cycle-evidence.md
+Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-proposed-baseline.json

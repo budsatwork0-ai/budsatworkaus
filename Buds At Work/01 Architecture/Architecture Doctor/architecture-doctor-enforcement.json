@@ -1,0 +1,8 @@
+{
+  "enforcementMode": "block_on_critical",
+  "minimumHealthScore": 80,
+  "failOnCritical": false,
+  "failOnExpiredBaseline": false,
+  "releaseCycleObserved": true,
+  "scoreThresholdAgreed": true
+}
