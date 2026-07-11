@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardTheme } from '@/lib/design-system/themes';
-import type { DesignAudit, DesignViolation, TokenOverrides } from './page';
+import type { DesignAudit, DesignViolation, TokenOverrides } from './_types';
 
 // ── Brand token defaults (mirrors src/app/ui/theme.ts) ───────────────────────
 
