@@ -12,6 +12,7 @@
  *   the executive layer before activating the cron schedule.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { runAgent } from '@/lib/agents/runtime';
 
 export const runtime = 'nodejs';
@@ -21,12 +22,8 @@ export const dynamic = 'force-dynamic';
 const EXEC_SEQUENCE = ['ceo-agent', 'coo-agent', 'cmo-agent', 'cfo-agent', 'chief-of-staff'];
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const isDryRun = req.nextUrl.searchParams.get('dry_run') === '1';
 

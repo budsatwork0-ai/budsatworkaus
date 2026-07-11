@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createStripeClient } from '@/lib/stripe/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
@@ -36,12 +37,8 @@ function appendDiscountNote(notes: string | null, originalTotal: number, discoun
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const client = createServiceClientSafe();
   if (!client) {

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { weeklyKpiEmail } from '@/lib/email/templates';
 import { getAutomationSettings, getPeriodLabel } from '@/lib/automations';
 import { getSiteSettingObject } from '@/lib/site-settings';
+import { OrderStatus } from '@/lib/types/status';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,12 +18,8 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
 };
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const client = createServiceClientSafe();
   if (!client) {
@@ -56,7 +54,7 @@ export async function GET(req: NextRequest) {
     (client as any)
       .from('orders')
       .select('id, final_price, completed_at')
-      .eq('status', 'completed')
+      .eq('status', OrderStatus.completed)
       .gte('completed_at', start.toISOString())
       .lte('completed_at', end.toISOString()),
     (client as any)

@@ -14,17 +14,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createClient } from '@supabase/supabase-js';
 
 const STALL_THRESHOLD_MS = 60 * 60_000; // 60 minutes
 const MAX_RUNS_PER_CRON = 3;
 
 export async function GET(req: NextRequest) {
-  // Vercel cron authentication
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

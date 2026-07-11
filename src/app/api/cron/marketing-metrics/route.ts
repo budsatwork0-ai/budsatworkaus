@@ -10,6 +10,7 @@
  * Falls back cleanly (200 + skipped) when Meta isn't configured yet.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { fetchMetaMetrics, isMetaConfigured } from '@/lib/marketing/meta';
 
@@ -20,11 +21,8 @@ function today(): string {
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   if (!isMetaConfigured()) {
     return NextResponse.json({ ok: true, skipped: 'meta_not_configured' });
