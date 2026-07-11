@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import type { BudActivityEvent } from '@/lib/bud/types';
 import type { MissionControlHealth } from '@/lib/bud/health';
 import type { BudOsQueueItem, AgentImpactMap } from '@/lib/bud/os-view-model';
+import type { AgentRow, BusinessSnapshotData, OpenEnquiryRow } from './_types';
 import type { DevOsResponse } from '@/app/api/dev-os/route';
 import { OverviewCore } from './_components/OverviewCore';
 import { AgentHierarchy } from './_components/AgentHierarchy';
@@ -27,34 +28,10 @@ import { RepairQuarantineSection } from './_components/RepairQuarantineSection';
 import type { QuarantineRow } from './_components/RepairQuarantineSection';
 import { deriveGlobalTruth } from '@/lib/bud/overview-v2';
 
-type AgentRow = {
-  id: string; name: string; status: string; category: string;
-  autonomy: string; last_run_at?: string | null; last_success_at?: string | null;
-};
-
-export type BusinessSnapshotData = {
-  mtd_revenue: number;
-  mtd_orders: number;
-  completed_mtd: number;
-  in_progress: number;
-  jobs_today: number;
-  pending_enquiries: number;
-};
-
-export type OpenEnquiryRow = {
-  id: string;
-  customer_name: string;
-  customer_email: string | null;
-  customer_phone: string | null;
-  service_type: string | null;
-  source: string;
-  reply_channel: string | null;
-  created_at: string;
-};
-
 type Props = {
   agents?: AgentRow[];
   latestRuns?: Record<string, { confidence_score: number | null; finished_at: string | null }>;
+  runtimeStatus?: Record<string, { last_run_outcome: string | null; runs_30d: number; is_stale: boolean }>;
   budActivity?: BudActivityEvent[];
   commandState: MissionControlHealth;
   businessSnapshot: BusinessSnapshotData;
@@ -87,6 +64,7 @@ type ActivityEvent = {
 export function MissionControlClient({
   agents = [],
   latestRuns = {},
+  runtimeStatus = {},
   commandState,
   businessSnapshot,
   openEnquiries = [],
@@ -355,7 +333,7 @@ export function MissionControlClient({
           )}
 
           {tab === 'agents' && agents.length > 0 && (
-            <AgentHierarchy agents={agents} latestRuns={latestRuns} />
+            <AgentHierarchy agents={agents} latestRuns={latestRuns} runtimeStatus={runtimeStatus} />
           )}
           {tab === 'agents' && agents.length === 0 && (
             <p className="py-12 text-center text-sm text-white/40">No agents registered yet.</p>

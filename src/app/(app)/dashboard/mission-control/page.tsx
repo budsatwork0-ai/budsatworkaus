@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Suspense } from 'react';
 import { MissionControlClient } from './MissionControlClient';
+import type { OpenEnquiryRow } from './_types';
 import type { QuarantineRow } from './_components/RepairQuarantineSection';
 import { computeMissionControlHealth } from '@/lib/bud/health';
 import { buildBudOsActionQueue, buildAgentImpactMap, type RootCauseInitiativeRow } from '@/lib/bud/os-view-model';
@@ -191,6 +192,21 @@ async function loadData() {
       latestRuns[row.agent_id as string] = {
         confidence_score: (row.confidence_score as number | null) ?? null,
         finished_at: (row.finished_at as string | null) ?? null,
+      };
+    }
+  } catch {}
+
+  // Per-agent runtime status: last run outcome, 30-day run count, is_stale — view added in migration 142/143.
+  const runtimeStatus: Record<string, { last_run_outcome: string | null; runs_30d: number; is_stale: boolean }> = {};
+  try {
+    const { data: runtimeStatusData } = await supabase
+      .from('v_agent_runtime_status')
+      .select('agent_id, last_run_outcome, runs_30d, is_stale');
+    for (const row of runtimeStatusData ?? []) {
+      runtimeStatus[row.agent_id as string] = {
+        last_run_outcome: (row.last_run_outcome as string | null) ?? null,
+        runs_30d: (row.runs_30d as number) ?? 0,
+        is_stale: (row.is_stale as boolean) ?? false,
       };
     }
   } catch {}
@@ -390,9 +406,10 @@ async function loadData() {
   return {
     agents,
     latestRuns,
+    runtimeStatus,
     devOs,
     businessSnapshot,
-    openEnquiries: (openEnquiriesRes.data ?? []) as import('./MissionControlClient').OpenEnquiryRow[],
+    openEnquiries: (openEnquiriesRes.data ?? []) as OpenEnquiryRow[],
     agentImpact,
     budActivity: (budActivityRes.data ?? []) as import('@/lib/bud/types').BudActivityEvent[],
     commandState,
