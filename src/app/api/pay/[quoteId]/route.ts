@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { QuoteStatus } from '@/lib/types/status';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -33,9 +34,9 @@ export async function GET(
   }
 
   const amount = Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0);
-  const isPaid = quote.payment_status === 'paid' || quote.status === 'paid';
-  const isCancelled = quote.status === 'cancelled' || quote.status === 'denied';
-  const isReady = ['finalized', 'payment_pending'].includes(quote.status) || quote.status === 'approved';
+  const isPaid = quote.payment_status === 'paid' || quote.status === QuoteStatus.paid;
+  const isCancelled = quote.status === QuoteStatus.cancelled || quote.status === QuoteStatus.denied;
+  const isReady = [QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quote.status) || quote.status === 'approved';
 
   return NextResponse.json({
     id: quote.id,

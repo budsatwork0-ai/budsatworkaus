@@ -13,6 +13,7 @@ import {
   getStripeCheckoutPolicy,
 } from '@/lib/payments/pricing';
 import type Stripe from 'stripe';
+import { QuoteStatus, OrderStatus } from '@/lib/types/status';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
   } else {
     // Guest path: only permit for admin-approved quotes
-    const approvedStatuses = ['finalized', 'payment_pending', 'approved'];
+    const approvedStatuses = [QuoteStatus.finalized, QuoteStatus.paymentPending, 'approved'];
     if (!approvedStatuses.includes(quote.status)) {
       return NextResponse.json({ error: 'Quote is not yet approved for payment' }, { status: 403 });
     }
@@ -97,26 +98,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const quoteStatus =
     quote.status === 'approved'
-      ? 'finalized'
+      ? QuoteStatus.finalized
       : quote.status === 'adjusted'
-        ? 'in_review'
+        ? QuoteStatus.inReview
         : quote.status;
 
-  if (quoteStatus === 'cancelled' || quoteStatus === 'denied') {
+  if (quoteStatus === QuoteStatus.cancelled || quoteStatus === QuoteStatus.denied) {
     return NextResponse.json(
       { error: 'Cancelled or denied quotes cannot request payment' },
       { status: 400 }
     );
   }
 
-  if (!['finalized', 'payment_pending'].includes(quoteStatus)) {
+  if (![QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quoteStatus)) {
     return NextResponse.json(
       { error: 'Quote must be finalized before requesting payment' },
       { status: 400 }
     );
   }
 
-  if (quoteStatus === 'paid' || quote.payment_status === 'paid') {
+  if (quoteStatus === QuoteStatus.paid || quote.payment_status === 'paid') {
     return NextResponse.json({ error: 'Quote is already paid' }, { status: 400 });
   }
 
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     base_price: Number(quote.submitted_total ?? quote.total ?? amount),
     discount_percent: 0,
     final_price: amount,
-    status: 'pending',
+    status: OrderStatus.pending,
     notes: quote.notes,
   };
 
@@ -333,7 +334,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { error: quoteUpdateErr } = await (client as any)
     .from('quotes')
     .update({
-      status: 'payment_pending',
+      status: QuoteStatus.paymentPending,
       payment_status: 'pending_payment',
       payment_requested_at: new Date().toISOString(),
       stripe_checkout_session_id: session.id,

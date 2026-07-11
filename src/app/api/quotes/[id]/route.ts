@@ -2,27 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createStripeClientSafe } from '@/lib/stripe/server';
+import { type QuoteStatus, VALID_QUOTE_STATUSES } from '@/lib/types/status';
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-type QuoteStatus =
-  | 'submitted'
-  | 'in_review'
-  | 'finalized'
-  | 'payment_pending'
-  | 'paid'
-  | 'denied'
-  | 'cancelled';
-
-const VALID_STATUSES: QuoteStatus[] = [
-  'submitted',
-  'in_review',
-  'finalized',
-  'payment_pending',
-  'paid',
-  'denied',
-  'cancelled',
-];
 
 function normalizeStatus(rawStatus: string): QuoteStatus {
   if (rawStatus === 'pending') return 'submitted';
@@ -137,9 +119,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   if (body.status !== undefined) {
     const nextStatus = String(body.status) as QuoteStatus;
-    if (!VALID_STATUSES.includes(nextStatus)) {
+    if (!VALID_QUOTE_STATUSES.includes(nextStatus)) {
       return NextResponse.json(
-        { error: `status must be one of: ${VALID_STATUSES.join(', ')}` },
+        { error: `status must be one of: ${VALID_QUOTE_STATUSES.join(', ')}` },
         { status: 400 }
       );
     }
