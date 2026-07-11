@@ -1,16 +1,6 @@
 import { GOOGLE_MAPS_API_KEY, ROUTE_AVG_SPEED_KMH } from './constants';
-
-export type RouteLocation = {
-  address: string;
-  lat: number;
-  lng: number;
-  placeId?: string;
-};
-
-export type RouteLookupResult = {
-  distanceKm: number;
-  durationMinutes: number;
-};
+import type { RouteLocation, RouteLookupResult } from './types';
+export type { RouteLocation, RouteLookupResult } from './types';
 
 // Math utilities
 export const roundToHalfKm = (value: number) => Math.round(value * 2) / 2;

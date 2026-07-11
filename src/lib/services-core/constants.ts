@@ -1,13 +1,13 @@
 import type {
-  WindowContextPrice,
-  SneakerTurnaroundMeta,
-  SneakerTurnaround,
-  Context,
-  ServiceType,
-  LaundryPerLoadAddOn,
-  LaundryPerOrderAddOn,
-  IroningItemType,
-} from '@/app/(public)/services/types';
+  CoreWindowContextPrice,
+  CoreSneakerTurnaroundMeta,
+  CoreSneakerTurnaround,
+  CoreContext,
+  CoreServiceType,
+  CoreLaundryPerLoadAddOn,
+  CoreLaundryPerOrderAddOn,
+  CoreIroningItemType,
+} from './types';
 
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 export const QLD_BOUNDS = { north: -9.1, south: -29.6, east: 153.8, west: 138.5 };
@@ -19,7 +19,7 @@ export const ROUTE_MIN_PRICE = 55;
 export const ROUTE_AVG_SPEED_KMH = 40;
 export const ROUTE_SCOPES = ['dump_delivery', 'dump_transport'] as const;
 
-export const WINDOW_PRICES: Record<'home' | 'commercial', WindowContextPrice> = {
+export const WINDOW_PRICES: Record<'home' | 'commercial', CoreWindowContextPrice> = {
   home: { pane: 8.0, track: 4.0, screen: 4.0 },
   commercial: { pane: 14.0, track: 11.0 },
 };
@@ -42,18 +42,18 @@ export const SNEAKER_MULTI_PRICING: { pairs: number; price: number; popular?: bo
   { pairs: 10, price: 270 },
 ];
 
-export const LAUNDRY_PER_LOAD_ADDONS: Record<LaundryPerLoadAddOn, { label: string; price: number }> = {
+export const LAUNDRY_PER_LOAD_ADDONS: Record<CoreLaundryPerLoadAddOn, { label: string; price: number }> = {
   eco_detergent:      { label: 'Sensitive / eco detergent', price: 3  },
   extra_rinse:        { label: 'Extra rinse',               price: 4  },
   whites_brightening: { label: 'Whites / brightening',      price: 10 },
 };
 
-export const LAUNDRY_PER_ORDER_ADDONS: Record<LaundryPerOrderAddOn, { label: string; price: number }> = {
+export const LAUNDRY_PER_ORDER_ADDONS: Record<CoreLaundryPerOrderAddOn, { label: string; price: number }> = {
   hygiene_sanitise:   { label: 'Hygiene / sanitise',    price: 15 },
   express_turnaround: { label: 'Express turnaround',    price: 15 },
 };
 
-export const LAUNDRY_IRONING_PRICES: Record<IroningItemType, { label: string; price: number }> = {
+export const LAUNDRY_IRONING_PRICES: Record<CoreIroningItemType, { label: string; price: number }> = {
   standard:       { label: 'Standard item',  price: 4 },
   business_shirt: { label: 'Business shirt', price: 5 },
   complex:        { label: 'Complex item',   price: 8 },
@@ -61,13 +61,13 @@ export const LAUNDRY_IRONING_PRICES: Record<IroningItemType, { label: string; pr
 
 export const AUTO_SIZE_CATEGORIES = ['hatch', 'sedan', 'suv', 'ute', 'van', '4wd'] as const;
 
-export const SNEAKER_TURNAROUND: { key: SneakerTurnaround; label: string; multiplier: number }[] = [
+export const SNEAKER_TURNAROUND: { key: CoreSneakerTurnaround; label: string; multiplier: number }[] = [
   { key: 'standard', label: 'Standard', multiplier: 1 },
   { key: 'express', label: 'Express', multiplier: 1 },
   { key: 'priority', label: 'Priority', multiplier: 1 },
 ];
 
-export const SNEAKER_TURNAROUND_META: SneakerTurnaroundMeta[] = [
+export const SNEAKER_TURNAROUND_META: CoreSneakerTurnaroundMeta[] = [
   {
     key: 'standard',
     label: 'Standard',
@@ -103,7 +103,7 @@ export const SERVICE_REGIONS = [
   'Scenic Rim',
 ] as const;
 
-export const ALLOWED_SERVICES_BY_CONTEXT: Record<Context, ServiceType[]> = {
+export const ALLOWED_SERVICES_BY_CONTEXT: Record<CoreContext, CoreServiceType[]> = {
   home: ['windows', 'cleaning', 'yard', 'dump', 'auto', 'laundry_sneakers'],
   commercial: ['windows', 'cleaning', 'yard'],
   ndis: ['cleaning', 'yard'],
@@ -139,5 +139,5 @@ export const WIN_RULES = {
   },
 } as const;
 
-export const yardLabourRate = (context?: Context) =>
+export const yardLabourRate = (context?: CoreContext) =>
   context === 'commercial' ? POLICY.labourRate.commercial : POLICY.labourRate.home;

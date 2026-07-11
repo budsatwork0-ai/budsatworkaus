@@ -1,14 +1,26 @@
 // Core service types
-export type Context = 'home' | 'commercial' | 'ndis';
-export type ServiceType = 'windows' | 'cleaning' | 'yard' | 'dump' | 'auto' | 'laundry_sneakers';
+import type {
+  CoreContext,
+  CoreServiceType,
+  CoreLaundryPerLoadAddOn,
+  CoreLaundryPerOrderAddOn,
+  CoreIroningItemType,
+  CoreSneakerTurnaround,
+  CoreTravelBand,
+  CoreWindowContextPrice,
+  CoreSneakerTurnaroundMeta,
+} from '@/lib/services-core/types';
+
+export type Context = CoreContext;
+export type ServiceType = CoreServiceType;
 export type ScopeKey = string;
 export type NdisManagementType = 'plan_managed' | 'self_managed' | 'agency_managed';
 
 // Laundry & Sneaker Care types
 export type LaundryTier = 'wash_fold';
-export type LaundryPerLoadAddOn = 'eco_detergent' | 'extra_rinse' | 'whites_brightening';
-export type LaundryPerOrderAddOn = 'hygiene_sanitise' | 'express_turnaround';
-export type IroningItemType = 'standard' | 'business_shirt' | 'complex';
+export type LaundryPerLoadAddOn = CoreLaundryPerLoadAddOn;
+export type LaundryPerOrderAddOn = CoreLaundryPerOrderAddOn;
+export type IroningItemType = CoreIroningItemType;
 export type IroningItem = { type: IroningItemType; count: number };
 export type SneakerTier = 'refresh' | 'deep' | 'multi';
 
@@ -17,7 +29,7 @@ export type CommFrequency = 'none' | 'daily' | '3x_weekly' | 'weekly' | 'fortnig
 export type NumericParams = Record<string, number | undefined>;
 
 // Service-specific types
-export type SneakerTurnaround = 'standard' | 'express' | 'priority';
+export type SneakerTurnaround = CoreSneakerTurnaround;
 export type YardJobStatus = 'draft' | 'completed';
 
 export type YardJob = {
@@ -92,7 +104,7 @@ import type { RouteLocation, RouteLookupResult } from '@/lib/services-core/routi
 export type { RouteLocation, RouteLookupResult };
 
 export type RouteScopeKey = 'dump_delivery' | 'dump_transport';
-export type TravelBand = DeliverySelection['distance'];
+export type TravelBand = CoreTravelBand;
 
 // Quote types
 export type Selected = Record<string, number>;
@@ -133,16 +145,9 @@ export type QuoteParams = {
 };
 
 // Pricing types
-export type WindowContextPrice = { pane: number; track: number; screen?: number };
+export type WindowContextPrice = CoreWindowContextPrice;
 
-export type SneakerTurnaroundMeta = {
-  key: SneakerTurnaround;
-  label: string;
-  window: string;
-  surcharge: number;
-  queuePriority: number;
-  capacity: number;
-};
+export type SneakerTurnaroundMeta = CoreSneakerTurnaroundMeta;
 
 // Scopes
 export type ScopeDef = {
