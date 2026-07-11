@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
+import { auditLog } from '@/lib/audit/log';
 
-// GET /api/site-settings - Get all site settings
+// GET /api/site-settings - Get all site settings (admin only)
 export async function GET() {
+  const authUser = await getAuthUser();
+  if (!authUser || authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
   const client = createServiceClientSafe();
   if (!client) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
@@ -76,6 +82,17 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  for (const u of updates) {
+    await auditLog(client, {
+      entity_type: 'site_setting',
+      entity_id: u.key,
+      action: 'updated',
+      source: 'admin',
+      new_value: { value: u.value },
+      user_email: authUser.email ?? undefined,
+    });
   }
 
   return NextResponse.json({ success: true });

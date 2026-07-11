@@ -12,6 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/auth';
 import { executeApprovedAction } from '@/lib/agents/runtime';
 import { isDangerousAction } from '@/lib/bud/autonomy';
+import { auditLog } from '@/lib/audit/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -88,6 +89,15 @@ export async function POST(
       );
     }
   }
+
+  await auditLog(supabase, {
+    entity_type: 'agent_action',
+    entity_id: id,
+    action: body.decision === 'approve' ? 'approved' : 'rejected',
+    source: 'admin',
+    new_value: { decision: body.decision, notes: body.notes ?? null },
+    user_email: user.email ?? undefined,
+  });
 
   return NextResponse.json({ ok: true });
 }
