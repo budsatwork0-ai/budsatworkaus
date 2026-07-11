@@ -19,6 +19,7 @@ export const lapsedWinBackAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['lapsed_outreach'],
   async run(ctx: AgentContext) {
     // ── Sandbox scenario path ───────────────────────────────────────────
     // Arena scenarios inject the lapsed customer via ctx.input — the RPC

@@ -11,6 +11,7 @@ export const reconciliationAgent: AgentDefinition = {
   description: 'Reconciles Stripe + PayPal payments with orders and flags overdue payables.',
   category: 'finance',
   autonomy: 'review',
+  schema_dependencies: ['payments', 'orders'],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxCase = detectSandboxReconciliation(

@@ -15,6 +15,7 @@ export const whsSafetyReminderAgent: AgentDefinition = {
   category: 'compliance',
   autonomy: 'auto',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['whs_records', 'employees'],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxWhs = detectSandboxWhsScenario(

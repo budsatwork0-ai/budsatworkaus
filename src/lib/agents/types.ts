@@ -43,6 +43,13 @@ export interface AgentDefinition {
    * cut cost ~5×. Leave undefined to use AGENT_DEFAULT_MODEL.
    */
   preferredModel?: string;
+  /**
+   * Tables this agent reads or writes in its execute() function.
+   * Universal writes (agent_runs via runtime.ts) are excluded — list only
+   * agent-specific table access. Used as the Schema-as-Contract index: when
+   * a migration drops or renames a column, query this to find affected agents.
+   */
+  schema_dependencies?: string[];
   /** The actual entry point. Returns a summary + proposed actions. */
   run: (ctx: AgentContext) => Promise<AgentRunResult>;
 }

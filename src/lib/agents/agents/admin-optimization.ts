@@ -320,6 +320,7 @@ export const adminOptimizationAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 7 * * 3', // Wednesday 7 am AEST
 
+  schema_dependencies: ['quotes', 'orders', 'agent_runs', 'applicants', 'admin_optimization_findings'],
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now = new Date().toISOString().slice(0, 10);
     ctx.log('Admin Optimization Agent starting', { date: now, runId: ctx.runId });

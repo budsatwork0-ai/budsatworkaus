@@ -273,6 +273,7 @@ export const designSystemAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 6 * * 6', // Saturday 6 AM AEST
 
+  schema_dependencies: ['design_audits', 'design_insights', 'design_violations'],
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now = new Date().toISOString().slice(0, 10);
     ctx.log('Design Integrity & System Guardian starting', { date: now, runId: ctx.runId });

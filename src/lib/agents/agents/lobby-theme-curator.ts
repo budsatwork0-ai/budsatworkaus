@@ -9,7 +9,7 @@
  * any free-form description; the agent will produce one matching theme.
  */
 import type { AgentDefinition, AgentContext } from '../types';
-import { AGENT_LIST } from '../registry';
+import { AGENT_IDS } from '../agent-ids';
 
 const SYSTEM = `You design visual themes for an AI-agent "lobby" — a
 top-down view where each agent has a station. Given a brief, output a
@@ -45,11 +45,12 @@ export const lobbyThemeCuratorAgent: AgentDefinition = {
   description: 'Generates visual themes (medieval, cyberpunk, retro arcade...) for the agent lobby.',
   category: 'ops',
   autonomy: 'manual',
+  schema_dependencies: ['lobby_themes'],
   async run(ctx: AgentContext) {
     const brief = (ctx.input?.brief as string | undefined) ?? 'cyberpunk neon basement server farm';
     const activateOnApprove = (ctx.input?.activate as boolean | undefined) ?? false;
 
-    const agentIds = AGENT_LIST.map((a) => a.id);
+    const agentIds = [...AGENT_IDS];
 
     const raw = await ctx.llm(
       `Brief: "${brief}"\nAgents needing emojis (${agentIds.length}): ${agentIds.join(', ')}\nProduce the theme JSON.`,

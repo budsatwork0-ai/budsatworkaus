@@ -49,6 +49,7 @@ export const adaptationValidatorAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['research_trends', 'story_arcs'],
   async run(ctx: AgentContext) {
     // ── Load active arcs ────────────────────────────────────────────────────────
     const { data: arcs, error: arcsErr } = await ctx.supabase

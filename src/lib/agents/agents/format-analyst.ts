@@ -110,6 +110,7 @@ export const formatAnalystAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['growth_pipeline_events', 'marketing_publishing_queue', 'story_arcs'],
   async run(ctx: AgentContext) {
     const analysisWeek      = currentIsoWeek();
     const now               = Date.now();

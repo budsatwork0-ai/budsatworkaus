@@ -117,6 +117,7 @@ export const githubHistorianAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 6 * * 5', // Friday 6 am AEST
 
+  schema_dependencies: ['github_events'],
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now    = new Date().toISOString().slice(0, 10);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

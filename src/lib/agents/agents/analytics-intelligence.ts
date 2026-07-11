@@ -220,6 +220,10 @@ export const analyticsIntelligenceAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 7 * * 3', // Wednesday 7 AM AEST
 
+  schema_dependencies: [
+    'visitor_events', 'analytics_sessions', 'github_events',
+    'design_insights', 'admin_optimization_findings', 'analytics_reports', 'analytics_findings',
+  ],
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now = new Date().toISOString().slice(0, 10);
     const LOOKBACK_DAYS = 14;

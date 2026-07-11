@@ -111,6 +111,10 @@ export const priceOptimizerAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 5 * * 1', // 5am Mondays Brisbane time (server time may differ)
   config: DEFAULTS,
+  schema_dependencies: [
+    'service_pricing', 'quotes', 'jobs', 'crew_members',
+    'competitor_intel', 'pricing_recommendations', 'agent_memory',
+  ],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxSnap = detectSandboxPriceSnapshot(

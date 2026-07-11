@@ -13,6 +13,7 @@ export const cashFlowForecasterAgent: AgentDefinition = {
   description: 'Combines pipeline, recurring revenue, and payables into an 8-week cash forecast.',
   category: 'finance',
   autonomy: 'review',
+  schema_dependencies: ['orders', 'payables', 'subscriptions', 'cash_flow_forecasts'],
   async run(ctx: AgentContext) {
     const horizon = Number((ctx.config?.horizon_weeks as number) ?? 8);
     const floor = Number((ctx.config?.floor_aud as number) ?? 2000);

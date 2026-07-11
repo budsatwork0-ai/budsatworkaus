@@ -35,6 +35,7 @@ export const cadenceMonitorAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['growth_pipeline_events', 'marketing_publishing_queue', 'marketing_social_channels'],
   async run(ctx: AgentContext) {
     const renotifyThreshold = new Date(Date.now() - RENOTIFY_DAYS * 86_400_000).toISOString();
     const lookbackThreshold = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString();
