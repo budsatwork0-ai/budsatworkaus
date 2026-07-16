@@ -316,6 +316,7 @@ describe('Architecture Doctor v2 Phase 12-14 governance regression — corrected
       history,
       phase13,
       generatedAt: '2026-07-16T00:04:00.000Z',
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumIndependentRuns: 2, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 2 },
     });
     // Duplicate-state detection recognises the restored and churn-again runs as repeats

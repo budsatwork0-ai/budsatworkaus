@@ -8,6 +8,7 @@ import {
   evaluatePhase14EvidenceQuality,
   runPhase12CronRouteShadowExecution,
   writePhase14EvidenceQualityArtifacts,
+  REPOSITORY_IDENTITY_ALGORITHM_VERSION,
   type Phase12ShadowExecutionRecord,
   type Phase12ShadowHistory,
 } from '@/lib/architecture-doctor/v2';
@@ -76,6 +77,7 @@ describe('Architecture Doctor Phase 14 evidence quality governance', () => {
       history: { version: 1, records: [malformed] },
       phase13: phase13([malformed]),
       generatedAt: GENERATED_AT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 },
     });
 
@@ -176,12 +178,147 @@ describe('Architecture Doctor Phase 14 evidence quality governance', () => {
   });
 });
 
+describe('Architecture Doctor Phase 14 identity-algorithm-version comparability gate', () => {
+  it('keeps two current-version records comparable and both independent', () => {
+    const summary = evaluateQuality([
+      record('run-1', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' }),
+      record('run-2', { commitSha: 'b', fingerprint: 'fp-b', timestamp: '2026-07-19T00:00:00.000Z' }),
+    ], { minimumIndependentRuns: 2, minimumUniqueCommits: 2, minimumUniqueRepositoryFingerprints: 2 });
+
+    expect(summary.assessments.every((assessment) => assessment.identityVersionClass === 'current')).toBe(true);
+    expect(summary.independentRuns).toBe(2);
+    expect(summary.uniqueRepositoryFingerprints).toBe(2);
+  });
+
+  it('does not treat a legacy record and a current-version record with an identical fingerprint string as comparable', () => {
+    const current = record('current-run', { commitSha: 'a', fingerprint: 'same-fp', timestamp: '2026-07-18T00:00:00.000Z' });
+    const legacy = record('legacy-run', { commitSha: 'a', fingerprint: 'same-fp', timestamp: '2026-07-19T00:00:00.000Z' });
+    delete legacy.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluateQuality([current, legacy], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    const currentAssessment = summary.assessments.find((assessment) => assessment.runId === 'current-run')!;
+    const legacyAssessment = summary.assessments.find((assessment) => assessment.runId === 'legacy-run')!;
+    expect(currentAssessment.identityVersionClass).toBe('current');
+    expect(legacyAssessment.identityVersionClass).toBe('legacy');
+    // The identical fingerprint string must not mark the current-version record as a
+    // duplicate of the legacy one, or vice versa.
+    expect(currentAssessment.duplicateState).toBe(false);
+    expect(currentAssessment.independent).toBe(true);
+    expect(legacyAssessment.independent).toBe(false);
+    expect(legacyAssessment.defects).toContain('incompatible_identity_algorithm_version');
+  });
+
+  it('fails closed for an unsupported-future identity algorithm version', () => {
+    const future = record('future-run', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    future.repositoryState.identityAlgorithmVersion = REPOSITORY_IDENTITY_ALGORITHM_VERSION + 1;
+
+    const summary = evaluateQuality([future], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    const assessment = summary.assessments[0];
+    expect(assessment.identityVersionClass).toBe('unsupported_future');
+    expect(assessment.independent).toBe(false);
+    expect(assessment.acceptedForReadiness).toBe(false);
+    expect(summary.defects.find((item) => item.defectType === 'incompatible_identity_algorithm_version')?.severity).toBe('high');
+  });
+
+  it('fails closed for malformed identity algorithm versions without throwing', () => {
+    const malformedVersions: unknown[] = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 'two', null, {}];
+    for (const version of malformedVersions) {
+      const malformed = record('malformed-run', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+      (malformed.repositoryState as unknown as { identityAlgorithmVersion: unknown }).identityAlgorithmVersion = version;
+
+      let summary: ReturnType<typeof evaluateQuality> | undefined;
+      expect(() => {
+        summary = evaluateQuality([malformed], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+      }).not.toThrow();
+      expect(summary!.assessments[0].identityVersionClass).toBe('malformed');
+      expect(summary!.assessments[0].independent).toBe(false);
+    }
+  });
+
+  it('loads legacy (pre-field) history without crashing and keeps it visible but non-independent', () => {
+    const legacy = record('legacy-1', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    delete legacy.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluateQuality([legacy], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    expect(summary.totalHistoricalRuns).toBe(1);
+    expect(summary.assessments[0].identityVersionClass).toBe('legacy');
+    expect(summary.assessments[0].independent).toBe(false);
+    expect(summary.assessments[0].comparable).toBe(true);
+  });
+
+  it('does not let incompatible records increase independence', () => {
+    const current = record('current-run', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    const legacyOne = record('legacy-1', { commitSha: 'b', fingerprint: 'fp-b', timestamp: '2026-07-19T00:00:00.000Z' });
+    delete legacyOne.repositoryState.identityAlgorithmVersion;
+    const legacyTwo = record('legacy-2', { commitSha: 'c', fingerprint: 'fp-c', timestamp: '2026-07-20T00:00:00.000Z' });
+    delete legacyTwo.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluateQuality([current, legacyOne, legacyTwo], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    expect(summary.independentRuns).toBe(1);
+    expect(summary.totalHistoricalRuns).toBe(3);
+  });
+
+  it('does not let incompatible records increase repository diversity', () => {
+    const current = record('current-run', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    const legacyOne = record('legacy-1', { commitSha: 'b', fingerprint: 'fp-b', timestamp: '2026-07-19T00:00:00.000Z' });
+    delete legacyOne.repositoryState.identityAlgorithmVersion;
+    const legacyTwo = record('legacy-2', { commitSha: 'c', fingerprint: 'fp-c', timestamp: '2026-07-20T00:00:00.000Z' });
+    delete legacyTwo.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluateQuality(
+      [current, legacyOne, legacyTwo],
+      { minimumUniqueCommits: 3, minimumIndependentRuns: 1, minimumUniqueRepositoryFingerprints: 3 },
+    );
+
+    expect(summary.uniqueCommits).toBe(1);
+    expect(summary.uniqueRepositoryFingerprints).toBe(1);
+  });
+
+  it('does not double-penalise a legacy record already flagged for missing metrics', () => {
+    const legacy = record('legacy-1', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    delete legacy.repositoryState.identityAlgorithmVersion;
+    delete legacy.onlyV1DifferenceCount;
+    delete legacy.onlyV2DifferenceCount;
+
+    const summary = evaluateQuality([legacy], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    expect(summary.defects.map((item) => item.defectType)).toContain('legacy_record_missing_metrics');
+    const identityDefect = summary.defects.find((item) => item.defectType === 'incompatible_identity_algorithm_version');
+    // The legacy identity-algorithm condition is already penalised structurally: the record
+    // is excluded from independence and diversity (calculateEvidenceQualityScore's
+    // independentComponent/diversityComponent), and separately from completenessComponent via
+    // legacy_record_missing_metrics. Marking the new defect 'info' — excluded from the
+    // high/critical-only defect penalty — means that same legacy condition is not scored a
+    // third time via defectPenalty.
+    expect(identityDefect?.severity).toBe('info');
+    expect(['high', 'critical']).not.toContain(identityDefect?.severity);
+  });
+
+  it('gives unsupported_future and malformed a real (non-info) severity, unlike legacy', () => {
+    const future = record('future-run', { commitSha: 'a', fingerprint: 'fp-a', timestamp: '2026-07-18T00:00:00.000Z' });
+    future.repositoryState.identityAlgorithmVersion = REPOSITORY_IDENTITY_ALGORITHM_VERSION + 1;
+    const malformed = record('malformed-run', { commitSha: 'b', fingerprint: 'fp-b', timestamp: '2026-07-19T00:00:00.000Z' });
+    (malformed.repositoryState as unknown as { identityAlgorithmVersion: unknown }).identityAlgorithmVersion = -1;
+
+    const summary = evaluateQuality([future, malformed], { minimumIndependentRuns: 1, minimumUniqueCommits: 1, minimumUniqueRepositoryFingerprints: 1 });
+
+    const identityDefects = summary.defects.filter((item) => item.defectType === 'incompatible_identity_algorithm_version');
+    expect(identityDefects).toHaveLength(2);
+    expect(identityDefects.every((item) => item.severity === 'high')).toBe(true);
+  });
+});
+
 function evaluateQuality(records: Phase12ShadowExecutionRecord[], config = {}) {
   const history = { version: 1, records } satisfies Phase12ShadowHistory;
   return evaluatePhase14EvidenceQuality({
     history,
     phase13: phase13(records),
     generatedAt: GENERATED_AT,
+    currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     config,
   });
 }
@@ -210,6 +347,7 @@ function record(
       dirty: input.dirty ?? false,
       worktreeFingerprint: input.fingerprint,
       identity: `${input.commitSha}:${input.dirty ? 'dirty' : 'clean'}:${input.fingerprint}`,
+      identityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     },
     timestamp: input.timestamp,
     v1ExecutionStatus: 'succeeded',

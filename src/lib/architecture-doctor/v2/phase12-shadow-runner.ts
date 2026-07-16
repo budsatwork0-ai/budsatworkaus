@@ -248,6 +248,7 @@ export async function runPhase12CronRouteShadowExecution(input: {
     history,
     phase13: statisticalGovernance,
     generatedAt: timestamp,
+    currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     config: { detectorId: PHASE12_CRON_DETECTOR_ID },
   });
   const readiness = evaluatePhase12ShadowReadiness({
@@ -339,6 +340,7 @@ export async function writePhase12ShadowArtifacts(input: Phase12ArtifactWriteSet
         config: { detectorId: PHASE12_CRON_DETECTOR_ID },
       }),
       generatedAt: input.record.timestamp,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { detectorId: PHASE12_CRON_DETECTOR_ID },
     }),
   });
