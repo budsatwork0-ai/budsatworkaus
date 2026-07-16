@@ -1,0 +1,1736 @@
+{
+  "verificationRun": {
+    "id": "adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+    "scope": "detector:cron-route-registration assetKind:cron phase:11",
+    "capabilityId": "UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+    "capabilityName": "Unresolved Cron Route Ownership",
+    "assetKind": "cron",
+    "mode": "advisory",
+    "startedAt": "2026-07-11T00:03:14.712Z",
+    "completedAt": "2026-07-11T00:03:14.712Z",
+    "limitations": [
+      "Phase 11 is advisory-only; v1 remains authoritative.",
+      "No detector replacement occurred.",
+      "Cron ownership and capability mappings are not automatically resolved."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "node-capability-UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+      "kind": "Capability",
+      "label": "Unresolved Cron Route Ownership",
+      "entityId": "UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+      "data": {
+        "capabilityId": "UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+        "capabilityName": "Unresolved Cron Route Ownership"
+      }
+    },
+    {
+      "id": "node-claim-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "Claim",
+      "label": "/api/cron/vercel-repair",
+      "entityId": "claim-cron-route-unregistered-api-cron-vercel-repair",
+      "data": {
+        "id": "claim-cron-route-unregistered-api-cron-vercel-repair",
+        "type": "cron_route_not_registered",
+        "status": "supported",
+        "subject": "/api/cron/vercel-repair",
+        "predicate": "Cron-capable route is not registered in vercel.json.",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "evidenceIds": [
+          "evidence-cron-route-unregistered-api-cron-vercel-repair"
+        ],
+        "confidence": "Deterministic",
+        "provenance": {
+          "source": "cron-route-registration",
+          "sourceType": "slice_reasoning",
+          "method": "Create cron route registration claim from admitted repository evidence.",
+          "timepoint": "2026-07-11T00:03:14.712Z"
+        }
+      },
+      "provenance": {
+        "source": "cron-route-registration",
+        "sourceType": "slice_reasoning",
+        "method": "Create cron route registration claim from admitted repository evidence.",
+        "timepoint": "2026-07-11T00:03:14.712Z"
+      }
+    },
+    {
+      "id": "node-evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "Evidence",
+      "label": "/api/cron/vercel-repair",
+      "entityId": "evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "data": {
+        "id": "evidence-cron-route-unregistered-api-cron-vercel-repair",
+        "claimId": "claim-cron-route-unregistered-api-cron-vercel-repair",
+        "route": "/api/cron/vercel-repair",
+        "kind": "cron_route_candidate_unregistered",
+        "supports": true,
+        "observationIds": [
+          "observation-cron-route-candidate-api-cron-vercel-repair"
+        ],
+        "intentIds": [],
+        "confidence": "Deterministic",
+        "provenance": {
+          "source": "cron-route-registration",
+          "sourceType": "slice_reasoning",
+          "method": "Compare cron-capable API route inventory against vercel.json cron registrations.",
+          "timepoint": "2026-07-11T00:03:14.712Z"
+        },
+        "limitation": "The repository scanner reports the route candidate but does not provide exact source line location.",
+        "location": {
+          "precision": "unavailable",
+          "description": "Route candidate location is not available from the v1 repository inventory."
+        },
+        "ruleId": "cron.route.registered",
+        "observedValue": "/api/cron/vercel-repair is present in cron-capable route candidates and absent from vercel.json crons.",
+        "expectedValue": "/api/cron/vercel-repair should be registered in vercel.json crons when it is intended to run on a schedule."
+      },
+      "provenance": {
+        "source": "cron-route-registration",
+        "sourceType": "slice_reasoning",
+        "method": "Compare cron-capable API route inventory against vercel.json cron registrations.",
+        "timepoint": "2026-07-11T00:03:14.712Z"
+      }
+    },
+    {
+      "id": "node-finding-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "Finding",
+      "label": "/api/cron/vercel-repair",
+      "entityId": "finding-cron-route-unregistered-api-cron-vercel-repair",
+      "data": {
+        "id": "finding-cron-route-unregistered-api-cron-vercel-repair",
+        "type": "cron_route_unregistered",
+        "severity": "medium",
+        "confidence": "Deterministic",
+        "route": "/api/cron/vercel-repair",
+        "claimIds": [
+          "claim-cron-route-unregistered-api-cron-vercel-repair"
+        ],
+        "evidenceIds": [
+          "evidence-cron-route-unregistered-api-cron-vercel-repair"
+        ],
+        "mappingContext": {
+          "status": "candidate_capability_unresolved",
+          "capabilityId": "UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+          "capabilityName": "Unresolved Cron Route Ownership",
+          "statement": "Cron workflow ownership is unresolved in this migrated detector slice and must be mapped before stronger governance."
+        },
+        "risk": {
+          "dimension": "architectural",
+          "statement": "A cron-capable route exists without scheduled registration, so the intended background workflow may never execute."
+        },
+        "recommendationId": "recommendation-cron-route-unregistered-api-cron-vercel-repair",
+        "technicalExplanation": "Cron-capable route /api/cron/vercel-repair exists in repository inventory but is not registered in vercel.json.",
+        "businessImpact": "The related background capability has unresolved ownership and may silently fail to run on schedule.",
+        "enforcementMode": "advisory"
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-adaptation-validator-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-adaptation-validator-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-adaptation-validator-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=adaptation-validator (30 4 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=adaptation-validator (30 4 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-admin-optimization-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-admin-optimization-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-admin-optimization-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=admin-optimization (30 7 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=admin-optimization (30 7 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-analytics-intelligence-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-analytics-intelligence-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-analytics-intelligence-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=analytics-intelligence (0 7 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=analytics-intelligence (0 7 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-arc-monitor-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-arc-monitor-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-arc-monitor-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=arc-monitor (0 6 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=arc-monitor (0 6 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-asset-matcher-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-asset-matcher-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-asset-matcher-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=asset-matcher (0 7 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=asset-matcher (0 7 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-bud-observer-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-bud-observer-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-bud-observer-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=bud-observer (0 */4 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=bud-observer (0 */4 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-cadence-monitor-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-cadence-monitor-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-cadence-monitor-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=cadence-monitor (0 7 * * 3).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=cadence-monitor (0 7 * * 3).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-campaign-reporter-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-campaign-reporter-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-campaign-reporter-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=campaign-reporter (0 8 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=campaign-reporter (0 8 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-cash-flow-forecaster-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-cash-flow-forecaster-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-cash-flow-forecaster-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=cash-flow-forecaster (30 5 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=cash-flow-forecaster (30 5 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-competitor-scout-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-competitor-scout-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-competitor-scout-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=competitor-scout (0 2 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=competitor-scout (0 2 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-competitor-watcher-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-competitor-watcher-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-competitor-watcher-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=competitor-watcher (0 3 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=competitor-watcher (0 3 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-consent-monitor-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-consent-monitor-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-consent-monitor-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=consent-monitor (15 7 * * 2).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=consent-monitor (15 7 * * 2).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-customer-reply-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-customer-reply-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-customer-reply-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=customer-reply (*/30 * * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=customer-reply (*/30 * * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-design-system-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-design-system-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-design-system-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=design-system (0 6 * * 6).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=design-system (0 6 * * 6).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-field-producer-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-field-producer-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-field-producer-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=field-producer (0 20 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=field-producer (0 20 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-format-analyst-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-format-analyst-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-format-analyst-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=format-analyst (0 9 * * 5).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=format-analyst (0 9 * * 5).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-github-historian-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-github-historian-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-github-historian-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=github-historian (0 6 * * 5).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=github-historian (0 6 * * 5).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-lapsed-win-back-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-lapsed-win-back-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-lapsed-win-back-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=lapsed-win-back (0 10 * * 2).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=lapsed-win-back (0 10 * * 2).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-lead-scorer-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-lead-scorer-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-lead-scorer-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=lead-scorer (5 * * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=lead-scorer (5 * * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-price-optimizer-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-price-optimizer-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-price-optimizer-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=price-optimizer (0 5 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=price-optimizer (0 5 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-production-monitor-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-production-monitor-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-production-monitor-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=production-monitor (45 6 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=production-monitor (45 6 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-quote-triage-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-quote-triage-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-quote-triage-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=quote-triage (*/15 * * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=quote-triage (*/15 * * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-reconciliation-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-reconciliation-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-reconciliation-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=reconciliation (0 2 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=reconciliation (0 2 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-reviews-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-reviews-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-reviews-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=reviews (0 9 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=reviews (0 9 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-scheduling-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-scheduling-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-scheduling-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=scheduling (0 7 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=scheduling (0 7 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-seo-meta-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-seo-meta-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-seo-meta-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=seo-meta (0 4 * * 0).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=seo-meta (0 4 * * 0).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-thread-progress-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-thread-progress-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-thread-progress-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=thread-progress (30 6 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=thread-progress (30 6 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-trend-scout-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-trend-scout-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-trend-scout-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=trend-scout (0 4 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=trend-scout (0 4 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-ux-intelligence-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-ux-intelligence-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-ux-intelligence-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=ux-intelligence (0 8 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=ux-intelligence (0 8 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-cron-agent_id-whs-safety-reminder-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-registration-api-agents-cron-agent_id-whs-safety-reminder-api-agents-cron",
+      "data": {
+        "id": "observation-cron-registration-api-agents-cron-agent_id-whs-safety-reminder-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/cron?agent_id=whs-safety-reminder (0 6 * * 1).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/cron?agent_id=whs-safety-reminder (0 6 * * 1).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-agents-reap-zombies-api-agents-reap-zombies",
+      "kind": "Observation",
+      "label": "/api/agents/reap-zombies",
+      "entityId": "observation-cron-registration-api-agents-reap-zombies-api-agents-reap-zombies",
+      "data": {
+        "id": "observation-cron-registration-api-agents-reap-zombies-api-agents-reap-zombies",
+        "assetKind": "cron",
+        "route": "/api/agents/reap-zombies",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/agents/reap-zombies (*/10 * * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/agents/reap-zombies (*/10 * * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-auto-complete-jobs-api-cron-auto-complete-jobs",
+      "kind": "Observation",
+      "label": "/api/cron/auto-complete-jobs",
+      "entityId": "observation-cron-registration-api-cron-auto-complete-jobs-api-cron-auto-complete-jobs",
+      "data": {
+        "id": "observation-cron-registration-api-cron-auto-complete-jobs-api-cron-auto-complete-jobs",
+        "assetKind": "cron",
+        "route": "/api/cron/auto-complete-jobs",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/auto-complete-jobs (0 23 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/auto-complete-jobs (0 23 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-bud-api-cron-bud",
+      "kind": "Observation",
+      "label": "/api/cron/bud",
+      "entityId": "observation-cron-registration-api-cron-bud-api-cron-bud",
+      "data": {
+        "id": "observation-cron-registration-api-cron-bud-api-cron-bud",
+        "assetKind": "cron",
+        "route": "/api/cron/bud",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/bud (0 */6 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/bud (0 */6 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-executive-learning-review-api-cron-executive-learning-review",
+      "kind": "Observation",
+      "label": "/api/cron/executive-learning-review",
+      "entityId": "observation-cron-registration-api-cron-executive-learning-review-api-cron-executive-learning-review",
+      "data": {
+        "id": "observation-cron-registration-api-cron-executive-learning-review-api-cron-executive-learning-review",
+        "assetKind": "cron",
+        "route": "/api/cron/executive-learning-review",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/executive-learning-review (5 21 * * 0).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/executive-learning-review (5 21 * * 0).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-executive-review-api-cron-executive-review",
+      "kind": "Observation",
+      "label": "/api/cron/executive-review",
+      "entityId": "observation-cron-registration-api-cron-executive-review-api-cron-executive-review",
+      "data": {
+        "id": "observation-cron-registration-api-cron-executive-review-api-cron-executive-review",
+        "assetKind": "cron",
+        "route": "/api/cron/executive-review",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/executive-review (5 20 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/executive-review (5 20 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-marketing-metrics-api-cron-marketing-metrics",
+      "kind": "Observation",
+      "label": "/api/cron/marketing-metrics",
+      "entityId": "observation-cron-registration-api-cron-marketing-metrics-api-cron-marketing-metrics",
+      "data": {
+        "id": "observation-cron-registration-api-cron-marketing-metrics-api-cron-marketing-metrics",
+        "assetKind": "cron",
+        "route": "/api/cron/marketing-metrics",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/marketing-metrics (30 19 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/marketing-metrics (30 19 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-pipeline-api-cron-pipeline",
+      "kind": "Observation",
+      "label": "/api/cron/pipeline",
+      "entityId": "observation-cron-registration-api-cron-pipeline-api-cron-pipeline",
+      "data": {
+        "id": "observation-cron-registration-api-cron-pipeline-api-cron-pipeline",
+        "assetKind": "cron",
+        "route": "/api/cron/pipeline",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/pipeline (0 1,7,13,19 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/pipeline (0 1,7,13,19 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-reengage-quotes-api-cron-reengage-quotes",
+      "kind": "Observation",
+      "label": "/api/cron/reengage-quotes",
+      "entityId": "observation-cron-registration-api-cron-reengage-quotes-api-cron-reengage-quotes",
+      "data": {
+        "id": "observation-cron-registration-api-cron-reengage-quotes-api-cron-reengage-quotes",
+        "assetKind": "cron",
+        "route": "/api/cron/reengage-quotes",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/reengage-quotes (0 14 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/reengage-quotes (0 14 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-remind-day-before-api-cron-remind-day-before",
+      "kind": "Observation",
+      "label": "/api/cron/remind-day-before",
+      "entityId": "observation-cron-registration-api-cron-remind-day-before-api-cron-remind-day-before",
+      "data": {
+        "id": "observation-cron-registration-api-cron-remind-day-before-api-cron-remind-day-before",
+        "assetKind": "cron",
+        "route": "/api/cron/remind-day-before",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/remind-day-before (0 8 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/remind-day-before (0 8 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-remind-quotes-api-cron-remind-quotes",
+      "kind": "Observation",
+      "label": "/api/cron/remind-quotes",
+      "entityId": "observation-cron-registration-api-cron-remind-quotes-api-cron-remind-quotes",
+      "data": {
+        "id": "observation-cron-registration-api-cron-remind-quotes-api-cron-remind-quotes",
+        "assetKind": "cron",
+        "route": "/api/cron/remind-quotes",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/remind-quotes (0 9 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/remind-quotes (0 9 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-sandbox-runner-pack-daily-api-cron-sandbox-runner",
+      "kind": "Observation",
+      "label": "/api/cron/sandbox-runner",
+      "entityId": "observation-cron-registration-api-cron-sandbox-runner-pack-daily-api-cron-sandbox-runner",
+      "data": {
+        "id": "observation-cron-registration-api-cron-sandbox-runner-pack-daily-api-cron-sandbox-runner",
+        "assetKind": "cron",
+        "route": "/api/cron/sandbox-runner",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=daily (0 3 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=daily (0 3 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-sandbox-runner-pack-full-api-cron-sandbox-runner",
+      "kind": "Observation",
+      "label": "/api/cron/sandbox-runner",
+      "entityId": "observation-cron-registration-api-cron-sandbox-runner-pack-full-api-cron-sandbox-runner",
+      "data": {
+        "id": "observation-cron-registration-api-cron-sandbox-runner-pack-full-api-cron-sandbox-runner",
+        "assetKind": "cron",
+        "route": "/api/cron/sandbox-runner",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=full (30 1 * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=full (30 1 * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-sandbox-runner-pack-hourly-api-cron-sandbox-runner",
+      "kind": "Observation",
+      "label": "/api/cron/sandbox-runner",
+      "entityId": "observation-cron-registration-api-cron-sandbox-runner-pack-hourly-api-cron-sandbox-runner",
+      "data": {
+        "id": "observation-cron-registration-api-cron-sandbox-runner-pack-hourly-api-cron-sandbox-runner",
+        "assetKind": "cron",
+        "route": "/api/cron/sandbox-runner",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=hourly (0 * * * *).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/sandbox-runner?pack=hourly (0 * * * *).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-registration-api-cron-weekly-kpi-email-api-cron-weekly-kpi-email",
+      "kind": "Observation",
+      "label": "/api/cron/weekly-kpi-email",
+      "entityId": "observation-cron-registration-api-cron-weekly-kpi-email-api-cron-weekly-kpi-email",
+      "data": {
+        "id": "observation-cron-registration-api-cron-weekly-kpi-email-api-cron-weekly-kpi-email",
+        "assetKind": "cron",
+        "route": "/api/cron/weekly-kpi-email",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read vercel.json cron registration /api/cron/weekly-kpi-email (0 21 * * 0).",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read vercel.json cron registration /api/cron/weekly-kpi-email (0 21 * * 0).",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Exact vercel.json line is unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-agents-cron",
+      "kind": "Observation",
+      "label": "/api/agents/cron",
+      "entityId": "observation-cron-route-candidate-api-agents-cron",
+      "data": {
+        "id": "observation-cron-route-candidate-api-agents-cron",
+        "assetKind": "cron",
+        "route": "/api/agents/cron",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-agents-reap-zombies",
+      "kind": "Observation",
+      "label": "/api/agents/reap-zombies",
+      "entityId": "observation-cron-route-candidate-api-agents-reap-zombies",
+      "data": {
+        "id": "observation-cron-route-candidate-api-agents-reap-zombies",
+        "assetKind": "cron",
+        "route": "/api/agents/reap-zombies",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-auto-complete-jobs",
+      "kind": "Observation",
+      "label": "/api/cron/auto-complete-jobs",
+      "entityId": "observation-cron-route-candidate-api-cron-auto-complete-jobs",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-auto-complete-jobs",
+        "assetKind": "cron",
+        "route": "/api/cron/auto-complete-jobs",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-bud",
+      "kind": "Observation",
+      "label": "/api/cron/bud",
+      "entityId": "observation-cron-route-candidate-api-cron-bud",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-bud",
+        "assetKind": "cron",
+        "route": "/api/cron/bud",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-executive-learning-review",
+      "kind": "Observation",
+      "label": "/api/cron/executive-learning-review",
+      "entityId": "observation-cron-route-candidate-api-cron-executive-learning-review",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-executive-learning-review",
+        "assetKind": "cron",
+        "route": "/api/cron/executive-learning-review",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-executive-review",
+      "kind": "Observation",
+      "label": "/api/cron/executive-review",
+      "entityId": "observation-cron-route-candidate-api-cron-executive-review",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-executive-review",
+        "assetKind": "cron",
+        "route": "/api/cron/executive-review",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-marketing-metrics",
+      "kind": "Observation",
+      "label": "/api/cron/marketing-metrics",
+      "entityId": "observation-cron-route-candidate-api-cron-marketing-metrics",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-marketing-metrics",
+        "assetKind": "cron",
+        "route": "/api/cron/marketing-metrics",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-pipeline",
+      "kind": "Observation",
+      "label": "/api/cron/pipeline",
+      "entityId": "observation-cron-route-candidate-api-cron-pipeline",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-pipeline",
+        "assetKind": "cron",
+        "route": "/api/cron/pipeline",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-reengage-quotes",
+      "kind": "Observation",
+      "label": "/api/cron/reengage-quotes",
+      "entityId": "observation-cron-route-candidate-api-cron-reengage-quotes",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-reengage-quotes",
+        "assetKind": "cron",
+        "route": "/api/cron/reengage-quotes",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-remind-day-before",
+      "kind": "Observation",
+      "label": "/api/cron/remind-day-before",
+      "entityId": "observation-cron-route-candidate-api-cron-remind-day-before",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-remind-day-before",
+        "assetKind": "cron",
+        "route": "/api/cron/remind-day-before",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-remind-quotes",
+      "kind": "Observation",
+      "label": "/api/cron/remind-quotes",
+      "entityId": "observation-cron-route-candidate-api-cron-remind-quotes",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-remind-quotes",
+        "assetKind": "cron",
+        "route": "/api/cron/remind-quotes",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-sandbox-runner",
+      "kind": "Observation",
+      "label": "/api/cron/sandbox-runner",
+      "entityId": "observation-cron-route-candidate-api-cron-sandbox-runner",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-sandbox-runner",
+        "assetKind": "cron",
+        "route": "/api/cron/sandbox-runner",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-vercel-repair",
+      "kind": "Observation",
+      "label": "/api/cron/vercel-repair",
+      "entityId": "observation-cron-route-candidate-api-cron-vercel-repair",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-vercel-repair",
+        "assetKind": "cron",
+        "route": "/api/cron/vercel-repair",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-observation-cron-route-candidate-api-cron-weekly-kpi-email",
+      "kind": "Observation",
+      "label": "/api/cron/weekly-kpi-email",
+      "entityId": "observation-cron-route-candidate-api-cron-weekly-kpi-email",
+      "data": {
+        "id": "observation-cron-route-candidate-api-cron-weekly-kpi-email",
+        "assetKind": "cron",
+        "route": "/api/cron/weekly-kpi-email",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "provenance": {
+          "source": "ArchitectureInventory",
+          "sourceType": "repository_scan",
+          "method": "Read cron-capable API route candidate from repository inventory.",
+          "timepoint": "2026-07-11T00:03:14.712Z",
+          "limitation": "Route file path and line are unavailable from the v1 inventory."
+        }
+      },
+      "provenance": {
+        "source": "ArchitectureInventory",
+        "sourceType": "repository_scan",
+        "method": "Read cron-capable API route candidate from repository inventory.",
+        "timepoint": "2026-07-11T00:03:14.712Z",
+        "limitation": "Route file path and line are unavailable from the v1 inventory."
+      }
+    },
+    {
+      "id": "node-recommendation-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "Recommendation",
+      "label": "Review cron registration for /api/cron/vercel-repair.",
+      "entityId": "recommendation-cron-route-unregistered-api-cron-vercel-repair",
+      "data": {
+        "id": "recommendation-cron-route-unregistered-api-cron-vercel-repair",
+        "findingId": "finding-cron-route-unregistered-api-cron-vercel-repair",
+        "summary": "Review cron registration for /api/cron/vercel-repair.",
+        "requiredDecision": "Decide whether this route should be scheduled or removed from cron-capable routing.",
+        "remediationPath": "Register the route in vercel.json if it is intended to run on a schedule, or remove the cron-capable route if it is obsolete.",
+        "verificationCriteria": "The next repository scan no longer reports the route as an unregistered cron-capable route.",
+        "riskReduction": "Restores traceable ownership of the scheduled workflow and reduces silent operational drift.",
+        "confidence": "Deterministic"
+      }
+    },
+    {
+      "id": "node-report-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "kind": "Report",
+      "label": "Architecture Doctor Phase 11 Cron Route Knowledge Report",
+      "entityId": "report-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "data": {
+        "reportType": "markdown",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "renderedFromKnowledge": true
+      }
+    },
+    {
+      "id": "node-run-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "kind": "VerificationRun",
+      "label": "adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "entityId": "adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "data": {
+        "id": "adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+        "scope": "detector:cron-route-registration assetKind:cron phase:11",
+        "capabilityId": "UNRESOLVED_CRON_ROUTE_OWNERSHIP",
+        "capabilityName": "Unresolved Cron Route Ownership",
+        "assetKind": "cron",
+        "mode": "advisory",
+        "startedAt": "2026-07-11T00:03:14.712Z",
+        "completedAt": "2026-07-11T00:03:14.712Z",
+        "limitations": [
+          "Phase 11 is advisory-only; v1 remains authoritative.",
+          "No detector replacement occurred.",
+          "Cron ownership and capability mappings are not automatically resolved."
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-affects_capability-finding-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "affects_capability",
+      "from": "node-finding-cron-route-unregistered-api-cron-vercel-repair",
+      "to": "node-capability-UNRESOLVED_CRON_ROUTE_OWNERSHIP"
+    },
+    {
+      "id": "edge-derives_evidence-evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "derives_evidence",
+      "from": "node-observation-cron-route-candidate-api-cron-vercel-repair",
+      "to": "node-evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "provenance": {
+        "source": "cron-route-registration",
+        "sourceType": "slice_reasoning",
+        "method": "Compare cron-capable API route inventory against vercel.json cron registrations.",
+        "timepoint": "2026-07-11T00:03:14.712Z"
+      }
+    },
+    {
+      "id": "edge-has_recommendation-recommendation-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "has_recommendation",
+      "from": "node-finding-cron-route-unregistered-api-cron-vercel-repair",
+      "to": "node-recommendation-cron-route-unregistered-api-cron-vercel-repair"
+    },
+    {
+      "id": "edge-produces_finding-claim-cron-route-unregistered-api-cron-vercel-repair-finding-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "produces_finding",
+      "from": "node-claim-cron-route-unregistered-api-cron-vercel-repair",
+      "to": "node-finding-cron-route-unregistered-api-cron-vercel-repair"
+    },
+    {
+      "id": "edge-renders_knowledge-adv2-phase11-cron-route-2026-07-11t00-03-14-712z",
+      "kind": "renders_knowledge",
+      "from": "node-report-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+      "to": "node-run-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z"
+    },
+    {
+      "id": "edge-supports_claim-evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "kind": "supports_claim",
+      "from": "node-evidence-cron-route-unregistered-api-cron-vercel-repair",
+      "to": "node-claim-cron-route-unregistered-api-cron-vercel-repair",
+      "provenance": {
+        "source": "cron-route-registration",
+        "sourceType": "slice_reasoning",
+        "method": "Compare cron-capable API route inventory against vercel.json cron registrations.",
+        "timepoint": "2026-07-11T00:03:14.712Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "detectorScope": "detector:cron-route-registration assetKind:cron phase:12",
+  "repositoryState": {
+    "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+    "dirty": true,
+    "worktreeFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+    "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041"
+  },
+  "parityResultRef": "phase12-cron-route-shadow:adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z",
+  "ready": false,
+  "blockers": [
+    {
+      "requirement": "explicit_governance_decision_approves_replacement",
+      "reason": "Governance remains explicit and no replacement approval has occurred."
+    }
+  ]
+}

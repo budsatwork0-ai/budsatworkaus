@@ -1,0 +1,11 @@
+{
+  "status": "statistically_ready_for_review",
+  "replacementApproved": false,
+  "summary": "Statistical evidence supports governance review, but does not approve replacement.",
+  "blockers": [],
+  "supportingEvidence": [
+    "5 comparable run(s) are available.",
+    "6 repository state(s) are represented.",
+    "Parity percentage 100% meets target."
+  ]
+}

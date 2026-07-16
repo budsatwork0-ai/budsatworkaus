@@ -1,0 +1,31 @@
+{
+  "status": "continue_shadow",
+  "replacementApproved": false,
+  "readyForReplacement": false,
+  "readinessScore": 0,
+  "blockers": [
+    "incomplete_detector_execution: Record did not complete comparable v1/v2 shadow execution.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "incomplete_detector_execution: Record did not complete comparable v1/v2 shadow execution.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "duplicate_repository_state: Run repeats an unchanged repository fingerprint.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "incomplete_detector_execution: Record did not complete comparable v1/v2 shadow execution.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "incomplete_detector_execution: Record did not complete comparable v1/v2 shadow execution.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "incomplete_detector_execution: Record did not complete comparable v1/v2 shadow execution.",
+    "legacy_record_missing_metrics: Legacy record lacks explicit difference-count metrics.",
+    "duplicate_repository_state: Run repeats an unchanged repository fingerprint.",
+    "insufficient_repository_diversity: Only 1 unique commit(s) observed; 2 required.",
+    "insufficient_independent_runs: Only 2 independent run(s) observed; 5 required.",
+    "insufficient_observation_period: Comparable evidence spans 3.6038 hour(s); 24 required.",
+    "Replacement requires explicit governance approval in a later phase; Phase 14 cannot approve replacement."
+  ],
+  "supportingEvidence": [
+    "2 independent run(s).",
+    "3 unique repository fingerprint(s).",
+    "Phase 13 parity percentage is 100%."
+  ]
+}

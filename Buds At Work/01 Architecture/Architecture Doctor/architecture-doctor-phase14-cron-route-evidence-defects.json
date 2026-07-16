@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "defects": [
+    {
+      "defectType": "incomplete_detector_execution",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-42-44-107Z"
+      ],
+      "severity": "high",
+      "explanation": "Record did not complete comparable v1/v2 shadow execution.",
+      "readinessImpact": "Record cannot count as independent readiness evidence.",
+      "remediationRecommendation": "Run shadow advisory execution again after fixing the execution failure."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-42-44-107Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-44-57-115Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "incomplete_detector_execution",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-47-26-294Z"
+      ],
+      "severity": "high",
+      "explanation": "Record did not complete comparable v1/v2 shadow execution.",
+      "readinessImpact": "Record cannot count as independent readiness evidence.",
+      "remediationRecommendation": "Run shadow advisory execution again after fixing the execution failure."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-47-26-294Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "duplicate_repository_state",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z"
+      ],
+      "severity": "medium",
+      "explanation": "Run repeats an unchanged repository fingerprint.",
+      "readinessImpact": "Duplicate-state runs are tracked but do not count as independent evidence.",
+      "remediationRecommendation": "Collect evidence after a meaningfully different repository state."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "incomplete_detector_execution",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-58-48-829Z"
+      ],
+      "severity": "high",
+      "explanation": "Record did not complete comparable v1/v2 shadow execution.",
+      "readinessImpact": "Record cannot count as independent readiness evidence.",
+      "remediationRecommendation": "Run shadow advisory execution again after fixing the execution failure."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-58-48-829Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "incomplete_detector_execution",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T01-56-06-187Z"
+      ],
+      "severity": "high",
+      "explanation": "Record did not complete comparable v1/v2 shadow execution.",
+      "readinessImpact": "Record cannot count as independent readiness evidence.",
+      "remediationRecommendation": "Run shadow advisory execution again after fixing the execution failure."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T01-56-06-187Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "incomplete_detector_execution",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T04-20-28-378Z"
+      ],
+      "severity": "high",
+      "explanation": "Record did not complete comparable v1/v2 shadow execution.",
+      "readinessImpact": "Record cannot count as independent readiness evidence.",
+      "remediationRecommendation": "Run shadow advisory execution again after fixing the execution failure."
+    },
+    {
+      "defectType": "legacy_record_missing_metrics",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T04-20-28-378Z"
+      ],
+      "severity": "medium",
+      "explanation": "Legacy record lacks explicit difference-count metrics.",
+      "readinessImpact": "Missing metrics are unknown and cannot increase readiness confidence.",
+      "remediationRecommendation": "Regenerate evidence with Phase 14-capable shadow records."
+    },
+    {
+      "defectType": "duplicate_repository_state",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z"
+      ],
+      "severity": "medium",
+      "explanation": "Run repeats an unchanged repository fingerprint.",
+      "readinessImpact": "Duplicate-state runs are tracked but do not count as independent evidence.",
+      "remediationRecommendation": "Collect evidence after a meaningfully different repository state."
+    },
+    {
+      "defectType": "insufficient_repository_diversity",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-44-57-115Z",
+        "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z",
+        "adv2-phase12-cron-shadow-2026-07-11T01-00-50-054Z",
+        "adv2-phase12-cron-shadow-2026-07-11T01-59-23-141Z",
+        "adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z"
+      ],
+      "severity": "high",
+      "explanation": "Only 1 unique commit(s) observed; 2 required.",
+      "readinessImpact": "Repository diversity is insufficient for readiness.",
+      "remediationRecommendation": "Collect shadow evidence across more commits."
+    },
+    {
+      "defectType": "insufficient_independent_runs",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T01-00-50-054Z",
+        "adv2-phase12-cron-shadow-2026-07-11T01-59-23-141Z"
+      ],
+      "severity": "high",
+      "explanation": "Only 2 independent run(s) observed; 5 required.",
+      "readinessImpact": "Independent evidence threshold is not met.",
+      "remediationRecommendation": "Collect more independent shadow advisory runs."
+    },
+    {
+      "defectType": "insufficient_observation_period",
+      "affectedRecordIds": [
+        "adv2-phase12-cron-shadow-2026-07-11T00-44-57-115Z",
+        "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z",
+        "adv2-phase12-cron-shadow-2026-07-11T01-00-50-054Z",
+        "adv2-phase12-cron-shadow-2026-07-11T01-59-23-141Z",
+        "adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z"
+      ],
+      "severity": "medium",
+      "explanation": "Comparable evidence spans 3.6038 hour(s); 24 required.",
+      "readinessImpact": "Immediate repeated runs cannot establish longitudinal stability.",
+      "remediationRecommendation": "Collect evidence over a longer observation period."
+    }
+  ]
+}

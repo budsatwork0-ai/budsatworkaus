@@ -1,0 +1,38 @@
+{
+  "analysisRunId": "adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+  "repositoryState": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+  "analyzerId": "cron-route-registration",
+  "v1DetectorId": "architecture-doctor-v1.detectPhaseOneDrift.cron-registration-drift",
+  "executedAt": "2026-07-11T00:03:14.712Z",
+  "passed": true,
+  "overallDecision": "parity_verified",
+  "presentInBoth": [
+    {
+      "key": "cron_route_unregistered:/api/cron/vercel-repair",
+      "ruleId": "cron.route.registered",
+      "subject": "/api/cron/vercel-repair",
+      "type": "cron_route_unregistered",
+      "asset": "/api/cron/vercel-repair",
+      "severity": "medium",
+      "source": "v1",
+      "legacyMessage": "Cron-capable route /api/cron/vercel-repair exists but is not registered in vercel.json."
+    }
+  ],
+  "onlyV1": [],
+  "onlyV2": [],
+  "severityDifferences": [],
+  "evidenceDifferences": [
+    {
+      "key": "cron_route_unregistered:/api/cron/vercel-repair",
+      "reason": "v2 records explicit evidence identifiers, rule identifiers, observed values, expected values, and provenance; v1 drift findings expose only message-level evidence for this detector."
+    }
+  ],
+  "mappingDifferences": [
+    {
+      "key": "cron_route_unregistered:/api/cron/vercel-repair",
+      "reason": "v2 records explicit unresolved cron ownership mapping context; v1 cron drift findings do not carry capability mapping context."
+    }
+  ],
+  "intentionalDifferences": [],
+  "unexplainedDifferences": []
+}

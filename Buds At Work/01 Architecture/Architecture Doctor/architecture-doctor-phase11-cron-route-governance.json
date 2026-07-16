@@ -1,0 +1,13 @@
+{
+  "id": "phase11-cron-route-governance-adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+  "decision": "needs_review",
+  "actor": "Architecture Doctor Phase 11 Runner",
+  "rationale": "Real-repository parity evidence is required before cron detector migration can proceed.",
+  "timestamp": "2026-07-11T00:03:14.712Z",
+  "detectorScope": "detector:cron-route-registration assetKind:cron phase:11",
+  "repositoryState": {
+    "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+    "dirty": true
+  },
+  "parityResultRef": "phase11-cron-route-parity:adv2-phase11-cron-route-2026-07-11T00-03-14-712Z"
+}
