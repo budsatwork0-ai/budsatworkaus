@@ -25,6 +25,55 @@ export interface RepositoryStateIdentity {
   identityAlgorithmVersion?: number;
 }
 
+/**
+ * Classification of a repository identity record's `identityAlgorithmVersion` relative to
+ * `currentVersion`:
+ *
+ * - `current`: finite integer exactly equal to `currentVersion`. Comparable to other
+ *   `current` records.
+ * - `legacy`: the field is absent/`undefined` (records written before this field existed).
+ * - `unsupported_future`: finite integer greater than `currentVersion` (written by code
+ *   newer than this build understands).
+ * - `malformed`: anything else — non-number, `NaN`, non-finite, non-integer, zero,
+ *   negative, or a finite integer lower than `currentVersion` that isn't explicitly listed
+ *   in a future backward-compatibility table (none exists yet, so all older integers are
+ *   `malformed` today).
+ *
+ * Only `current` records are comparable to each other. Two records are never comparable
+ * across different classes, even when their fingerprint/identity strings are byte-identical.
+ */
+export type RepositoryIdentityVersionClass = 'current' | 'legacy' | 'unsupported_future' | 'malformed';
+
+/**
+ * Exhaustively classifies a raw `identityAlgorithmVersion` value. Pure and total — never
+ * throws, so callers can safely classify untrusted/historical history-file data.
+ */
+export function classifyRepositoryIdentityVersion(
+  value: unknown,
+  currentVersion: number,
+): RepositoryIdentityVersionClass {
+  if (value === undefined) return 'legacy';
+  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value) || !Number.isInteger(value)) {
+    return 'malformed';
+  }
+  if (value <= 0) return 'malformed';
+  if (value === currentVersion) return 'current';
+  if (value > currentVersion) return 'unsupported_future';
+  return 'malformed';
+}
+
+/**
+ * Convenience wrapper over {@link classifyRepositoryIdentityVersion} for a full
+ * `RepositoryStateIdentity`, so callers don't need to reach into `identityAlgorithmVersion`
+ * themselves.
+ */
+export function classifyRepositoryStateIdentityVersion(
+  repositoryState: RepositoryStateIdentity | undefined,
+  currentVersion: number,
+): RepositoryIdentityVersionClass {
+  return classifyRepositoryIdentityVersion(repositoryState?.identityAlgorithmVersion, currentVersion);
+}
+
 export interface DetectorMigrationGovernanceDecision {
   id: string;
   decision: DetectorMigrationDecisionStatus;
