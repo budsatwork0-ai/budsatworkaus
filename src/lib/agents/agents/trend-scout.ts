@@ -75,6 +75,7 @@ export const trendScoutAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['research_trends'],
   async run(ctx: AgentContext) {
     let totalInserted  = 0;
     let totalSkipped   = 0;

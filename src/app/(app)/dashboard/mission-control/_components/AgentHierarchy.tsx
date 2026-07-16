@@ -15,6 +15,7 @@ type AgentRow = {
 interface Props {
   agents: AgentRow[];
   latestRuns?: Record<string, { confidence_score: number | null; finished_at: string | null }>;
+  runtimeStatus?: Record<string, { last_run_outcome: string | null; runs_30d: number; is_stale: boolean }>;
 }
 
 const CATEGORY_META: Record<string, { label: string; dot: string; chip: string }> = {
@@ -81,7 +82,7 @@ function formatRunAt(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
-export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
+export function AgentHierarchy({ agents, latestRuns = {}, runtimeStatus = {} }: Props) {
   const byCategory = useMemo(() => {
     const map = new Map<string, AgentRow[]>();
     for (const agent of agents) {
@@ -139,12 +140,24 @@ export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
                 {catAgents.map(agent => {
                   const statusStyle = STATUS_STYLE[agent.status] ?? STATUS_STYLE.disabled;
                   const latest = latestRuns[agent.id];
+                  const runtime = runtimeStatus[agent.id];
                   const runAt = agent.last_run_at ?? latest?.finished_at;
                   const conf = latest?.confidence_score;
+                  const outcome = runtime?.last_run_outcome ?? null;
+                  const runs30d = runtime?.runs_30d ?? null;
+                  const isStale = runtime?.is_stale ?? false;
+                  const tier = executionTier(agent);
+                  const lastRunFailed = outcome === 'failed' || outcome === 'needs_repair';
                   return (
                     <div
                       key={agent.id}
-                      className="flex flex-col gap-1 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2"
+                      className={`flex flex-col gap-1 rounded-lg border px-3 py-2 ${
+                        lastRunFailed
+                          ? 'border-rose-400/20 bg-rose-400/[0.03]'
+                          : isStale
+                          ? 'border-amber-400/15 bg-amber-400/[0.02]'
+                          : 'border-white/[0.05] bg-white/[0.015]'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="min-w-0 truncate text-[12px] text-white/75">{agent.name}</span>
@@ -155,16 +168,34 @@ export function AgentHierarchy({ agents, latestRuns = {} }: Props) {
                       <div className="flex items-center gap-2 text-[10px] text-white/30">
                         <span suppressHydrationWarning>{formatRunAt(runAt)}</span>
                         <span className="text-white/25">·</span>
-                        <span className={TIER_STYLE[executionTier(agent)]}>
-                          {TIER_LABEL[executionTier(agent)]}
+                        <span className={TIER_STYLE[tier]}>
+                          {TIER_LABEL[tier]}
                         </span>
                         {conf != null && (
-                          <span className="text-white/25">·</span>
+                          <>
+                            <span className="text-white/25">·</span>
+                            <span className={conf >= 0.75 ? 'text-emerald-400/60' : conf >= 0.5 ? 'text-amber-400/60' : 'text-rose-400/60'}>
+                              {Math.round(conf * 100)}% conf
+                            </span>
+                          </>
                         )}
-                        {conf != null && (
-                          <span className={conf >= 0.75 ? 'text-emerald-400/60' : conf >= 0.5 ? 'text-amber-400/60' : 'text-rose-400/60'}>
-                            {Math.round(conf * 100)}% conf
-                          </span>
+                        {lastRunFailed && (
+                          <>
+                            <span className="text-white/25">·</span>
+                            <span className="text-rose-400/70">failed</span>
+                          </>
+                        )}
+                        {isStale && !lastRunFailed && (
+                          <>
+                            <span className="text-white/25">·</span>
+                            <span className="text-amber-400/60">stale</span>
+                          </>
+                        )}
+                        {runs30d !== null && runs30d > 0 && (
+                          <>
+                            <span className="text-white/25">·</span>
+                            <span className="text-white/20">{runs30d}×/30d</span>
+                          </>
                         )}
                       </div>
                     </div>

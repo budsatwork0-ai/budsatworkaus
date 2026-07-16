@@ -23,6 +23,7 @@ export const fieldProducerAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'auto',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['capture_briefs', 'orders'],
   async run(ctx: AgentContext) {
     const today = new Date().toISOString().slice(0, 10);
 

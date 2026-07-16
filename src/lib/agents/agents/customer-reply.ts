@@ -70,6 +70,7 @@ export const customerReplyAgent: AgentDefinition = {
   description: 'Drafts first-pass replies to inbound emails and contact-form messages.',
   category: 'support',
   autonomy: 'review',
+  schema_dependencies: ['leads', 'lead_conversations', 'agent_actions'],
   async run(ctx: AgentContext) {
     // ── Sandbox scenario path ───────────────────────────────────────────
     // The arena injects the message via ctx.input instead of the DB. Build

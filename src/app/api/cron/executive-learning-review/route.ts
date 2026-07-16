@@ -12,6 +12,7 @@
  * Secured by CRON_SECRET env var.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
@@ -73,12 +74,8 @@ async function callAnthropicLlm(prompt: string): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   // Untyped client for executive tables
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

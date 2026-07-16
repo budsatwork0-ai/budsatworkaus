@@ -64,6 +64,7 @@ export const schedulingAgent: AgentDefinition = {
   category: 'ops',
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['orders', 'employees'],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxScenario = detectSandboxSchedulingScenario(

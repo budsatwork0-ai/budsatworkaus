@@ -232,6 +232,7 @@ export const uxIntelligenceAgent: AgentDefinition = {
   autonomy: 'review',
   schedule: '0 8 * * 1', // Monday 8 am AEST
 
+  schema_dependencies: ['design_insights', 'admin_ux_proposals'],
   async run(ctx: AgentContext): Promise<AgentRunResult> {
     const now = new Date().toISOString().slice(0, 10);
     ctx.log('UX Intelligence Agent starting', { date: now, runId: ctx.runId });

@@ -1,0 +1,311 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T00-42-44-107Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "0c416a70630ff57ffe35c075b9de584260e31152743bd1582f230576166665f4",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:0c416a70630ff57ffe35c075b9de584260e31152743bd1582f230576166665f4"
+      },
+      "timestamp": "2026-07-11T00:42:44.107Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "disabled",
+      "parityDecision": "not_run",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": false,
+        "executionMode": "disabled",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T00-44-57-115Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5"
+      },
+      "timestamp": "2026-07-11T00:44:57.115Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "succeeded",
+      "parityDecision": "parity_verified",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": true,
+        "executionMode": "shadow_advisory",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 1,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T00-47-26-294Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5"
+      },
+      "timestamp": "2026-07-11T00:47:26.294Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "disabled",
+      "parityDecision": "not_run",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": false,
+        "executionMode": "disabled",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5"
+      },
+      "timestamp": "2026-07-11T00:48:44.320Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "succeeded",
+      "parityDecision": "parity_verified",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": true,
+        "executionMode": "shadow_advisory",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 1,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T00-58-48-829Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "b9f420fbf98a218c88f18792c9e2e5cf4ed3526c6c1379af077fec330e17476c",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:b9f420fbf98a218c88f18792c9e2e5cf4ed3526c6c1379af077fec330e17476c"
+      },
+      "timestamp": "2026-07-11T00:58:48.829Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "disabled",
+      "parityDecision": "not_run",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": false,
+        "executionMode": "disabled",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T01-00-50-054Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "c7396176e41e54365380b129915318892d78677f23ce337a3d1584e3ff6e31e3",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:c7396176e41e54365380b129915318892d78677f23ce337a3d1584e3ff6e31e3"
+      },
+      "timestamp": "2026-07-11T01:00:50.054Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "succeeded",
+      "parityDecision": "parity_verified",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": true,
+        "executionMode": "shadow_advisory",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 1,
+      "onlyV1DifferenceCount": 0,
+      "onlyV2DifferenceCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T01-56-06-187Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "d233038957c36fd8536671ab38e9b18ca87e84dd2a02495ae3bbbc412339ab43",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:d233038957c36fd8536671ab38e9b18ca87e84dd2a02495ae3bbbc412339ab43"
+      },
+      "timestamp": "2026-07-11T01:56:06.187Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "disabled",
+      "parityDecision": "not_run",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": false,
+        "executionMode": "disabled",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T01-59-23-141Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041"
+      },
+      "timestamp": "2026-07-11T01:59:23.141Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "succeeded",
+      "parityDecision": "parity_verified",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": true,
+        "executionMode": "shadow_advisory",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 1,
+      "onlyV1DifferenceCount": 0,
+      "onlyV2DifferenceCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T04-20-28-378Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041"
+      },
+      "timestamp": "2026-07-11T04:20:28.378Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "disabled",
+      "parityDecision": "not_run",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": false,
+        "executionMode": "disabled",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 0,
+      "v2FindingsDoubleCounted": false
+    },
+    {
+      "runId": "adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z",
+      "detectorId": "cron-route-registration",
+      "repositoryState": {
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "dirty": true,
+        "worktreeFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "identity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041"
+      },
+      "timestamp": "2026-07-11T04:21:10.946Z",
+      "v1ExecutionStatus": "succeeded",
+      "v2ExecutionStatus": "succeeded",
+      "parityDecision": "parity_verified",
+      "explainedDifferences": [],
+      "unexplainedDifferences": [],
+      "executionFailures": [],
+      "authoritativeSource": "v1",
+      "configurationSnapshot": {
+        "detectorId": "cron-route-registration",
+        "shadowEnabled": true,
+        "executionMode": "shadow_advisory",
+        "failurePolicy": "isolate_and_continue",
+        "parityRecordingEnabled": true,
+        "artifactOutputEnabled": true,
+        "minimumSuccessfulRunsForReadiness": 3
+      },
+      "v1FindingCount": 1,
+      "v2FindingCount": 1,
+      "onlyV1DifferenceCount": 0,
+      "onlyV2DifferenceCount": 0,
+      "v2FindingsDoubleCounted": false
+    }
+  ]
+}

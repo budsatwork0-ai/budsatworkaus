@@ -8,7 +8,6 @@ import type {
   Task,
   SSKind,
   CommercialCleaningType,
-  CleanScopeKind,
   CleanScopeKindV2,
   ExtraRule,
   ExtraRules,
@@ -39,6 +38,7 @@ import {
   type DifficultyFlags as YardDifficultyFlags,
   type YardScope,
 } from '@/lib/services-core/yard-pricing';
+import { BASE_CALLOUT_PRICE, EFFORT_BLOCK_RANGE, PHYSICAL_BLOCK_RANGE } from '@/lib/services-core/estimation';
 
 /* ===== SS Cleaning (scope-style minutes) ===== */
 
@@ -151,61 +151,17 @@ export const COMM_PRESET_PRICING: Record<
   },
 };
 
+export const COMM_FREQ_DISCOUNTS: Record<string, number> = {
+  daily: 0.28,
+  '3x_weekly': 0.18,
+  weekly: 0.12,
+  fortnightly: 0,
+  none: 0,
+};
+
 export function cleaningCommercialMinutes(_kind: CommercialCleaningType, _p: unknown): number {
   // Fixed 4-hour baseline for all commercial cleaning niches
   return 240;
-}
-
-/* ===== Home Cleaning – legacy V1 (kept for future use) ===== */
-
-export const CLEANING_HOME_MULTIPLIER: Record<CleanScopeKind, number> = {
-  weekly: 1.0,
-  general: 1.15,
-  inspection: 1.4,
-  deep: 1.6,
-  endoflease: 1.85,
-  hourly: 1.0,
-};
-
-export const CLEANING_HOME_MIN_HOURS: Record<CleanScopeKind, number> = {
-  weekly: 2.0,
-  general: 2.5,
-  inspection: 3.0,
-  deep: 3.5,
-  endoflease: 4.5,
-  hourly: 1.0,
-};
-
-export const CLEANING_HOME_RATES: Record<CleanScopeKind, number> = {
-  weekly: 55,
-  general: 60,
-  inspection: 60,
-  deep: 65,
-  endoflease: 90,
-  hourly: 60,
-};
-
-export function cleaningHomeMinutes(kind: CleanScopeKind, p: any): number {
-  const bedrooms = p.bedrooms ?? 1;
-  const bathrooms = p.bathrooms ?? 1;
-  const kitchens = p.kitchens ?? 1;
-  const living = p.living ?? 1;
-  const laundry = p.laundry ?? 0;
-  const storeys = p.storeys ?? 1;
-
-  const baseHours =
-    bedrooms * 0.15 +
-    bathrooms * 0.45 +
-    kitchens * 0.6 +
-    living * 0.25 +
-    laundry * 0.2 +
-    storeys * 0.1;
-
-  const hours = baseHours * (CLEANING_HOME_MULTIPLIER[kind] ?? 1);
-  const minHours = CLEANING_HOME_MIN_HOURS[kind] ?? 0;
-  const finalHours = Math.max(hours, minHours);
-
-  return Math.round(finalHours * 60);
 }
 
 /* ===== Home Cleaning – Calibrated V2 (Brisbane) ===== */
@@ -948,10 +904,6 @@ export function computeDumpDisposalFee(
   return { fee: weightFee, volume: totalVolume, basis: 'weight' as const };
 }
 
-const DUMP_RUN_BASE_CALLOUT = 79;
-const DUMP_RUN_EFFORT_BLOCK_RATE = 27.5;
-const DUMP_RUN_PHYSICAL_BLOCK_RATE = 37.5;
-
 function computeDumpRunBasePrice(selection?: DumpRunSelection | null) {
   if (!selection?.loadType) return null;
 
@@ -963,9 +915,9 @@ function computeDumpRunBasePrice(selection?: DumpRunSelection | null) {
   const physicalBlocks = meta.physicalBlocks;
 
   return (
-    DUMP_RUN_BASE_CALLOUT +
-    effortBlocks * DUMP_RUN_EFFORT_BLOCK_RATE +
-    physicalBlocks * DUMP_RUN_PHYSICAL_BLOCK_RATE +
+    BASE_CALLOUT_PRICE +
+    effortBlocks * ((EFFORT_BLOCK_RANGE.min + EFFORT_BLOCK_RANGE.max) / 2) +
+    physicalBlocks * ((PHYSICAL_BLOCK_RANGE.min + PHYSICAL_BLOCK_RANGE.max) / 2) +
     disposal
   );
 }
@@ -1021,23 +973,16 @@ export function priceQuote(params: QuoteParams) {
   // Mirrors the math used in assistant/useAssistant.ts and estimation.ts
   // (BASE_CALLOUT_PRICE + effortBlocks × effort rate + physical blocks × physical rate).
   if (isDumpRunScope) {
-    const DUMP_BASE_CALLOUT = 79;
-    const DUMP_EFFORT_MIN = 20;
-    const DUMP_EFFORT_MAX = 35;
-    const DUMP_PHYS_MIN = 25;
-    const DUMP_PHYS_MAX = 50;
-    const DUMP_EFFORT_MINUTES = 20;
-
     const loads = Math.max(1, Math.round(dumpRunSelection?.loads ?? 1));
     const loadType = dumpRunSelection?.loadType ?? 'ute';
     const meta = DUMP_LOAD_META[loadType] ?? DUMP_LOAD_META.ute;
     const effortBlocks = loads * meta.effortPerLoad + meta.extraEffort;
     const physicalBlocks = meta.physicalBlocks;
 
-    const effortRate = (DUMP_EFFORT_MIN + DUMP_EFFORT_MAX) / 2;
-    const physicalRate = (DUMP_PHYS_MIN + DUMP_PHYS_MAX) / 2;
+    const effortRate = (EFFORT_BLOCK_RANGE.min + EFFORT_BLOCK_RANGE.max) / 2;
+    const physicalRate = (PHYSICAL_BLOCK_RANGE.min + PHYSICAL_BLOCK_RANGE.max) / 2;
     const labour =
-      DUMP_BASE_CALLOUT + effortBlocks * effortRate + physicalBlocks * physicalRate;
+      BASE_CALLOUT_PRICE + effortBlocks * effortRate + physicalBlocks * physicalRate;
 
     const travel = Math.max(0, distanceKm - POLICY.travelBaseKm) * POLICY.travelPerKm;
     const parking = paidParking ? POLICY.parkingMin : 0;
@@ -1046,7 +991,7 @@ export function priceQuote(params: QuoteParams) {
       labour + disposalFee + travel + parking + (tipFee || 0),
     );
     const dumpMinutes =
-      30 + Math.round(effortBlocks * DUMP_EFFORT_MINUTES + physicalBlocks * 10);
+      30 + Math.round(effortBlocks * EFFORT_BLOCK_RANGE.minutes + physicalBlocks * 10);
 
     return {
       total,
@@ -1121,14 +1066,7 @@ export function priceQuote(params: QuoteParams) {
         : 22;
     const extraBlocks = Math.ceil(extraSqm / 100);
     const areaSurcharge = extraBlocks > 0 ? extraBlocks * per100 : 0;
-    const freqDisc: Record<string, number> = {
-      daily: 0.28,
-      '3x_weekly': 0.18,
-      weekly: 0.12,
-      fortnightly: 0,
-      none: 0,
-    };
-    const discount = freqDisc[commFrequency || 'none'] ?? 0;
+    const discount = COMM_FREQ_DISCOUNTS[commFrequency || 'none'] ?? 0;
     const baseAfterDisc = (baseFixed + areaSurcharge) * (1 - discount);
     const baseWithDisposal = baseAfterDisc + disposalFee;
 

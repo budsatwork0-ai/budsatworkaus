@@ -25,6 +25,7 @@ import {
   writeReleaseCycleHistory,
 } from '../src/lib/architecture-doctor/release-cycle-evidence';
 import type { ReporterOptions } from '../src/lib/architecture-doctor/types';
+import { runPhase12CronRouteShadowExecution, type CronShadowExecutionMode } from '../src/lib/architecture-doctor/v2';
 
 const DEFAULT_ATLAS = 'Buds At Work/01 Architecture/Bud OS Business Capability Atlas 2026-07-08.md';
 const DEFAULT_OUTPUT = 'Buds At Work/01 Architecture/Architecture Doctor';
@@ -87,6 +88,28 @@ async function main(): Promise<void> {
   await writeFile(thresholdDryRunPath, renderThresholdDryRunMarkdown(report.thresholdDryRun), 'utf8');
   const written = await writeReports(report, { outputDir, format, baselinePath });
   written.push(releaseHistoryPath, releaseEvidencePath, thresholdDryRunPath);
+
+  if (args['cron-shadow-mode']) {
+    const shadowMode = args['cron-shadow-mode'] as CronShadowExecutionMode;
+    const shadow = await runPhase12CronRouteShadowExecution({
+      rootDir,
+      outputDir,
+      atlas,
+      inventory,
+      authoritativeReport: report,
+      config: {
+        executionMode: shadowMode,
+        artifactOutputEnabled: args['cron-shadow-artifacts'] !== 'false',
+        minimumSuccessfulRunsForReadiness: args['cron-shadow-min-runs']
+          ? Number.parseInt(args['cron-shadow-min-runs'], 10)
+          : undefined,
+      },
+    });
+    written.push(...Object.values(shadow.artifacts).filter(Boolean));
+    console.log(
+      `Cron route shadow execution: mode=${shadow.config.executionMode}; v1 authoritative; v2 shadow-only; parity=${shadow.record.parityDecision}; failures=${shadow.record.executionFailures.length}.`,
+    );
+  }
 
   if (args['propose-baseline'] === 'true') {
     const proposedPath = path.join(outputDir, 'architecture-doctor-proposed-baseline.json');

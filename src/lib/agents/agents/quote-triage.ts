@@ -58,6 +58,7 @@ export const quoteTriageAgent: AgentDefinition = {
     'Classifies incoming quote requests and drafts a first-pass quote.',
   category: 'sales',
   autonomy: 'review',
+  schema_dependencies: ['quotes'],
   async run(ctx: AgentContext) {
     const rawInput = (ctx.input ?? {}) as Record<string, unknown>;
 

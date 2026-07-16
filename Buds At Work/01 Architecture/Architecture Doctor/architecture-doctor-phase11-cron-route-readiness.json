@@ -1,0 +1,27 @@
+{
+  "detectorScope": "detector:cron-route-registration assetKind:cron phase:11",
+  "repositoryState": {
+    "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+    "dirty": true
+  },
+  "parityResultRef": "phase11-cron-route-parity:adv2-phase11-cron-route-2026-07-11T00-03-14-712Z",
+  "ready": false,
+  "blockers": [
+    {
+      "requirement": "downstream_report_and_consumer_compatibility_documented",
+      "reason": "Downstream report and consumer compatibility has not been documented."
+    },
+    {
+      "requirement": "shadow_execution_completed_successfully",
+      "reason": "Shadow execution has not completed successfully."
+    },
+    {
+      "requirement": "rollback_behaviour_defined",
+      "reason": "Rollback behaviour has not been defined."
+    },
+    {
+      "requirement": "explicit_governance_decision_approves_replacement",
+      "reason": "No explicit governance decision approves replacement."
+    }
+  ]
+}

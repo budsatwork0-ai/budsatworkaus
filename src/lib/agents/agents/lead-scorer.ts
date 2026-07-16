@@ -43,6 +43,7 @@ export const leadScorerAgent: AgentDefinition = {
   description: 'Scores every inbound lead 0-100 on suburb, service, message quality, and behaviour.',
   category: 'sales',
   autonomy: 'auto',
+  schema_dependencies: ['quotes', 'jobs'],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxLead = detectSandboxLead(

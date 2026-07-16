@@ -16,6 +16,7 @@ export const reviewsAgent: AgentDefinition = {
   category: 'support',
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['jobs', 'ratings'],
   async run(ctx: AgentContext) {
     // ── Sandbox scenario path ───────────────────────────────────────────
     // Arena scenarios inject the review/customer via ctx.input — the jobs

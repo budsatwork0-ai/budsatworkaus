@@ -34,6 +34,7 @@ export const seoMetaAgent: AgentDefinition = {
   description: 'Audits titles, descriptions, structured data, internal links.',
   category: 'sales',
   autonomy: 'review',
+  schema_dependencies: ['design_insights'],
   async run(ctx: AgentContext) {
     // ── Sandbox path ──────────────────────────────────────────────────────────
     const sandboxPage = detectSandboxSeoPage(

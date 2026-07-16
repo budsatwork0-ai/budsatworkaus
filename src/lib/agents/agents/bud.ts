@@ -155,6 +155,10 @@ export const budAgent: AgentDefinition = {
   autonomy: 'manual',
   schedule: '*/15 * * * *',
 
+  schema_dependencies: [
+    'agents', 'site_settings', 'agent_runs', 'v_pending_agent_actions',
+    'bud_tasks', 'bud_insights', 'bud_approval_queue', 'bud_lobby_states', 'bud_activity_feed',
+  ],
   async run(ctx: AgentContext) {
     const now = Date.now();
     const since24h = new Date(now - 24 * 3600_000).toISOString();

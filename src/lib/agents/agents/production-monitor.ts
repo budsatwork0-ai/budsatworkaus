@@ -28,6 +28,7 @@ export const productionMonitorAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['content_production_cards', 'growth_pipeline_events'],
   async run(ctx: AgentContext) {
     const staleThreshold    = new Date(Date.now() - STALE_DAYS    * 86_400_000).toISOString();
     const renotifyThreshold = new Date(Date.now() - RENOTIFY_HOURS * 3_600_000).toISOString();

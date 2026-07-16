@@ -7,6 +7,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runAgent } from '@/lib/agents/runtime';
 import { getAuthUser } from '@/lib/auth';
+import { createServiceClientSafe } from '@/lib/supabase/server';
+import { auditLog } from '@/lib/audit/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,19 @@ export async function POST(req: NextRequest) {
       triggeredBy: user.id,
       input: body.input ?? {},
     });
+
+    const auditClient = createServiceClientSafe();
+    if (auditClient) {
+      await auditLog(auditClient, {
+        entity_type: 'agent_run',
+        entity_id: result.runId,
+        action: 'manual_trigger',
+        source: 'admin',
+        new_value: { agent_id: body.agent_id, status: result.status },
+        user_email: user.email ?? undefined,
+      });
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

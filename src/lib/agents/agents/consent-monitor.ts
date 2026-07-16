@@ -28,6 +28,7 @@ export const consentMonitorAgent: AgentDefinition = {
   autonomy:    'review',
   preferredModel: 'claude-haiku-4-5-20251001',
 
+  schema_dependencies: ['content_assets', 'growth_pipeline_events'],
   async run(ctx: AgentContext) {
     const pendingThreshold  = new Date(Date.now() - PENDING_DAYS  * 86_400_000).toISOString();
     const renotifyThreshold = new Date(Date.now() - RENOTIFY_DAYS * 86_400_000).toISOString();

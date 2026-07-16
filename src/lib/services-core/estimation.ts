@@ -1,10 +1,10 @@
-import type { TravelBand } from '@/app/(public)/services/types';
+import type { CoreTravelBand } from './types';
 
 export const ESTIMATE_DISCLAIMER = 'Final timing and cost are confirmed before work begins.';
 export const BASE_CALLOUT_PRICE = 79;
 export const EFFORT_BLOCK_RANGE = { min: 20, max: 35, minutes: 20 };
 export const PHYSICAL_BLOCK_RANGE = { min: 25, max: 50 };
-export const TRAVEL_RANGES: Record<TravelBand, { min: number; max: number }> = {
+export const TRAVEL_RANGES: Record<CoreTravelBand, { min: number; max: number }> = {
   same_suburb: { min: 0, max: 0 },
   drive_30: { min: 30, max: 45 },
   drive_60: { min: 50, max: 70 },
@@ -25,7 +25,7 @@ export const INCLUSION_MINUTES: Record<string, number> = {
   'Detail Edges / Silicone': 6,
 };
 
-export function travelRange(key?: TravelBand | null, km?: number) {
+export function travelRange(key?: CoreTravelBand | null, km?: number) {
   if (key && TRAVEL_RANGES[key]) return TRAVEL_RANGES[key];
   if (typeof km === 'number' && Number.isFinite(km)) {
     if (km <= 10) return TRAVEL_RANGES.same_suburb;

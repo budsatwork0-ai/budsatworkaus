@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import type { OpenEnquiryRow } from '../MissionControlClient';
+import type { OpenEnquiryRow } from '../_types';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { runSandboxScenario } from '@/lib/sandbox/arena';
 import { runCronPack } from '@/lib/sandbox/runner';
@@ -26,12 +27,8 @@ export const maxDuration = 300;
 const VALID_PACKS: CronPack[] = ['hourly', 'daily', 'full'];
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const pack = req.nextUrl.searchParams.get('pack') as CronPack | null;
   if (!pack || !VALID_PACKS.includes(pack)) {

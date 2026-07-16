@@ -64,6 +64,7 @@ export const budObserverAgent: AgentDefinition = {
   autonomy: 'auto',
   schedule: '0 */6 * * *',  // every 6 hours
 
+  schema_dependencies: ['agent_runs', 'design_insights', 'admin_ux_proposals'],
   async run(ctx: AgentContext) {
     const startedAt = Date.now();
     const configuredBudgetMs = Number(process.env.BUD_OBSERVER_BUDGET_MS ?? DEFAULT_OBSERVER_BUDGET_MS);

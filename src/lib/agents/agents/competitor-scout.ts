@@ -45,6 +45,7 @@ export const competitorScoutAgent: AgentDefinition = {
   description: 'Crawls the web for local home-services competitors; extracts structured pricing.',
   category: 'sales',
   autonomy: 'review',
+  schema_dependencies: ['competitor_intel'],
   async run(ctx: AgentContext) {
     const region = (ctx.config?.region as string | undefined) ?? 'Logan,South Brisbane';
     const queries = SEARCH_QUERIES(region);

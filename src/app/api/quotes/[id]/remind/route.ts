@@ -22,6 +22,7 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReminderEmail } from '@/lib/email/templates';
+import { QuoteStatus } from '@/lib/types/status';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   // Guard: only remind if the quote is in a payable state
   const isPayable =
-    (quote.status === 'finalized' || quote.status === 'payment_pending') &&
+    (quote.status === QuoteStatus.finalized || quote.status === QuoteStatus.paymentPending) &&
     quote.payment_status !== 'paid';
 
   if (!isPayable) {

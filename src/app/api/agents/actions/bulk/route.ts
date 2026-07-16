@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/auth';
 import { executeApprovedAction } from '@/lib/agents/runtime';
 import { isDangerousAction } from '@/lib/bud/autonomy';
+import { auditLog } from '@/lib/audit/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,14 @@ export async function POST(req: NextRequest) {
     try {
       await executeApprovedAction(action.id as string);
       approved++;
+      await auditLog(supabase, {
+        entity_type: 'agent_action',
+        entity_id: action.id as string,
+        action: 'bulk_approved',
+        source: 'admin',
+        new_value: { action_type: action.action_type, agent_id: action.agent_id },
+        user_email: user.email ?? undefined,
+      });
     } catch (err) {
       failed.push({ id: action.id as string, error: err instanceof Error ? err.message : String(err) });
     }

@@ -24,6 +24,7 @@ export const competitorWatcherAgent: AgentDefinition = {
   category: 'sales',
   autonomy: 'review',
   preferredModel: 'claude-haiku-4-5-20251001',
+  schema_dependencies: ['competitor_pages'],
   async run(ctx: AgentContext) {
     const urls = (ctx.config?.watch_urls as string[] | undefined) ?? [];
     const { data: rows } = await ctx.supabase.from('competitor_pages').select('id, competitor, url, last_snapshot');

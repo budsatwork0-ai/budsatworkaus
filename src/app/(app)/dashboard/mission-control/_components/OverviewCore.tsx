@@ -32,7 +32,7 @@ import {
   type AgentStatusDerived,
 } from '@/lib/bud/os-view-model';
 import { deriveGlobalTruth, type GlobalTruthState } from '@/lib/bud/overview-v2';
-import type { BusinessSnapshotData, OpenEnquiryRow } from '../MissionControlClient';
+import type { BusinessSnapshotData, OpenEnquiryRow } from '../_types';
 import { OpenEnquiriesPanel } from './OpenEnquiriesPanel';
 
 /* ── section label ───────────────────────────────────────────────────────── */

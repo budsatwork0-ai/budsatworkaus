@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "independence": {
+    "totalRuns": 10,
+    "comparableRuns": 5,
+    "independentRuns": 2,
+    "duplicateStateRuns": 2,
+    "uniqueCommits": 1,
+    "uniqueRepositoryFingerprints": 3,
+    "cleanStateCount": 0,
+    "dirtyStateCount": 5,
+    "unknownStateCount": 0,
+    "observationPeriodHours": 3.6038,
+    "oldestComparableEvidence": "2026-07-11T00:44:57.115Z",
+    "newestComparableEvidence": "2026-07-11T04:21:10.946Z",
+    "repositoryIdentityHistory": [
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T00-42-44-107Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:0c416a70630ff57ffe35c075b9de584260e31152743bd1582f230576166665f4",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "0c416a70630ff57ffe35c075b9de584260e31152743bd1582f230576166665f4",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T00-44-57-115Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T00-47-26-294Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T00-48-44-320Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "150184a2d31eaafa53212685df1f6d288c4443d85317d7c780d063e8923242e5",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T00-58-48-829Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:b9f420fbf98a218c88f18792c9e2e5cf4ed3526c6c1379af077fec330e17476c",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "b9f420fbf98a218c88f18792c9e2e5cf4ed3526c6c1379af077fec330e17476c",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T01-00-50-054Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:c7396176e41e54365380b129915318892d78677f23ce337a3d1584e3ff6e31e3",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "c7396176e41e54365380b129915318892d78677f23ce337a3d1584e3ff6e31e3",
+        "independent": true
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T01-56-06-187Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:d233038957c36fd8536671ab38e9b18ca87e84dd2a02495ae3bbbc412339ab43",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "d233038957c36fd8536671ab38e9b18ca87e84dd2a02495ae3bbbc412339ab43",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T01-59-23-141Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "independent": true
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T04-20-28-378Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "independent": false
+      },
+      {
+        "runId": "adv2-phase12-cron-shadow-2026-07-11T04-21-10-946Z",
+        "repositoryIdentity": "ebb079729f3cea402243c8e33cb21810d5c417d4:dirty:02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "commitSha": "ebb079729f3cea402243c8e33cb21810d5c417d4",
+        "repositoryFingerprint": "02c8ad0bf656b6201f6d019ff30d31856d278d6885dd38abf4f464b0ac888041",
+        "independent": false
+      }
+    ]
+  }
+}

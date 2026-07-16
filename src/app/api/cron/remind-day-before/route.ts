@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCronAuth } from '@/lib/cron/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { dayBeforeReminderEmail } from '@/lib/email/templates';
@@ -8,6 +9,7 @@ import {
   getRelativeDateString,
   SERVICE_LABELS,
 } from '@/lib/automations';
+import { OrderStatus } from '@/lib/types/status';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,12 +48,8 @@ function formatScheduledDate(date: string | null): string {
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('authorization');
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const client = createServiceClientSafe();
   if (!client) {
@@ -82,7 +80,7 @@ export async function GET(req: NextRequest) {
         employees ( first_name, last_name )
       )
     `)
-    .in('status', ['confirmed', 'scheduled'])
+    .in('status', [OrderStatus.confirmed, OrderStatus.scheduled])
     .eq('scheduled_date', tomorrow)
     .eq('day_before_reminder_sent', false)
     .limit(100);
