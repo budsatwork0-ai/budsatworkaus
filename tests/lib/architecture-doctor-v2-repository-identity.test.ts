@@ -304,6 +304,7 @@ describe('Architecture Doctor v2 Phase 12-14 governance regression — corrected
     const phase13 = evaluatePhase13StatisticalGovernance({
       history,
       generatedAt: '2026-07-16T00:04:00.000Z',
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 4, minimumRepositoryIdentities: 2 },
     });
     // Two genuinely distinct architectural states were observed (baseline/restored/churn

@@ -327,6 +327,7 @@ function phase13(records: Phase12ShadowExecutionRecord[]) {
   return evaluatePhase13StatisticalGovernance({
     history: { version: 1, records },
     generatedAt: GENERATED_AT,
+    currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     config: {
       minimumComparableRuns: Math.max(1, records.filter((record) => record.v2ExecutionStatus === 'succeeded').length),
       minimumRepositoryIdentities: 1,

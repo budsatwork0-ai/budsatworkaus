@@ -242,6 +242,7 @@ export async function runPhase12CronRouteShadowExecution(input: {
     history,
     generatedAt: timestamp,
     governanceDecision,
+    currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     config: { detectorId: PHASE12_CRON_DETECTOR_ID },
   });
   const evidenceQuality = evaluatePhase14EvidenceQuality({
@@ -326,6 +327,7 @@ export async function writePhase12ShadowArtifacts(input: Phase12ArtifactWriteSet
       history: input.history,
       generatedAt: input.record.timestamp,
       governanceDecision: input.governanceDecision,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { detectorId: PHASE12_CRON_DETECTOR_ID },
     }),
   });
@@ -337,6 +339,7 @@ export async function writePhase12ShadowArtifacts(input: Phase12ArtifactWriteSet
         history: input.history,
         generatedAt: input.record.timestamp,
         governanceDecision: input.governanceDecision,
+        currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
         config: { detectorId: PHASE12_CRON_DETECTOR_ID },
       }),
       generatedAt: input.record.timestamp,

@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { DetectorMigrationGovernanceDecision, RepositoryStateIdentity } from './migration-governance';
+import type { DetectorMigrationGovernanceDecision, RepositoryIdentityVersionClass, RepositoryStateIdentity } from './migration-governance';
+import { classifyRepositoryStateIdentityVersion } from './migration-governance';
 import type { Phase12ShadowExecutionRecord, Phase12ShadowHistory } from './phase12-shadow-runner';
 
 export interface Phase13StatisticalGovernanceConfig {
@@ -56,7 +57,20 @@ export interface Phase13StatisticalSummary {
     uniqueRepositoryIdentities: number;
     dirtyStatesObserved: number;
     cleanStatesObserved: number;
-    repositoryIdentityHistory: Array<{ runId: string; timestamp: string; repositoryState: RepositoryStateIdentity }>;
+    /**
+     * Count of records excluded from uniqueRepositoryIdentities/dirtyStatesObserved/
+     * cleanStatesObserved because their repositoryState.identityAlgorithmVersion did not
+     * classify as `current` (legacy, unsupported_future, or malformed). Excluded records stay
+     * visible in repositoryIdentityHistory for audit purposes; they just cannot manufacture
+     * diversity, independence, or readiness evidence.
+     */
+    excludedByAlgorithmVersion: number;
+    repositoryIdentityHistory: Array<{
+      runId: string;
+      timestamp: string;
+      repositoryState: RepositoryStateIdentity;
+      identityVersionClass: RepositoryIdentityVersionClass;
+    }>;
   };
   successFailureTrend: Array<{ runId: string; timestamp: string; status: 'success' | 'failure' | 'disabled'; failureCount: number }>;
   driftEvents: Phase13DetectorDriftEvent[];
@@ -111,6 +125,14 @@ export function evaluatePhase13StatisticalGovernance(input: {
   history: Phase12ShadowHistory;
   generatedAt: string;
   governanceDecision?: DetectorMigrationGovernanceDecision;
+  /**
+   * The current repository-identity algorithm version (owned by phase12-shadow-runner.ts's
+   * `REPOSITORY_IDENTITY_ALGORITHM_VERSION`), passed in explicitly by the caller to avoid a
+   * circular import. Only records whose `repositoryState.identityAlgorithmVersion` classifies
+   * as `current` against this value contribute to repository diversity, unique identity
+   * counts, or statistical-readiness evidence.
+   */
+  currentIdentityAlgorithmVersion: number;
   config?: Partial<Phase13StatisticalGovernanceConfig>;
 }): Phase13StatisticalSummary {
   const config = { ...defaultPhase13StatisticalGovernanceConfig(), ...input.config };
@@ -142,14 +164,27 @@ export function evaluatePhase13StatisticalGovernance(input: {
     failureRate,
     driftEventCount: driftEvents.length,
   });
-  const repositoryIdentityHistory = records.map((record) => ({
+  // Repository identity comparability gate: only records whose identity algorithm version
+  // classifies as `current` can contribute to diversity/independence/readiness evidence.
+  // Legacy, unsupported-future, and malformed records stay visible in
+  // repositoryIdentityHistory for audit, but are excluded here — including from each other,
+  // so an identical fingerprint/identity string from a different version class never
+  // manufactures diversity.
+  const classifiedRecords = records.map((record) => ({
+    record,
+    identityVersionClass: classifyRepositoryStateIdentityVersion(record.repositoryState, input.currentIdentityAlgorithmVersion),
+  }));
+  const identityComparable = classifiedRecords.filter((item) => item.identityVersionClass === 'current').map((item) => item.record);
+  const excludedByAlgorithmVersion = records.length - identityComparable.length;
+  const repositoryIdentityHistory = classifiedRecords.map(({ record, identityVersionClass }) => ({
     runId: record.runId,
     timestamp: record.timestamp,
     repositoryState: record.repositoryState,
+    identityVersionClass,
   }));
-  const uniqueRepositoryIdentities = new Set(records.map(repositoryIdentityForRecord)).size;
-  const dirtyStatesObserved = new Set(records.filter((record) => record.repositoryState?.dirty === true).map(repositoryIdentityForRecord)).size;
-  const cleanStatesObserved = new Set(records.filter((record) => record.repositoryState?.dirty === false).map(repositoryIdentityForRecord)).size;
+  const uniqueRepositoryIdentities = new Set(identityComparable.map(repositoryIdentityForRecord)).size;
+  const dirtyStatesObserved = new Set(identityComparable.filter((record) => record.repositoryState?.dirty === true).map(repositoryIdentityForRecord)).size;
+  const cleanStatesObserved = new Set(identityComparable.filter((record) => record.repositoryState?.dirty === false).map(repositoryIdentityForRecord)).size;
   const constitutionalGuarantees = {
     v1AuthoritativeForEveryRun: records.every((record) => record.authoritativeSource === 'v1'),
     v2NeverAffectedAuthority: records.every((record) => record.authoritativeSource === 'v1' && record.v2FindingsDoubleCounted === false),
@@ -182,6 +217,7 @@ export function evaluatePhase13StatisticalGovernance(input: {
   const governanceRecommendation = recommendGovernance({
     comparableRuns: comparable.length,
     uniqueRepositoryIdentities,
+    excludedByAlgorithmVersion,
     parityPercentage,
     detectorDisagreementRate,
     failureRate,
@@ -213,6 +249,7 @@ export function evaluatePhase13StatisticalGovernance(input: {
       uniqueRepositoryIdentities,
       dirtyStatesObserved,
       cleanStatesObserved,
+      excludedByAlgorithmVersion,
       repositoryIdentityHistory,
     },
     successFailureTrend,
@@ -284,6 +321,7 @@ export function renderPhase13StatisticalParityReport(summary: Phase13Statistical
     `- Stability score: ${summary.stabilityScore}`,
     `- Readiness confidence: ${summary.readinessConfidence}`,
     `- Repository identities: ${summary.repositoryDiversity.uniqueRepositoryIdentities}`,
+    `- Excluded by identity algorithm version: ${summary.repositoryDiversity.excludedByAlgorithmVersion}`,
     `- Drift events: ${summary.driftEvents.length}`,
     '',
     '## Governance Recommendation',
@@ -385,6 +423,7 @@ function detectDetectorDrift(records: Phase12ShadowExecutionRecord[], trend: Pha
 function recommendGovernance(input: {
   comparableRuns: number;
   uniqueRepositoryIdentities: number;
+  excludedByAlgorithmVersion: number;
   parityPercentage: number;
   detectorDisagreementRate: number;
   failureRate: number;
@@ -405,6 +444,9 @@ function recommendGovernance(input: {
     blockers.push(`Only ${input.uniqueRepositoryIdentities} repository state(s); ${input.config.minimumRepositoryIdentities} required.`);
   } else {
     supportingEvidence.push(`${input.uniqueRepositoryIdentities} repository state(s) are represented.`);
+  }
+  if (input.excludedByAlgorithmVersion > 0) {
+    supportingEvidence.push(`${input.excludedByAlgorithmVersion} record(s) excluded from repository diversity because their identity algorithm version is not the current, comparable version.`);
   }
   if (input.parityPercentage < input.config.targetParityPercentage) {
     blockers.push(`Parity percentage ${input.parityPercentage}% is below target ${input.config.targetParityPercentage}%.`);
