@@ -146,7 +146,10 @@ describe('Architecture Doctor Phase 12 cron route shadow execution', () => {
   it('distinguishes clean and dirty repository identity with a deterministic dirty fingerprint', async () => {
     const rootDir = await makeGitRepo();
     const clean = await readRepositoryStateIdentity(rootDir);
-    await writeFile(path.join(rootDir, 'dirty.txt'), 'dirty\n');
+    // Only paths Architecture Doctor's analyzers actually read (src/**, scripts/**,
+    // supabase/migrations/**, vercel.json) are relevant to repository identity.
+    await mkdir(path.join(rootDir, 'src'), { recursive: true });
+    await writeFile(path.join(rootDir, 'src', 'dirty.txt'), 'dirty\n');
     const dirtyOne = await readRepositoryStateIdentity(rootDir);
     const dirtyTwo = await readRepositoryStateIdentity(rootDir);
 

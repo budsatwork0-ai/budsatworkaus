@@ -14,6 +14,15 @@ export interface RepositoryStateIdentity {
   worktreeFingerprint?: string;
   fallbackIdentity?: string;
   identity?: string;
+  /**
+   * Identifies which fingerprint algorithm produced `worktreeFingerprint`/`identity`.
+   * Version 1 (absent/undefined, legacy records) hashed the full `git status --porcelain`
+   * dirty-path membership set for the whole repository. Version 2 hashes the content of
+   * only architecture-relevant paths (see RELEVANT_REPOSITORY_PATHSPECS in
+   * phase12-shadow-runner.ts). Records from different versions measure different things and
+   * must not be treated as directly comparable evidence.
+   */
+  identityAlgorithmVersion?: number;
 }
 
 export interface DetectorMigrationGovernanceDecision {

@@ -160,7 +160,7 @@ export async function runPhase12CronRouteShadowExecution(input: {
 }): Promise<Phase12ShadowRunResult> {
   const config = normalizeCronRouteShadowConfig(input.config);
   const timestamp = (input.now ?? new Date()).toISOString();
-  const repositoryState = await readRepositoryStateIdentity(input.rootDir);
+  const repositoryState = await readRepositoryStateIdentity(input.rootDir, { atlasPath: input.atlas.sourcePath });
   const verificationRun = phase12VerificationRun(timestamp);
   const failures: ShadowExecutionFailure[] = [];
   const authoritativeV1Findings = runV1CronDetector(input.atlas, input.inventory, timestamp, repositoryState, failures);
@@ -450,23 +450,44 @@ export function evaluatePhase12ShadowReadiness(input: {
   };
 }
 
-export async function readRepositoryStateIdentity(rootDir: string): Promise<RepositoryStateIdentity> {
+export const REPOSITORY_IDENTITY_ALGORITHM_VERSION = 2;
+
+/**
+ * Paths Architecture Doctor's analyzers actually read, per `scanRepository()` in
+ * repo-scanner.ts: `src/**`, `scripts/**`, `supabase/migrations/**`, and `vercel.json`.
+ * The Atlas file (passed per-run, see `atlasPath`) is added separately since its location
+ * is a parameter, not a fixed convention. Everything else in the repository — generated
+ * Architecture Doctor evidence, Dev Logs, Graphify output, etc. — is deliberately outside
+ * this set so it cannot manufacture false repository diversity. Do not add directories here
+ * unless Architecture Doctor's analyzers are proven (by source) to read them.
+ */
+const RELEVANT_REPOSITORY_PATHSPECS = ['src', 'scripts', 'supabase/migrations', 'vercel.json'];
+
+export async function readRepositoryStateIdentity(
+  rootDir: string,
+  options?: { atlasPath?: string },
+): Promise<RepositoryStateIdentity> {
   try {
+    const pathspecs = buildRelevantPathspecs(rootDir, options?.atlasPath);
     const [{ stdout: commitStdout }, { stdout: statusStdout }] = await Promise.all([
       execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: rootDir }),
-      execFileAsync('git', ['status', '--porcelain=v1'], { cwd: rootDir }),
+      execFileAsync('git', ['status', '--porcelain=v1', '--untracked-files=all', '-z', '--', ...pathspecs], {
+        cwd: rootDir,
+        maxBuffer: 1024 * 1024 * 64,
+      }),
     ]);
     const commitSha = commitStdout.trim() || 'unknown';
-    const statusLines = statusStdout.split('\n').map((line) => line.trimEnd()).filter(Boolean).sort();
-    const dirty = statusLines.length > 0;
+    const changes = parsePorcelainZStatus(statusStdout);
+    const dirty = changes.length > 0;
     const worktreeFingerprint = dirty
-      ? createHash('sha256').update(statusLines.join('\n')).digest('hex')
+      ? await hashRelevantRepositoryState(rootDir, changes)
       : undefined;
     return {
       commitSha,
       dirty,
       worktreeFingerprint,
       identity: dirty ? `${commitSha}:dirty:${worktreeFingerprint}` : `${commitSha}:clean`,
+      identityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     };
   } catch {
     return {
@@ -474,8 +495,89 @@ export async function readRepositoryStateIdentity(rootDir: string): Promise<Repo
       dirty: undefined,
       fallbackIdentity: 'git-unavailable',
       identity: `fallback:git-unavailable:${createHash('sha256').update(path.resolve(rootDir)).digest('hex')}`,
+      identityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     };
   }
+}
+
+function buildRelevantPathspecs(rootDir: string, atlasPath?: string): string[] {
+  const pathspecs = [...RELEVANT_REPOSITORY_PATHSPECS];
+  if (atlasPath) {
+    const absoluteAtlasPath = path.isAbsolute(atlasPath) ? atlasPath : path.join(rootDir, atlasPath);
+    const relativeAtlasPath = toPosixPath(path.relative(rootDir, absoluteAtlasPath));
+    if (relativeAtlasPath && !relativeAtlasPath.startsWith('..')) pathspecs.push(relativeAtlasPath);
+  }
+  return pathspecs;
+}
+
+interface PorcelainStatusChange {
+  statusCode: string;
+  path: string;
+  fromPath?: string;
+}
+
+/**
+ * Parses `git status --porcelain=v1 -z` output. The `-z` form NUL-terminates every field and
+ * disables path quoting, so paths containing spaces or unicode are unambiguous. Rename/copy
+ * entries (status code containing R or C) are followed by an extra NUL-terminated token
+ * holding the original path, per `git-status(1)`.
+ */
+function parsePorcelainZStatus(raw: string): PorcelainStatusChange[] {
+  const tokens = raw.split('\0').filter((token) => token.length > 0);
+  const changes: PorcelainStatusChange[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    const statusCode = token.slice(0, 2);
+    const entryPath = token.slice(3);
+    const isRenameOrCopy = statusCode.includes('R') || statusCode.includes('C');
+    if (isRenameOrCopy) {
+      index += 1;
+      changes.push({ statusCode, path: entryPath, fromPath: tokens[index] });
+    } else {
+      changes.push({ statusCode, path: entryPath });
+    }
+  }
+  return changes;
+}
+
+/**
+ * Builds a deterministic, content-aware fingerprint over the relevant paths touched by
+ * `changes`. Each path contributes `sha256(sha256(path) + '|' + sha256(content-or-DELETED))`
+ * so that a path string can never be concatenated ambiguously with file content (both sides
+ * are pre-hashed, fixed-length hex before joining). Entries are sorted before the final hash
+ * so path discovery order never affects the result. Content is always read from the current
+ * working-tree file on disk — the same source Architecture Doctor's analyzers read — so both
+ * staged and unstaged edits are represented, and deleted files are marked explicitly rather
+ * than silently omitted.
+ */
+async function hashRelevantRepositoryState(rootDir: string, changes: PorcelainStatusChange[]): Promise<string> {
+  const relevantPaths = new Set<string>();
+  for (const change of changes) {
+    relevantPaths.add(change.path);
+    if (change.fromPath) relevantPaths.add(change.fromPath);
+  }
+  const entryDigests = await Promise.all(
+    [...relevantPaths].sort().map(async (relPath) => {
+      const posixPath = toPosixPath(relPath);
+      let contentDigest: string;
+      try {
+        const content = await readFile(path.join(rootDir, relPath));
+        contentDigest = createHash('sha256').update(content).digest('hex');
+      } catch {
+        contentDigest = 'DELETED';
+      }
+      const pathDigest = createHash('sha256').update(posixPath).digest('hex');
+      return createHash('sha256').update(`path=${pathDigest}|content=${contentDigest}`).digest('hex');
+    }),
+  );
+  entryDigests.sort();
+  return createHash('sha256')
+    .update(`adv2-repo-identity-v${REPOSITORY_IDENTITY_ALGORITHM_VERSION}\n${entryDigests.join('\n')}`)
+    .digest('hex');
+}
+
+function toPosixPath(value: string): string {
+  return value.split(path.sep).join('/');
 }
 
 async function readShadowHistory(historyPath: string): Promise<Phase12ShadowHistory> {
