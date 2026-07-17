@@ -2,6 +2,8 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Phase13StatisticalSummary } from './phase13-statistical-governance';
 import type { Phase12ShadowExecutionRecord, Phase12ShadowHistory } from './phase12-shadow-runner';
+import type { RepositoryIdentityVersionClass } from './migration-governance';
+import { classifyRepositoryStateIdentityVersion } from './migration-governance';
 
 export interface Phase14EvidenceQualityConfig {
   detectorId: string;
@@ -23,7 +25,8 @@ export type Phase14EvidenceDefectType =
   | 'stale_evidence'
   | 'insufficient_observation_period'
   | 'incomplete_detector_execution'
-  | 'repository_identity_fallback_used';
+  | 'repository_identity_fallback_used'
+  | 'incompatible_identity_algorithm_version';
 
 export interface Phase14EvidenceDefect {
   defectType: Phase14EvidenceDefectType;
@@ -44,6 +47,14 @@ export interface Phase14EvidenceRecordAssessment {
   repositoryIdentity?: string;
   commitSha?: string;
   repositoryFingerprint?: string;
+  /**
+   * Classification of this record's `repositoryState.identityAlgorithmVersion` relative to
+   * `currentIdentityAlgorithmVersion`. Only `current` records are eligible for independence,
+   * diversity, and readiness evidence — see `incompatible_identity_algorithm_version`.
+   * `undefined` only when the record is already `malformed_history_record` (no repositoryState
+   * to classify).
+   */
+  identityVersionClass?: RepositoryIdentityVersionClass;
   cleanDirtyState: 'clean' | 'dirty' | 'unknown';
   configurationSignature?: string;
   metricsCompleteness: 'complete' | 'legacy_unknown_difference_counts' | 'malformed';
@@ -69,6 +80,7 @@ export interface Phase14EvidenceIndependenceAssessment {
     repositoryIdentity?: string;
     commitSha?: string;
     repositoryFingerprint?: string;
+    identityVersionClass?: RepositoryIdentityVersionClass;
     independent: boolean;
   }>;
 }
@@ -145,6 +157,14 @@ export function evaluatePhase14EvidenceQuality(input: {
   history: Phase12ShadowHistory | unknown;
   phase13: Phase13StatisticalSummary;
   generatedAt: string;
+  /**
+   * The current repository-identity algorithm version (owned by phase12-shadow-runner.ts's
+   * `REPOSITORY_IDENTITY_ALGORITHM_VERSION`), passed in explicitly by the caller to avoid a
+   * circular import. Only records whose `repositoryState.identityAlgorithmVersion` classifies
+   * as `current` against this value are eligible for independence, diversity, and readiness
+   * evidence — see `classifyRepositoryStateIdentityVersion`.
+   */
+  currentIdentityAlgorithmVersion: number;
   config?: Partial<Phase14EvidenceQualityConfig>;
 }): Phase14EvidenceQualitySummary {
   const config = { ...defaultPhase14EvidenceQualityConfig(input.phase13.detectorId), ...input.config };
@@ -161,15 +181,17 @@ export function evaluatePhase14EvidenceQuality(input: {
     : [];
   const seenState = new Set<string>();
   const configSignatures = new Map<string, string[]>();
-  const assessments = records.map((record) => assessRecord(record, config, seenState, configSignatures, defects));
+  const currentIdentityAlgorithmVersion = input.currentIdentityAlgorithmVersion;
+  const assessments = records.map((record) => assessRecord(record, config, seenState, configSignatures, defects, currentIdentityAlgorithmVersion));
   defects.push(...globalDefects(records, assessments, config, input.generatedAt));
   const comparable = assessments.filter((assessment) => assessment.comparable);
   const independent = assessments.filter((assessment) => assessment.independent);
-  const uniqueCommits = new Set(comparable.map((assessment) => assessment.commitSha).filter(Boolean)).size;
-  const uniqueRepositoryFingerprints = new Set(comparable.map((assessment) => assessment.repositoryFingerprint).filter(Boolean)).size;
-  const cleanStateCount = comparable.filter((assessment) => assessment.cleanDirtyState === 'clean').length;
-  const dirtyStateCount = comparable.filter((assessment) => assessment.cleanDirtyState === 'dirty').length;
-  const unknownStateCount = comparable.filter((assessment) => assessment.cleanDirtyState === 'unknown').length;
+  const identityComparable = comparable.filter((assessment) => assessment.identityVersionClass === 'current');
+  const uniqueCommits = new Set(identityComparable.map((assessment) => assessment.commitSha).filter(Boolean)).size;
+  const uniqueRepositoryFingerprints = new Set(identityComparable.map((assessment) => assessment.repositoryFingerprint).filter(Boolean)).size;
+  const cleanStateCount = identityComparable.filter((assessment) => assessment.cleanDirtyState === 'clean').length;
+  const dirtyStateCount = identityComparable.filter((assessment) => assessment.cleanDirtyState === 'dirty').length;
+  const unknownStateCount = identityComparable.filter((assessment) => assessment.cleanDirtyState === 'unknown').length;
   const comparableTimes = comparable.map((assessment) => Date.parse(assessment.timestamp ?? '')).filter(Number.isFinite).sort((a, b) => a - b);
   const observationPeriodHours = comparableTimes.length >= 2 ? round((comparableTimes[comparableTimes.length - 1] - comparableTimes[0]) / 36e5) : 0;
   const evidenceQualityScore = calculateEvidenceQualityScore({
@@ -200,6 +222,7 @@ export function evaluatePhase14EvidenceQuality(input: {
       repositoryIdentity: assessment.repositoryIdentity,
       commitSha: assessment.commitSha,
       repositoryFingerprint: assessment.repositoryFingerprint,
+      identityVersionClass: assessment.identityVersionClass,
       independent: assessment.independent,
     })),
   };
@@ -342,6 +365,7 @@ function assessRecord(
   seenState: Set<string>,
   configSignatures: Map<string, string[]>,
   defects: Phase14EvidenceDefect[],
+  currentIdentityAlgorithmVersion: number,
 ): Phase14EvidenceRecordAssessment {
   const rejectionReasons: string[] = [];
   const recordDefects: Phase14EvidenceDefectType[] = [];
@@ -349,10 +373,19 @@ function assessRecord(
   const comparable = record.v2ExecutionStatus === 'succeeded'
     && (record.parityDecision === 'parity_verified' || record.parityDecision === 'parity_failed')
     && !malformed;
+  // Undefined only when there is no repositoryState to classify at all (already malformed_history_record).
+  const identityVersionClass = record.repositoryState
+    ? classifyRepositoryStateIdentityVersion(record.repositoryState, currentIdentityAlgorithmVersion)
+    : undefined;
+  const identityVersionCurrent = identityVersionClass === 'current';
   const repositoryFingerprint = repositoryFingerprintForRecord(record);
+  // Only current-version records participate in duplicate-state detection. Non-current
+  // records are never added to seenState and never marked duplicateState, so an
+  // identical fingerprint/identity string from a different version class can never
+  // collide with (or be treated as comparable to) a current-version record's state.
   const stateKey = repositoryFingerprint ?? record.repositoryState?.identity ?? record.repositoryState?.commitSha ?? record.runId;
-  const duplicateState = comparable && seenState.has(stateKey);
-  if (comparable) seenState.add(stateKey);
+  const duplicateState = comparable && identityVersionCurrent && seenState.has(stateKey);
+  if (comparable && identityVersionCurrent) seenState.add(stateKey);
   const signature = configurationSignature(record);
   if (signature && record.runId) {
     const signatureRecords = configSignatures.get(signature) ?? [];
@@ -394,11 +427,35 @@ function assessRecord(
     rejectionReasons.push('repository identity used fallback metadata');
     defects.push(defect('repository_identity_fallback_used', [record.runId], 'medium', 'Git repository identity was unavailable and fallback identity was used.', 'Fallback identities are not strong independence evidence.', 'Run evidence collection in a Git checkout with commit and status metadata.'));
   }
+  if (identityVersionClass && identityVersionClass !== 'current') {
+    recordDefects.push('incompatible_identity_algorithm_version');
+    rejectionReasons.push(`repository identity algorithm version is ${identityVersionClass} and is not comparable to the current algorithm version`);
+    // Legacy (pre-v2, absent-field) records are already excluded from independence and
+    // diversity by the structural checks below; that exclusion is the scoring consequence.
+    // The defect stays 'info' (non-scoring, non-blocking) for legacy so the same underlying
+    // legacy-identity condition is not penalised a second time by calculateEvidenceQualityScore's
+    // high/critical-only defect penalty. unsupported_future/malformed are distinct, more
+    // actionable conditions with no prior penalty, so they get a real severity.
+    const severity = identityVersionClass === 'legacy' ? 'info' : 'high';
+    defects.push(defect(
+      'incompatible_identity_algorithm_version',
+      [record.runId ?? '<unknown>'],
+      severity,
+      identityVersionClass === 'legacy'
+        ? 'Record uses a legacy (pre-v2) repository identity algorithm and cannot be compared to current-version records.'
+        : `Record repository identity algorithm version is ${identityVersionClass} relative to the current algorithm version.`,
+      'Record is excluded from independence, diversity, and readiness evidence.',
+      identityVersionClass === 'legacy'
+        ? 'No action required; legacy-algorithm evidence is naturally superseded as new shadow runs are recorded with the current algorithm.'
+        : 'Investigate the unexpected repository identity algorithm version before trusting this record for governance evidence.',
+    ));
+  }
   const independent = comparable
     && !duplicateState
     && metricsCompleteness === 'complete'
     && record.configurationSnapshot?.executionMode === config.requiredExecutionMode
-    && !record.repositoryState?.fallbackIdentity;
+    && !record.repositoryState?.fallbackIdentity
+    && identityVersionCurrent;
   return {
     runId: record.runId ?? '<unknown>',
     timestamp: record.timestamp,
@@ -409,6 +466,7 @@ function assessRecord(
     repositoryIdentity: record.repositoryState?.identity,
     commitSha: record.repositoryState?.commitSha,
     repositoryFingerprint,
+    identityVersionClass,
     cleanDirtyState: record.repositoryState?.dirty === true ? 'dirty' : record.repositoryState?.dirty === false ? 'clean' : 'unknown',
     configurationSignature: signature,
     metricsCompleteness,
@@ -426,18 +484,22 @@ function globalDefects(
   const defects: Phase14EvidenceDefect[] = [];
   const comparable = assessments.filter((assessment) => assessment.comparable);
   const independent = assessments.filter((assessment) => assessment.independent);
-  const uniqueCommits = new Set(comparable.map((assessment) => assessment.commitSha).filter(Boolean)).size;
-  const uniqueFingerprints = new Set(comparable.map((assessment) => assessment.repositoryFingerprint).filter(Boolean)).size;
+  // Repository diversity is scoped to current-version records: an incompatible identity
+  // algorithm must never manufacture diversity, even when its fingerprint/identity string
+  // happens to match a current-version record's.
+  const identityComparable = comparable.filter((assessment) => assessment.identityVersionClass === 'current');
+  const uniqueCommits = new Set(identityComparable.map((assessment) => assessment.commitSha).filter(Boolean)).size;
+  const uniqueFingerprints = new Set(identityComparable.map((assessment) => assessment.repositoryFingerprint).filter(Boolean)).size;
   const signatures = new Map<string, string[]>();
   for (const assessment of comparable) {
     if (!assessment.configurationSignature) continue;
     signatures.set(assessment.configurationSignature, [...(signatures.get(assessment.configurationSignature) ?? []), assessment.runId]);
   }
   if (uniqueCommits < config.minimumUniqueCommits) {
-    defects.push(defect('insufficient_repository_diversity', comparable.map((item) => item.runId), 'high', `Only ${uniqueCommits} unique commit(s) observed; ${config.minimumUniqueCommits} required.`, 'Repository diversity is insufficient for readiness.', 'Collect shadow evidence across more commits.'));
+    defects.push(defect('insufficient_repository_diversity', identityComparable.map((item) => item.runId), 'high', `Only ${uniqueCommits} unique commit(s) observed; ${config.minimumUniqueCommits} required.`, 'Repository diversity is insufficient for readiness.', 'Collect shadow evidence across more commits.'));
   }
   if (uniqueFingerprints < config.minimumUniqueRepositoryFingerprints) {
-    defects.push(defect('insufficient_repository_diversity', comparable.map((item) => item.runId), 'high', `Only ${uniqueFingerprints} unique repository fingerprint(s) observed; ${config.minimumUniqueRepositoryFingerprints} required.`, 'Repository-state diversity is insufficient for readiness.', 'Collect evidence across distinct clean or dirty repository fingerprints.'));
+    defects.push(defect('insufficient_repository_diversity', identityComparable.map((item) => item.runId), 'high', `Only ${uniqueFingerprints} unique repository fingerprint(s) observed; ${config.minimumUniqueRepositoryFingerprints} required.`, 'Repository-state diversity is insufficient for readiness.', 'Collect evidence across distinct clean or dirty repository fingerprints.'));
   }
   if (independent.length < config.minimumIndependentRuns) {
     defects.push(defect('insufficient_independent_runs', independent.map((item) => item.runId), 'high', `Only ${independent.length} independent run(s) observed; ${config.minimumIndependentRuns} required.`, 'Independent evidence threshold is not met.', 'Collect more independent shadow advisory runs.'));

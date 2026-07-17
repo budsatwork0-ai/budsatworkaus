@@ -8,6 +8,7 @@ import {
   evaluatePhase13StatisticalGovernance,
   runPhase12CronRouteShadowExecution,
   writePhase13StatisticalGovernanceArtifacts,
+  REPOSITORY_IDENTITY_ALGORITHM_VERSION,
   type Phase12ShadowExecutionRecord,
   type Phase12ShadowHistory,
 } from '@/lib/architecture-doctor/v2';
@@ -33,6 +34,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
         }),
       ]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
     });
 
@@ -51,6 +53,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
         record('run-2', 'repo-b', { timestamp: '2026-07-13T00:02:00.000Z', parityDecision: 'parity_failed' }),
       ]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { rollingWindowSize: 2, minimumComparableRuns: 3, minimumRepositoryIdentities: 2 },
     });
 
@@ -66,6 +69,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
         record('dirty', 'sha-a:dirty:fingerprint', { dirty: true, worktreeFingerprint: 'fingerprint' }),
       ]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
     });
 
@@ -95,6 +99,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
         }),
       ]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
     });
 
@@ -115,6 +120,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
         record('run-3', 'repo-c'),
       ]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 3, minimumRepositoryIdentities: 2, targetParityPercentage: 99 },
     });
 
@@ -128,6 +134,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
     const summary = evaluatePhase13StatisticalGovernance({
       history: history([record('run-1', 'repo-a')]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       governanceDecision: createDetectorMigrationGovernanceDecision({
         id: 'gov-approved',
         decision: 'approved_for_replacement',
@@ -159,6 +166,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
     const summary = evaluatePhase13StatisticalGovernance({
       history: history([oldRecord]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 1, minimumRepositoryIdentities: 1 },
     });
 
@@ -171,6 +179,7 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
     const summary = evaluatePhase13StatisticalGovernance({
       history: history([record('run-1', 'repo-a'), record('run-2', 'repo-b')]),
       generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
       config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
     });
 
@@ -199,6 +208,146 @@ describe('Architecture Doctor Phase 13 statistical parity governance', () => {
   });
 });
 
+describe('Architecture Doctor Phase 13 identity-algorithm-version comparability gate', () => {
+  it('counts distinct current-version fingerprints toward diversity', () => {
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([record('run-1', 'repo-a'), record('run-2', 'repo-b')]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
+    });
+
+    expect(summary.repositoryDiversity.uniqueRepositoryIdentities).toBe(2);
+    expect(summary.repositoryDiversity.excludedByAlgorithmVersion).toBe(0);
+  });
+
+  it('does not let legacy (pre-field) fingerprints increase diversity', () => {
+    const legacyOne = record('legacy-1', 'repo-a');
+    delete legacyOne.repositoryState.identityAlgorithmVersion;
+    const legacyTwo = record('legacy-2', 'repo-b');
+    delete legacyTwo.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([legacyOne, legacyTwo]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 1 },
+    });
+
+    expect(summary.repositoryDiversity.uniqueRepositoryIdentities).toBe(0);
+    expect(summary.repositoryDiversity.excludedByAlgorithmVersion).toBe(2);
+  });
+
+  it('does not let an unsupported-future fingerprint increase diversity', () => {
+    const future = record('future-1', 'repo-a');
+    future.repositoryState.identityAlgorithmVersion = REPOSITORY_IDENTITY_ALGORITHM_VERSION + 1;
+
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([future, record('current-1', 'repo-b')]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 1 },
+    });
+
+    expect(summary.repositoryDiversity.uniqueRepositoryIdentities).toBe(1);
+    expect(summary.repositoryDiversity.excludedByAlgorithmVersion).toBe(1);
+  });
+
+  it('does not crash on malformed identity algorithm version records', () => {
+    const malformedVersions: unknown[] = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 'two', null, {}];
+    for (const version of malformedVersions) {
+      const malformed = record('malformed-run', 'repo-a');
+      (malformed.repositoryState as unknown as { identityAlgorithmVersion: unknown }).identityAlgorithmVersion = version;
+
+      expect(() => evaluatePhase13StatisticalGovernance({
+        history: history([malformed]),
+        generatedAt: TIMEPOINT,
+        currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+        config: { minimumComparableRuns: 1, minimumRepositoryIdentities: 1 },
+      })).not.toThrow();
+    }
+  });
+
+  it('never treats identical fingerprint strings across incompatible version classes as comparable', () => {
+    const current = record('current-run', 'same-repo');
+    const legacy = record('legacy-run', 'same-repo');
+    delete legacy.repositoryState.identityAlgorithmVersion;
+
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([current, legacy]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 1 },
+    });
+
+    // Both records share the identity string "same-repo", but only the current-version one
+    // is eligible for diversity; the legacy record must not be silently merged with it, nor
+    // counted as a second, distinct identity.
+    expect(summary.repositoryDiversity.uniqueRepositoryIdentities).toBe(1);
+    expect(summary.repositoryDiversity.excludedByAlgorithmVersion).toBe(1);
+  });
+
+  it('keeps mixed-version histories fully readable in repositoryIdentityHistory', () => {
+    const current = record('current-run', 'repo-a');
+    const legacy = record('legacy-run', 'repo-b');
+    delete legacy.repositoryState.identityAlgorithmVersion;
+    const future = record('future-run', 'repo-c');
+    future.repositoryState.identityAlgorithmVersion = REPOSITORY_IDENTITY_ALGORITHM_VERSION + 1;
+    const malformed = record('malformed-run', 'repo-d');
+    (malformed.repositoryState as unknown as { identityAlgorithmVersion: unknown }).identityAlgorithmVersion = -1;
+
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([current, legacy, future, malformed]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 4, minimumRepositoryIdentities: 1 },
+    });
+
+    expect(summary.totalRuns).toBe(4);
+    expect(summary.repositoryDiversity.repositoryIdentityHistory).toHaveLength(4);
+    const classByRunId = new Map(summary.repositoryDiversity.repositoryIdentityHistory.map((item) => [item.runId, item.identityVersionClass]));
+    expect(classByRunId.get('current-run')).toBe('current');
+    expect(classByRunId.get('legacy-run')).toBe('legacy');
+    expect(classByRunId.get('future-run')).toBe('unsupported_future');
+    expect(classByRunId.get('malformed-run')).toBe('malformed');
+  });
+
+  it('cannot improve readiness because of incompatible records, and never approves replacement', () => {
+    const legacyRecords = Array.from({ length: 5 }, (_, index) => {
+      const rec = record(`legacy-${index}`, `repo-${index}`);
+      delete rec.repositoryState.identityAlgorithmVersion;
+      return rec;
+    });
+
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history(legacyRecords),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 5, minimumRepositoryIdentities: 2, targetParityPercentage: 99 },
+    });
+
+    // Five comparable, parity-verified legacy records would have satisfied every threshold
+    // under the old (ungated) diversity count; the gate must still block readiness because
+    // none of them are current-version comparable evidence.
+    expect(summary.repositoryDiversity.uniqueRepositoryIdentities).toBe(0);
+    expect(summary.governanceRecommendation.status).not.toBe('statistically_ready_for_review');
+    expect(summary.governanceRecommendation.replacementApproved).toBe(false);
+  });
+
+  it('keeps v1 authority guarantees intact alongside the comparability gate', () => {
+    const summary = evaluatePhase13StatisticalGovernance({
+      history: history([record('run-1', 'repo-a'), record('run-2', 'repo-b')]),
+      generatedAt: TIMEPOINT,
+      currentIdentityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
+      config: { minimumComparableRuns: 2, minimumRepositoryIdentities: 2 },
+    });
+
+    expect(summary.constitutionalGuarantees.v1AuthoritativeForEveryRun).toBe(true);
+    expect(summary.constitutionalGuarantees.noAutomaticPromotion).toBe(true);
+    expect(summary.governanceRecommendation.replacementApproved).toBe(false);
+  });
+});
+
 async function makeTempDir(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'phase13-stats-'));
   tempDirs.push(dir);
@@ -223,6 +372,7 @@ function record(
       dirty: overrides.dirty ?? false,
       worktreeFingerprint: overrides.worktreeFingerprint,
       identity: repositoryIdentity,
+      identityAlgorithmVersion: REPOSITORY_IDENTITY_ALGORITHM_VERSION,
     },
     timestamp,
     v1ExecutionStatus: 'succeeded',
