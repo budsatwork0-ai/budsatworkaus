@@ -19,6 +19,11 @@ import { MobileSidebarNav, SidebarNav, type NavBadgeKey, type NavGroup } from '.
 import { TopBar } from './_components/TopBar';
 import { useMessagingHubListener } from './hooks/useMessagingHub';
 import type { EntityContext } from '@/types/messaging';
+import {
+  DASHBOARD_NAV_GROUPS,
+  DEFAULT_COLLAPSED_DASHBOARD_NAV_GROUP_IDS,
+  type DashboardNavIconKey,
+} from '@/lib/dashboard/navigation';
 
 const MessagingHub = dynamic(() => import('./_components/MessagingHub').then((m) => ({ default: m.MessagingHub })), { ssr: false });
 
@@ -55,6 +60,36 @@ const ndisMatchIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none
 const messagesIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
 const sandboxIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-5 9 5-9 5-9-5z" /><path d="M3 15l9 5 9-5" /><path d="M3 12l9 5 9-5" /></svg>;
 const fundraisingIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>;
+
+const NAV_ICONS: Record<DashboardNavIconKey, React.ReactNode> = {
+  dashboard: dashboardIcon,
+  schedule: scheduleIcon,
+  quotes: quotesIcon,
+  money: moneyIcon,
+  customers: customersIcon,
+  crew: crewIcon,
+  growthHq: growthHqIcon,
+  contentStudio: contentStudioIcon,
+  settings: settingsIcon,
+  ndis: ndisIcon,
+  mission: missionIcon,
+  executive: executiveIcon,
+  alerts: alertsIcon,
+  leads: leadsIcon,
+  reports: reportsIcon,
+  insights: insightsIcon,
+  quoteFunnel: quoteFunnelIcon,
+  jobs: jobsIcon,
+  subscriptions: subscriptionsIcon,
+  applicants: applicantsIcon,
+  feedback: feedbackIcon,
+  automations: automationsIcon,
+  audit: auditIcon,
+  design: designIcon,
+  messages: messagesIcon,
+  sandbox: sandboxIcon,
+  fundraising: fundraisingIcon,
+};
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Mission Control',
@@ -153,11 +188,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     applicants: 0,
   });
 
-  // Default-collapse groups that are not on the revenue path for the current sprint.
-  // Admin can expand any group by clicking it. Revenue-critical groups (work, money,
-  // people, overview, settings) stay open.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    () => new Set(['content', 'growth', 'ndis', 'advanced'])
+    () => new Set(DEFAULT_COLLAPSED_DASHBOARD_NAV_GROUP_IDS)
   );
   const toggleGroup = useCallback((id: string) => {
     setCollapsedGroups((prev) => {
@@ -169,59 +201,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const navGroups: NavGroup[] = useMemo(() => [
-    { id: 'mission-control', label: 'Mission Control', items: [
-      { href: '/dashboard',          label: 'Mission Control', icon: dashboardIcon, badgeKey: 'dashboard' },
-      { href: '/dashboard/alerts',   label: 'Alerts',          icon: alertsIcon },
-      { href: '/dashboard/messages', label: 'Messages',        icon: messagesIcon },
-    ] },
-    { id: 'operations', label: 'Operations', items: [
-      { href: '/dashboard/schedule',  label: 'Schedule',    icon: scheduleIcon,  badgeKey: 'schedule' },
-      { href: '/dashboard/orders',    label: 'Jobs & Orders', icon: jobsIcon },
-      { href: '/dashboard/quotes',    label: 'Quotes',      icon: quotesIcon,    badgeKey: 'quotes' },
-      { href: '/dashboard/pipelines', label: 'Pipelines',   icon: pipelinesIcon },
-      { href: '/dashboard/customers', label: 'Customers',   icon: customersIcon },
-      { href: '/dashboard/crew',      label: 'Crew',        icon: crewIcon },
-    ] },
-    { id: 'growth', label: 'Growth', adminOnly: true, items: [
-      { href: '/dashboard/leads',       label: 'Leads',       icon: leadsIcon },
-      { href: '/dashboard/growth-hq',   label: 'Campaigns',   icon: growthHqIcon },
-      { href: '/dashboard/fundraising', label: 'Fundraising', icon: fundraisingIcon },
-    ] },
-    { id: 'content', label: 'Content', adminOnly: true, items: [
-      { href: '/dashboard/content/story-intelligence', label: 'Ideas',   icon: storyEngineIcon },
-      { href: '/dashboard/content',                    label: 'Create',  icon: contentStudioIcon },
-      { href: '/dashboard/content/library',            label: 'Library', icon: contentVaultIcon },
-      { href: '/dashboard/content/learn',               label: 'Learn',   icon: feedbackIcon },
-    ] },
-    { id: 'finance', label: 'Finance', adminOnly: true, items: [
-      { href: '/dashboard/invoices',      label: 'Invoices',      icon: moneyIcon,        badgeKey: 'invoices' },
-      { href: '/dashboard/payments',      label: 'Payments',      icon: paymentsIcon },
-      { href: '/dashboard/expenses',      label: 'Expenses',      icon: expensesIcon },
-      { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: subscriptionsIcon },
-    ] },
-    { id: 'ndis', label: 'NDIS', adminOnly: true, items: [
-      { href: '/dashboard/ndis',       label: 'Organisations', icon: ndisIcon },
-      { href: '/dashboard/ndis/match', label: 'Plan Matching', icon: ndisMatchIcon },
-      { href: '/dashboard/applicants', label: 'Applicants',    icon: applicantsIcon, badgeKey: 'applicants' },
-      { href: '/dashboard/onboarding', label: 'Onboarding',    icon: crewIcon },
-      { href: '/dashboard/inductions', label: 'Inductions',    icon: auditIcon },
-    ] },
-    { id: 'settings', label: 'Settings', adminOnly: true, items: [
-      { href: '/dashboard/settings',    label: 'Workspace',     icon: settingsIcon },
-      { href: '/dashboard/automations', label: 'Automations',   icon: automationsIcon },
-      { href: '/dashboard/audit-log',   label: 'Audit Log',     icon: auditIcon },
-      { href: '/dashboard/design',      label: 'Design System', icon: designIcon },
-    ] },
-    { id: 'advanced', label: 'Advanced', adminOnly: true, items: [
-      { href: '/dashboard/mission-control',       label: 'Bud OS',       icon: missionIcon },
-      { href: '/dashboard/sandbox',               label: 'Sandbox',      icon: sandboxIcon },
-      { href: '/dashboard/agents',                label: 'Agents',       icon: automationsIcon },
-      { href: '/dashboard/executive',             label: 'Executive HQ', icon: executiveIcon },
-      { href: '/dashboard/insights',              label: 'Analytics',    icon: insightsIcon },
-      { href: '/dashboard/reports',               label: 'Reports',      icon: reportsIcon },
-      { href: '/dashboard/analytics/quote-funnel',label: 'Quote Funnel', icon: quoteFunnelIcon },
-      { href: '/dashboard/feedback',              label: 'Feedback',     icon: feedbackIcon },
-    ] },
+    ...DASHBOARD_NAV_GROUPS.map((group) => ({
+      id: group.id,
+      label: group.label,
+      adminOnly: group.adminOnly,
+      items: group.items.map((item) => ({
+        href: item.href,
+        label: item.label,
+        icon: NAV_ICONS[item.iconKey],
+        badgeKey: item.badgeKey,
+      })),
+    })),
   ], []);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

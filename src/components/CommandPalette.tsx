@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dashboardTheme } from '@/lib/design-system/themes';
+import { DASHBOARD_COMMANDS } from '@/lib/dashboard/navigation';
 
 interface CommandItem {
   id: string;
@@ -57,17 +58,15 @@ export default function CommandPalette({
   );
 
   const commands: CommandItem[] = [
-    { id: 'dashboard', label: 'Go to Dashboard', description: 'Financial overview', keywords: ['home', 'main'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard') },
-    { id: 'orders', label: 'Go to Orders', description: 'Manage orders', keywords: ['jobs', 'work'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/orders') },
-    { id: 'subscriptions', label: 'Go to Subscriptions', description: 'Recurring services', keywords: ['recurring'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/subscriptions') },
-    { id: 'quotes', label: 'Go to Quotes', description: 'Review submissions', keywords: ['pricing'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/quotes') },
-    { id: 'customers', label: 'Go to Customers', description: 'Customer list', keywords: ['clients'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/customers') },
-    { id: 'crew', label: 'Go to Crew', description: 'Crew management', keywords: ['employees', 'team'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/crew') },
-    { id: 'applicants', label: 'Go to Applicants', description: 'Applicant pipeline', keywords: ['hiring'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/applicants') },
-    { id: 'schedule', label: 'Go to Schedule', description: 'Weekly dispatch', keywords: ['calendar'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/schedule') },
-    { id: 'settings', label: 'Go to Settings', description: 'System settings', keywords: ['config'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/settings') },
-    { id: 'audit-log', label: 'Go to Audit Log', description: 'System changes log', keywords: ['history'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/audit-log') },
-    { id: 'reports', label: 'Go to Reports', description: 'Analytics', keywords: ['metrics'], category: 'Navigation', icon: navIcon, action: () => router.push('/dashboard/reports') },
+    ...DASHBOARD_COMMANDS.map((command) => ({
+      id: command.id,
+      label: command.label,
+      description: command.description,
+      keywords: command.keywords,
+      category: command.category,
+      icon: navIcon,
+      action: () => router.push(command.href),
+    })),
     { id: 'create-order', label: 'Create New Order', description: 'Add a one-time service', keywords: ['new', 'add', 'job'], category: 'Actions', icon: addIcon, action: () => onCreateOrder?.() },
     { id: 'create-subscription', label: 'Create New Subscription', description: 'Add a recurring service', keywords: ['new', 'add'], category: 'Actions', icon: addIcon, action: () => onCreateSubscription?.() },
   ];
