@@ -23,6 +23,8 @@ import { getAuthUser } from '@/lib/auth';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReminderEmail } from '@/lib/email/templates';
 import { QuoteStatus } from '@/lib/types/status';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -70,15 +72,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   // Load the quote
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quote, error: qErr } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: quote, error: qErr } = await repository.getById(id);
 
   if (qErr || !quote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+  }
+
+  // A sandbox quote may only be reminded by an admin specifically — an
+  // employee otherwise allowed to send reminders for production quotes may
+  // not touch a sandbox one.
+  if (!isAuthorizedForQuoteWorkspace(quoteWorkspace(quote), authUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Guard: only remind if the quote is in a payable state
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const customerEmail: string | undefined = quote.customer_email;
+  const customerEmail: string | null | undefined = quote.customer_email;
   const customerName: string = quote.customer_name || 'there';
   const serviceLabel = SERVICE_LABELS[quote.service_type] ?? quote.service_type;
   const total = Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0);
@@ -135,12 +140,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Attempt to stamp last_reminder_sent_at — non-blocking, column may not exist yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (client as any)
-      .from('quotes')
-      .update({ last_reminder_sent_at: new Date().toISOString() })
-      .eq('id', id)
-      .then(() => {/* ignore result */})
+    repository
+      .update(id, { last_reminder_sent_at: new Date().toISOString() })
       .catch(() => {/* column may not exist */});
 
     return NextResponse.json({ success: true, sent_to: customerEmail });
