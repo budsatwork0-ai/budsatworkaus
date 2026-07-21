@@ -4,8 +4,28 @@ import type { UpdateOrderInput } from '@/types/orders';
 import type { OrderUpdate } from '@/types/database';
 import { getAuthUser } from '@/lib/auth';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
+import { createOrderRepository } from '@/lib/orders/repository';
+import { orderWorkspace } from '@/lib/orders/workspace';
+import { LIVE_WORKSPACE, withWorkspaceContext } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+/**
+ * Sandbox orders are admin-only regardless of role or ownership — the
+ * id-first counterpart to the admin-only sandbox gate applied to list/
+ * create requests (there's no query param to resolve here; the workspace is
+ * a property of the fetched order itself). Production orders keep their
+ * existing employee/customer permissions unchanged.
+ */
+function canAccessOrder(
+  authUser: { id: string; role: string } | null,
+  order: { customer_id: string | null; environment?: unknown }
+) {
+  if (!authUser) return false;
+  if (orderWorkspace(order) !== LIVE_WORKSPACE && authUser.role !== 'admin') return false;
+  if (authUser.role === 'admin' || authUser.role === 'employee') return true;
+  return authUser.role === 'customer' && order.customer_id === authUser.id;
+}
 
 // GET /api/orders/[id] - Get a single order
 export async function GET(_req: NextRequest, { params }: RouteParams) {
@@ -20,22 +40,18 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any).from('orders').select('*').eq('id', id).single();
+  const repository = createOrderRepository({ client });
+  const { data: order, error } = await repository.getById(id);
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-    console.error('[api/orders/[id]] DB error:', error.message);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+  if (error || !order) {
+    return NextResponse.json({ error: 'Order not found' }, { status: 404 });
   }
 
-  if (authUser.role === 'customer' && data.customer_id !== authUser.id) {
+  if (!canAccessOrder(authUser, order)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(order);
 }
 
 // PATCH /api/orders/[id] - Update an order
@@ -58,15 +74,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existingOrder } = await (client as any)
-    .from('orders')
-    .select('id, customer_id, quote_id, analytics_session_id, service_type, context, scope, status, scheduled_date, scheduled_time')
-    .eq('id', id)
-    .maybeSingle();
+  const repository = createOrderRepository({ client });
+  const { data: existingOrder, error: existingError } = await repository.getById(id);
 
-  if (!existingOrder) {
+  if (existingError || !existingOrder) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+  }
+
+  // Sandbox orders may only be updated by an admin — an employee otherwise
+  // allowed to PATCH production orders may not touch a sandbox one.
+  const workspace = orderWorkspace(existingOrder);
+  if (workspace !== LIVE_WORKSPACE && authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const isCustomer = authUser.role === 'customer';
@@ -109,19 +128,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
-    .from('orders')
-    .update(updateData)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await withWorkspaceContext(workspace, () => repository.update(id, updateData));
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-    console.error('[api/orders/[id]] DB error:', error.message);
+  if (error || !data) {
+    console.error('[api/orders/[id]] DB error:', error);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 
@@ -143,12 +153,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
               : 'order_status_changed';
 
     void recordAnalyticsEvent({
-      sessionId: existingOrder.analytics_session_id ?? null,
+      sessionId: (existingOrder.analytics_session_id as string | null) ?? null,
       eventName,
       source: 'server',
-      quoteId: existingOrder.quote_id ?? null,
+      quoteId: (existingOrder.quote_id as string | null) ?? null,
       orderId: existingOrder.id,
-      eventValue: data.final_price ?? null,
+      eventValue: (data as { final_price?: number | null }).final_price ?? null,
       eventData: {
         service: existingOrder.service_type,
         context: existingOrder.context,
@@ -159,12 +169,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     });
   } else if (scheduleBecameSet) {
     void recordAnalyticsEvent({
-      sessionId: existingOrder.analytics_session_id ?? null,
+      sessionId: (existingOrder.analytics_session_id as string | null) ?? null,
       eventName: 'order_scheduled',
       source: 'server',
-      quoteId: existingOrder.quote_id ?? null,
+      quoteId: (existingOrder.quote_id as string | null) ?? null,
       orderId: existingOrder.id,
-      eventValue: data.final_price ?? null,
+      eventValue: (data as { final_price?: number | null }).final_price ?? null,
       eventData: {
         service: existingOrder.service_type,
         context: existingOrder.context,
@@ -191,15 +201,17 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existingOrder } = await (client as any)
-    .from('orders')
-    .select('id, customer_id')
-    .eq('id', id)
-    .maybeSingle();
+  const repository = createOrderRepository({ client });
+  const { data: existingOrder, error: existingError } = await repository.getById(id);
 
-  if (!existingOrder) {
+  if (existingError || !existingOrder) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+  }
+
+  // Sandbox orders may only be cancelled by an admin — mirrors the PATCH gate.
+  const workspace = orderWorkspace(existingOrder);
+  if (workspace !== LIVE_WORKSPACE && authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   if (authUser.role === 'customer' && existingOrder.customer_id !== authUser.id) {
@@ -207,19 +219,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   }
 
   // Soft delete by setting status to cancelled
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
-    .from('orders')
-    .update({ status: 'cancelled' })
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await withWorkspaceContext(workspace, () =>
+    repository.update(id, { status: 'cancelled' })
+  );
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-    console.error('[api/orders/[id]] DB error:', error.message);
+  if (error || !data) {
+    console.error('[api/orders/[id]] DB error:', error);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 
