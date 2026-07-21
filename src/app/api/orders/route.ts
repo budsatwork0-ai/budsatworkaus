@@ -4,6 +4,9 @@ import type { CreateOrderInput, OrderStatus, ServiceType } from '@/types/orders'
 import { getAuthUser } from '@/lib/auth';
 import { createRateLimiter, getClientIp } from '@/lib/rate-limit';
 import { recordAnalyticsEvent } from '@/lib/analytics/server';
+import { createOrderRepository } from '@/lib/orders/repository';
+import { orderWorkspace, resolveOrderWorkspace } from '@/lib/orders/workspace';
+import { assertWorkspaceCompatibility, withWorkspaceContext } from '@/lib/workspace/server';
 
 // 30 order creations per IP per 15 minutes (admin/employee only).
 const checkOrderPostLimit = createRateLimiter({ limit: 30, windowMs: 15 * 60 * 1000 });
@@ -29,46 +32,30 @@ export async function GET(req: NextRequest) {
   const unscheduled = searchParams.get('unscheduled') === 'true';
   const limit = parseInt(searchParams.get('limit') || '100', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const workspace = resolveOrderWorkspace(searchParams, authUser.role);
 
-  let query = client
-    .from('orders')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createOrderRepository({ client });
 
-  // Apply filters
-  if (unscheduled) {
-    query = query.is('scheduled_date', null).not('status', 'in', '("cancelled","completed")');
-  } else {
-    if (status && status !== 'all') {
-      query = query.eq('status', status);
+    const { data, count, error } = await repository.list({
+      status,
+      serviceType,
+      search,
+      dateFrom,
+      dateTo,
+      unscheduled,
+      customerId: authUser.role === 'customer' ? authUser.id : undefined,
+      limit,
+      offset,
+    });
+
+    if (error) {
+      console.error('[api/orders] GET list failed:', error);
+      return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
     }
-    if (dateFrom) {
-      query = query.gte('scheduled_date', dateFrom);
-    }
-    if (dateTo) {
-      query = query.lte('scheduled_date', dateTo);
-    }
-  }
-  if (serviceType && serviceType !== 'all') {
-    query = query.eq('service_type', serviceType);
-  }
-  if (search) {
-    query = query.or(`customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
-  }
 
-  if (authUser.role === 'customer') {
-    query = query.eq('customer_id', authUser.id);
-  }
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    console.error('[api/orders] GET list failed:', error.message);
-    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
-  }
-
-  return NextResponse.json({ orders: data, total: count });
+    return NextResponse.json({ orders: data, total: count });
+  });
 }
 
 // POST /api/orders - Create a new order
@@ -109,48 +96,110 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const orderData = {
-    quote_id: body.quote_id || null,
-    customer_id: body.customer_id || null,
-    customer_name: body.customer_name,
-    customer_email: body.customer_email || null,
-    customer_phone: body.customer_phone || null,
-    service_type: body.service_type,
-    context: body.context,
-    scope: body.scope || null,
-    frequency: body.frequency || 'none',
-    analytics_session_id: body.analytics_session_id || null,
-    base_price: body.base_price,
-    discount_percent: body.discount_percent || 0,
-    final_price: body.final_price,
-    scheduled_date: body.scheduled_date || null,
-    scheduled_time: body.scheduled_time || null,
-    status: body.status || 'pending',
-    notes: body.notes || null,
-  };
+  const { searchParams } = new URL(req.url);
+  const workspace = resolveOrderWorkspace(searchParams, authUser.role);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any).from('orders').insert([orderData]).select().single();
+  return withWorkspaceContext(workspace, async () => {
+    // Validate related quote/customer compatibility where the request
+    // supplies them — reject incompatible relationships rather than
+    // silently reassigning the order's workspace to match. No name/email/
+    // timestamp/UUID-pattern inference: this reads the actual `environment`
+    // column off each referenced row.
+    if (body.quote_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: relatedQuote } = await (client as any)
+        .from('quotes')
+        .select('id, environment')
+        .eq('id', body.quote_id)
+        .maybeSingle();
 
-  if (error) {
-    console.error('[api/orders] POST failed:', error.message);
-    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
-  }
+      if (!relatedQuote) {
+        return NextResponse.json({ error: 'quote_id does not reference an existing quote' }, { status: 400 });
+      }
+      try {
+        assertWorkspaceCompatibility(workspace, orderWorkspace(relatedQuote));
+      } catch {
+        return NextResponse.json(
+          { error: 'quote_id belongs to a different workspace than the order being created' },
+          { status: 409 }
+        );
+      }
+    }
 
-  void recordAnalyticsEvent({
-    sessionId: body.analytics_session_id ?? null,
-    eventName: 'order_created',
-    source: 'server',
-    quoteId: body.quote_id || null,
-    orderId: data.id,
-    eventValue: body.final_price,
-    eventData: {
-      service: body.service_type,
+    if (body.customer_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: relatedCustomer } = await (client as any)
+        .from('customers')
+        .select('id, environment')
+        .eq('id', body.customer_id)
+        .maybeSingle();
+
+      if (!relatedCustomer) {
+        return NextResponse.json({ error: 'customer_id does not reference an existing customer' }, { status: 400 });
+      }
+      try {
+        assertWorkspaceCompatibility(workspace, orderWorkspace(relatedCustomer));
+      } catch {
+        return NextResponse.json(
+          { error: 'customer_id belongs to a different workspace than the order being created' },
+          { status: 409 }
+        );
+      }
+    }
+
+    const repository = createOrderRepository({ client });
+    const { data, error } = await repository.create({
+      quote_id: body.quote_id || null,
+      customer_id: body.customer_id || null,
+      customer_name: body.customer_name,
+      customer_email: body.customer_email || null,
+      customer_phone: body.customer_phone || null,
+      service_type: body.service_type,
       context: body.context,
       scope: body.scope || null,
-      created_by_role: authUser.role,
-    },
-  });
+      frequency: body.frequency || 'none',
+      analytics_session_id: body.analytics_session_id || null,
+      base_price: body.base_price,
+      discount_percent: body.discount_percent || 0,
+      final_price: body.final_price,
+      scheduled_date: body.scheduled_date || null,
+      scheduled_time: body.scheduled_time || null,
+      status: body.status || 'pending',
+      notes: body.notes || null,
+    });
 
-  return NextResponse.json(data, { status: 201 });
+    if (error || !data) {
+      console.error('[api/orders] POST failed:', error);
+      return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    }
+
+    // Defensive verification: `repository.create` already stamps the
+    // payload with the active workspace, so this should never actually
+    // disagree — if it ever does, that's a data integrity problem worth
+    // failing loudly on rather than returning an order silently sitting in
+    // the wrong workspace.
+    try {
+      assertWorkspaceCompatibility(workspace, orderWorkspace(data));
+    } catch (compatErr) {
+      console.error('[api/orders] Inserted order workspace mismatch:', compatErr);
+      return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    }
+
+    void recordAnalyticsEvent({
+      sessionId: body.analytics_session_id ?? null,
+      eventName: 'order_created',
+      source: 'server',
+      quoteId: body.quote_id || null,
+      orderId: data.id,
+      eventValue: body.final_price,
+      eventData: {
+        service: body.service_type,
+        context: body.context,
+        scope: body.scope || null,
+        created_by_role: authUser.role,
+      },
+    });
+
+    return NextResponse.json(data, { status: 201 });
+  });
 }
