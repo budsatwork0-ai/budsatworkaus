@@ -1,8 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
+import { createCustomerRepository } from '@/lib/customers/repository';
+import { resolveCustomerWorkspace } from '@/lib/customers/workspace';
+import { withWorkspaceContext } from '@/lib/workspace/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const authUser = await getAuthUser();
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -14,39 +17,13 @@ export async function GET() {
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = client as any;
+  const { searchParams } = new URL(request.url);
+  const workspace = resolveCustomerWorkspace(searchParams, authUser.role);
 
-  const { count: totalCustomers } = await db
-    .from('customers')
-    .select('*', { count: 'exact', head: true });
-
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const { data: monthlyOrders } = await db
-    .from('orders')
-    .select('customer_id')
-    .gte('created_at', startOfMonth.toISOString())
-    .not('customer_id', 'is', null);
-
-  const uniqueCustomers = new Set(monthlyOrders?.map((o: { customer_id: string }) => o.customer_id) || []);
-
-  const { data: completedOrders } = await db
-    .from('orders')
-    .select('final_price')
-    .eq('status', 'completed');
-
-  const totalRevenue = completedOrders?.reduce((sum: number, o: { final_price: number }) => sum + o.final_price, 0) || 0;
-  const avgOrderValue = completedOrders && completedOrders.length > 0
-    ? totalRevenue / completedOrders.length
-    : 0;
-
-  return NextResponse.json({
-    totalCustomers: totalCustomers || 0,
-    activeThisMonth: uniqueCustomers.size,
-    avgOrderValue: Math.round(avgOrderValue * 100) / 100,
-    totalRevenue: Math.round(totalRevenue * 100) / 100,
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createCustomerRepository({ client });
+    const { data, error } = await repository.getStats();
+    if (error) return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json(data);
   });
 }
