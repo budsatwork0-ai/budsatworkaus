@@ -14,6 +14,9 @@ import {
 } from '@/lib/payments/pricing';
 import type Stripe from 'stripe';
 import { QuoteStatus, OrderStatus } from '@/lib/types/status';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
+import { assertWorkspaceCompatibility, LIVE_WORKSPACE, scopeQuery } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -59,23 +62,28 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quote, error: quoteError } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: quote, error: quoteError } = await repository.getById(id);
 
   if (quoteError || !quote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
   }
 
+  const workspace = quoteWorkspace(quote);
+
   // Access control:
-  // - Authenticated admin/employee: full access
-  // - Authenticated customer: must own the quote (by id or email match)
+  // - Authenticated admin/employee: full access (sandbox requires admin specifically)
+  // - Authenticated customer: must own the quote (by id or email match), and the quote must be production
   // - Unauthenticated guest: only allowed if the quote has already been admin-approved
-  //   (status finalized/payment_pending). The quote UUID is the bearer token.
+  //   (status finalized/payment_pending), AND the quote is production. A guest
+  //   (bearer-token-by-UUID) checkout must never be able to reach a sandbox
+  //   quote — there's no real customer behind it, and no authorization step
+  //   at all in that path.
   if (authUser) {
+    if (!isAuthorizedForQuoteWorkspace(workspace, authUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const canAccess =
       authUser.role === 'admin' ||
       authUser.role === 'employee' ||
@@ -89,6 +97,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } else {
+    if (workspace !== LIVE_WORKSPACE) {
+      return NextResponse.json({ error: 'Quote is not yet approved for payment' }, { status: 403 });
+    }
     // Guest path: only permit for admin-approved quotes
     const approvedStatuses = [QuoteStatus.finalized, QuoteStatus.paymentPending, 'approved'];
     if (!approvedStatuses.includes(quote.status)) {
@@ -110,7 +121,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 
-  if (![QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quoteStatus)) {
+  if (!([QuoteStatus.finalized, QuoteStatus.paymentPending] as string[]).includes(quoteStatus)) {
     return NextResponse.json(
       { error: 'Quote must be finalized before requesting payment' },
       { status: 400 }
@@ -165,27 +176,34 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   let orderId = quote.converted_order_id as string | null;
 
-  if (orderId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: orderUpdateError } = await (client as any)
-      .from('orders')
-      .update(orderPayload)
-      .eq('id', orderId);
-    if (orderUpdateError) {
-      return NextResponse.json({ error: orderUpdateError.message }, { status: 500 });
-    }
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: order, error: orderError } = await (client as any)
-      .from('orders')
-      .insert([orderPayload])
-      .select('id')
-      .single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orderResult = orderId
+    ? await (client as any).from('orders').update(orderPayload).eq('id', orderId).select('id, environment').single()
+    : await (client as any).from('orders').insert([orderPayload]).select('id, environment').single();
 
-    if (orderError || !order) {
-      return NextResponse.json({ error: orderError?.message || 'Failed to create order' }, { status: 500 });
-    }
-    orderId = order.id;
+  if (orderResult.error || !orderResult.data) {
+    return NextResponse.json(
+      { error: orderResult.error?.message || 'Failed to save order' },
+      { status: 500 }
+    );
+  }
+  orderId = orderResult.data.id;
+
+  // The DB propagation trigger (propagate_order_environment, migration 130)
+  // already guarantees a converted order inherits its quote's workspace for
+  // this exact code path — orderPayload never sets `environment` itself, so
+  // the trigger's default-then-escalate-to-sandbox logic is what determines
+  // it. This is a verified guarantee, not an assumption: if it ever
+  // disagrees, that's a data integrity problem worth failing loudly on
+  // rather than completing a cross-workspace checkout.
+  try {
+    assertWorkspaceCompatibility(workspace, quoteWorkspace(orderResult.data));
+  } catch (compatErr) {
+    console.error('[checkout] Order workspace mismatch:', compatErr);
+    return NextResponse.json(
+      { error: 'Order belongs to a different workspace than this quote' },
+      { status: 409 }
+    );
   }
 
   let stripe;
@@ -212,12 +230,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   let stripeCustomerId: string | undefined;
   if (quote.customer_email) {
     try {
+      // Scoped to the quote's own workspace: a production quote must never
+      // pick up a Stripe customer ID belonging to a same-email sandbox
+      // customer row, or vice versa.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: customerRow } = await (client as any)
+      const customerQuery = (client as any)
         .from('customers')
         .select('id, stripe_customer_id')
-        .eq('email', quote.customer_email)
-        .maybeSingle();
+        .eq('email', quote.customer_email);
+      const { data: customerRow } = await scopeQuery(customerQuery, workspace).maybeSingle();
 
       if (customerRow?.stripe_customer_id) {
         stripeCustomerId = customerRow.stripe_customer_id;

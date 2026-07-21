@@ -10,6 +10,9 @@ import {
 } from '@/lib/rate-limit';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReceivedEmail, ndisForwardQuoteEmail, adminNewQuoteEmail } from '@/lib/email/templates';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { quoteWorkspace, resolveQuoteWorkspace } from '@/lib/quotes/workspace';
+import { assertWorkspaceCompatibility, withWorkspaceContext } from '@/lib/workspace/server';
 
 const ADMIN_EMAIL = 'admin@budsatwork.com';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://budsatwork.com';
@@ -46,65 +49,49 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
   const limit = parseInt(searchParams.get('limit') || '50');
+  const workspace = resolveQuoteWorkspace(searchParams, authUser.role);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (client as any)
-    .from('quotes')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createQuoteRepository({ client });
 
-  if (status && status !== 'all') {
-    const statuses = status
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (statuses.length > 1) {
-      query = query.in('status', statuses);
-    } else if (statuses.length === 1) {
-      query = query.eq('status', statuses[0]);
+    if (authUser.role === 'customer') {
+      // Best-effort: permanently link orphaned quotes via Postgres function.
+      if (authUser.email) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (client as any).rpc('claim_anonymous_quotes', {
+          p_user_id: authUser.id,
+          p_email: authUser.email,
+        });
+      }
     }
-  }
 
-  if (authUser.role === 'customer') {
-    // Best-effort: permanently link orphaned quotes via Postgres function.
-    if (authUser.email) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (client as any).rpc('claim_anonymous_quotes', {
-        p_user_id: authUser.id,
-        p_email: authUser.email,
-      });
+    const { data, error } = await repository.list({
+      status,
+      limit,
+      customerId: authUser.role === 'customer' ? authUser.id : undefined,
+    });
+
+    if (error) {
+      console.error('[api/quotes] GET list failed:', error);
+      return NextResponse.json({ error: 'Failed to fetch quotes' }, { status: 500 });
     }
-    query = query.eq('customer_id', authUser.id);
-  }
 
-  const { data, error } = await query;
-  if (error) {
-    console.error('[api/quotes] GET list failed:', error.message);
-    return NextResponse.json({ error: 'Failed to fetch quotes' }, { status: 500 });
-  }
+    let quotes = data;
 
-  let quotes = data || [];
-
-  // Fallback: also include any still-orphaned quotes matching by email.
-  // This ensures quotes are visible immediately even if the RPC link hasn't
-  // run yet or the DB function is not yet applied.
-  if (authUser.role === 'customer' && authUser.email) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: orphaned } = await (client as any)
-      .from('quotes')
-      .select('*')
-      .ilike('customer_email', authUser.email)
-      .is('customer_id', null)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (orphaned && orphaned.length > 0) {
-      const seen = new Set(quotes.map((q: { id: string }) => q.id));
-      quotes = [...quotes, ...orphaned.filter((q: { id: string }) => !seen.has(q.id))];
+    // Fallback: also include any still-orphaned quotes matching by email,
+    // scoped to this same workspace. This ensures quotes are visible
+    // immediately even if the RPC link hasn't run yet or the DB function is
+    // not yet applied.
+    if (authUser.role === 'customer' && authUser.email) {
+      const { data: orphaned } = await repository.listOrphanedByEmail(authUser.email, limit);
+      if (orphaned.length > 0) {
+        const seen = new Set(quotes.map((q) => q.id));
+        quotes = [...quotes, ...orphaned.filter((q) => !seen.has(q.id))];
+      }
     }
-  }
 
-  return NextResponse.json({ quotes });
+    return NextResponse.json({ quotes });
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -250,18 +237,24 @@ export async function POST(request: NextRequest) {
         : referrerHeader,
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
-    .from('quotes')
-    .insert({
+  // Public/customer submissions default to production; sandbox creation
+  // requires both an explicit `?workspace=sandbox` request AND admin auth
+  // (resolveQuoteWorkspace treats a null authUser, i.e. an anonymous public
+  // submission, the same as any non-admin — sandbox is never granted).
+  const { searchParams } = new URL(request.url);
+  const workspace = resolveQuoteWorkspace(searchParams, authUser?.role ?? null);
+
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createQuoteRepository({ client });
+    const { data, error } = await repository.create({
       customer_id: authUser?.role === 'customer' ? authUser.id : null,
-      customer_name: body.customer_name,
-      customer_email: body.customer_email,
-      customer_phone: body.customer_phone,
-      service_type: body.service_type,
-      context: body.context || 'home',
-      scope: body.scope,
-      frequency: body.frequency || 'none',
+      customer_name: body.customer_name as string,
+      customer_email: body.customer_email as string | null | undefined,
+      customer_phone: body.customer_phone as string | null | undefined,
+      service_type: body.service_type as string,
+      context: (body.context as string) || 'home',
+      scope: body.scope as string | null | undefined,
+      frequency: (body.frequency as string) || 'none',
       analytics_session_id: analyticsSessionId,
       total: submittedTotal,
       submitted_total: submittedTotal,
@@ -277,123 +270,140 @@ export async function POST(request: NextRequest) {
       ndis_forward_email: ndisForwardEmail,
       ndis_estimated_hours: ndisEstimatedHoursNum,
       ndis_hourly_rate: ndisHourlyRateNum,
-    })
-    .select()
-    .single();
+    });
 
-  if (error) {
-    console.error('[api/quotes] POST failed:', error.message);
-    return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
-  }
+    if (error || !data) {
+      console.error('[api/quotes] POST failed:', error);
+      return NextResponse.json({ error: 'Failed to submit quote' }, { status: 500 });
+    }
 
-  // Link lead → quote. Best-effort: a failure here must not fail the quote response.
-  if (validLeadId && data?.id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    void (client as any)
-      .from('leads')
-      .update({ quote_id: data.id, response_status: 'quoted' })
-      .eq('id', validLeadId)
-      .then(({ error: linkErr }: { error: { message: string } | null }) => {
+    // Link lead → quote. Best-effort: a failure here must not fail the quote
+    // response. Also skipped (not silently forced) if the lead belongs to a
+    // different workspace than the quote just created — a sandbox lead must
+    // never end up linked to a production quote, or vice versa.
+    if (validLeadId) {
+      void (async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: lead } = await (client as any)
+          .from('leads')
+          .select('id, environment')
+          .eq('id', validLeadId)
+          .maybeSingle();
+        if (!lead) return;
+
+        try {
+          assertWorkspaceCompatibility(quoteWorkspace(lead), quoteWorkspace(data));
+        } catch (compatErr) {
+          console.warn('[api/quotes] Skipped lead link — workspace mismatch:', compatErr);
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: linkErr } = await (client as any)
+          .from('leads')
+          .update({ quote_id: data.id, response_status: 'quoted' })
+          .eq('id', validLeadId);
         if (linkErr) console.error('[api/quotes] lead link failed:', linkErr.message);
-      });
-  }
-
-  void recordAnalyticsEvent({
-    sessionId: analyticsSessionId,
-    eventName: 'quote_created',
-    page: '/services',
-    source: 'server',
-    quoteId: data.id,
-    eventValue: submittedTotal,
-    eventData: {
-      service: String(body.service_type),
-      context: String(body.context),
-      scope: typeof body.scope === 'string' ? body.scope : null,
-      frequency: typeof body.frequency === 'string' ? body.frequency : 'none',
-      has_address: Boolean(typeof body.service_address === 'string' && body.service_address.trim()),
-      customer_type: authUser?.role ?? 'anonymous',
-      source: leadSource,
-      utm_source: typeof body.utm_source === 'string' ? body.utm_source : null,
-      utm_medium: typeof body.utm_medium === 'string' ? body.utm_medium : null,
-    },
-  });
-
-  // Send "quote received" confirmation email — fire and forget
-  const customerEmail = body.customer_email as string | undefined;
-  if (customerEmail && data) {
-    const resend = getResendClient();
-    if (resend) {
-      const { subject, html } = quoteReceivedEmail({
-        customerName: body.customer_name as string,
-        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
-        total: submittedTotal,
-        quoteId: data.id,
-      });
-      resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
-        console.error('[email] quote_received send failed:', err);
-      });
+      })();
     }
-  }
 
-  // Notify admin a new quote landed — fire and forget
-  if (data) {
-    const resend = getResendClient();
-    if (resend) {
-      const { subject, html } = adminNewQuoteEmail({
-        customerName: body.customer_name as string,
-        customerEmail: body.customer_email as string | null ?? null,
-        customerPhone: body.customer_phone as string | null ?? null,
-        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
-        total: submittedTotal,
-        quoteId: data.id,
-        serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
-        dashboardUrl: `${SITE_URL}/dashboard/quotes`,
-      });
-      resend.emails.send({ from: FROM_ADDRESS, to: ADMIN_EMAIL, subject, html }).catch((err) => {
-        console.error('[email] admin_new_quote send failed:', err);
-      });
-    }
-  }
+    void recordAnalyticsEvent({
+      sessionId: analyticsSessionId,
+      eventName: 'quote_created',
+      page: '/services',
+      source: 'server',
+      quoteId: data.id,
+      eventValue: submittedTotal,
+      eventData: {
+        service: String(body.service_type),
+        context: String(body.context),
+        scope: typeof body.scope === 'string' ? body.scope : null,
+        frequency: typeof body.frequency === 'string' ? body.frequency : 'none',
+        has_address: Boolean(typeof body.service_address === 'string' && body.service_address.trim()),
+        customer_type: authUser?.role ?? 'anonymous',
+        source: leadSource,
+        utm_source: typeof body.utm_source === 'string' ? body.utm_source : null,
+        utm_medium: typeof body.utm_medium === 'string' ? body.utm_medium : null,
+      },
+    });
 
-  // Auto-forward NDIS quotes to the plan manager / participant nominee / NDIA
-  // billing contact so funding can be confirmed without manual steps.
-  if (
-    isNdis &&
-    ndisForwardEmail &&
-    ndisManagementType &&
-    data
-  ) {
-    const resend = getResendClient();
-    if (resend) {
-      const { subject, html } = ndisForwardQuoteEmail({
-        participantName: body.customer_name as string,
-        forwardContactName: ndisForwardContact,
-        managementType: ndisManagementType as 'plan_managed' | 'self_managed' | 'agency_managed',
-        serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
-        estimatedHours: ndisEstimatedHoursNum,
-        hourlyRate: ndisHourlyRateNum,
-        total: submittedTotal,
-        serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
-        quoteId: data.id,
-        notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null,
-      });
-      resend.emails
-        .send({ from: FROM_ADDRESS, to: ndisForwardEmail, subject, html })
-        .then(() => {
-          // Mark as forwarded; best-effort, don't block the response.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (client as any)
-            .from('quotes')
-            .update({ ndis_forwarded_at: new Date().toISOString() })
-            .eq('id', data.id)
-            .then(() => {})
-            .catch((err: unknown) => console.error('[ndis] forwarded_at stamp failed:', err));
-        })
-        .catch((err) => {
-          console.error('[email] ndis_forward send failed:', err);
+    // Send "quote received" confirmation email — fire and forget
+    const customerEmail = body.customer_email as string | undefined;
+    if (customerEmail && data) {
+      const resend = getResendClient();
+      if (resend) {
+        const { subject, html } = quoteReceivedEmail({
+          customerName: body.customer_name as string,
+          serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+          total: submittedTotal,
+          quoteId: data.id,
         });
+        resend.emails.send({ from: FROM_ADDRESS, to: customerEmail, subject, html }).catch((err) => {
+          console.error('[email] quote_received send failed:', err);
+        });
+      }
     }
-  }
 
-  return NextResponse.json({ quote: data });
+    // Notify admin a new quote landed — fire and forget
+    if (data) {
+      const resend = getResendClient();
+      if (resend) {
+        const { subject, html } = adminNewQuoteEmail({
+          customerName: body.customer_name as string,
+          customerEmail: body.customer_email as string | null ?? null,
+          customerPhone: body.customer_phone as string | null ?? null,
+          serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+          total: submittedTotal,
+          quoteId: data.id,
+          serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
+          dashboardUrl: `${SITE_URL}/dashboard/quotes`,
+        });
+        resend.emails.send({ from: FROM_ADDRESS, to: ADMIN_EMAIL, subject, html }).catch((err) => {
+          console.error('[email] admin_new_quote send failed:', err);
+        });
+      }
+    }
+
+    // Auto-forward NDIS quotes to the plan manager / participant nominee / NDIA
+    // billing contact so funding can be confirmed without manual steps.
+    if (
+      isNdis &&
+      ndisForwardEmail &&
+      ndisManagementType &&
+      data
+    ) {
+      const resend = getResendClient();
+      if (resend) {
+        const { subject, html } = ndisForwardQuoteEmail({
+          participantName: body.customer_name as string,
+          forwardContactName: ndisForwardContact,
+          managementType: ndisManagementType as 'plan_managed' | 'self_managed' | 'agency_managed',
+          serviceLabel: SERVICE_LABELS[body.service_type as string] ?? String(body.service_type),
+          estimatedHours: ndisEstimatedHoursNum,
+          hourlyRate: ndisHourlyRateNum,
+          total: submittedTotal,
+          serviceAddress: typeof body.service_address === 'string' ? body.service_address.trim() : null,
+          quoteId: data.id,
+          notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null,
+        });
+        resend.emails
+          .send({ from: FROM_ADDRESS, to: ndisForwardEmail, subject, html })
+          .then(() => {
+            // Mark as forwarded; best-effort, don't block the response.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (client as any)
+              .from('quotes')
+              .update({ ndis_forwarded_at: new Date().toISOString() })
+              .eq('id', data.id)
+              .then(() => {})
+              .catch((err: unknown) => console.error('[ndis] forwarded_at stamp failed:', err));
+          })
+          .catch((err) => {
+            console.error('[email] ndis_forward send failed:', err);
+          });
+      }
+    }
+
+    return NextResponse.json({ quote: data });
+  });
 }
