@@ -63,3 +63,26 @@ export function resolveWorkspaceFromRequest(
   const raw = searchParams.get(paramName);
   return isWorkspace(raw) ? raw : LIVE_WORKSPACE;
 }
+
+/**
+ * Resolves a workspace from request parameters *and* applies the one
+ * authorization rule every entity slice needs: a non-live workspace only
+ * takes effect when `isAuthorizedForSandbox` is true. Anyone else — like an
+ * invalid/missing value — is held to the live workspace.
+ *
+ * Deliberately takes a plain boolean rather than an app-specific role type:
+ * this module stays decoupled from any particular auth system. Callers
+ * (e.g. `src/lib/customers/workspace.ts`, `src/lib/quotes/workspace.ts`)
+ * compute that boolean from their own role check (typically `role === 'admin'`)
+ * and pass it in — this function only encodes "selection vs. authorization
+ * are separate, and authorization wins."
+ */
+export function resolveGatedWorkspaceFromRequest(
+  searchParams: URLSearchParams,
+  isAuthorizedForSandbox: boolean,
+  paramName = 'workspace'
+): Workspace {
+  const requested = resolveWorkspaceFromRequest(searchParams, paramName);
+  if (requested === LIVE_WORKSPACE) return requested;
+  return isAuthorizedForSandbox ? requested : LIVE_WORKSPACE;
+}
