@@ -4,9 +4,17 @@ import type { QuoteRow } from '@/lib/quotes/repository';
 import { createQuoteRepository } from '@/lib/quotes/repository';
 import { createOrderRepository, type OrderRow } from '@/lib/orders/repository';
 import { quoteWorkspace } from '@/lib/quotes/workspace';
-import { assertWorkspaceCompatibility, withWorkspaceContext } from '@/lib/workspace/server';
+import { assertWorkspaceCompatibility, isWorkspace, withWorkspaceContext } from '@/lib/workspace/server';
+import { QuoteStatus } from '@/lib/types/status';
 
 export async function ensureOrderForPayableQuote(client: SupabaseClient<Database>, quote: QuoteRow): Promise<OrderRow> {
+  if (!isWorkspace(quote.environment)) throw new Error('Quote has an invalid payment workspace');
+  if (!['approved', QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quote.status)) {
+    throw new Error('Quote is not eligible for payment conversion');
+  }
+  if (quote.payment_status === 'paid' && !quote.converted_order_id) {
+    throw new Error('Paid quote has no durable converted order');
+  }
   const workspace = quoteWorkspace(quote);
   return withWorkspaceContext(workspace, async () => {
     const orders = createOrderRepository({ client, workspace });
