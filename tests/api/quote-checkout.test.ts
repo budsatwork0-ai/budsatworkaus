@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
             url: 'https://checkout.stripe.test/cs_test_123',
           })
         ),
+        expire: vi.fn(() => Promise.resolve({ id: 'cs_test_123', status: 'expired' })),
       },
     },
   };
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => {
       payment_status: 'not_requested',
       notes: null,
       converted_order_id: null,
+      environment: 'production',
     } as Record<string, unknown>,
     fromCalls: [] as string[],
     inserts: [] as Array<{ table: string; rows: unknown }>,
@@ -44,6 +46,11 @@ const mocks = vi.hoisted(() => {
   };
 
   const serviceClient = {
+    rpc: vi.fn((name: string) => {
+      if (name === 'create_or_get_pending_payment') return Promise.resolve({ data: { id: 'payment_test_123', environment: 'production' }, error: null });
+      if (name === 'attach_payment_provider_object') return Promise.resolve({ data: { id: 'mapping_test_123', payment_id: 'payment_test_123', environment: 'production' }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    }),
     from: vi.fn((table: string) => {
       state.fromCalls.push(table);
       let operation: 'insert' | 'update' | null = null;
@@ -66,7 +73,7 @@ const mocks = vi.hoisted(() => {
             return Promise.resolve({ data: state.quote, error: null });
           }
           if (table === 'orders' && operation === 'insert') {
-            return Promise.resolve({ data: { id: 'order_test_123' }, error: null });
+            return Promise.resolve({ data: { id: 'order_test_123', quote_id: 'quote_test_123', environment: 'production' }, error: null });
           }
           return Promise.resolve({ data: null, error: null });
         }),
@@ -125,6 +132,7 @@ describe('quote checkout route payment pricing', () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.serviceClient.from.mockClear();
+    mocks.serviceClient.rpc.mockClear();
     mocks.stripe.customers.create.mockClear();
     mocks.stripe.checkout.sessions.create.mockClear();
     mocks.state.fromCalls.length = 0;
@@ -177,8 +185,17 @@ describe('quote checkout route payment pricing', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.url).toBe('https://checkout.stripe.test/cs_test_123');
+    // Baseline contract maintenance: checkout already returns the stable
+    // Buds payment page, not a hosted Stripe URL.
+    expect(body.url).toBe('https://budsatwork.test/pay/quote_test_123');
     expect(mocks.stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
+    expect(mocks.serviceClient.rpc).toHaveBeenCalledWith('create_or_get_pending_payment', expect.objectContaining({
+      pending_provider: 'stripe', pending_order_id: 'order_test_123', pending_amount: 10,
+      pending_currency: 'aud', pending_environment: 'production',
+    }));
+    expect(mocks.serviceClient.rpc).toHaveBeenCalledWith('attach_payment_provider_object', expect.objectContaining({
+      mapping_payment_id: 'payment_test_123', mapping_object_type: 'checkout_session', mapping_object_id: 'cs_test_123',
+    }));
     expect(mocks.stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         line_items: [
@@ -220,5 +237,13 @@ describe('quote checkout route payment pricing', () => {
     expect(firstOptions?.idempotencyKey).toMatch(/^quote_test_123-checkout-[a-f0-9]{16}$/);
     expect(secondOptions?.idempotencyKey).toMatch(/^quote_test_123-checkout-[a-f0-9]{16}$/);
     expect(secondOptions?.idempotencyKey).not.toBe(firstOptions?.idempotencyKey);
+  });
+
+  it('converges an exact checkout retry on the same pending payment and session mapping', async () => {
+    await postCheckout();
+    await postCheckout();
+    expect(mocks.serviceClient.rpc.mock.calls.filter(([name]) => name === 'create_or_get_pending_payment')).toHaveLength(2);
+    expect(mocks.serviceClient.rpc.mock.calls.filter(([name]) => name === 'attach_payment_provider_object')).toHaveLength(2);
+    expect(mocks.stripe.checkout.sessions.create.mock.calls[0]?.[1]).toEqual(mocks.stripe.checkout.sessions.create.mock.calls[1]?.[1]);
   });
 });

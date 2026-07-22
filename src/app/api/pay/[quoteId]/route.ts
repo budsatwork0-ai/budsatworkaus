@@ -25,18 +25,18 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: quote, error } = await (client as any)
     .from('quotes')
-    .select('id, customer_name, service_type, context, status, payment_status, reviewed_total, submitted_total, total, stripe_checkout_url, paid_at')
+    .select('id, customer_name, service_type, context, status, payment_status, reviewed_total, submitted_total, total, stripe_checkout_url, paid_at, environment')
     .eq('id', quoteId)
     .maybeSingle();
 
-  if (error || !quote) {
+  const isPaid = quote?.payment_status === 'paid' || quote?.status === QuoteStatus.paid;
+  const isCancelled = quote?.status === QuoteStatus.cancelled || quote?.status === QuoteStatus.denied;
+  const isReady = !!quote && ([QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quote.status) || quote.status === 'approved');
+  if (error || !quote || quote.environment !== 'production' || (!isReady && !isPaid && !isCancelled)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   const amount = Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0);
-  const isPaid = quote.payment_status === 'paid' || quote.status === QuoteStatus.paid;
-  const isCancelled = quote.status === QuoteStatus.cancelled || quote.status === QuoteStatus.denied;
-  const isReady = [QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quote.status) || quote.status === 'approved';
 
   return NextResponse.json({
     id: quote.id,

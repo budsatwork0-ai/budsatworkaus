@@ -23,6 +23,7 @@ function fakeStripe() {
     checkout: {
       sessions: {
         create: vi.fn(async () => ({ id: 'sess_1', url: 'https://stripe.test/pay/sess_1' })),
+        expire: vi.fn(async () => ({ id: 'sess_1', status: 'expired' })),
       },
     },
     customers: { create: vi.fn(async () => ({ id: 'cus_1' })) },
@@ -62,13 +63,21 @@ function makeClient(config: {
   orders?: Row[];
   ordersTerminal?: Row;
   customers?: Row[];
+  mappingError?: string;
 }) {
   const from = vi.fn((table: string) => {
     if (table === 'orders') return makeTableChain(config.orders ?? [], config.ordersTerminal);
     if (table === 'customers') return makeTableChain(config.customers ?? []);
     return makeTableChain(config.quotes);
   });
-  return { from };
+  const rpc = vi.fn(async (name: string) => {
+    if (name === 'create_or_get_pending_payment') return { data: { id: 'payment-1', environment: 'production' }, error: null };
+    if (name === 'attach_payment_provider_object') return config.mappingError
+      ? { data: null, error: { message: config.mappingError } }
+      : { data: { id: 'mapping-1', payment_id: 'payment-1', environment: 'production' }, error: null };
+    return { data: null, error: null };
+  });
+  return { from, rpc };
 }
 
 function req(url: string) {
@@ -87,7 +96,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
-  it('a sandbox quote converts into a sandbox order when the DB correctly propagates workspace', async () => {
+  it('a sandbox quote performs no order or Stripe side effect', async () => {
     getAuthUser.mockResolvedValue(ADMIN);
     const quote: Row = {
       id: 'q1',
@@ -107,9 +116,9 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
     const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
 
     const res = await POST(req('https://app.test/api/quotes/q1/checkout'), routeParams('q1'));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.order_id).toBe('order-1');
+    expect(res.status).toBe(403);
+    expect(createStripeClient().checkout.sessions.create).not.toHaveBeenCalled();
+    expect((createServiceClientSafe() as ReturnType<typeof makeClient>).from.mock.calls.filter(call => call[0] === 'orders')).toHaveLength(0);
   });
 
   it('a production quote converts into a production order when the DB correctly propagates workspace', async () => {
@@ -127,7 +136,7 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
       converted_order_id: null,
     };
     createServiceClientSafe.mockReturnValue(
-      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', environment: 'production' } })
+      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', quote_id: 'q1', environment: 'production' } })
     );
     const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
 
@@ -157,7 +166,7 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
     const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
 
     const res = await POST(req('https://app.test/api/quotes/q1/checkout'), routeParams('q1'));
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(createStripeClient().checkout.sessions.create).not.toHaveBeenCalled();
   });
 
@@ -176,7 +185,7 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
       converted_order_id: null,
     };
     createServiceClientSafe.mockReturnValue(
-      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', environment: 'sandbox' } })
+      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', quote_id: 'q1', environment: 'sandbox' } })
     );
     const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
 
@@ -221,7 +230,7 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
     };
     const client = makeClient({
       quotes: [quote],
-      ordersTerminal: { id: 'order-1', environment: 'production' },
+      ordersTerminal: { id: 'order-1', quote_id: 'q1', environment: 'production' },
       customers: [{ id: 'cust-1', email: 'sarah@example.com', stripe_customer_id: null, environment: 'production' }],
     });
     createServiceClientSafe.mockReturnValue(client);
@@ -234,5 +243,17 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
     );
     const eqCalls = customersChainCall?.value.calls.filter((c: { method: string }) => c.method === 'eq');
     expect(eqCalls).toContainEqual({ method: 'eq', args: ['environment', 'production'] });
+  });
+
+  it('expires and withholds a Stripe session when durable mapping persistence fails', async () => {
+    getAuthUser.mockResolvedValue(ADMIN);
+    const stripe = fakeStripe();
+    createStripeClient.mockReturnValue(stripe);
+    const quote: Row = { id: 'q1', status: 'finalized', payment_status: 'not_requested', reviewed_total: 200, submitted_total: 200, total: 200, customer_id: null, customer_email: null, environment: 'production', converted_order_id: null };
+    createServiceClientSafe.mockReturnValue(makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', quote_id: 'q1', environment: 'production' }, mappingError: 'mapping unavailable' }));
+    const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
+    const res = await POST(req('https://app.test/api/quotes/q1/checkout'), routeParams('q1'));
+    expect(res.status).toBe(503);
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('sess_1');
   });
 });

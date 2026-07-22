@@ -24,6 +24,7 @@ export interface Database {
           default_address: string | null;
           latitude: number | null;
           longitude: number | null;
+          environment: 'production' | 'sandbox';
           created_at: string;
           updated_at: string;
         };
@@ -38,6 +39,7 @@ export interface Database {
           default_address?: string | null;
           latitude?: number | null;
           longitude?: number | null;
+          environment?: 'production' | 'sandbox';
           created_at?: string;
           updated_at?: string;
         };
@@ -52,6 +54,7 @@ export interface Database {
           default_address?: string | null;
           latitude?: number | null;
           longitude?: number | null;
+          environment?: 'production' | 'sandbox';
           created_at?: string;
           updated_at?: string;
         };
@@ -85,6 +88,7 @@ export interface Database {
           auto_completed_at: string | null;
           stripe_checkout_session_id: string | null;
           stripe_payment_intent_id: string | null;
+          environment: 'production' | 'sandbox';
         };
         Insert: {
           id?: string;
@@ -114,6 +118,7 @@ export interface Database {
           auto_completed_at?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
+          environment?: 'production' | 'sandbox';
         };
         Update: {
           id?: string;
@@ -143,6 +148,7 @@ export interface Database {
           auto_completed_at?: string | null;
           stripe_checkout_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
+          environment?: 'production' | 'sandbox';
         };
       };
       subscriptions: {
@@ -519,6 +525,10 @@ export interface Database {
           amount: number;
           payment_method: string;
           payment_reference: string | null;
+          payment_provider: 'manual' | 'stripe' | 'paypal';
+          provider_event_id: string | null;
+          currency: string;
+          environment: 'production' | 'sandbox';
           status: string;
           paid_at: string | null;
           notes: string | null;
@@ -533,6 +543,10 @@ export interface Database {
           amount: number;
           payment_method: string;
           payment_reference?: string | null;
+          payment_provider?: 'manual' | 'stripe' | 'paypal';
+          provider_event_id?: string | null;
+          currency?: string;
+          environment?: 'production' | 'sandbox';
           status?: string;
           paid_at?: string | null;
           notes?: string | null;
@@ -547,11 +561,105 @@ export interface Database {
           amount?: number;
           payment_method?: string;
           payment_reference?: string | null;
+          payment_provider?: 'manual' | 'stripe' | 'paypal';
+          provider_event_id?: string | null;
+          currency?: string;
+          environment?: 'production' | 'sandbox';
           status?: string;
           paid_at?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      payment_refunds: {
+        Row: {
+          id: string;
+          payment_id: string;
+          environment: 'production' | 'sandbox';
+          provider: 'manual' | 'stripe' | 'paypal';
+          provider_refund_reference: string;
+          provider_event_reference: string | null;
+          amount: number;
+          currency: string;
+          status: 'pending' | 'succeeded' | 'failed' | 'cancelled';
+          reason: string | null;
+          provider_created_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          payment_id: string;
+          environment: 'production' | 'sandbox';
+          provider: 'manual' | 'stripe' | 'paypal';
+          provider_refund_reference: string;
+          provider_event_reference?: string | null;
+          amount: number;
+          currency: string;
+          status: 'pending' | 'succeeded' | 'failed' | 'cancelled';
+          reason?: string | null;
+          provider_created_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: 'pending' | 'succeeded' | 'failed' | 'cancelled';
+          reason?: string | null;
+          updated_at?: string;
+        };
+      };
+      payment_refund_events: {
+        Row: {
+          id: string;
+          payment_refund_id: string;
+          provider: 'manual' | 'stripe' | 'paypal';
+          provider_event_reference: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          payment_refund_id: string;
+          provider: 'manual' | 'stripe' | 'paypal';
+          provider_event_reference: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+      };
+      payment_provider_objects: {
+        Row: {
+          id: string; payment_id: string; environment: 'production' | 'sandbox';
+          provider: 'manual' | 'stripe' | 'paypal';
+          object_type: 'checkout_session' | 'payment_intent' | 'charge' | 'paypal_order' | 'paypal_capture';
+          object_id: string; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; payment_id: string; environment: 'production' | 'sandbox';
+          provider: 'manual' | 'stripe' | 'paypal';
+          object_type: 'checkout_session' | 'payment_intent' | 'charge' | 'paypal_order' | 'paypal_capture';
+          object_id: string; created_at?: string; updated_at?: string;
+        };
+        Update: Record<string, never>;
+      };
+      payment_events: {
+        Row: {
+          id: string; payment_id: string | null; environment: 'production' | 'sandbox' | null;
+          provider: 'manual' | 'stripe' | 'paypal'; provider_event_id: string;
+          event_type: string; provider_object_type: string | null; provider_object_id: string | null;
+          status: 'pending' | 'processed' | 'failed' | 'quarantined'; failure_reason: string | null;
+          first_seen_at: string; processed_at: string | null; updated_at: string;
+        };
+        Insert: {
+          id?: string; payment_id?: string | null; environment?: 'production' | 'sandbox' | null;
+          provider: 'manual' | 'stripe' | 'paypal'; provider_event_id: string;
+          event_type: string; provider_object_type?: string | null; provider_object_id?: string | null;
+          status?: 'pending' | 'processed' | 'failed' | 'quarantined'; failure_reason?: string | null;
+          first_seen_at?: string; processed_at?: string | null; updated_at?: string;
+        };
+        Update: {
+          payment_id?: string | null; environment?: 'production' | 'sandbox' | null;
+          status?: 'pending' | 'processed' | 'failed' | 'quarantined'; failure_reason?: string | null;
+          processed_at?: string | null; updated_at?: string;
         };
       };
       profiles: {
@@ -897,6 +1005,7 @@ export interface Database {
           notes: string | null;
           converted_order_id: string | null;
           converted_subscription_id: string | null;
+          environment: 'production' | 'sandbox';
           created_at: string;
           updated_at: string;
         };
@@ -932,6 +1041,7 @@ export interface Database {
           notes?: string | null;
           converted_order_id?: string | null;
           converted_subscription_id?: string | null;
+          environment?: 'production' | 'sandbox';
           created_at?: string;
           updated_at?: string;
         };
@@ -967,6 +1077,7 @@ export interface Database {
           notes?: string | null;
           converted_order_id?: string | null;
           converted_subscription_id?: string | null;
+          environment?: 'production' | 'sandbox';
           created_at?: string;
           updated_at?: string;
         };
@@ -1042,6 +1153,7 @@ export type VehicleOverride = Database['public']['Tables']['vehicle_overrides'][
 export type SiteSetting = Database['public']['Tables']['site_settings']['Row'];
 export type Payable = Database['public']['Tables']['payables']['Row'];
 export type Payment = Database['public']['Tables']['payments']['Row'];
+export type PaymentRefund = Database['public']['Tables']['payment_refunds']['Row'];
 
 // Insert types
 export type CustomerInsert = Database['public']['Tables']['customers']['Insert'];

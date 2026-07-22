@@ -13,10 +13,13 @@ import {
   getStripeCheckoutPolicy,
 } from '@/lib/payments/pricing';
 import type Stripe from 'stripe';
-import { QuoteStatus, OrderStatus } from '@/lib/types/status';
+import { QuoteStatus } from '@/lib/types/status';
 import { createQuoteRepository } from '@/lib/quotes/repository';
 import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
 import { assertWorkspaceCompatibility, LIVE_WORKSPACE, scopeQuery } from '@/lib/workspace/server';
+import { requireProductionPaymentWorkspace } from '@/lib/payments/workspace';
+import { ensureOrderForPayableQuote } from '@/lib/payments/quote-conversion';
+import { createPaymentRepository } from '@/lib/payments/repository';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -107,6 +110,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
   }
 
+  // Authorization permits admins to inspect sandbox data; it never permits a
+  // real provider/email/analytics side effect. This precedes every mutation.
+  try {
+    requireProductionPaymentWorkspace(workspace);
+  } catch {
+    return NextResponse.json({ error: 'Payment execution is unavailable for this quote' }, { status: 403 });
+  }
+
   const quoteStatus =
     quote.status === 'approved'
       ? QuoteStatus.finalized
@@ -156,54 +167,35 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const feeEstimate = calculateStripeFeeEstimate(amountCents);
 
-  const orderPayload = {
-    quote_id: quote.id,
-    customer_id: quote.customer_id,
-    customer_name: quote.customer_name,
-    customer_email: quote.customer_email,
-    customer_phone: quote.customer_phone,
-    service_type: quote.service_type,
-    context: quote.context,
-    scope: quote.scope,
-    frequency: quote.frequency,
-    analytics_session_id: quote.analytics_session_id ?? null,
-    base_price: Number(quote.submitted_total ?? quote.total ?? amount),
-    discount_percent: 0,
-    final_price: amount,
-    status: OrderStatus.pending,
-    notes: quote.notes,
-  };
-
-  let orderId = quote.converted_order_id as string | null;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderResult = orderId
-    ? await (client as any).from('orders').update(orderPayload).eq('id', orderId).select('id, environment').single()
-    : await (client as any).from('orders').insert([orderPayload]).select('id, environment').single();
-
-  if (orderResult.error || !orderResult.data) {
+  let order;
+  try {
+    order = await ensureOrderForPayableQuote(client, quote);
+  } catch (error) {
     return NextResponse.json(
-      { error: orderResult.error?.message || 'Failed to save order' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Failed to save order' },
+      { status: error instanceof Error && /workspace/i.test(error.message) ? 409 : 500 }
     );
   }
-  orderId = orderResult.data.id;
-
-  // The DB propagation trigger (propagate_order_environment, migration 130)
-  // already guarantees a converted order inherits its quote's workspace for
-  // this exact code path — orderPayload never sets `environment` itself, so
-  // the trigger's default-then-escalate-to-sandbox logic is what determines
-  // it. This is a verified guarantee, not an assumption: if it ever
-  // disagrees, that's a data integrity problem worth failing loudly on
-  // rather than completing a cross-workspace checkout.
+  const orderId = order.id;
   try {
-    assertWorkspaceCompatibility(workspace, quoteWorkspace(orderResult.data));
+    assertWorkspaceCompatibility(workspace, quoteWorkspace(order));
   } catch (compatErr) {
     console.error('[checkout] Order workspace mismatch:', compatErr);
     return NextResponse.json(
       { error: 'Order belongs to a different workspace than this quote' },
       { status: 409 }
     );
+  }
+
+  const payments = createPaymentRepository(client, workspace);
+  let pendingPayment;
+  try {
+    pendingPayment = await payments.findOrCreatePending({
+      provider: 'stripe', amount, currency: 'aud', orderId, customerId: quote.customer_id,
+    });
+  } catch (error) {
+    console.error('[checkout] Failed to establish pending payment:', error);
+    return NextResponse.json({ error: 'Failed to establish payment' }, { status: 503 });
   }
 
   let stripe;
@@ -340,6 +332,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         ? stripeErr.message
         : 'Failed to create payment session';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  try {
+    await payments.attachProviderObject(pendingPayment.id, 'stripe', 'checkout_session', session.id);
+  } catch (mappingError) {
+    console.error('[checkout] Failed to persist Stripe Checkout Session mapping:', mappingError);
+    try {
+      await stripe.checkout.sessions.expire(session.id);
+    } catch (expireError) {
+      console.error('[checkout] Failed to expire unmapped Stripe Checkout Session:', expireError);
+    }
+    return NextResponse.json({ error: 'Payment session could not be safely persisted' }, { status: 503 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
