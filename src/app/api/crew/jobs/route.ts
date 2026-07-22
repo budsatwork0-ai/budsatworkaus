@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCrewRepository } from '@/lib/crew/repository';
 
 // GET /api/crew/jobs — List available job assignments for current employee.
 // Includes NDIS publication metadata (match score, flags, support requirements)
@@ -34,23 +35,14 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-  // Get available assignments with order details
+  const repository = createCrewRepository({ client });
+  const { data, error, count } = await repository.listAvailable(employee.id, { limit, offset });
+  // NDIS tables are not represented in the generated database type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (client as any)
-    .from('job_assignments')
-    .select('*, orders(*)', { count: 'exact' })
-    .eq('employee_id', employee.id)
-    .eq('status', 'available')
-    .order('created_at', { ascending: false });
-
-  if (limit > 0) {
-    query = query.range(offset, offset + limit - 1);
-  }
-
-  const { data, error, count } = await query;
+  const db = client as any;
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   let assignments = data || [];
@@ -79,19 +71,18 @@ export async function GET(req: NextRequest) {
     .map((a: any) => a.order_id)
     .filter(Boolean);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [{ data: publications }, { data: matchScores }, { data: jobReqs }] = await Promise.all([
-    (client as any)
+    db
       .from('job_publications')
       .select('order_id, status, published_at, override_reason')
       .eq('employee_id', employee.id)
       .in('order_id', orderIds),
-    (client as any)
+    db
       .from('job_participant_matches')
       .select('order_id, score, max_score, flags')
       .eq('employee_id', employee.id)
       .in('order_id', orderIds),
-    (client as any)
+    db
       .from('job_requirements')
       .select('order_id, required_support_mode, transport_required, customer_facing_required, physical_intensity, location_suburb, start_time, end_time, estimated_duration_minutes')
       .in('order_id', orderIds),
