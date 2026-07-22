@@ -1,5 +1,8 @@
 import type Stripe from 'stripe';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 import type { PaymentRepository, PaymentRow } from '@/lib/payments/repository';
+import { createPaymentRepository, discoverPaymentByProviderObject } from '@/lib/payments/repository';
 
 export async function resolveStripePaymentIntent(
   stripe: Stripe,
@@ -20,4 +23,20 @@ export async function resolveStripePaymentIntent(
   if (intent.currency.toLowerCase() !== resolved.payment.currency.toLowerCase()) throw new Error('Stripe PaymentIntent currency mismatch');
   await repository.attachProviderObject(resolved.payment.id, 'stripe', 'payment_intent', intent.id);
   return resolved.payment;
+}
+
+export async function discoverStripePaymentIntent(
+  client: SupabaseClient<Database>, stripe: Stripe, paymentIntentId: string,
+): Promise<PaymentRow | null> {
+  const existing = await discoverPaymentByProviderObject(client, 'stripe', 'payment_intent', paymentIntentId);
+  if (existing) return existing.payment;
+  const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  const sessions = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 2 });
+  if (sessions.data.length !== 1) return null;
+  const session = sessions.data[0];
+  const discovered = await discoverPaymentByProviderObject(client, 'stripe', 'checkout_session', session.id);
+  if (!discovered) return null;
+  const repository = createPaymentRepository(client, discovered.payment.environment);
+  await resolveStripePaymentIntent(stripe, repository, intent.id);
+  return discovered.payment;
 }

@@ -30,6 +30,11 @@ export interface PaymentEventRow {
   first_seen_at: string; processed_at: string | null; updated_at: string;
 }
 export interface PaymentEventClaim { event: PaymentEventRow; claimed: boolean; }
+export interface OperationalPaymentResult {
+  changed: boolean; payment_id: string; order_id: string; quote_id: string | null;
+  customer_id?: string | null; customer_email?: string | null; customer_name?: string | null;
+  service_type?: string | null; analytics_session_id?: string | null; context?: string | null; scope?: string | null;
+}
 
 export interface PaymentRepository {
   getByReference(provider: PaymentProvider, reference: string): Promise<PaymentRow | null>;
@@ -41,6 +46,10 @@ export interface PaymentRepository {
   resolveByProviderObject(provider: PaymentProvider, objectType: ProviderObjectType, objectId: string): Promise<{ payment: PaymentRow; mapping: PaymentProviderObjectRow } | null>;
   claimEvent(input: { provider: PaymentProvider; eventId: string; eventType: string; objectType?: string | null; objectId?: string | null }): Promise<PaymentEventClaim>;
   finishEvent(id: string, status: Exclude<PaymentEventStatus, 'pending'>, paymentId?: string | null, reason?: string | null): Promise<PaymentEventRow>;
+  transitionOperational(kind: 'succeeded' | 'failed', paymentId: string, reference: string, amount: number, currency: string): Promise<OperationalPaymentResult>;
+  expireOperationalCheckout(paymentId: string, sessionId: string): Promise<OperationalPaymentResult>;
+  applyRefundParentState(paymentId: string): Promise<{ changed: boolean; order_id: string; status: string }>;
+  attachStripeCustomer(paymentId: string, stripeCustomerId: string): Promise<boolean>;
   setProviderEventId(id: string, eventId: string): Promise<PaymentRow>;
   markCompleted(id: string, reference: string, paidAt?: string): Promise<PaymentRow>;
   recordRefund(input: {
@@ -78,7 +87,7 @@ export function createPaymentRepository(client: SupabaseClient<Database>, worksp
     async createPending(input) {
       const row = await one(db.from('payments').insert({
         order_id: input.orderId, customer_id: input.customerId, amount: input.amount,
-        currency: input.currency.toLowerCase(), payment_method: input.provider,
+        currency: input.currency.toLowerCase(), payment_method: input.provider === 'stripe' ? 'card' : 'other',
         payment_provider: input.provider, provider_event_id: input.providerEventId ?? null,
         status: 'pending', environment: workspace,
       }).select('*').single());
@@ -136,6 +145,38 @@ export function createPaymentRepository(client: SupabaseClient<Database>, worksp
       if (data.environment) assertWorkspaceCompatibility(workspace, data.environment);
       return data as PaymentEventRow;
     },
+    async transitionOperational(kind, paymentId, reference, amount, currency) {
+      const { data, error } = await db.rpc('transition_operational_payment', {
+        transition_payment_id: paymentId, transition_expected_environment: workspace,
+        transition_kind: kind, transition_reference: reference,
+        transition_amount: amount, transition_currency: currency.toLowerCase(),
+      });
+      if (error) throw new Error(error.message);
+      return data as OperationalPaymentResult;
+    },
+    async expireOperationalCheckout(paymentId, sessionId) {
+      const { data, error } = await db.rpc('expire_operational_checkout', {
+        expire_payment_id: paymentId, expire_expected_environment: workspace,
+        expire_session_id: sessionId,
+      });
+      if (error) throw new Error(error.message);
+      return data as OperationalPaymentResult;
+    },
+    async applyRefundParentState(paymentId) {
+      const { data, error } = await db.rpc('apply_refund_parent_state', {
+        refund_payment_id: paymentId, refund_expected_environment: workspace,
+      });
+      if (error) throw new Error(error.message);
+      return data as { changed: boolean; order_id: string; status: string };
+    },
+    async attachStripeCustomer(paymentId, stripeCustomerId) {
+      const { data, error } = await db.rpc('attach_payment_stripe_customer', {
+        customer_payment_id: paymentId, customer_expected_environment: workspace,
+        stripe_customer_id: stripeCustomerId,
+      });
+      if (error) throw new Error(error.message);
+      return data === true;
+    },
     async setProviderEventId(id, eventId) {
       const row = await one(db.from('payments').update({ provider_event_id: eventId }).eq('id', id).eq('environment', workspace).select('*').single());
       if (!row) throw new Error('Payment mapping not found'); return checked(row)!;
@@ -167,4 +208,23 @@ export function createPaymentRepository(client: SupabaseClient<Database>, worksp
       if (!row) throw new Error('Payment mapping not found'); return checked(row)!;
     },
   };
+}
+
+export async function discoverPaymentByProviderObject(
+  client: SupabaseClient<Database>, provider: PaymentProvider,
+  objectType: ProviderObjectType, objectId: string,
+): Promise<{ payment: PaymentRow; mapping: PaymentProviderObjectRow } | null> {
+  // Discovery is intentionally unscoped; the durable mapping discovers the workspace.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client as any).from('payment_provider_objects')
+    .select('*, payment:payments(*)').eq('provider', provider)
+    .eq('object_type', objectType).eq('object_id', objectId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const payment = data.payment as PaymentRow | null;
+  if (!payment || payment.id !== data.payment_id || payment.environment !== data.environment
+      || payment.payment_provider !== provider) {
+    throw new Error('Provider object ownership mismatch');
+  }
+  return { payment, mapping: data as PaymentProviderObjectRow };
 }

@@ -5,6 +5,10 @@ const migration = readFileSync(
   new URL('../../supabase/migrations/20260722090000_151_payment_workspace_hardening.sql', import.meta.url),
   'utf8'
 );
+const fanoutMigration = readFileSync(
+  new URL('../../supabase/migrations/20260722100000_152_refund_event_fanout.sql', import.meta.url),
+  'utf8'
+);
 
 describe('payment refund ledger migration', () => {
   it('creates an append-only refund ledger with durable provider replay keys', () => {
@@ -16,6 +20,20 @@ describe('payment refund ledger migration', () => {
     expect(migration).toContain('Refund event replay conflicts with another durable refund');
     expect(migration).toContain('Refund financial identity cannot be rewritten');
     expect(migration).toContain('ON DELETE RESTRICT');
+  });
+
+  it('allows one charge delivery to describe multiple durable refunds', () => {
+    expect(fanoutMigration).toContain('payment_refund_events_refund_event_unique');
+    expect(fanoutMigration).toContain('UNIQUE (payment_refund_id, provider, provider_event_reference)');
+    expect(fanoutMigration).toContain('DROP INDEX IF EXISTS public.idx_payment_refunds_provider_event_unique');
+  });
+
+  it('adds atomic parent transitions and payment-scoped customer association', () => {
+    expect(fanoutMigration).toContain('CREATE OR REPLACE FUNCTION public.transition_operational_payment');
+    expect(fanoutMigration).toContain('CREATE OR REPLACE FUNCTION public.expire_operational_checkout');
+    expect(fanoutMigration).toContain('CREATE OR REPLACE FUNCTION public.apply_refund_parent_state');
+    expect(fanoutMigration).toContain('CREATE OR REPLACE FUNCTION public.attach_payment_stripe_customer');
+    expect(fanoutMigration).toContain("payment.status NOT IN ('completed', 'partial_refund', 'refunded', 'failed')");
   });
 
   it('serializes refunds on the captured payment and fails closed on incompatibility', () => {

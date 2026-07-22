@@ -5,6 +5,7 @@ import { createStripeClient } from '@/lib/stripe/server';
 import type Stripe from 'stripe';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { bookingConfirmedEmail, checkoutExpiredEmail, adminPaymentReceivedEmail } from '@/lib/email/templates';
+import { handleOperationalStripeEvent } from '@/lib/payments/stripe-webhook';
 
 const ADMIN_EMAIL = 'admin@budsatwork.com';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://budsatwork.com';
@@ -159,6 +160,22 @@ export async function POST(req: NextRequest) {
   const client = createServiceClient();
 
   try {
+    let inheritedFundraisingRefund = false;
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      if (paymentIntentId) {
+        // Preserve legacy fundraising refunds that were keyed by PaymentIntent
+        // before operational payment-provider mappings existed.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (client as any).from('fundraising_contributions').select('id')
+          .eq('payment_provider', 'stripe').eq('payment_reference', paymentIntentId).maybeSingle();
+        inheritedFundraisingRefund = !!data;
+      }
+    }
+    if (!inheritedFundraisingRefund && await handleOperationalStripeEvent(client, stripe, event)) {
+      return NextResponse.json({ received: true });
+    }
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;

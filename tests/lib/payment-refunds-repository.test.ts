@@ -23,8 +23,6 @@ function makeAtomicRefundClient(payment: PaymentState) {
       if (input.refund_expected_environment !== payment.environment) throw new Error('Payment workspace mismatch');
       if (input.refund_provider !== payment.payment_provider) throw new Error('Refund provider mismatch');
       if (input.refund_currency.toLowerCase() !== payment.currency) throw new Error('Refund currency mismatch');
-      const eventOwner = input.refund_provider_event_reference ? events.get(input.refund_provider_event_reference) : undefined;
-      if (eventOwner && eventOwner !== input.refund_provider_reference) throw new Error('Refund replay key conflicts with another durable record');
       let row = refunds.get(input.refund_provider_reference);
       if (row) {
         if (row.payment_id !== payment.id || row.amount !== input.refund_amount || row.currency !== input.refund_currency) throw new Error('Refund replay conflicts with durable record');
@@ -111,9 +109,9 @@ describe('payment refund repository', () => {
     expect(state.refunds.get('re_1')?.environment).toBe('sandbox');
   });
 
-  it('rejects reuse of a provider event reference for another refund', async () => {
+  it('allows one charge-level provider event to contain multiple refunds', async () => {
     const { repository } = setup();
     await repository.recordRefund(refund());
-    await expect(repository.recordRefund(refund({ providerRefundReference: 're_2', amount: 10 }))).rejects.toThrow('Refund replay key conflicts with another durable record');
+    await expect(repository.recordRefund(refund({ providerRefundReference: 're_2', amount: 10 }))).resolves.toMatchObject({ provider_refund_reference: 're_2' });
   });
 });
