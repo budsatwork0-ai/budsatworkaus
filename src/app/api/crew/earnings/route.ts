@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAuthServerClient } from '@/lib/supabase/server-client';
+import { createCrewRepository } from '@/lib/crew/repository';
 
 export async function GET() {
   const supabase = await createAuthServerClient();
@@ -22,29 +23,11 @@ export async function GET() {
     return NextResponse.json({ thisWeek: 0, thisFortnight: 0, thisMonth: 0, allTime: 0, jobs: [] });
   }
 
-  const { data: assignments, error: assignError } = await db
-    .from('job_assignments')
-    .select('id, order_id, status, completed_at, created_at')
-    .eq('employee_id', employee.id)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: false });
+  const repository = createCrewRepository({ client: supabase });
+  const { data: assignments, error: assignError } = await repository.listCompletedForEarnings(employee.id);
 
   if (assignError) {
-    return NextResponse.json({ error: assignError.message }, { status: 500 });
-  }
-
-  const orderIds = (assignments || []).map((a: { order_id: string }) => a.order_id);
-  let orders: Record<string, { service_type: string; customer_name: string; final_price: number; scheduled_date: string | null }> = {};
-
-  if (orderIds.length > 0) {
-    const { data: orderData } = await db
-      .from('orders')
-      .select('id, service_type, customer_name, final_price, scheduled_date')
-      .in('id', orderIds);
-
-    if (orderData) {
-      orders = Object.fromEntries(orderData.map((o: { id: string; service_type: string; customer_name: string; final_price: number; scheduled_date: string | null }) => [o.id, o]));
-    }
+    return NextResponse.json({ error: assignError }, { status: 500 });
   }
 
   const now = new Date();
@@ -57,8 +40,8 @@ export async function GET() {
 
   let thisWeek = 0, thisFortnight = 0, thisMonth = 0, allTime = 0;
 
-  const jobs = (assignments || []).map((a: { id: string; order_id: string; completed_at: string | null }) => {
-    const order = orders[a.order_id];
+  const jobs = assignments.map((a) => {
+    const order = a.orders;
     const amount = order?.final_price || 0;
     const completedDate = a.completed_at ? new Date(a.completed_at) : null;
 
