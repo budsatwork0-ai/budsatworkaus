@@ -10,6 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "db:migrations:inventory": "node scripts/migration-inventory.mjs",
+    "db:migrations:baseline-check": "node scripts/validate-migration-baseline.mjs",
     "architecture:doctor:advisory": "npx tsx scripts/architecture-doctor.ts --format all --output \"Buds At Work/01 Architecture/Architecture Doctor\" --ci-advisory",
     "architecture:doctor:v2:slice": "npx tsx scripts/architecture-doctor-v2-slice.ts --output \"Buds At Work/01 Architecture/Architecture Doctor\"",
     "architecture:doctor:phase11:cron-route": "npx tsx scripts/architecture-doctor-phase11-cron-route.ts --output \"Buds At Work/01 Architecture/Architecture Doctor\"",
