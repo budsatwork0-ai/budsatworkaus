@@ -1,6 +1,16 @@
 -- Payment workspace hardening. All validation is fail-closed: ambiguous financial
 -- records are reported and must be repaired deliberately before this migration runs.
 
+-- Restores the customer<->Stripe Customer mapping (originally supabase/migrations/legacy/025_stripe_customer_id.sql,
+-- excluded from replay by the reconciled migration history) that checkout, the
+-- Stripe webhook, and attach_payment_stripe_customer() below all depend on.
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS stripe_customer_id text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_stripe_customer_id
+  ON public.customers(stripe_customer_id)
+  WHERE stripe_customer_id IS NOT NULL;
+
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS environment text NOT NULL DEFAULT 'production',
   ADD COLUMN IF NOT EXISTS currency text NOT NULL DEFAULT 'aud',
@@ -489,3 +499,26 @@ BEGIN
   WHERE id = captured.id;
   RETURN recorded;
 END $$;
+
+-- These tables are only ever written through service_role (checkout, PayPal
+-- capture, and the Stripe webhook paths) and never from a browser client, so
+-- RLS here matches the existing admin-only convention used by payments/payouts/payables.
+ALTER TABLE public.payment_provider_objects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_all_payment_provider_objects" ON public.payment_provider_objects
+  TO authenticated USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+ALTER TABLE public.payment_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_all_payment_events" ON public.payment_events
+  TO authenticated USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+ALTER TABLE public.payment_refunds ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_all_payment_refunds" ON public.payment_refunds
+  TO authenticated USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
+
+ALTER TABLE public.payment_refund_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_all_payment_refund_events" ON public.payment_refund_events
+  TO authenticated USING (public.get_user_role() = 'admin')
+  WITH CHECK (public.get_user_role() = 'admin');
