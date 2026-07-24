@@ -391,8 +391,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   // Custom payment page — customer lands here and can choose Stripe, PayPal, etc.
   const payPageUrl = `${origin}/pay/${quote.id}`;
 
+  // Sandbox quotes must never trigger real Resend delivery — no real customer
+  // is behind the record. The Stripe session and order are still created so
+  // admins can exercise the full checkout flow without hitting real customers.
+  const emailBlocked = workspace !== LIVE_WORKSPACE;
+
   // Send "quote finalized" email and report provider errors back to the caller.
-  if (quote.customer_email && session.url) {
+  if (!emailBlocked && quote.customer_email && session.url) {
     const resend = getResendClient();
     if (resend) {
       const { subject, html } = quoteFinalizedEmail({
@@ -435,6 +440,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     session_id: session.id,
     order_id: orderId,
     email_sent: emailSent,
+    email_blocked: emailBlocked,
     email_error: emailError,
     email_to: quote.customer_email ?? null,
     email_id: emailId,

@@ -66,8 +66,10 @@ describe('POST /api/quotes/[id]/remind', () => {
     expect(res.status).toBe(403);
   });
 
-  it('allows an admin to remind on a sandbox quote', async () => {
+  it('blocks email delivery for sandbox quotes even when admin is authorized', async () => {
     getAuthUser.mockResolvedValue(ADMIN);
+    const sendSpy = vi.fn(async () => ({ data: { id: 'email-1' }, error: null }));
+    getResendClient.mockReturnValue({ emails: { send: sendSpy } });
     createServiceClientSafe.mockReturnValue(
       makeClient([{ id: 'q1', status: 'finalized', payment_status: 'not_requested', customer_email: 'sarah@example.com', environment: 'sandbox' }])
     );
@@ -75,6 +77,9 @@ describe('POST /api/quotes/[id]/remind', () => {
 
     const res = await POST(new Request('https://app.test/api/quotes/q1/remind', { method: 'POST' }) as never, routeParams('q1'));
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, blocked: true, reason: 'sandbox' });
+    expect(sendSpy).not.toHaveBeenCalled();
   });
 
   it('still allows an employee to remind on a production quote', async () => {

@@ -25,6 +25,7 @@ import { quoteReminderEmail } from '@/lib/email/templates';
 import { QuoteStatus } from '@/lib/types/status';
 import { createQuoteRepository } from '@/lib/quotes/repository';
 import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
+import { LIVE_WORKSPACE } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -79,10 +80,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
   }
 
+  const workspace = quoteWorkspace(quote);
+
   // A sandbox quote may only be reminded by an admin specifically — an
   // employee otherwise allowed to send reminders for production quotes may
   // not touch a sandbox one.
-  if (!isAuthorizedForQuoteWorkspace(quoteWorkspace(quote), authUser.role)) {
+  if (!isAuthorizedForQuoteWorkspace(workspace, authUser.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -96,6 +99,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       { error: 'Quote is not in a payable state', status: quote.status, payment_status: quote.payment_status },
       { status: 409 }
     );
+  }
+
+  // Sandbox quotes must never trigger real Resend delivery — no real customer
+  // is behind the record. Return a testable blocked response without stamping
+  // last_reminder_sent_at so the rate limit is not consumed by test runs.
+  if (workspace !== LIVE_WORKSPACE) {
+    return NextResponse.json({ success: true, blocked: true, reason: 'sandbox' });
   }
 
   const customerEmail: string | null | undefined = quote.customer_email;

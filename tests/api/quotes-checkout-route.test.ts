@@ -205,6 +205,65 @@ describe('POST /api/quotes/[id]/checkout — workspace compatibility', () => {
     expect(res.status).toBe(403);
   });
 
+  it('blocks email delivery for sandbox quotes and reports email_blocked in response', async () => {
+    getAuthUser.mockResolvedValue(ADMIN);
+    const sendSpy = vi.fn(async () => ({ data: { id: 'email-1' }, error: null }));
+    getResendClient.mockReturnValue({ emails: { send: sendSpy } });
+    const quote: Row = {
+      id: 'q1',
+      status: 'finalized',
+      payment_status: 'not_requested',
+      reviewed_total: 200,
+      submitted_total: 200,
+      total: 200,
+      customer_id: null,
+      customer_email: 'test@sandbox.local',
+      environment: 'sandbox',
+      converted_order_id: null,
+    };
+    createServiceClientSafe.mockReturnValue(
+      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-1', environment: 'sandbox' } })
+    );
+    const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
+
+    const res = await POST(req('https://app.test/api/quotes/q1/checkout'), routeParams('q1'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.email_blocked).toBe(true);
+    expect(body.email_sent).toBe(false);
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not block email delivery for production quotes', async () => {
+    getAuthUser.mockResolvedValue(ADMIN);
+    const sendSpy = vi.fn(async () => ({ data: { id: 'email-1' }, error: null }));
+    getResendClient.mockReturnValue({ emails: { send: sendSpy } });
+    const quote: Row = {
+      id: 'q2',
+      status: 'finalized',
+      payment_status: 'not_requested',
+      reviewed_total: 200,
+      submitted_total: 200,
+      total: 200,
+      customer_id: null,
+      customer_name: 'Real Customer',
+      customer_email: 'real@example.com',
+      service_type: 'cleaning',
+      environment: 'production',
+      converted_order_id: null,
+    };
+    createServiceClientSafe.mockReturnValue(
+      makeClient({ quotes: [quote], ordersTerminal: { id: 'order-2', environment: 'production' } })
+    );
+    const { POST } = await import('@/app/api/quotes/[id]/checkout/route');
+
+    const res = await POST(req('https://app.test/api/quotes/q2/checkout'), routeParams('q2'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.email_blocked).toBe(false);
+    expect(sendSpy).toHaveBeenCalledOnce();
+  });
+
   it('scopes the Stripe-customer lookup to the quote\'s own workspace', async () => {
     getAuthUser.mockResolvedValue(ADMIN);
     const quote: Row = {
