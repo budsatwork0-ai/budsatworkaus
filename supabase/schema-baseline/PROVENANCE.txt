@@ -1,0 +1,22 @@
+PROVENANCE
+==========
+Generated : 2026-07-24
+Tool      : pg_dump (PostgreSQL) 18.4
+Source    : $SUPABASE_DB_URL (environment variable — value not recorded)
+Method    : schema-only export via pg_dump flags:
+              --schema-only   (DDL only, no data)
+              --no-comments   (strips SQL comments including host header)
+              --no-owner      (removes SET OWNER statements)
+              --no-privileges (removes GRANT/REVOKE statements)
+
+Artifacts
+---------
+schema.sql        — All schemas exported from the database (no data)
+public-schema.sql — public schema only (subset of schema.sql, same flags)
+SHA256SUMS.txt    — SHA-256 checksums of the above two files
+SANITIZATION_REPORT.md — Pre-promotion secret scan results
+
+Verification
+------------
+To re-verify artifact integrity:
+  shasum -a 256 -c SHA256SUMS.txt
