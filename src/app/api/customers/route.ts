@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
+import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCustomerRepository } from '@/lib/customers/repository';
+import { resolveCustomerWorkspace } from '@/lib/customers/workspace';
+import { withWorkspaceContext } from '@/lib/workspace/server';
 
 export async function GET(request: NextRequest) {
   const authUser = await getAuthUser();
@@ -15,19 +18,16 @@ export async function GET(request: NextRequest) {
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
   const { searchParams } = new URL(request.url);
+  const workspace = resolveCustomerWorkspace(searchParams, authUser.role);
   const search = searchParams.get('search');
   const limit = parseInt(searchParams.get('limit') || '50');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (client as any).from('customers').select('*').order('created_at', { ascending: false }).limit(limit);
-
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
-  }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ customers: data || [] });
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createCustomerRepository({ client });
+    const { data, error } = await repository.list({ search, limit });
+    if (error) return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json({ customers: data });
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -38,9 +38,6 @@ export async function POST(request: NextRequest) {
   if (authUser.role === 'customer') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  const client = createServiceClientSafe();
-  if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
   let body: Record<string, unknown>;
   try {
@@ -54,6 +51,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Pick only known customer fields — never pass the raw body to the DB.
+  // This also means a body cannot smuggle in `environment`/`workspace`: it
+  // is simply never read here, and createCustomerRepository().create() would
+  // discard it via stampWorkspace() even if it were.
   const payload = {
     full_name: String(body.full_name).trim(),
     email: body.email ? String(body.email).trim() : null,
@@ -66,8 +66,16 @@ export async function POST(request: NextRequest) {
     longitude: body.longitude != null ? Number(body.longitude) : null,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any).from('customers').insert(payload).select().single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ customer: data });
+  const client = createServiceClientSafe();
+  if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+
+  const { searchParams } = new URL(request.url);
+  const workspace = resolveCustomerWorkspace(searchParams, authUser.role);
+
+  return withWorkspaceContext(workspace, async () => {
+    const repository = createCustomerRepository({ client });
+    const { data, error } = await repository.create(payload);
+    if (error) return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json({ customer: data });
+  });
 }

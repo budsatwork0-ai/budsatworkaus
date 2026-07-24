@@ -3,6 +3,9 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { createStripeClientSafe } from '@/lib/stripe/server';
 import { type QuoteStatus, VALID_QUOTE_STATUSES } from '@/lib/types/status';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { quoteWorkspace } from '@/lib/quotes/workspace';
+import { assertWorkspaceCompatibility, LIVE_WORKSPACE, withWorkspaceContext } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -48,9 +51,14 @@ async function logQuoteAudit(
 
 function canAccessQuote(
   authUser: { id: string; role: string } | null,
-  quote: { customer_id: string | null }
+  quote: { customer_id: string | null; environment?: unknown }
 ) {
   if (!authUser) return false;
+  // Sandbox quotes are admin-only regardless of role or ownership — this is
+  // the "authorized admin, explicit workspace" gate applied at the level of
+  // a single record instead of a list request (there's no query param to
+  // resolve here; the workspace is a property of the fetched quote itself).
+  if (quoteWorkspace(quote) !== LIVE_WORKSPACE && authUser.role !== 'admin') return false;
   if (authUser.role === 'admin' || authUser.role === 'employee') return true;
   // Customers may only access quotes they own by user ID — never by email.
   // Email-based matching is insecure: emails can be reused or changed.
@@ -65,12 +73,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quote, error } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: quote, error } = await repository.getById(id);
 
   if (error || !quote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
@@ -101,15 +105,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: currentQuote, error: currentError } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: currentQuote, error: currentError } = await repository.getById(id);
 
   if (currentError || !currentQuote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+  }
+
+  // Sandbox quotes may only be updated by an admin — an employee otherwise
+  // allowed to PATCH production quotes may not touch a sandbox one.
+  const workspace = quoteWorkspace(currentQuote);
+  if (workspace !== LIVE_WORKSPACE && authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const currentStatus = normalizeStatus(currentQuote.status);
@@ -153,6 +160,36 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
 
       if (currentQuote.converted_order_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: linkedOrder, error: linkedOrderFetchError } = await (client as any)
+          .from('orders')
+          .select('id, environment')
+          .eq('id', currentQuote.converted_order_id)
+          .maybeSingle();
+
+        if (linkedOrderFetchError || !linkedOrder) {
+          console.error('[api/quotes] Failed to load linked order:', linkedOrderFetchError?.message);
+          return NextResponse.json({ error: 'Failed to load the linked order' }, { status: 500 });
+        }
+
+        // A quote and its converted order must share a workspace — the DB
+        // propagation trigger (propagate_order_environment) already
+        // guarantees this for the code path that creates/updates it (see
+        // checkout/route.ts), so this should never actually fire. It's a
+        // verified guarantee rather than an assumption: if it ever
+        // disagrees, that's a data integrity problem worth surfacing loudly
+        // rather than silently cancelling (or silently skipping) a
+        // cross-workspace order.
+        try {
+          assertWorkspaceCompatibility(workspace, quoteWorkspace(linkedOrder));
+        } catch (compatErr) {
+          console.error('[api/quotes] Linked order workspace mismatch:', compatErr);
+          return NextResponse.json(
+            { error: 'Linked order belongs to a different workspace than this quote' },
+            { status: 409 }
+          );
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: linkedOrderError } = await (client as any)
           .from('orders')
@@ -248,16 +285,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     updates.ndis_forward_email = e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
-    .from('quotes')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  const { data, error } = await withWorkspaceContext(workspace, () => repository.update(id, updates));
 
   if (error) {
-    console.error('[api/quotes] PATCH failed:', error.message);
+    console.error('[api/quotes] PATCH failed:', error);
     return NextResponse.json({ error: 'Failed to update quote' }, { status: 500 });
   }
 

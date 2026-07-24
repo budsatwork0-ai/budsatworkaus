@@ -8,7 +8,9 @@
  *   b) Automatically via a cron job that filters orders where
  *      scheduled_date = tomorrow AND day_before_reminder_sent = false.
  *
- * Who can call it: admin / employee only.
+ * Who can call it: admin / employee only. Sandbox orders additionally
+ * require admin specifically, and never trigger a real email send — see the
+ * sandbox branch below.
  *
  * Idempotency: A `day_before_reminder_sent` boolean column on the orders table
  * prevents double-firing. Falls back gracefully if the column doesn't exist yet.
@@ -19,6 +21,8 @@ import { createServiceClientSafe } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { dayBeforeReminderEmail } from '@/lib/email/templates';
+import { orderWorkspace } from '@/lib/orders/workspace';
+import { LIVE_WORKSPACE } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -74,6 +78,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
   }
 
+  // Sandbox orders may only be reminded by an admin specifically — an
+  // employee otherwise allowed to send reminders for production orders may
+  // not touch a sandbox one.
+  const workspace = orderWorkspace(order);
+  if (workspace !== LIVE_WORKSPACE && authUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   // Only send for confirmed / scheduled orders
   if (!['confirmed', 'scheduled'].includes(order.status)) {
     return NextResponse.json(
@@ -92,6 +104,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   if (!customerEmail) {
     return NextResponse.json({ error: 'No customer email on order' }, { status: 422 });
+  }
+
+  // Sandbox: never send a real reminder email — there is no real customer
+  // behind the record. Return a clear, testable blocked response instead of
+  // building any fake email adapter/simulation.
+  if (workspace !== LIVE_WORKSPACE) {
+    return NextResponse.json({ success: true, blocked: true, reason: 'sandbox' });
   }
 
   const serviceLabel = SERVICE_LABELS[order.service_type] ?? order.service_type;
