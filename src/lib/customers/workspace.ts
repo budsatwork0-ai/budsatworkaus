@@ -7,7 +7,7 @@
  * next to the Customers routes that need it, not inside the generic module.
  */
 
-import { LIVE_WORKSPACE, resolveWorkspaceFromRequest, type Workspace } from '@/lib/workspace/server';
+import { resolveGatedWorkspaceFromRequest, type Workspace } from '@/lib/workspace/server';
 import type { UserRole } from '@/types/roles';
 
 /**
@@ -17,10 +17,11 @@ import type { UserRole } from '@/types/roles';
  * anyone else is held to the live workspace, exactly like an invalid or
  * missing value already is. This reuses the admin-only gate already used
  * throughout the API (`role !== 'admin'`, e.g. src/app/api/quotes/[id]/route.ts)
- * rather than inventing a new authorization concept.
+ * rather than inventing a new authorization concept. The actual "selection
+ * vs. authorization" logic is shared with Quotes via
+ * `resolveGatedWorkspaceFromRequest` — this function only supplies the
+ * Customers-specific authorization predicate.
  */
 export function resolveCustomerWorkspace(searchParams: URLSearchParams, role: UserRole): Workspace {
-  const requested = resolveWorkspaceFromRequest(searchParams);
-  if (requested === LIVE_WORKSPACE) return requested;
-  return role === 'admin' ? requested : LIVE_WORKSPACE;
+  return resolveGatedWorkspaceFromRequest(searchParams, role === 'admin');
 }
