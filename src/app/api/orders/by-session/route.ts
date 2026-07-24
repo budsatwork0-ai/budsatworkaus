@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { orderWorkspace } from '@/lib/orders/workspace';
+import { LIVE_WORKSPACE } from '@/lib/workspace/server';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -26,11 +28,14 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: order, error } = await (client as any)
       .from('orders')
-      .select('id, customer_name, service_type, context, final_price, created_at, status, scheduled_date')
+      .select('id, customer_name, service_type, context, final_price, created_at, status, scheduled_date, environment')
       .eq('stripe_checkout_session_id', sessionId)
       .single();
 
-    if (error || !order) {
+    // This route is unauthenticated — the session id functions as a bearer
+    // token. A sandbox order must never be distinguishable from "no such
+    // order" in the response, so both cases return the identical 404.
+    if (error || !order || orderWorkspace(order) !== LIVE_WORKSPACE) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 

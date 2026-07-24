@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
       scheduled_date,
       job_assignments ( id, status )
     `)
+    .eq('environment', 'production')
     .in('status', [OrderStatus.confirmed, OrderStatus.scheduled, OrderStatus.inProgress])
     .lte('scheduled_date', cutoffDate)
     .is('completed_at', null)

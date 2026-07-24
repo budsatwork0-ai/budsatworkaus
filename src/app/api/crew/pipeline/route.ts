@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { buildEmployeeOnboardingSnapshot } from '@/lib/crew-onboarding';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCrewRepository } from '@/lib/crew/repository';
 import { SERVICE_TYPE_LABELS, type ServiceType } from '@/types/orders';
 
 type PipelineStage = 'intake' | 'verify' | 'paperwork' | 'induct' | 'ready';
@@ -227,6 +228,7 @@ export async function GET() {
       .filter((value: string | null): value is string => Boolean(value)),
   );
 
+  const crewRepository = createCrewRepository({ client });
   const [sectionsRes, documentsRes, assignmentsRes] = await Promise.all([
     employeeIds.length > 0
       ? (client as any)
@@ -241,25 +243,11 @@ export async function GET() {
           .in('employee_id', employeeIds)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
-    employeeIds.length > 0
-      ? (client as any)
-          .from('job_assignments')
-          .select('employee_id, order_id, status, created_at')
-          .in('employee_id', employeeIds)
-      : Promise.resolve({ data: [] }),
+    crewRepository.listForPipeline(employeeIds),
   ]);
-
-  const orderIds = uniq((assignmentsRes.data || []).map((assignment: any) => assignment.order_id));
-  const { data: orders } = orderIds.length > 0
-    ? await (client as any)
-        .from('orders')
-        .select('id, customer_name, service_type, scheduled_date, status')
-        .in('id', orderIds)
-    : { data: [] };
 
   const sectionsByEmployee = new Map<string, Array<{ section: string; completed: boolean }>>();
   const documentsByEmployee = new Map<string, Array<any>>();
-  const ordersById = new Map<string, any>((orders || []).map((order: any) => [order.id, order]));
   const assignmentsByEmployee = new Map<string, Array<any>>();
 
   for (const section of sectionsRes.data || []) {
@@ -278,7 +266,7 @@ export async function GET() {
     const list = assignmentsByEmployee.get(assignment.employee_id) || [];
     list.push({
       ...assignment,
-      order: ordersById.get(assignment.order_id) || null,
+      order: assignment.orders || null,
     });
     assignmentsByEmployee.set(assignment.employee_id, list);
   }

@@ -15,6 +15,9 @@
  *     prevent double-firing from a cron. Fall back gracefully if the column doesn't exist.
  *
  * Rate limit: 5 reminders per quote per hour (enforced in-memory; replace with Redis for prod).
+ *
+ * Sandbox: never sends a real reminder email — there is no real customer
+ * behind the record. Mirrors orders/[id]/remind-day-before's sandbox branch.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,6 +26,9 @@ import { getAuthUser } from '@/lib/auth';
 import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend';
 import { quoteReminderEmail } from '@/lib/email/templates';
 import { QuoteStatus } from '@/lib/types/status';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
+import { LIVE_WORKSPACE } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -70,15 +76,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   // Load the quote
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quote, error: qErr } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: quote, error: qErr } = await repository.getById(id);
 
   if (qErr || !quote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+  }
+
+  // A sandbox quote may only be reminded by an admin specifically — an
+  // employee otherwise allowed to send reminders for production quotes may
+  // not touch a sandbox one.
+  const workspace = quoteWorkspace(quote);
+  if (!isAuthorizedForQuoteWorkspace(workspace, authUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Guard: only remind if the quote is in a payable state
@@ -93,13 +103,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const customerEmail: string | undefined = quote.customer_email;
+  const customerEmail: string | null | undefined = quote.customer_email;
   const customerName: string = quote.customer_name || 'there';
   const serviceLabel = SERVICE_LABELS[quote.service_type] ?? quote.service_type;
   const total = Number(quote.reviewed_total ?? quote.submitted_total ?? quote.total ?? 0);
 
   if (!customerEmail) {
     return NextResponse.json({ error: 'No customer email on quote' }, { status: 422 });
+  }
+
+  // Sandbox: never send a real reminder email — there is no real customer
+  // behind the record. Still stamp last_reminder_sent_at so sandbox testing
+  // exercises the same idempotency/rate-limit state progression as
+  // production, and return a clear, testable blocked response instead of
+  // building any fake email adapter/simulation.
+  if (workspace !== LIVE_WORKSPACE) {
+    repository
+      .update(id, { last_reminder_sent_at: new Date().toISOString() })
+      .catch(() => {/* column may not exist */});
+    return NextResponse.json({ success: true, blocked: true, reason: 'sandbox' });
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
@@ -135,12 +157,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Attempt to stamp last_reminder_sent_at — non-blocking, column may not exist yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (client as any)
-      .from('quotes')
-      .update({ last_reminder_sent_at: new Date().toISOString() })
-      .eq('id', id)
-      .then(() => {/* ignore result */})
+    repository
+      .update(id, { last_reminder_sent_at: new Date().toISOString() })
       .catch(() => {/* column may not exist */});
 
     return NextResponse.json({ success: true, sent_to: customerEmail });

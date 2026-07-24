@@ -13,7 +13,13 @@ import {
   getStripeCheckoutPolicy,
 } from '@/lib/payments/pricing';
 import type Stripe from 'stripe';
-import { QuoteStatus, OrderStatus } from '@/lib/types/status';
+import { QuoteStatus } from '@/lib/types/status';
+import { createQuoteRepository } from '@/lib/quotes/repository';
+import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
+import { assertWorkspaceCompatibility, LIVE_WORKSPACE, scopeQuery } from '@/lib/workspace/server';
+import { requireProductionPaymentWorkspace } from '@/lib/payments/workspace';
+import { ensureOrderForPayableQuote } from '@/lib/payments/quote-conversion';
+import { createPaymentRepository } from '@/lib/payments/repository';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -59,23 +65,28 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const client = createServiceClientSafe();
   if (!client) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: quote, error: quoteError } = await (client as any)
-    .from('quotes')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const repository = createQuoteRepository({ client });
+  const { data: quote, error: quoteError } = await repository.getById(id);
 
   if (quoteError || !quote) {
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
   }
 
+  const workspace = quoteWorkspace(quote);
+
   // Access control:
-  // - Authenticated admin/employee: full access
-  // - Authenticated customer: must own the quote (by id or email match)
+  // - Authenticated admin/employee: full access (sandbox requires admin specifically)
+  // - Authenticated customer: must own the quote (by id or email match), and the quote must be production
   // - Unauthenticated guest: only allowed if the quote has already been admin-approved
-  //   (status finalized/payment_pending). The quote UUID is the bearer token.
+  //   (status finalized/payment_pending), AND the quote is production. A guest
+  //   (bearer-token-by-UUID) checkout must never be able to reach a sandbox
+  //   quote — there's no real customer behind it, and no authorization step
+  //   at all in that path.
   if (authUser) {
+    if (!isAuthorizedForQuoteWorkspace(workspace, authUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const canAccess =
       authUser.role === 'admin' ||
       authUser.role === 'employee' ||
@@ -89,11 +100,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   } else {
+    if (workspace !== LIVE_WORKSPACE) {
+      return NextResponse.json({ error: 'Quote is not yet approved for payment' }, { status: 403 });
+    }
     // Guest path: only permit for admin-approved quotes
     const approvedStatuses = [QuoteStatus.finalized, QuoteStatus.paymentPending, 'approved'];
     if (!approvedStatuses.includes(quote.status)) {
       return NextResponse.json({ error: 'Quote is not yet approved for payment' }, { status: 403 });
     }
+  }
+
+  // Authorization permits admins to inspect sandbox data; it never permits a
+  // real provider/email/analytics side effect. This precedes every mutation.
+  try {
+    requireProductionPaymentWorkspace(workspace);
+  } catch {
+    return NextResponse.json({ error: 'Payment execution is unavailable for this quote' }, { status: 403 });
   }
 
   const quoteStatus =
@@ -110,7 +132,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 
-  if (![QuoteStatus.finalized, QuoteStatus.paymentPending].includes(quoteStatus)) {
+  if (!([QuoteStatus.finalized, QuoteStatus.paymentPending] as string[]).includes(quoteStatus)) {
     return NextResponse.json(
       { error: 'Quote must be finalized before requesting payment' },
       { status: 400 }
@@ -145,47 +167,35 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const feeEstimate = calculateStripeFeeEstimate(amountCents);
 
-  const orderPayload = {
-    quote_id: quote.id,
-    customer_id: quote.customer_id,
-    customer_name: quote.customer_name,
-    customer_email: quote.customer_email,
-    customer_phone: quote.customer_phone,
-    service_type: quote.service_type,
-    context: quote.context,
-    scope: quote.scope,
-    frequency: quote.frequency,
-    analytics_session_id: quote.analytics_session_id ?? null,
-    base_price: Number(quote.submitted_total ?? quote.total ?? amount),
-    discount_percent: 0,
-    final_price: amount,
-    status: OrderStatus.pending,
-    notes: quote.notes,
-  };
+  let order;
+  try {
+    order = await ensureOrderForPayableQuote(client, quote);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to save order' },
+      { status: error instanceof Error && /workspace/i.test(error.message) ? 409 : 500 }
+    );
+  }
+  const orderId = order.id;
+  try {
+    assertWorkspaceCompatibility(workspace, quoteWorkspace(order));
+  } catch (compatErr) {
+    console.error('[checkout] Order workspace mismatch:', compatErr);
+    return NextResponse.json(
+      { error: 'Order belongs to a different workspace than this quote' },
+      { status: 409 }
+    );
+  }
 
-  let orderId = quote.converted_order_id as string | null;
-
-  if (orderId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: orderUpdateError } = await (client as any)
-      .from('orders')
-      .update(orderPayload)
-      .eq('id', orderId);
-    if (orderUpdateError) {
-      return NextResponse.json({ error: orderUpdateError.message }, { status: 500 });
-    }
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: order, error: orderError } = await (client as any)
-      .from('orders')
-      .insert([orderPayload])
-      .select('id')
-      .single();
-
-    if (orderError || !order) {
-      return NextResponse.json({ error: orderError?.message || 'Failed to create order' }, { status: 500 });
-    }
-    orderId = order.id;
+  const payments = createPaymentRepository(client, workspace);
+  let pendingPayment;
+  try {
+    pendingPayment = await payments.findOrCreatePending({
+      provider: 'stripe', amount, currency: 'aud', orderId, customerId: quote.customer_id,
+    });
+  } catch (error) {
+    console.error('[checkout] Failed to establish pending payment:', error);
+    return NextResponse.json({ error: 'Failed to establish payment' }, { status: 503 });
   }
 
   let stripe;
@@ -212,12 +222,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   let stripeCustomerId: string | undefined;
   if (quote.customer_email) {
     try {
+      // Scoped to the quote's own workspace: a production quote must never
+      // pick up a Stripe customer ID belonging to a same-email sandbox
+      // customer row, or vice versa.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: customerRow } = await (client as any)
+      const customerQuery = (client as any)
         .from('customers')
         .select('id, stripe_customer_id')
-        .eq('email', quote.customer_email)
-        .maybeSingle();
+        .eq('email', quote.customer_email);
+      const { data: customerRow } = await scopeQuery(customerQuery, workspace).maybeSingle();
 
       if (customerRow?.stripe_customer_id) {
         stripeCustomerId = customerRow.stripe_customer_id;
@@ -319,6 +332,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         ? stripeErr.message
         : 'Failed to create payment session';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  try {
+    await payments.attachProviderObject(pendingPayment.id, 'stripe', 'checkout_session', session.id);
+  } catch (mappingError) {
+    console.error('[checkout] Failed to persist Stripe Checkout Session mapping:', mappingError);
+    try {
+      await stripe.checkout.sessions.expire(session.id);
+    } catch (expireError) {
+      console.error('[checkout] Failed to expire unmapped Stripe Checkout Session:', expireError);
+    }
+    return NextResponse.json({ error: 'Payment session could not be safely persisted' }, { status: 503 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

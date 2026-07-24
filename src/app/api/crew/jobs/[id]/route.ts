@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCrewRepository } from '@/lib/crew/repository';
 
 // GET /api/crew/jobs/[id] - Get single job assignment detail
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,16 +28,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (client as any)
-    .from('job_assignments')
-    .select('*, orders(*)')
-    .eq('id', id)
-    .eq('employee_id', employee.id)
-    .single();
+  const repository = createCrewRepository({ client });
+  const { data, error } = await repository.getOwnedDetail(id, employee.id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error || !data) {
+    return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
   }
 
   // Also get checklist template for this service type
@@ -91,14 +87,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // Get current assignment
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: current } = await (client as any)
-    .from('job_assignments')
-    .select('*')
-    .eq('id', id)
-    .eq('employee_id', employee.id)
-    .single();
+  const repository = createCrewRepository({ client });
+  const { data: context } = await repository.getOwnedAssignmentContext(id, employee.id);
+  const current = context?.assignment;
 
   if (!current) {
     return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });

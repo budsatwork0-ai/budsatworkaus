@@ -97,6 +97,9 @@ vi.mock('@/lib/stripe/server', async () => {
     apiVersion: '2026-01-28.clover',
     typescript: true,
   });
+  stripe.paymentIntents.retrieve = vi.fn(async (id: string) => ({ id, amount: 12345, currency: 'aud' })) as never;
+  stripe.checkout.sessions.list = vi.fn(async () => ({ data: [] })) as never;
+  stripe.charges.retrieve = vi.fn(async (id: string) => ({ id, payment_intent: 'pi_test_123' })) as never;
 
   return {
     createStripeClient: vi.fn(() => stripe),
@@ -249,7 +252,7 @@ describe('Stripe webhook route', () => {
     }));
   });
 
-  it('confirms an order when payment_intent.succeeded arrives before checkout.session.completed', async () => {
+  it('does not let PaymentIntent metadata establish ownership', async () => {
     mocks.state.ordersById.set('ord_test_123', {
       id: 'ord_test_123',
       status: 'pending',
@@ -267,37 +270,10 @@ describe('Stripe webhook route', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mocks.calls).toContainEqual({
-      table: 'orders',
-      method: 'update',
-      rows: {
-        stripe_payment_intent_id: 'pi_test_123',
-        status: 'confirmed',
-      },
-    });
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: 'quotes',
-      method: 'update',
-      rows: expect.objectContaining({
-        status: 'paid',
-        payment_status: 'paid',
-        stripe_payment_intent_id: 'pi_test_123',
-        converted_order_id: 'ord_test_123',
-      }),
-    }));
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: 'payments',
-      method: 'insert',
-      rows: [expect.objectContaining({
-        order_id: 'ord_test_123',
-        amount: 123.45,
-        payment_reference: 'pi_test_123',
-        status: 'completed',
-      })],
-    }));
+    expect(mocks.calls.filter((call) => ['orders', 'quotes', 'payments'].includes(call.table))).toEqual([]);
   });
 
-  it('marks an order failed from payment_intent.payment_failed metadata', async () => {
+  it('does not let failed PaymentIntent metadata establish ownership', async () => {
     mocks.state.ordersById.set('ord_test_123', {
       id: 'ord_test_123',
       status: 'pending',
@@ -322,26 +298,10 @@ describe('Stripe webhook route', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: 'orders',
-      method: 'update',
-      rows: {
-        stripe_payment_intent_id: 'pi_test_failed',
-        status: 'failed',
-      },
-    }));
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: 'quotes',
-      method: 'update',
-      rows: expect.objectContaining({
-        status: 'finalized',
-        payment_status: 'not_requested',
-        stripe_checkout_url: null,
-      }),
-    }));
+    expect(mocks.calls.filter((call) => ['orders', 'quotes', 'payments'].includes(call.table))).toEqual([]);
   });
 
-  it('logs charge.dispute.created with useful dispute status data', async () => {
+  it('does not log a dispute whose charge has no trusted payment mapping', async () => {
     const response = await postEvent('charge.dispute.created', {
       id: 'dp_test_123',
       object: 'dispute',
@@ -356,26 +316,7 @@ describe('Stripe webhook route', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mocks.calls).toContainEqual({
-      table: 'audit_log',
-      method: 'insert',
-      rows: [{
-        entity_type: 'dispute',
-        entity_id: 'dp_test_123',
-        action: 'dispute_created',
-        new_value: {
-          amount: 50,
-          currency: 'aud',
-          charge_id: 'ch_test_123',
-          payment_intent: 'pi_test_123',
-          reason: 'fraudulent',
-          status: 'needs_response',
-          evidence_due_by: 1_700_172_800,
-          livemode: false,
-        },
-        source: 'webhook',
-      }],
-    });
+    expect(mocks.calls.filter((call) => call.table === 'audit_log')).toEqual([]);
   });
 
   it('returns safe success for unknown events without writing records', async () => {

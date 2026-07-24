@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCrewRepository } from '@/lib/crew/repository';
 
 // POST /api/crew/jobs/[id]/complete - Submit job completion
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,14 +28,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
   }
 
-  // Get current assignment - must be in_progress
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: assignment } = await (client as any)
-    .from('job_assignments')
-    .select('*')
-    .eq('id', id)
-    .eq('employee_id', employee.id)
-    .single();
+  // Resolve the minimal owned assignment and authorize its parent order
+  // before parsing completion input or performing any write.
+  const repository = createCrewRepository({ client });
+  const { data: context } = await repository.getOwnedAssignmentContext(id, employee.id);
+  const assignment = context?.assignment;
 
   if (!assignment) {
     return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });

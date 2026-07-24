@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createServiceClientSafe } from '@/lib/supabase/server';
+import { createCrewRepository } from '@/lib/crew/repository';
 
 // GET /api/crew/my-jobs - List employee's accepted/in-progress jobs
 export async function GET(req: NextRequest) {
@@ -30,18 +31,14 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get('date');
   const status = searchParams.get('status');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (client as any)
-    .from('job_assignments')
-    .select('*, orders(*)')
-    .eq('employee_id', employee.id)
-    .in('status', status ? [status] : ['accepted', 'in_progress', 'completed'])
-    .order('created_at', { ascending: false });
-
-  const { data, error } = await query;
+  const repository = createCrewRepository({ client });
+  const { data, error } = await repository.listMine(
+    employee.id,
+    status ? [status] : ['accepted', 'in_progress', 'completed'],
+  );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   let assignments = data || [];

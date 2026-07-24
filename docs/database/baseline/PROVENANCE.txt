@@ -1,0 +1,85 @@
+Buds At Work — Authoritative Schema Baseline: Provenance
+=========================================================
+
+Project: Buds At Work
+Purpose: Authoritative fresh-database (empty-database) baseline for Phase 2
+         database validation, per docs/database/authoritative-baseline-artifact-request.md
+         and docs/database/migration-baseline-investigation.md in the
+         budsatwork-workspace-extraction repository.
+
+Exported by: Jackson Taylor
+Export date (UTC): 2026-07-22T23:15:10Z
+
+Source environment:
+  Authorised PRODUCTION Supabase project — the main "buds-at-work" project.
+  Owner-confirmed: the connection string used for this export was supplied
+  directly by the project owner (Jackson Taylor) and points at the
+  authorised production environment, not a disposable clone or a
+  non-production project. This is a deviation from the priority order in
+  authoritative-baseline-artifact-request.md (disposable clone preferred),
+  explicitly accepted here because the owner is the same person authorising
+  the export and confirmed the source in the review step following delivery.
+  The connection string itself was supplied via a locally staged,
+  owner-only-permission file, never pasted into or logged by the export
+  tooling/conversation, and is not recorded anywhere in this artifact.
+
+Operation type: schema-only, read-only. No writes, no DDL/DML executed
+against the source. Only `supabase db dump` (schema export) and
+`supabase migration list` (version-metadata query) were run.
+
+Export method:
+  Official Supabase CLI, `supabase db dump`, run twice against the supplied
+  --db-url:
+    1. schema.sql        -> --schema public,extensions
+    2. public-schema.sql -> --schema public
+  Supabase CLI version: 2.109.1 (darwin-arm64)
+  Underlying pg_dump executed inside Supabase's matched Postgres Docker image:
+    public.ecr.aws/supabase/postgres:17.6.1.143
+  (This image tag is selected automatically by the CLI to match the live
+  server's reported PostgreSQL engine version — i.e. the source database
+  runs PostgreSQL 17.6, Supabase build 143.)
+
+Scope / contents:
+  - Schema-only. No --data-only, no --use-copy, no INSERT/COPY data rows.
+  - Includes: schemas, tables, columns/defaults, constraints, indexes,
+    sequences, functions/procedures, triggers, RLS enablement and policies,
+    and GRANT statements for anon/authenticated/service_role/postgres.
+  - Does NOT include: `--role-only` cluster-role dump (deliberately skipped —
+    pg_dumpall role exports can carry role password hashes; excluded per the
+    artifact request's prohibition on role passwords).
+  - auth/storage/other Supabase-managed schemas: referenced only where the
+    public schema depends on them (e.g. grants, foreign keys); their data
+    was never accessed.
+
+No application data intended or included: confirmed by inspection — no
+COPY statements, no data-bearing INSERT statements found in either file
+(see SANITIZATION_REPORT.md for full methodology and findings).
+
+Migration-history metadata (obtained via `supabase migration list --db-url`,
+which queries only version identifiers/timestamps, not row data):
+  Latest known migration applied to source: 20260708000137
+  Migration 20260722090000: NOT present in remote migration history
+  Migration 20260722100000: NOT present in remote migration history
+  (Full list of 90 applied migration versions retained in
+   logs/migration_list.log within the private handoff directory, not
+   included in the repository artifact.)
+
+SHA-256 checksums: see SHA256SUMS.txt (this directory).
+
+Owner confirmation received:
+  - Source confirmed by Jackson Taylor (project owner) as the authorised
+    production "buds-at-work" Supabase project, not a disposable clone.
+    Recorded here per that confirmation.
+
+Adoption status:
+  - This artifact was adopted as the versioned baseline and committed into
+    the repository in commit a73a1f3e2e40bb344be9914acf8bb89a1323a905
+    ("docs(db): add authorised production schema baseline",
+    2026-07-23T14:36:56+10:00), included in pull request #229
+    (budsatwork0-ai/budsatworkaus).
+  - Per the sanitization findings recorded in SANITIZATION_REPORT.md, no
+    production application data or credentials were included in the
+    adopted schema.sql / public-schema.sql files.
+
+No hostnames, credentials, connection strings, or Supabase project
+identifiers are recorded in this file or in SHA256SUMS.txt.
