@@ -15,6 +15,9 @@
  *     prevent double-firing from a cron. Fall back gracefully if the column doesn't exist.
  *
  * Rate limit: 5 reminders per quote per hour (enforced in-memory; replace with Redis for prod).
+ *
+ * Sandbox: never sends a real reminder email — there is no real customer
+ * behind the record. Mirrors orders/[id]/remind-day-before's sandbox branch.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -25,6 +28,7 @@ import { quoteReminderEmail } from '@/lib/email/templates';
 import { QuoteStatus } from '@/lib/types/status';
 import { createQuoteRepository } from '@/lib/quotes/repository';
 import { isAuthorizedForQuoteWorkspace, quoteWorkspace } from '@/lib/quotes/workspace';
+import { LIVE_WORKSPACE } from '@/lib/workspace/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -82,7 +86,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   // A sandbox quote may only be reminded by an admin specifically — an
   // employee otherwise allowed to send reminders for production quotes may
   // not touch a sandbox one.
-  if (!isAuthorizedForQuoteWorkspace(quoteWorkspace(quote), authUser.role)) {
+  const workspace = quoteWorkspace(quote);
+  if (!isAuthorizedForQuoteWorkspace(workspace, authUser.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -105,6 +110,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   if (!customerEmail) {
     return NextResponse.json({ error: 'No customer email on quote' }, { status: 422 });
+  }
+
+  // Sandbox: never send a real reminder email — there is no real customer
+  // behind the record. Still stamp last_reminder_sent_at so sandbox testing
+  // exercises the same idempotency/rate-limit state progression as
+  // production, and return a clear, testable blocked response instead of
+  // building any fake email adapter/simulation.
+  if (workspace !== LIVE_WORKSPACE) {
+    repository
+      .update(id, { last_reminder_sent_at: new Date().toISOString() })
+      .catch(() => {/* column may not exist */});
+    return NextResponse.json({ success: true, blocked: true, reason: 'sandbox' });
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;

@@ -45,13 +45,14 @@ function routeParams(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+let sendMock: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   process.env.NEXT_PUBLIC_SITE_URL = 'https://app.test';
-  getResendClient.mockReturnValue({
-    emails: { send: vi.fn(async () => ({ data: { id: 'email-1' }, error: null })) },
-  });
+  sendMock = vi.fn(async () => ({ data: { id: 'email-1' }, error: null }));
+  getResendClient.mockReturnValue({ emails: { send: sendMock } });
 });
 
 describe('POST /api/quotes/[id]/remind', () => {
@@ -64,9 +65,10 @@ describe('POST /api/quotes/[id]/remind', () => {
 
     const res = await POST(new Request('https://app.test/api/quotes/q1/remind', { method: 'POST' }) as never, routeParams('q1'));
     expect(res.status).toBe(403);
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it('allows an admin to remind on a sandbox quote', async () => {
+  it('allows an admin to remind on a sandbox quote but blocks the real email', async () => {
     getAuthUser.mockResolvedValue(ADMIN);
     createServiceClientSafe.mockReturnValue(
       makeClient([{ id: 'q1', status: 'finalized', payment_status: 'not_requested', customer_email: 'sarah@example.com', environment: 'sandbox' }])
@@ -74,10 +76,14 @@ describe('POST /api/quotes/[id]/remind', () => {
     const { POST } = await import('@/app/api/quotes/[id]/remind/route');
 
     const res = await POST(new Request('https://app.test/api/quotes/q1/remind', { method: 'POST' }) as never, routeParams('q1'));
+    const body = await res.json();
+
     expect(res.status).toBe(200);
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(body).toEqual({ success: true, blocked: true, reason: 'sandbox' });
   });
 
-  it('still allows an employee to remind on a production quote', async () => {
+  it('still allows an employee to remind on a production quote, and actually sends the email', async () => {
     getAuthUser.mockResolvedValue(EMPLOYEE);
     createServiceClientSafe.mockReturnValue(
       makeClient([{ id: 'q1', status: 'finalized', payment_status: 'not_requested', customer_email: 'sarah@example.com', environment: 'production' }])
@@ -85,6 +91,11 @@ describe('POST /api/quotes/[id]/remind', () => {
     const { POST } = await import('@/app/api/quotes/[id]/remind/route');
 
     const res = await POST(new Request('https://app.test/api/quotes/q1/remind', { method: 'POST' }) as never, routeParams('q1'));
+    const body = await res.json();
+
     expect(res.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ to: 'sarah@example.com' }));
+    expect(body).toEqual({ success: true, sent_to: 'sarah@example.com' });
   });
 });
