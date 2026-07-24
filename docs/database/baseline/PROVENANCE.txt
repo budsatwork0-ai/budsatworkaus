@@ -71,9 +71,15 @@ Owner confirmation received:
     production "buds-at-work" Supabase project, not a disposable clone.
     Recorded here per that confirmation.
 
-Still outstanding:
-  - Explicit sign-off to adopt this artifact as the versioned baseline and
-    to commit it into the repository (not yet moved or committed).
+Adoption status:
+  - This artifact was adopted as the versioned baseline and committed into
+    the repository in commit a73a1f3e2e40bb344be9914acf8bb89a1323a905
+    ("docs(db): add authorised production schema baseline",
+    2026-07-23T14:36:56+10:00), included in pull request #229
+    (budsatwork0-ai/budsatworkaus).
+  - Per the sanitization findings recorded in SANITIZATION_REPORT.md, no
+    production application data or credentials were included in the
+    adopted schema.sql / public-schema.sql files.
 
 No hostnames, credentials, connection strings, or Supabase project
 identifiers are recorded in this file or in SHA256SUMS.txt.
