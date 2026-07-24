@@ -12,11 +12,11 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useTabbedNav } from '../hooks/useTabbedNav';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/dashboard/utils';
 
-type Tab = 'ceo' | 'growth' | 'sales' | 'ops' | 'finance' | 'visitors';
+type Tab = 'growth' | 'sales' | 'ops' | 'finance' | 'visitors';
 
 function sanitizeTab(value: string | null): Tab {
   if (value === 'growth' || value === 'sales' || value === 'ops' || value === 'finance' || value === 'visitors') return value;
-  return 'ceo';
+  return 'sales';
 }
 
 function normalizeQuoteStatus(status: string) {
@@ -565,11 +565,10 @@ function InsightsPageContent() {
   ];
 
   const tabs = [
-    { key: 'ceo' as const, label: 'CEO' },
-    { key: 'growth' as const, label: 'Growth' },
     { key: 'sales' as const, label: 'Sales' },
-    { key: 'ops' as const, label: 'Ops' },
+    { key: 'ops' as const, label: 'Operations' },
     { key: 'finance' as const, label: 'Finance' },
+    { key: 'growth' as const, label: 'Growth' },
   ];
 
   if (error && !hasSnapshot && !isLoading) {
@@ -645,7 +644,7 @@ function InsightsPageContent() {
         <>
           <WorkbenchStatGrid stats={stats} />
 
-          {/* Primary focus tabs — CEO is the default view */}
+          {/* Primary focus tabs — Sales is the default view */}
           <WorkbenchTabs tabs={tabs} activeTab={tab} onTabChange={setTab} />
 
           {/* Visitors is secondary — not a cockpit view */}
@@ -666,7 +665,7 @@ function InsightsPageContent() {
             <div className="flex items-center -mt-3">
               <button
                 type="button"
-                onClick={() => setTab('ceo')}
+                onClick={() => setTab('sales')}
                 className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-200 transition-colors"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -686,13 +685,157 @@ function InsightsPageContent() {
             />
           ) : null}
 
-          {/* ── CEO ──────────────────────────────────────────────────────────── */}
-          {tab === 'ceo' ? (
+          {/* ── Sales ────────────────────────────────────────────────────────── */}
+          {tab === 'sales' ? (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+              <div className="grid gap-5">
+                <Panel title="Strategic Snapshot" subtitle="The few numbers that explain the month right now.">
+                  <div className="space-y-2">
+                    <StatRow label="Revenue target gap" value={formatCurrency(revenueGap)} />
+                    <StatRow label="Jobs target gap" value={String(jobsGap)} />
+                    <StatRow label="Active quote pipeline" value={`${activeQuotePipeline} quotes · ${formatCurrency(activeQuotePipelineValue)}`} />
+                    <StatRow label="Alerts in play" value={`${alertsFeed.length} live`} />
+                  </div>
+                </Panel>
+
+                <Panel title="Sales Engine" subtitle="Speed to close, pipeline drag, and which services are actually converting.">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-2">
+                      <StatRow label="Avg quote to finalized" value={formatDurationHours(avgQuoteToFinalizeHours)} />
+                      <StatRow label="Avg quote to payment request" value={formatDurationHours(avgQuoteToPaymentRequestHours)} />
+                      <StatRow label="Stale review quotes" value={`${staleReviewQuotes.length} older than 48h`} />
+                      <StatRow label="Stalled payment quotes" value={`${stalledPaymentQuotes.length} older than 72h`} />
+                    </div>
+                    <div className="space-y-2">
+                      {serviceWinRates.length > 0 ? serviceWinRates.map((service) => (
+                        <StatRow key={service.service} label={`${service.service} · ${service.pipeline} still open`} value={`${service.winRate}% won`} />
+                      )) : (
+                        <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                          No service win-rate data available yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Panel>
+
+                <Panel title="Pipeline Pressure" subtitle="Where the quote engine is slowing down.">
+                  <div className="space-y-2">
+                    <StatRow label="Review queue" value={`${reviewQuotes.length} quotes`} />
+                    <StatRow label="Close-ready quotes" value={`${closeReadyQuotes.length} quotes`} />
+                    <StatRow label="Review queue value" value={formatCurrency(reviewPipelineValue)} />
+                    <StatRow label="Close-ready value" value={formatCurrency(closeReadyValue)} />
+                  </div>
+                </Panel>
+              </div>
+
+              <div className="grid gap-5">
+                <Panel title="Actions" subtitle="What the sales side should do next.">
+                  <div className="flex flex-wrap gap-2">
+                    <Link href="/dashboard/quotes?workspace=review" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Clear review queue
+                    </Link>
+                    <Link href="/dashboard/quotes?status=finalized,payment_pending" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Follow up unpaid quotes
+                    </Link>
+                  </div>
+                </Panel>
+
+                <Panel title="Open Next" subtitle="The few places most likely to move the month right now.">
+                  <div className="flex flex-wrap gap-2">
+                    <Link href="/dashboard/quotes?workspace=review" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Review quote queue
+                    </Link>
+                    <Link href="/dashboard/quotes?status=finalized,payment_pending" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Chase payment-ready quotes
+                    </Link>
+                    <Link href="/dashboard/invoices?tab=invoices&status=Overdue" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Reduce overdue receivables
+                    </Link>
+                    <Link href="/dashboard/alerts" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Resolve alerts
+                    </Link>
+                  </div>
+                </Panel>
+
+                <Panel title="Service Leaders" subtitle="Top revenue contributors this month." right={`${metrics.revenueByService.length} tracked services`}>
+                  <div className="space-y-2">
+                    {metrics.revenueByService.slice(0, 5).map((service) => (
+                      <StatRow key={service.service} label={service.service} value={formatCurrency(service.amount)} />
+                    ))}
+                  </div>
+                </Panel>
+
+                <Panel
+                  title="Partner Referrals"
+                  subtitle="Tracked outbound clicks from the NDIS quote flow into trusted partners."
+                  right={maluCareReferral ? `${maluCareReferral.totalClicks} MaluCare clicks` : 'No partner clicks yet'}
+                >
+                  {maluCareReferral ? (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-2">
+                        <StatRow label="MaluCare clicks · 30 days" value={String(maluCareReferral.totalClicks)} />
+                        <StatRow label="Tracked unique sessions" value={String(maluCareReferral.uniqueSessions)} />
+                        <StatRow label="Last 7 days" value={`${maluCareReferral.clicksLast7Days} (${formatDelta(maluCareReferral.clicksLast7Days, maluCareReferral.clicksPrev7Days)})`} />
+                        <StatRow
+                          label="Last click"
+                          value={maluCareReferral.lastClickedAt ? formatRelativeTime(maluCareReferral.lastClickedAt) : 'No clicks yet'}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <StatRow label="Destination" value={maluCareReferral.destinationUrl || 'https://malucare.org/'} />
+                        {maluCareReferral.topSources.length > 0 ? maluCareReferral.topSources.map((source) => (
+                          <StatRow
+                            key={source.source}
+                            label={`Source · ${source.source}`}
+                            value={`${source.clicks} click${source.clicks === 1 ? '' : 's'}`}
+                          />
+                        )) : (
+                          <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                            Waiting for the first tracked MaluCare referral click.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                      No MaluCare referral clicks have been captured yet. Once someone clicks the partner badge in the NDIS quote flow, it will show up here.
+                    </div>
+                  )}
+                </Panel>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Operations ───────────────────────────────────────────────────── */}
+          {tab === 'ops' ? (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Panel title="Operations Pressure" subtitle="Capacity, receivables, and signals likely to distort delivery.">
+                <div className="space-y-2">
+                  <StatRow label="Jobs per active crew" value={completedJobsPerActiveCrew} />
+                  <StatRow label="Due soon workload" value={`${metrics.alerts.dueSoonCount} jobs`} />
+                  <StatRow label="Ready crew capacity" value={`${readyCrew} crew unassigned`} />
+                  <StatRow label="Overloaded crew" value={`${overloadedCrew} crew with 3+ jobs`} />
+                </div>
+              </Panel>
+
+              <Panel title="Crew Snapshot" subtitle="What the current crew mix says about execution risk.">
+                <div className="space-y-2">
+                  <StatRow label="Active crew" value={String(activeCrew)} />
+                  <StatRow label="Crew listed" value={String(crew.length)} />
+                  <StatRow label="Jobs completed this month" value={String(metrics.operationsSnapshot.jobsCompleted)} />
+                  <StatRow label="Average job value" value={formatCurrency(metrics.operationsSnapshot.averageJobValue)} />
+                </div>
+              </Panel>
+            </div>
+          ) : null}
+
+          {/* ── Finance ──────────────────────────────────────────────────────── */}
+          {tab === 'finance' ? (
             <>
               <section className="rounded-[24px] border border-black/5 bg-white/90 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">CEO View</p>
+                    <p className="text-sm font-semibold text-slate-900">Financial Outlook</p>
                     <p className="text-sm text-slate-500">Pace, scenario revenue, and whether the month is still recoverable.</p>
                   </div>
                   <HeaderBadge
@@ -716,12 +859,41 @@ function InsightsPageContent() {
 
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
                 <div className="grid gap-5">
-                  <Panel title="Strategic Snapshot" subtitle="The few numbers that explain the month right now.">
+                  <Panel title="Finance Snapshot" subtitle="Cash pressure, margin, and what still needs to land.">
                     <div className="space-y-2">
-                      <StatRow label="Revenue target gap" value={formatCurrency(revenueGap)} />
-                      <StatRow label="Jobs target gap" value={String(jobsGap)} />
-                      <StatRow label="Active quote pipeline" value={`${activeQuotePipeline} quotes · ${formatCurrency(activeQuotePipelineValue)}`} />
-                      <StatRow label="Alerts in play" value={`${alertsFeed.length} live`} />
+                      <StatRow label="Net profit MTD" value={formatCurrency(metrics.netProfit.amount)} />
+                      <StatRow label="Outstanding receivables" value={formatCurrency(metrics.outstandingReceivables.total)} />
+                      <StatRow label="Upcoming payables" value={formatCurrency(metrics.upcomingPayables.total)} />
+                      <StatRow label="Cash balance proxy" value={formatCurrency(metrics.cashBalance)} />
+                    </div>
+                  </Panel>
+
+                  <Panel title="Money Flow" subtitle="What has been received, what is due, and what is owed.">
+                    <div className="space-y-2">
+                      <StatRow label="Incoming received" value={formatCurrency(moneyFlow.overview.incomingReceived)} />
+                      <StatRow label="Outgoing paid" value={formatCurrency(moneyFlow.overview.outgoingPaid)} />
+                      <StatRow label="Outstanding invoices" value={formatCurrency(moneyFlow.overview.outstandingInvoices)} />
+                      <StatRow label="Payroll owed" value={formatCurrency(moneyFlow.overview.payrollOwed)} />
+                    </div>
+                  </Panel>
+
+                  <Panel title="Margin + Labour" subtitle="Operational quality through a unit-economics lens.">
+                    <div className="space-y-2">
+                      <StatRow label="Gross margin" value={`${metrics.operationsSnapshot.grossMargin}%`} />
+                      <StatRow label="Labour mix" value={`${metrics.operationsSnapshot.labourPercent}%`} />
+                      <StatRow label="Net profit" value={formatCurrency(metrics.netProfit.amount)} />
+                      <StatRow label="Overdue amount" value={formatCurrency(metrics.alerts.overdueAmount)} />
+                    </div>
+                  </Panel>
+                </div>
+
+                <div className="grid gap-5">
+                  <Panel title="Finance Risks" subtitle="The most immediate balance-sheet pressure points.">
+                    <div className="space-y-2">
+                      <StatRow label="Overdue invoices" value={`${overdueReceivables.length} records`} />
+                      <StatRow label="Due payables" value={`${dueSoonPayables.length} records`} />
+                      <StatRow label="Gross margin" value={`${metrics.operationsSnapshot.grossMargin}%`} />
+                      <StatRow label="Receivables count" value={String(metrics.outstandingReceivables.count)} />
                     </div>
                   </Panel>
 
@@ -733,35 +905,6 @@ function InsightsPageContent() {
                       <StatRow label="Upcoming payables" value={formatCurrency(metrics.upcomingPayables.total)} />
                     </div>
                   </Panel>
-                </div>
-
-                <div className="grid gap-5">
-                  <Panel title="Open Next" subtitle="The few places most likely to move the month right now.">
-                    <div className="flex flex-wrap gap-2">
-                      <Link href="/dashboard/quotes?workspace=review" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                        Review quote queue
-                      </Link>
-                      <Link href="/dashboard/quotes?status=finalized,payment_pending" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                        Chase payment-ready quotes
-                      </Link>
-                      <Link href="/dashboard/invoices?tab=invoices&status=Overdue" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                        Reduce overdue receivables
-                      </Link>
-                      <Link href="/dashboard/alerts" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                        Resolve alerts
-                      </Link>
-                    </div>
-                  </Panel>
-
-                  <Panel title="Service Leaders" subtitle="Top revenue contributors this month." right={`${metrics.revenueByService.length} tracked services`}>
-                    <div className="space-y-2">
-                      {metrics.revenueByService.slice(0, 5).map((service) => (
-                        <StatRow key={service.service} label={service.service} value={formatCurrency(service.amount)} />
-                      ))}
-                    </div>
-                  </Panel>
-
-                  <MarketingIntelPanel />
                 </div>
               </div>
             </>
@@ -871,44 +1014,6 @@ function InsightsPageContent() {
                     </div>
                   )}
                 </Panel>
-
-                <Panel
-                  title="Partner Referrals"
-                  subtitle="Tracked outbound clicks from the NDIS quote flow into trusted partners."
-                  right={maluCareReferral ? `${maluCareReferral.totalClicks} MaluCare clicks` : 'No partner clicks yet'}
-                >
-                  {maluCareReferral ? (
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="space-y-2">
-                        <StatRow label="MaluCare clicks · 30 days" value={String(maluCareReferral.totalClicks)} />
-                        <StatRow label="Tracked unique sessions" value={String(maluCareReferral.uniqueSessions)} />
-                        <StatRow label="Last 7 days" value={`${maluCareReferral.clicksLast7Days} (${formatDelta(maluCareReferral.clicksLast7Days, maluCareReferral.clicksPrev7Days)})`} />
-                        <StatRow
-                          label="Last click"
-                          value={maluCareReferral.lastClickedAt ? formatRelativeTime(maluCareReferral.lastClickedAt) : 'No clicks yet'}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <StatRow label="Destination" value={maluCareReferral.destinationUrl || 'https://malucare.org/'} />
-                        {maluCareReferral.topSources.length > 0 ? maluCareReferral.topSources.map((source) => (
-                          <StatRow
-                            key={source.source}
-                            label={`Source · ${source.source}`}
-                            value={`${source.clicks} click${source.clicks === 1 ? '' : 's'}`}
-                          />
-                        )) : (
-                          <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
-                            Waiting for the first tracked MaluCare referral click.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
-                      No MaluCare referral clicks have been captured yet. Once someone clicks the partner badge in the NDIS quote flow, it will show up here.
-                    </div>
-                  )}
-                </Panel>
               </div>
 
               <div className="grid gap-5">
@@ -920,127 +1025,8 @@ function InsightsPageContent() {
                     <StatRow label="Scenario month-end revenue" value={formatCurrency(scenarioRevenue)} />
                   </div>
                 </Panel>
-              </div>
-            </div>
-          ) : null}
 
-          {/* ── Sales ────────────────────────────────────────────────────────── */}
-          {tab === 'sales' ? (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-              <div className="grid gap-5">
-                <Panel title="Sales Engine" subtitle="Speed to close, pipeline drag, and which services are actually converting.">
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-2">
-                      <StatRow label="Avg quote to finalized" value={formatDurationHours(avgQuoteToFinalizeHours)} />
-                      <StatRow label="Avg quote to payment request" value={formatDurationHours(avgQuoteToPaymentRequestHours)} />
-                      <StatRow label="Stale review quotes" value={`${staleReviewQuotes.length} older than 48h`} />
-                      <StatRow label="Stalled payment quotes" value={`${stalledPaymentQuotes.length} older than 72h`} />
-                    </div>
-                    <div className="space-y-2">
-                      {serviceWinRates.length > 0 ? serviceWinRates.map((service) => (
-                        <StatRow key={service.service} label={`${service.service} · ${service.pipeline} still open`} value={`${service.winRate}% won`} />
-                      )) : (
-                        <div className="rounded-xl border border-dashed border-black/10 bg-white/70 px-4 py-6 text-sm text-slate-500">
-                          No service win-rate data available yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Panel>
-
-                <Panel title="Pipeline Pressure" subtitle="Where the quote engine is slowing down.">
-                  <div className="space-y-2">
-                    <StatRow label="Review queue" value={`${reviewQuotes.length} quotes`} />
-                    <StatRow label="Close-ready quotes" value={`${closeReadyQuotes.length} quotes`} />
-                    <StatRow label="Review queue value" value={formatCurrency(reviewPipelineValue)} />
-                    <StatRow label="Close-ready value" value={formatCurrency(closeReadyValue)} />
-                  </div>
-                </Panel>
-              </div>
-
-              <div className="grid gap-5">
-                <Panel title="Actions" subtitle="What the sales side should do next.">
-                  <div className="flex flex-wrap gap-2">
-                    <Link href="/dashboard/quotes?workspace=review" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                      Clear review queue
-                    </Link>
-                    <Link href="/dashboard/quotes?status=finalized,payment_pending" className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                      Follow up unpaid quotes
-                    </Link>
-                  </div>
-                </Panel>
-              </div>
-            </div>
-          ) : null}
-
-          {/* ── Ops ──────────────────────────────────────────────────────────── */}
-          {tab === 'ops' ? (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-              <div className="grid gap-5">
-                <Panel title="Operations Pressure" subtitle="Capacity, receivables, and signals likely to distort delivery.">
-                  <div className="space-y-2">
-                    <StatRow label="Jobs per active crew" value={completedJobsPerActiveCrew} />
-                    <StatRow label="Due soon workload" value={`${metrics.alerts.dueSoonCount} jobs`} />
-                    <StatRow label="Ready crew capacity" value={`${readyCrew} crew unassigned`} />
-                    <StatRow label="Overloaded crew" value={`${overloadedCrew} crew with 3+ jobs`} />
-                  </div>
-                </Panel>
-
-                <Panel title="Crew Snapshot" subtitle="What the current crew mix says about execution risk.">
-                  <div className="space-y-2">
-                    <StatRow label="Active crew" value={String(activeCrew)} />
-                    <StatRow label="Crew listed" value={String(crew.length)} />
-                    <StatRow label="Jobs completed this month" value={String(metrics.operationsSnapshot.jobsCompleted)} />
-                    <StatRow label="Average job value" value={formatCurrency(metrics.operationsSnapshot.averageJobValue)} />
-                  </div>
-                </Panel>
-              </div>
-
-              <div className="grid gap-5">
-                <Panel title="Margin + Labour" subtitle="Operational quality through a unit-economics lens.">
-                  <div className="space-y-2">
-                    <StatRow label="Gross margin" value={`${metrics.operationsSnapshot.grossMargin}%`} />
-                    <StatRow label="Labour mix" value={`${metrics.operationsSnapshot.labourPercent}%`} />
-                    <StatRow label="Net profit" value={formatCurrency(metrics.netProfit.amount)} />
-                    <StatRow label="Overdue amount" value={formatCurrency(metrics.alerts.overdueAmount)} />
-                  </div>
-                </Panel>
-              </div>
-            </div>
-          ) : null}
-
-          {/* ── Finance ──────────────────────────────────────────────────────── */}
-          {tab === 'finance' ? (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-              <div className="grid gap-5">
-                <Panel title="Finance Snapshot" subtitle="Cash pressure, margin, and what still needs to land.">
-                  <div className="space-y-2">
-                    <StatRow label="Net profit MTD" value={formatCurrency(metrics.netProfit.amount)} />
-                    <StatRow label="Outstanding receivables" value={formatCurrency(metrics.outstandingReceivables.total)} />
-                    <StatRow label="Upcoming payables" value={formatCurrency(metrics.upcomingPayables.total)} />
-                    <StatRow label="Cash balance proxy" value={formatCurrency(metrics.cashBalance)} />
-                  </div>
-                </Panel>
-
-                <Panel title="Money Flow" subtitle="What has been received, what is due, and what is owed.">
-                  <div className="space-y-2">
-                    <StatRow label="Incoming received" value={formatCurrency(moneyFlow.overview.incomingReceived)} />
-                    <StatRow label="Outgoing paid" value={formatCurrency(moneyFlow.overview.outgoingPaid)} />
-                    <StatRow label="Outstanding invoices" value={formatCurrency(moneyFlow.overview.outstandingInvoices)} />
-                    <StatRow label="Payroll owed" value={formatCurrency(moneyFlow.overview.payrollOwed)} />
-                  </div>
-                </Panel>
-              </div>
-
-              <div className="grid gap-5">
-                <Panel title="Finance Risks" subtitle="The most immediate balance-sheet pressure points.">
-                  <div className="space-y-2">
-                    <StatRow label="Overdue invoices" value={`${overdueReceivables.length} records`} />
-                    <StatRow label="Due payables" value={`${dueSoonPayables.length} records`} />
-                    <StatRow label="Gross margin" value={`${metrics.operationsSnapshot.grossMargin}%`} />
-                    <StatRow label="Receivables count" value={String(metrics.outstandingReceivables.count)} />
-                  </div>
-                </Panel>
+                <MarketingIntelPanel />
               </div>
             </div>
           ) : null}
