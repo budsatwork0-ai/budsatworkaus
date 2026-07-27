@@ -21,39 +21,14 @@ import type {
   EntityContext,
   Message,
 } from '@/types/messaging';
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins  = Math.floor(diff / 60_000);
-  const hours = Math.floor(diff / 3_600_000);
-  const days  = Math.floor(diff / 86_400_000);
-  if (mins  <  1) return 'just now';
-  if (mins  < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
-}
-
-function entityLabel(type: string): string {
-  const map: Record<string, string> = {
-    customer: 'Customer',
-    crew:     'Crew',
-    lead:     'Lead',
-    applicant: 'Applicant',
-  };
-  return map[type] ?? type;
-}
-
-function entityBadgeColor(type: string): string {
-  const map: Record<string, string> = {
-    customer:  'bg-blue-50 text-blue-700',
-    crew:      'bg-green-50 text-green-700',
-    lead:      'bg-amber-50 text-amber-700',
-    applicant: 'bg-purple-50 text-purple-700',
-  };
-  return map[type] ?? 'bg-slate-50 text-slate-600';
-}
+import {
+  createConversation as createConversationRequest,
+  fetchConversations as fetchConversationsRequest,
+  fetchConversationThread,
+  sendMessage as sendMessageRequest,
+  updateConversationStatus,
+} from '@/lib/messaging/client';
+import { entityBadgeColor, entityLabel, MessageBubble, relativeTime } from './messaging/shared';
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
@@ -98,29 +73,6 @@ function InboxRow({
   );
 }
 
-function MessageBubble({ msg }: { msg: Message }) {
-  const isAdmin = msg.sender_type === 'admin';
-  return (
-    <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-          isAdmin
-            ? 'bg-[#1C7C54] text-white rounded-br-md'
-            : 'bg-slate-100 text-slate-900 rounded-bl-md'
-        }`}
-      >
-        <p>{msg.body}</p>
-        <p className={`text-[10px] mt-1 ${isAdmin ? 'text-white/60' : 'text-slate-400'}`}>
-          {relativeTime(msg.created_at)}
-          {msg.delivery_status === 'draft' && isAdmin && (
-            <span className="ml-1 opacity-70">· draft</span>
-          )}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // ─── main component ────────────────────────────────────────────────────────────
 
 export interface MessagingHubProps {
@@ -155,10 +107,8 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
     setLoadingList(true);
     setError(null);
     try {
-      const res  = await fetch('/api/messaging/conversations');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load conversations');
-      setConversations(json.conversations || []);
+      const conversations = await fetchConversationsRequest();
+      setConversations(conversations);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -170,11 +120,9 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
     setLoadingThread(true);
     setError(null);
     try {
-      const res  = await fetch(`/api/messaging/conversations/${convId}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load thread');
-      setActiveConv(json.conversation);
-      setMessages(json.messages || []);
+      const { conversation, messages } = await fetchConversationThread(convId);
+      setActiveConv(conversation);
+      setMessages(messages);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -187,16 +135,12 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
     setLoadingThread(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
+      const found = await fetchConversationsRequest({
         entity_type: ctx.entity_type,
         entity_id:   ctx.entity_id,
         status:      'open',
       });
-      const res  = await fetch(`/api/messaging/conversations?${params}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to query conversations');
 
-      const found: Conversation[] = json.conversations || [];
       if (found.length > 0) {
         // Found existing conversation — open it
         const conv = found[0];
@@ -264,18 +208,11 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
       // If this is a brand-new conversation, create it first
       let convId = activeConv?.id;
       if (!convId && isNewConv && entityContext) {
-        const createRes  = await fetch('/api/messaging/conversations', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            entity_type: entityContext.entity_type,
-            entity_id:   entityContext.entity_id,
-            subject:     `Conversation with ${entityContext.display_name}`,
-          }),
+        const newConv = await createConversationRequest({
+          entity_type: entityContext.entity_type,
+          entity_id:   entityContext.entity_id,
+          subject:     `Conversation with ${entityContext.display_name}`,
         });
-        const createJson = await createRes.json();
-        if (!createRes.ok) throw new Error(createJson.error || 'Failed to create conversation');
-        const newConv: Conversation = createJson.conversation;
         setActiveConv(newConv);
         setIsNewConv(false);
         convId = newConv.id;
@@ -283,15 +220,8 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
 
       if (!convId) throw new Error('No conversation ID');
 
-      const res  = await fetch('/api/messaging/messages', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ conversation_id: convId, body: trimmed }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to send message');
-
-      setMessages((prev) => [...prev, json.message]);
+      const message = await sendMessageRequest(convId, trimmed);
+      setMessages((prev) => [...prev, message]);
       setDraft('');
       textareaRef.current?.focus();
     } catch (err) {
@@ -310,15 +240,12 @@ export function MessagingHub({ open, onClose, entityContext }: MessagingHubProps
 
   const closeConversation = useCallback(async () => {
     if (!activeConv) return;
-    const res  = await fetch(`/api/messaging/conversations/${activeConv.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ status: 'closed' }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      setActiveConv(json.conversation);
+    try {
+      const updated = await updateConversationStatus(activeConv.id, 'closed');
+      setActiveConv(updated);
       if (!isScoped) void goBackToInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
     }
   }, [activeConv, isScoped, goBackToInbox]);
 

@@ -18,6 +18,7 @@ import { DashboardShell } from './_components/DashboardShell';
 import { MobileSidebarNav, SidebarNav, type NavBadgeKey, type NavGroup } from './_components/SidebarNav';
 import { TopBar } from './_components/TopBar';
 import { useMessagingHubListener } from './hooks/useMessagingHub';
+import { shouldRenderGlobalMessagingDrawer } from '@/lib/messaging/pageState';
 import type { EntityContext } from '@/types/messaging';
 import {
   DASHBOARD_NAV_GROUPS,
@@ -374,7 +375,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       />
 
       <MessagingHub
-        open={messagingOpen}
+        open={shouldRenderGlobalMessagingDrawer(pathname, messagingOpen)}
         onClose={() => {
           setMessagingOpen(false);
           setMessagingEntity(undefined);
