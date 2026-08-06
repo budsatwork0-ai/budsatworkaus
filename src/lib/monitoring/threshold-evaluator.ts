@@ -1,62 +1,40 @@
-import { dispatchAlert, type AgentAlert } from './alerting-config';
+import { dispatchSlackAlert } from './alerting-config';
 
-export interface ErrorRecord {
-  agentId: string;
-  occurredAt: Date;
+const WINDOW_MS = 60 * 60 * 1000; // 60 minutes
+const DEFAULT_THRESHOLD = 5;
+
+// Map of agentId -> list of error timestamps (ms since epoch)
+const errorTimestamps = new Map<string, number[]>();
+
+function pruneWindow(timestamps: number[], now: number): number[] {
+  return timestamps.filter((t) => now - t < WINDOW_MS);
 }
 
-export interface ThresholdConfig {
-  /** Errors per rolling window before an alert fires. Default: 5. */
-  maxErrorsPerWindow?: number;
-  /** Rolling window in minutes. Default: 60. */
-  windowMinutes?: number;
-}
+export async function recordAgentFailure(agentId: string): Promise<void> {
+  const threshold =
+    parseInt(process.env.AGENT_ERROR_THRESHOLD ?? '', 10) || DEFAULT_THRESHOLD;
 
-/**
- * Evaluates per-agent error counts within a rolling time window and dispatches
- * an alert for any agent that breaches the configured threshold.
- *
- * @param records   Flat list of error records from the monitoring store.
- * @param config    Optional threshold overrides.
- * @returns         The set of agentIds that triggered alerts.
- */
-export async function evaluateThresholds(
-  records: ErrorRecord[],
-  config: ThresholdConfig = {},
-): Promise<Set<string>> {
-  const maxErrors = config.maxErrorsPerWindow ?? 5;
-  const windowMinutes = config.windowMinutes ?? 60;
-  const windowMs = windowMinutes * 60 * 1000;
   const now = Date.now();
-  const cutoff = now - windowMs;
+  const existing = pruneWindow(errorTimestamps.get(agentId) ?? [], now);
+  existing.push(now);
+  errorTimestamps.set(agentId, existing);
 
-  // Count errors per agent within the rolling window
-  const countByAgent = new Map<string, number>();
-  for (const record of records) {
-    if (record.occurredAt.getTime() >= cutoff) {
-      countByAgent.set(record.agentId, (countByAgent.get(record.agentId) ?? 0) + 1);
-    }
+  if (existing.length >= threshold) {
+    await dispatchSlackAlert({
+      agentId,
+      errorCount: existing.length,
+      threshold,
+      windowMinutes: 60,
+      timestamp: new Date(now).toISOString(),
+    });
+    // Reset after alerting to avoid repeated floods for the same burst
+    errorTimestamps.set(agentId, []);
   }
+}
 
-  const alerted = new Set<string>();
-  const firedAt = new Date(now).toISOString();
-
-  const dispatches: Promise<void>[] = [];
-
-  for (const [agentId, errorCount] of countByAgent.entries()) {
-    if (errorCount >= maxErrors) {
-      const alert: AgentAlert = {
-        agentId,
-        errorCount,
-        windowMinutes,
-        threshold: maxErrors,
-        firedAt,
-      };
-      alerted.add(agentId);
-      dispatches.push(dispatchAlert(alert));
-    }
-  }
-
-  await Promise.all(dispatches);
-  return alerted;
+export function getAgentErrorCount(agentId: string): number {
+  const now = Date.now();
+  const pruned = pruneWindow(errorTimestamps.get(agentId) ?? [], now);
+  errorTimestamps.set(agentId, pruned);
+  return pruned.length;
 }
