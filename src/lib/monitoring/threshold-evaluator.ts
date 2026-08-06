@@ -1,62 +1,51 @@
-import { dispatchAlert, type AgentAlert } from './alerting-config';
+import { dispatchSlackAlert } from './alerting-config';
 
-export interface ErrorRecord {
-  agentId: string;
-  occurredAt: Date;
-}
+/** Number of failures within the rolling window that triggers an alert + pause. */
+export const AGENT_ERROR_THRESHOLD = Number(process.env.AGENT_ERROR_THRESHOLD ?? 10);
 
-export interface ThresholdConfig {
-  /** Errors per rolling window before an alert fires. Default: 5. */
-  maxErrorsPerWindow?: number;
-  /** Rolling window in minutes. Default: 60. */
-  windowMinutes?: number;
-}
+/** Rolling window duration in milliseconds (default 1 hour). */
+const WINDOW_MS = 60 * 60 * 1_000;
+
+/** Per-agent list of failure timestamps within the current window. */
+const errorWindows = new Map<string, number[]>();
 
 /**
- * Evaluates per-agent error counts within a rolling time window and dispatches
- * an alert for any agent that breaches the configured threshold.
- *
- * @param records   Flat list of error records from the monitoring store.
- * @param config    Optional threshold overrides.
- * @returns         The set of agentIds that triggered alerts.
+ * Record one failure for `agentName`.
+ * Returns `true` when the threshold has been reached so the caller can pause
+ * execution and route the payload to the human fallback queue.
  */
-export async function evaluateThresholds(
-  records: ErrorRecord[],
-  config: ThresholdConfig = {},
-): Promise<Set<string>> {
-  const maxErrors = config.maxErrorsPerWindow ?? 5;
-  const windowMinutes = config.windowMinutes ?? 60;
-  const windowMs = windowMinutes * 60 * 1000;
+export async function recordAgentFailure(agentName: string): Promise<boolean> {
   const now = Date.now();
-  const cutoff = now - windowMs;
+  const cutoff = now - WINDOW_MS;
 
-  // Count errors per agent within the rolling window
-  const countByAgent = new Map<string, number>();
-  for (const record of records) {
-    if (record.occurredAt.getTime() >= cutoff) {
-      countByAgent.set(record.agentId, (countByAgent.get(record.agentId) ?? 0) + 1);
-    }
+  // Prune timestamps outside the rolling window.
+  const timestamps = (errorWindows.get(agentName) ?? []).filter((t) => t > cutoff);
+  timestamps.push(now);
+  errorWindows.set(agentName, timestamps);
+
+  const count = timestamps.length;
+
+  if (count >= AGENT_ERROR_THRESHOLD) {
+    await dispatchSlackAlert({
+      agentName,
+      errorCount: count,
+      windowMinutes: 60,
+      timestamp: new Date(now).toISOString(),
+    });
+    return true;
   }
 
-  const alerted = new Set<string>();
-  const firedAt = new Date(now).toISOString();
+  return false;
+}
 
-  const dispatches: Promise<void>[] = [];
+/** Returns the current failure count within the rolling window for `agentName`. */
+export function getAgentErrorCount(agentName: string): number {
+  const now = Date.now();
+  const cutoff = now - WINDOW_MS;
+  return (errorWindows.get(agentName) ?? []).filter((t) => t > cutoff).length;
+}
 
-  for (const [agentId, errorCount] of countByAgent.entries()) {
-    if (errorCount >= maxErrors) {
-      const alert: AgentAlert = {
-        agentId,
-        errorCount,
-        windowMinutes,
-        threshold: maxErrors,
-        firedAt,
-      };
-      alerted.add(agentId);
-      dispatches.push(dispatchAlert(alert));
-    }
-  }
-
-  await Promise.all(dispatches);
-  return alerted;
+/** Resets the error window for `agentName` (e.g. after a successful HALF_OPEN probe). */
+export function resetAgentErrorCount(agentName: string): void {
+  errorWindows.delete(agentName);
 }
