@@ -1,7 +1,7 @@
 ##
 ## ci.yml
 ##
-## TypeScript type-check on every bud/* branch push.
+## TypeScript type-check + smoke tests on every bud/* branch push.
 ## The Bud improvement and repair pipelines poll GitHub Actions for a CI result
 ## after pushing a patch. Without this workflow those polls return `no_ci`.
 ##
@@ -36,3 +36,23 @@ jobs:
 
       - name: Type-check
         run: npx tsc --noEmit
+
+  smoke-tests:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: typecheck
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke tests
+        run: npx vitest run src/lib/agent-runner/__tests__/smoke.quote-triage.test.ts src/lib/agent-runner/__tests__/smoke.config-validation.test.ts
