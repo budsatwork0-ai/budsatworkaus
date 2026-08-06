@@ -37,6 +37,9 @@ const SERVICE_AREA = new Set([
   'mount gravatt','sunnybank','runcorn','calamvale','algester','parkinson','browns plains',
 ]);
 
+/** Leads scored more than this many days ago are eligible for re-scoring. */
+const RESCORE_STALENESS_DAYS = Number(process.env.LEAD_SCORER_STALENESS_DAYS ?? 7);
+
 export const leadScorerAgent: AgentDefinition = {
   id: 'lead-scorer',
   name: 'Lead Scorer',
@@ -98,6 +101,7 @@ Return scoring JSON.`;
             type: 'warning',
             label: 'Schema probe failed',
             detail: `quotes.lead_score column may be missing or inaccessible. Supabase error: ${probeError.message}`,
+            reply_channel: 'operator_inbox',
           },
         ],
         output: { scored: 0, hot: 0, stalled: true, reason: 'schema_probe_failed' },
@@ -114,44 +118,109 @@ Return scoring JSON.`;
       ctx.log(`[lead-scorer] Warning: could not fetch total quotes count: ${totalError.message}`);
     }
 
-    // ── 3. Fetch unscored leads ───────────────────────────────────────────────
-    const { data: leads, error: leadsError } = await ctx.supabase
+    // ── 3. Count leads eligible for re-score (integrity gap + staleness) ──────
+    const stalenessThreshold = new Date(
+      Date.now() - RESCORE_STALENESS_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    // 3a. Leads where lead_score_at IS NULL but lead_score IS NOT NULL (integrity gap)
+    const { count: integrityGapCount, error: integrityGapError } = await ctx.supabase
       .from('quotes')
-      .select('id, customer_email, customer_name, suburb, service, notes, customer_id, created_at')
-      .is('lead_score', null)
+      .select('id', { count: 'exact', head: true })
+      .not('lead_score', 'is', null)
+      .is('lead_score_at', null);
+
+    if (integrityGapError) {
+      ctx.log(`[lead-scorer] Warning: could not fetch integrity-gap count: ${integrityGapError.message}`);
+    } else {
+      ctx.log(`[lead-scorer] Integrity-gap leads (score set, scored_at NULL): ${integrityGapCount ?? 0}`);
+    }
+
+    // 3b. Leads where lead_score_at is older than the staleness window
+    const { count: staleCount, error: staleError } = await ctx.supabase
+      .from('quotes')
+      .select('id', { count: 'exact', head: true })
+      .not('lead_score_at', 'is', null)
+      .lt('lead_score_at', stalenessThreshold);
+
+    if (staleError) {
+      ctx.log(`[lead-scorer] Warning: could not fetch stale-score count: ${staleError.message}`);
+    } else {
+      ctx.log(
+        `[lead-scorer] Stale leads (scored_at older than ${RESCORE_STALENESS_DAYS}d): ${staleCount ?? 0}`,
+      );
+    }
+
+    // ── 4. Fetch unscored leads (null score OR null scored_at OR stale scored_at) ──
+    //
+    // Supabase JS doesn't support multi-condition OR across columns in a single
+    // .or() when mixing IS NULL and lt() — we fetch in two passes and deduplicate.
+    //
+    // Pass A: lead_score IS NULL  OR  lead_score_at IS NULL
+    const { data: leadsPassA, error: leadsErrorA } = await ctx.supabase
+      .from('quotes')
+      .select('id, customer_email, customer_name, suburb, service, notes, customer_id, created_at, lead_score_at')
+      .or('lead_score.is.null,lead_score_at.is.null')
       .order('created_at', { ascending: true })
       .limit(25);
 
-    if (leadsError) {
-      ctx.log(`[lead-scorer] Query error fetching unscored leads: ${leadsError.message}`);
+    if (leadsErrorA) {
+      ctx.log(`[lead-scorer] Query error fetching unscored leads (pass A): ${leadsErrorA.message}`);
       return {
         summary: 'Lead scorer stalled: query for unscored leads failed.',
         actions: [
           {
             type: 'warning',
             label: 'Unscored leads query failed',
-            detail: `Supabase error: ${leadsError.message}. Total quotes in table: ${
+            detail: `Supabase error: ${leadsErrorA.message}. Total quotes in table: ${
               total !== null ? total : 'unknown'
             }.`,
+            reply_channel: 'operator_inbox',
           },
         ],
         output: { scored: 0, hot: 0, stalled: true, reason: 'query_error' },
       };
     }
 
+    // Pass B: lead_score_at is older than staleness window (stale re-score)
+    const { data: leadsPassB, error: leadsErrorB } = await ctx.supabase
+      .from('quotes')
+      .select('id, customer_email, customer_name, suburb, service, notes, customer_id, created_at, lead_score_at')
+      .not('lead_score_at', 'is', null)
+      .lt('lead_score_at', stalenessThreshold)
+      .order('lead_score_at', { ascending: true })
+      .limit(25);
+
+    if (leadsErrorB) {
+      ctx.log(`[lead-scorer] Warning: stale-leads query failed (pass B): ${leadsErrorB.message}`);
+    }
+
+    // Merge and deduplicate by id, capping at 25 total
+    const seenIds = new Set<string>();
+    const mergedLeads: NonNullable<typeof leadsPassA> = [];
+    for (const lead of [...(leadsPassA ?? []), ...(leadsPassB ?? [])]) {
+      if (!seenIds.has(lead.id) && mergedLeads.length < 25) {
+        seenIds.add(lead.id);
+        mergedLeads.push(lead);
+      }
+    }
+    const leads = mergedLeads;
+
     ctx.log(
       `[lead-scorer] Total quotes: ${
         total !== null ? total : 'unknown'
-      } · Unscored (batch): ${leads?.length ?? 0}`,
+      } · Eligible batch (unscored + integrity-gap + stale): ${leads.length}` +
+      ` · integrity-gap: ${integrityGapCount ?? 0}` +
+      ` · stale (>${RESCORE_STALENESS_DAYS}d): ${staleCount ?? 0}`,
     );
 
-    if (!leads?.length) {
+    if (!leads.length) {
       // Distinguish: are there any quotes at all?
       if (total !== null && total > 0) {
-        // Leads exist but all are already scored — emit a structured warning
-        // so this is visible in the audit trail rather than a silent success.
+        // Leads exist but all are already scored and fresh — emit a structured
+        // warning so it surfaces in the operator inbox rather than silently completing.
         ctx.log(
-          `[lead-scorer] ${total} quote(s) exist but none are unscored — possible stall or column issue.`,
+          `[lead-scorer] ${total} quote(s) exist but none are unscored/stale — possible stall or column issue.`,
         );
         return {
           summary: `No unscored leads found, but ${total} quote(s) exist in the table.`,
@@ -159,21 +228,37 @@ Return scoring JSON.`;
             {
               type: 'warning',
               label: 'No unscored leads despite quotes existing',
-              detail: `${total} quote(s) are present but lead_score is non-null on all rows. ` +
+              detail:
+                `${total} quote(s) are present but lead_score is non-null, lead_score_at is non-null, ` +
+                `and all scores are fresher than ${RESCORE_STALENESS_DAYS} days. ` +
                 'If this is unexpected, verify the lead_score column is being reset correctly.',
+              reply_channel: 'operator_inbox',
             },
           ],
-          output: { scored: 0, hot: 0, totalQuotes: total, stalled: false },
+          output: {
+            scored: 0,
+            hot: 0,
+            totalQuotes: total,
+            integrityGapLeads: integrityGapCount ?? 0,
+            staleLeads: staleCount ?? 0,
+            stalled: false,
+          },
         };
       }
       // Genuinely no quotes yet — normal empty-table case.
       return {
         summary: 'No unscored leads.',
-        output: { scored: 0, hot: 0, totalQuotes: total ?? 0 },
+        output: {
+          scored: 0,
+          hot: 0,
+          totalQuotes: total ?? 0,
+          integrityGapLeads: integrityGapCount ?? 0,
+          staleLeads: staleCount ?? 0,
+        },
       };
     }
 
-    // ── 4. Score each lead ────────────────────────────────────────────────────
+    // ── 5. Score each lead ────────────────────────────────────────────────────
     let scored = 0;
     let hot = 0;
 
@@ -192,7 +277,10 @@ Return scoring JSON.`;
         isRepeat = (count ?? 0) > 0;
       }
 
-      const prompt = `Lead:
+      const isRescoring = lead.lead_score_at !== null;
+      const prompt = `Lead${
+        isRescoring ? ' (re-score)' : ''
+      }:
 - Suburb: ${lead.suburb ?? '(unknown)'} (in_service_area: ${inArea})
 - Service hint: ${lead.service ?? '(none)'}
 - Message word count: ${wordCount}
@@ -214,14 +302,22 @@ Return scoring JSON.`;
 
       scored += 1;
       if (parsed.tier === 'hot') hot += 1;
-      ctx.log(`lead ${lead.id} → ${parsed.score} (${parsed.tier})`);
+      ctx.log(`lead ${lead.id} → ${parsed.score} (${parsed.tier})${
+        isRescoring ? ' [rescore]' : ''
+      }`);
     }
 
     return {
       summary: `Scored ${scored} lead(s) · ${hot} hot · total quotes: ${
         total !== null ? total : 'unknown'
-      } · avg cost ~ $0.001/lead.`,
-      output: { scored, hot, totalQuotes: total ?? undefined },
+      } · integrity-gap: ${integrityGapCount ?? 0} · stale: ${staleCount ?? 0} · avg cost ~ $0.001/lead.`,
+      output: {
+        scored,
+        hot,
+        totalQuotes: total ?? undefined,
+        integrityGapLeads: integrityGapCount ?? 0,
+        staleLeads: staleCount ?? 0,
+      },
     };
   },
 };
