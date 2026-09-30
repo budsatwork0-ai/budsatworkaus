@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeAuthRedirect } from '@/lib/auth-redirect';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { brand } from '../../../ui/theme';
@@ -121,7 +122,7 @@ export default function SignInForm({ variant = 'customer' }: SignInFormProps) {
     }
 
     const params = new URLSearchParams(window.location.search);
-    const redirectParam = params.get('redirect');
+    const redirectParam = safeAuthRedirect(params.get('redirect'));
     if (redirectParam) {
       router.push(redirectParam);
     } else {

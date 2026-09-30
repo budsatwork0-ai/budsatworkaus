@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { WizardState, Action } from '../types';
 import { defaultParamsByService, createYardJob } from './service-helpers';
 import { DEFAULT_DUMP_RUN, DEFAULT_DUMP_DELIVERY, DEFAULT_DUMP_TRANSPORT } from './pricing/constants';
@@ -162,12 +162,14 @@ export function useLocalStorageReducer<T>(
   restoreOnMount = true,
 ) {
   const [state, dispatch] = React.useReducer(reducer, undefined as any, init);
+  const [storageReady, setStorageReady] = useState(false);
   useEffect(() => {
-    if (!restoreOnMount) return;
+    if (!restoreOnMount) { setStorageReady(true); return; }
     if (RESET_ON_MOUNT) {
       try {
         localStorage.removeItem(key);
       } catch {}
+      setStorageReady(true);
       return;
     }
     try {
@@ -178,29 +180,15 @@ export function useLocalStorageReducer<T>(
         dispatch({ type: 'merge', value: migrated });
       }
     } catch {}
+    setStorageReady(true);
   // restoreOnMount is captured from initial render and never changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  const first = useRef(true);
+  // Persist only after restoration. Save each committed selection immediately so
+  // leaving for sign-in cannot lose the last change or overwrite a saved draft.
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    let cancelled = false;
-    const id = window.setTimeout(() => {
-      if (cancelled) return;
-      try {
-        const serialized = JSON.stringify(state);
-        localStorage.setItem(key, serialized);
-      } catch {
-        // Serialisation or quota failure — silently skip.
-      }
-    }, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [state, key]);
+    if (!storageReady) return;
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+  }, [state, key, storageReady]);
   return [state, dispatch] as const;
 }

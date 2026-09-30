@@ -195,7 +195,11 @@ export async function POST(req: NextRequest) {
     // We pass the canonical form so the RPC can match across alias variants
     // (relies on the matching index added in migration 035).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (client as any).rpc('claim_anonymous_quotes', { p_user_id: userId, p_email: emailCanonical });
+    if (signUpData.user?.email_confirmed_at) {
+      await (client as any).rpc('claim_anonymous_quotes', { p_user_id: userId, p_email: emailCanonical });
+    }
+    // Otherwise the verified OAuth/email callback or authenticated quotes GET
+    // claims them later. Signing up alone does not prove email ownership.
   }
 
   if (role === 'employee') {

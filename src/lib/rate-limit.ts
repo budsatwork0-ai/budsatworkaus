@@ -87,9 +87,12 @@ export async function verifyTurnstile(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secret, response: token }),
+      signal: AbortSignal.timeout(10_000),
     });
-    const data = (await res.json()) as { success: boolean };
+    if (!res.ok) throw new Error(`Turnstile provider returned ${res.status}`);
+    const data = (await res.json()) as { success: boolean; 'error-codes'?: string[] };
     if (!data.success) {
+      console.warn('[turnstile] verification rejected:', data['error-codes'] ?? []);
       return { ok: false, status: 403, error: 'Bot verification failed. Please try again.' };
     }
     return { ok: true };

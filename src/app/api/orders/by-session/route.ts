@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { orderWorkspace } from '@/lib/orders/workspace';
 import { LIVE_WORKSPACE } from '@/lib/workspace/server';
+import { createStripeClient } from '@/lib/stripe/server';
 
 const SERVICE_LABELS: Record<string, string> = {
   windows: 'Window Cleaning',
@@ -39,7 +40,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
+    // Returning from a checkout URL is not proof of payment. Verify with
+    // Stripe before the receipt page shows success or records a conversion.
+    const session = await createStripeClient().checkout.sessions.retrieve(sessionId);
+
     return NextResponse.json({
+      payment_confirmed: session.payment_status === 'paid',
       id: order.id,
       customer_name: order.customer_name,
       service_type: order.service_type,

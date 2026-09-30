@@ -163,7 +163,10 @@ import {
 import type { NdisRegion } from './lib/pricing/ndis';
 
 // Extracted modules - Wizard state
-import { getInitialState, wizardReducer, useLocalStorageReducer, migrateState } from './lib/wizard-state';
+import { getInitialState, wizardReducer, useLocalStorageReducer } from './lib/wizard-state';
+import { hasQuoteWork } from './lib/quote-work';
+import { useQuoteCustomer } from './hooks/useQuoteCustomer';
+import { buildScopeSummary } from './lib/scope-summary';
 
 // Extracted modules - Estimation
 import {
@@ -172,6 +175,7 @@ import {
   PHYSICAL_BLOCK_RANGE,
   calculateEstimatedPrice,
   calculateServicePrice,
+  estimateForScope,
   adjustedTypicalMinutes,
   notifyDelta,
   buildQuoteSummary,
@@ -205,8 +209,6 @@ import {
 // Extracted modules - Standalone components
 import { LiveOrdersStrip } from './components/shared/LiveOrdersStrip';
 import { ServiceAddressInput } from './components/shared/ServiceAddressInput';
-import type { User } from '@supabase/supabase-js';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 // Catches render errors inside Step 2 so a single broken service config
 // doesn't crash the entire wizard.
@@ -260,12 +262,10 @@ const YARD_SIZE_BUCKETS = [
 
 function ServicesPageContent() {
   const searchParams = useSearchParams();
-  // True only when the user is navigating within an active wizard session (e.g. browser
-  // back/forward within the steps). False on any fresh entry to the page (link click, new
-  // tab, re-visit after navigating away). Checked synchronously so useLocalStorageReducer
-  // can skip its restore before the first render, avoiding a flash of old state.
+  // Resume an existing draft after navigation or sign-in. Explicit service and
+  // rebook links intentionally start a fresh selection.
   const [restoreSession] = useState(() =>
-    typeof window !== 'undefined' && sessionStorage.getItem('svc:session') === '1'
+    !searchParams?.get('service') && !searchParams?.get('rebook')
   );
   const [S, dispatch] = useLocalStorageReducer<WizardState>(
     STORAGE_KEY,
@@ -461,49 +461,26 @@ function ServicesPageContent() {
     }
   }, [trackQuoteEvent]);
 
-  // Tracks the currently authenticated user for contact-form UX (badge + mismatch warning).
-  const [authedUser, setAuthedUser] = useState<User | null>(null);
-
-  // Stable ref so handleAuthSignIn can read the latest contact values without
-  // being recreated (and re-registering the event listener) on every keystroke.
+  const { user: authedUser, profileHydrated } = useQuoteCustomer(S, dispatch);
   const wizardContactRef = useRef({ fullName: S.fullName, email: S.email, phone: S.phone });
   useEffect(() => {
     wizardContactRef.current = { fullName: S.fullName, email: S.email, phone: S.phone };
   }, [S.fullName, S.email, S.phone]);
 
-  // Pre-fill contact fields from auth user (only if the fields are currently empty).
-  // Depends only on `dispatch` which is stable — the listener is registered once.
-  const handleAuthSignIn = React.useCallback((user: User) => {
-    setAuthedUser(user);
-    const meta = user.user_metadata as Record<string, string | undefined>;
-    const { fullName, email, phone } = wizardContactRef.current;
-    const prefill: Partial<WizardState> = {};
-    if (!fullName?.trim() && meta?.full_name) prefill.fullName = meta.full_name;
-    if (!email?.trim() && user.email) prefill.email = user.email;
-    if (!phone?.trim() && meta?.phone) prefill.phone = meta.phone;
-    if (Object.keys(prefill).length > 0) dispatch({ type: 'merge', value: prefill });
-  }, [dispatch]);
-
-  // Listen for sign-in from the header's inline ServicesAuthBar.
-  // The handler is stable so this effect runs exactly once.
-  React.useEffect(() => {
-    const handler = (e: Event) => handleAuthSignIn((e as CustomEvent<User>).detail);
-    window.addEventListener('svc:auth-signin', handler);
-    return () => window.removeEventListener('svc:auth-signin', handler);
-  }, [handleAuthSignIn]);
-
   const [isDistanceInputFocused, setIsDistanceInputFocused] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [verificationResetKey, setVerificationResetKey] = useState(0);
   const [guestSubmitSuccess, setGuestSubmitSuccess] = useState<{ quoteId: string; email: string } | null>(null);
   const [saveToProfile, setSaveToProfile] = useState(true);
   // True once the /api/portal/profile fetch has settled (success or failure).
   // Used to gate autofocus and validation errors so they never fire before hydration.
-  const [profileHydrated, setProfileHydrated] = useState(false);
   // Track which contact fields have been blurred so we can show "required" on empty touched fields.
   const [fieldTouched, setFieldTouched] = useState<Record<string, boolean>>({});
   const touchField = useCallback((name: string) => setFieldTouched(prev => ({ ...prev, [name]: true })), []);
   const submitAbortRef = useRef<AbortController | null>(null);
-  // Prevent double-submit on slow networks (AbortController cleanup on unmount).
+  const submitInFlightRef = useRef(false);
+  // Aborting a previous POST doesn't undo its database insert. Lock the request
+  // synchronously so rapid clicks cannot create a second quote.
   useEffect(() => { return () => { submitAbortRef.current?.abort(); }; }, []);
 
   // Capture lead attribution (utm_*, referrer, landing path) on first mount.
@@ -867,15 +844,6 @@ function ServicesPageContent() {
     }
   }, [S.step]);
 
-  // Clear the session flag when the user navigates away from this page so that
-  // a fresh re-entry (clicking the link from home, new tab, etc.) always starts
-  // from step 1 rather than restoring a stale quote.
-  useEffect(() => {
-    return () => {
-      try { sessionStorage.removeItem('svc:session'); } catch {}
-    };
-  }, []);
-
   // Browser back button support within the wizard.
   // Push a history entry whenever the step advances so the back button returns
   // to the previous step instead of leaving the services page entirely.
@@ -905,87 +873,10 @@ function ServicesPageContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [dispatch]);
 
-  // On mount: pre-fill contact fields for already-signed-in users, then prompt
-  // to resume if there is meaningful quote progress in localStorage.
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
-        // Unauthenticated fresh visit: wipe any stale quote so the next re-entry
-        // also starts clean. Skip if we're in an active session (browser back/forward).
-        if (!restoreSession) {
-          try { localStorage.removeItem(STORAGE_KEY); } catch {}
-        }
-        return;
-      }
-
-      // Pre-fill contact fields even if the user didn't just sign in here —
-      // e.g. they were already signed in when they navigated to /services.
-      handleAuthSignIn(data.user);
-
-      // Fetch the customer profile to fill in any fields not in user_metadata
-      // (most importantly: phone, which is never stored in user_metadata).
-      fetch('/api/portal/profile')
-        .then((r) => r.ok ? r.json() : null)
-        .then((profileData) => {
-          if (profileData?.profile) {
-            const p = profileData.profile as { full_name?: string; email?: string; phone?: string };
-            const cur = wizardContactRef.current; // reads latest wizard values via stable ref
-            const extra: Partial<WizardState> = {};
-            if (!cur.fullName?.trim() && p.full_name) extra.fullName = p.full_name;
-            if (!cur.email?.trim() && p.email) extra.email = p.email;
-            if (!cur.phone?.trim() && p.phone) extra.phone = p.phone;
-            if (Object.keys(extra).length > 0) dispatch({ type: 'merge', value: extra });
-          }
-          setProfileHydrated(true);
-        })
-        .catch(() => { setProfileHydrated(true); });
-
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as Partial<WizardState>;
-        const hasProgress =
-          (parsed.step ?? 1) > 1 ||
-          (parsed.service && parsed.service !== 'windows') ||
-          Boolean((parsed.fullName as string | undefined)?.trim()) ||
-          Boolean((parsed.email as string | undefined)?.trim());
-        if (!hasProgress) return;
-        const stepLabel = parsed.step === 3 ? 'Step 3 (contact)'
-          : parsed.step === 2 ? 'Step 2 (details)'
-          : 'in progress';
-        const ctxLabel = parsed.context ? ` · ${parsed.context}` : '';
-        if (!restoreSession) {
-          // Fresh re-entry: state was NOT auto-restored. Let the user choose to resume.
-          toast('Quote in progress', {
-            description: `Resume where you left off — ${stepLabel}${ctxLabel}.`,
-            duration: 10_000,
-            action: {
-              label: 'Resume',
-              onClick: () => {
-                try {
-                  dispatch({ type: 'merge', value: migrateState(JSON.parse(raw)) });
-                } catch {}
-              },
-            },
-            cancel: { label: 'Start fresh', onClick: () => {
-              try { localStorage.removeItem(STORAGE_KEY); } catch {}
-            }},
-          });
-        } else {
-          // In-session (e.g. hard-refresh mid-wizard): state already restored.
-          toast('Quote resumed', {
-            description: `Picked up where you left off — ${stepLabel}${ctxLabel}.`,
-            duration: 8_000,
-            action: { label: 'Got it', onClick: () => {} },
-            cancel: { label: 'Start fresh', onClick: () => hardResetQuote(true) },
-          });
-        }
-      } catch {}
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+    setSavedPropertyAddress(null);
+    setSavedPropertyAccess(null);
+  }, [authedUser?.id]);
 
   // Track touch/pointer state to distinguish clicks from scrolls on mobile
   const pointerStartRef = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
@@ -1169,7 +1060,7 @@ function ServicesPageContent() {
 
     if (n === 2) {
       // Ensure current scope has its preset applied so Step 2 UI starts consistent
-      applyScopePreset(S.service, S.scope);
+      if (S.step < 2) applyScopePreset(S.service, S.scope);
       setActiveServiceId(null);
       trackQuoteEvent('quote_step_2', { service: S.service });
       trackFunnelStepComplete(1, S.service ?? undefined);
@@ -1195,7 +1086,9 @@ function ServicesPageContent() {
       'general';
     dispatch({
       type: 'merge',
-      value: { service: svc, scope: defaultScope, step: 2 },
+      value: { service: svc, scope: defaultScope, step: 2, paramsByService: {
+        ...S.paramsByService, [svc]: scopePresetFor(svc, defaultScope, S.context),
+      } },
     });
     setActiveServiceId(null);
 
@@ -1417,33 +1310,10 @@ function ServicesPageContent() {
   );
 
   // Per-service minimum-work check: guards the Step 2 → Step 3 CTA.
-  const hasMinimumWork = useMemo(() => {
-    switch (S.service) {
-      case 'cleaning':
-        return isNdisMmmEligible ? hasWork && S.address.trim().length > 0 : hasWork;
-      case 'windows':
-        return S.winRows.some((r) => (r.int ?? 0) > 0 || (r.ext ?? 0) > 0);
-      case 'yard': {
-        const isAreaScope = S.scope !== 'yard_hedge' && S.scope !== 'gutter_clean';
-        const hasPolygons =
-          (S.yardJobs?.length ?? 0) > 0 &&
-          (S.yardJobs ?? []).every((job: { polygon_geojson?: unknown[][] }) =>
-            (job.polygon_geojson ?? []).some((z) => z.length >= 3)
-          );
-        const hasFallbackArea =
-          isAreaScope && (S.manualYardAreaM2 ?? 0) > 0 && (S.yardJobs?.length ?? 0) <= 1;
-        return (!isNdisMmmEligible || S.address.trim().length > 0) && (hasPolygons || hasFallbackArea);
-      }
-      case 'auto':
-        return !!S.carModelType;
-      case 'dump':
-        return !!(S.dumpRun ?? S.dumpDelivery ?? S.dumpTransport);
-      case 'laundry_sneakers':
-        return (S.laundryLoads ?? 0) >= 1;
-      default:
-        return hasWork;
-    }
-  }, [S.service, S.scope, S.address, S.winRows, S.yardJobs, S.manualYardAreaM2, S.carModelType, S.dumpRun, S.dumpDelivery, S.dumpTransport, S.laundryLoads, hasWork, isNdisMmmEligible]);
+  const hasMinimumWork = useMemo(
+    () => hasQuoteWork(S, hasWork, isNdisMmmEligible),
+    [S, hasWork, isNdisMmmEligible],
+  );
 
   const conditionMult = useMemo(() => {
     // Flags
@@ -1882,6 +1752,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
    ========================= */
 
   const handleSubmitQuote = async (isGuest = false, guestToken = '') => {
+    if (submitInFlightRef.current) return;
     const normalisedPhone = S.phone.replace(/\D+/g, '').replace(/^61/, '0');
     const ndisForwardEmail = S.ndisForwardEmail.trim().toLowerCase();
     const hasValidNdisForwardEmail =
@@ -1954,7 +1825,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       return;
     }
 
-    submitAbortRef.current?.abort();
+    submitInFlightRef.current = true;
     submitAbortRef.current = new AbortController();
     setIsCheckoutLoading(true);
 
@@ -1997,6 +1868,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
           ndis_rate_slot: isNdisContext && ndisHourlyPrice !== null ? S.ndisRateSlot : null,
           ndis_region: isNdisContext && ndisHourlyPrice !== null ? S.ndisRegion : null,
           notes: [
+            buildScopeSummary(S, priceLabel, timeLabel),
             S.notes || '',
             S.preferredAvailability?.length
               ? `Availability: ${S.preferredAvailability.join(', ')}`
@@ -2106,6 +1978,10 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       toast.error(
         err instanceof Error ? err.message : 'Something went wrong. Please try again.'
       );
+      // Tokens are single-use. A rejected POST may already have consumed it.
+      if (isGuest) setVerificationResetKey(v => v + 1);
+    } finally {
+      submitInFlightRef.current = false;
       setIsCheckoutLoading(false);
     }
   };
@@ -2147,7 +2023,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       );
     }
 
-    if (isNdisContext && S.service === 'cleaning' && ndisHourlyPrice !== null) {
+    if (isNdisContext && (S.service === 'cleaning' || S.service === 'yard') && ndisHourlyPrice !== null) {
       const rate = ndisRateFor(S.ndisRateSlot, S.ndisRegion);
       const hours = effectiveNdisHours || NDIS_MIN_HOURS;
       const fmtHours = (h: number) =>
@@ -2171,11 +2047,20 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       );
     }
 
-    const mats = S.service === 'cleaning' ? (S.context === 'commercial' ? 12 : 8) : 0;
+    const breakdownEstimate = estimateForScope(S, S.service, S.scope) ?? estimate;
+    const isBinClean = S.scope === 'bin_cleans';
+    const isPickupService = isLaundryService || isSneakerService || isSneakerLot;
+    const serviceAmount = isLaundryService
+      ? Math.max(LAUNDRY_MIN, laundryLoads * 30)
+      : isSneakerLot
+        ? (SNEAKER_MULTI_PRICING.find(o => o.pairs === S.sneakerPairCount)?.price ?? 95)
+        : isSneakerService ? Math.max(SNEAKER_MIN, effectivePrice) : isBinClean ? effectivePrice : breakdownEstimate.baseBeforeFees;
+    const fees = isPickupService || isBinClean ? 0 : breakdownEstimate.travel + breakdownEstimate.parking + breakdownEstimate.tip;
+    const adjustment = Math.round((effectivePrice - serviceAmount - fees) * 100) / 100;
     return (
       <>
-        {estimate.labourFloor ? <S3_Row k="Time minimum" v={fmtAUD(estimate.labourFloor)} /> : null}
-        <S3_Row k="Service estimate" v={fmtAUD(estimate.baseBeforeFees)} />
+        <S3_Row k="Service estimate" v={fmtAUD(serviceAmount)} />
+        {!isPickupService && !isBinClean && breakdownEstimate.labourFloor > 0 && <p className="text-[11px] text-slate-500">Time minimum included in service breakdownEstimate.</p>}
         {isLaundryService && (
           <>
             {(S.laundryPerLoadAddOns ?? []).map((k) => (
@@ -2197,10 +2082,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             <S3_Row k="Service fee" v={fmtAUD(2)} />
           </>
         )}
-        {estimate.travel > 0 && <S3_Row k="Travel" v={fmtAUD(estimate.travel)} />}
-        {estimate.parking > 0 && <S3_Row k="Parking" v={fmtAUD(estimate.parking)} />}
-        {estimate.tip > 0 && <S3_Row k="Tip" v={fmtAUD(estimate.tip)} />}
-        {mats > 0 && <S3_Row k="Materials" v={fmtAUD(mats)} />}
+        {!isPickupService && !isBinClean && breakdownEstimate.travel > 0 && <S3_Row k="Travel" v={fmtAUD(breakdownEstimate.travel)} />}
+        {!isPickupService && !isBinClean && breakdownEstimate.parking > 0 && <S3_Row k="Parking" v={fmtAUD(breakdownEstimate.parking)} />}
+        {!isPickupService && !isBinClean && breakdownEstimate.tip > 0 && <S3_Row k="Tip" v={fmtAUD(breakdownEstimate.tip)} />}
+        {!isPickupService && adjustment !== 0 && <S3_Row k="Pricing adjustment (including rounding)" v={fmtAUD(adjustment)} />}
+        {S.service === 'cleaning' && <p className="text-[11px] text-slate-500">Materials included.</p>}
         <div className="h-[1px] bg-white/60 my-2" />
         <S3_Row k="Total" v={priceLabel} bold />
         <div className="text-[11px] text-slate-600">{PRICE_SCOPE_DISCLAIMER}</div>
@@ -3330,11 +3216,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                             }
                             // If commercial cleaning and key is a niche, set the commercial type
                             if (S.context === 'commercial' && S.service === 'cleaning' && commercialNiches.includes(key as CommercialCleaningType)) {
-                              setCommercialType(key as CommercialCleaningType);
+                              if (key !== S.commercialCleaningType) setCommercialType(key as CommercialCleaningType);
                               set('scope', 'general'); // Use general scope for all niches
                             } else {
                               set('scope', key);
-                              applyScopePreset(S.service, key);
+                              if (key !== S.scope) applyScopePreset(S.service, key);
                             }
                             setHasInteractedStep2(true);
                           };
@@ -3351,11 +3237,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                             });
                             // If commercial cleaning and key is a niche, set the commercial type
                             if (S.context === 'commercial' && S.service === 'cleaning' && commercialNiches.includes(key as CommercialCleaningType)) {
-                              setCommercialType(key as CommercialCleaningType);
+                              if (key !== S.commercialCleaningType) setCommercialType(key as CommercialCleaningType);
                               set('scope', 'general'); // Use general scope for all niches
                             } else {
                               set('scope', key);
-                              applyScopePreset(S.service, key);
+                              if (key !== S.scope) applyScopePreset(S.service, key);
                             }
                             setHasInteractedStep2(true);
                             set('step', 3);
@@ -3864,9 +3750,12 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       </h2>
 
       <div className="min-w-0 overflow-x-hidden">
-        {!hasWork ? (
+        {!hasMinimumWork ? (
           <div className="text-sm text-slate-800">
-            Add a preset on Step 2 to see an estimate.
+            <p>Add service details to see an estimate.</p>
+            <button type="button" className="mt-3 rounded-xl border border-black/15 px-4 py-2" onClick={() => goToStep(2)}>
+              Back to service details
+            </button>
           </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-6 min-w-0">
@@ -4622,9 +4511,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 {!authedUser && guestSubmitSuccess ? (
                   <div className="mt-4 py-3 text-center space-y-1.5">
                     <p className="text-[13.5px] font-semibold text-slate-800">✓ Quote submitted</p>
+                    <p className="text-sm font-medium text-slate-700">Reference: {guestSubmitSuccess.quoteId.slice(0, 8).toUpperCase()}</p>
                     <p className="text-[12px] text-slate-400 leading-snug">
                       We&apos;ll be in touch at <span className="text-slate-600">{guestSubmitSuccess.email}</span>
                     </p>
+                    <p className="text-sm text-slate-600">We&apos;ll review your request and confirm the price and timing. Your booking is awaiting confirmation; no payment has been taken.</p>
                     <button
                       className="text-[11.5px] text-slate-400 hover:text-slate-600 transition-colors"
                       onClick={() => { dispatch({ type: 'reset' }); setGuestSubmitSuccess(null); }}
@@ -4636,6 +4527,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   <div id="step3-submit-btn" className="mt-4 space-y-2">
                     <QuoteAuthGate
                       prefillEmail={S.email}
+                      submitting={isCheckoutLoading}
+                      verificationResetKey={verificationResetKey}
                       onGuestContinue={(token) => void handleSubmitQuote(true, token)}
                     />
                     {/* Back button — same wording/styling as the authed branch

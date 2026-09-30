@@ -223,7 +223,7 @@ export const ScopeCard = React.memo(function ScopeCard({
               className="text-sm px-4 py-2 rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]"
               style={{ background: 'var(--accent)' }}
             >
-              Add to quote
+              Continue with this service
             </button>
           )}
         </div>

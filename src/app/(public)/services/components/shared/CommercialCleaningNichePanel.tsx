@@ -53,16 +53,6 @@ export function CommercialCleaningNichePanel({ S, set, isConfigOpen, nicheKey }:
                     onClick={(e) => {
                       e.stopPropagation();
                       set('commPreset', p.key as 'essential' | 'standard' | 'intensive');
-                      const presetParams = COMM_PRESETS[nicheKey]?.find((pr) => pr.key === p.key)?.params;
-                      if (presetParams?.sqm) {
-                        set('paramsByService', {
-                          ...S.paramsByService,
-                          cleaning: {
-                            ...(S.paramsByService.cleaning || {}),
-                            sqm: presetParams.sqm,
-                          },
-                        });
-                      }
                     }}
                     title={p.desc}
                   >
