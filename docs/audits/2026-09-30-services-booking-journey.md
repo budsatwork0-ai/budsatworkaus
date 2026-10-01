@@ -29,3 +29,13 @@ The quote-claim permission migration already applied remotely is included in sou
 ## Release gate
 
 Automated tests and compilation do not prove delivery of a real email, payment capture, or live scheduling. The final end-to-end check must use a clearly labelled test request and an authorized test account. Any CAPTCHA interaction or form submission accepting site terms needs action-time confirmation under the browser's confirmation policy. Payment execution requires the user's handoff; do not charge a card to prove this repair.
+
+## 1 October follow-up
+
+The owner authorized the stable preview hostname in Cloudflare. The browser now displays an interactive human-verification checkbox. The check has not been clicked and no request has been submitted.
+
+Preview address lookup also exposed a provider-disabled input. Step 3 now offers manual Queensland street/suburb/postcode entry independent of Google Places, labels manual addresses accurately and preserves edits when clearing the previous confirmation. Existing NDIS region detection/manual-region handling is retained.
+
+The focused suite now passes 78 tests across 13 files. TypeScript and targeted ESLint pass for the additional address repair. The earlier local build completed all 217 static pages with two workers and no build uploads. The additional address repair awaits its Vercel build and browser verification.
+
+![Human verification checkpoint before additional address repair](screenshots/booking-human-check-20261001.jpg)
