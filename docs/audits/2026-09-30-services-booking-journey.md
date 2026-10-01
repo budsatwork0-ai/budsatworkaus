@@ -39,3 +39,11 @@ Preview address lookup also exposed a provider-disabled input. Step 3 now offers
 The focused suite now passes 78 tests across 13 files. TypeScript and targeted ESLint pass for the additional address repair. The earlier local build completed all 217 static pages with two workers and no build uploads. The additional address repair awaits its Vercel build and browser verification.
 
 ![Human verification checkpoint before additional address repair](screenshots/booking-human-check-20261001.jpg)
+
+## Human check result
+
+Preview commit `b6da06ae96a54fb344ab407f783e445c07e7e77a` built successfully. Browser verification confirmed that manual Queensland address entry works and the draft survives a reload. The summary assurance text is now “Address provided” rather than claiming independent verification of a manual address.
+
+The owner approved the CAPTCHA attempt. Cloudflare rejected the checkbox with client error `600010`; a single reload/recovery attempt was also rejected. Automated attempts stopped. The labelled request remains unsubmitted, with no emails, payment or scheduling created. A same-browser manual handoff is required for the owner to try verification directly; site terms still require approval before the final submission.
+
+![Manual address retained; human check blocked](screenshots/booking-check-rejected-20261001.jpg)

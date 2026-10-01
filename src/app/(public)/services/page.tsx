@@ -4627,7 +4627,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   {S.address ? (
                     <S3_Chip>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                      Address verified
+                      Address provided
                     </S3_Chip>
                   ) : null}
                 </div>
