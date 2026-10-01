@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { trackPaymentCompleted } from '@/lib/analytics/conversions';
 
@@ -186,13 +187,13 @@ function SuccessContent() {
         )}
 
         <div className="flex flex-wrap justify-center gap-2">
-          <a
+          <Link
             href="/services"
             className="inline-block px-6 py-2.5 rounded-2xl text-sm text-white"
             style={{ background: 'var(--accent, #166534)' }}
           >
             Back to services
-          </a>
+          </Link>
           {quoteSubmitted && (
             <a
               href="/portal/payments"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { DEFAULT_SCRIPT_ID, Turnstile } from '@marsidev/react-turnstile';
 import { publicTheme } from '@/lib/design-system/themes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -195,7 +196,7 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, submitting = fals
             autoFocus
             className="w-full rounded-xl bg-white px-3 py-2 text-[12.5px] ring-1 ring-black/8 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0f3d2e]/25"
           />
-          <p className="text-xs text-slate-500"><a className="underline" href="/account/forgot-password">Forgot password?</a> · <a className="underline" href="/account">Account options</a></p>
+          <p className="text-xs text-slate-500"><Link className="underline" href="/account/forgot-password">Forgot password?</Link> · <Link className="underline" href="/account">Account options</Link></p>
           {error && <p className="text-[11.5px] text-red-500 px-0.5">{error}</p>}
           <button
             type="submit"
