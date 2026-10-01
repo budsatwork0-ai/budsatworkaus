@@ -27,6 +27,12 @@ export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: true,
+  // Preview and explicit local verification builds do not export build data.
+  // Production retains the existing source-map integration.
+  telemetry: false,
+  sourcemaps: {
+    disable: process.env.VERCEL_ENV === 'preview' || process.env.BUDS_VERIFY_WITHOUT_UPLOADS === '1',
+  },
   widenClientFileUpload: true,
   webpack: {
     treeshake: { removeDebugLogging: true },

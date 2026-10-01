@@ -1,3 +1,4 @@
+import { safeAuthRedirect } from '@/lib/auth-redirect';
 import { createAuthServerClient } from '@/lib/supabase/server-client';
 import { createServiceClientSafe } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type');
 
   // Only allow same-origin relative paths to prevent open redirect attacks.
-  const explicitRedirect = rawRedirect?.startsWith('/') ? rawRedirect : null;
+  const explicitRedirect = safeAuthRedirect(rawRedirect);
 
   // Default to the customer sign-in page so unauthenticated users land somewhere sensible.
   let destination = explicitRedirect || '/account';

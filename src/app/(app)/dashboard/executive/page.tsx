@@ -4,6 +4,8 @@
  */
 import { createServiceClient } from '@/lib/supabase/server';
 import { ExecutiveHQClient } from './ExecutiveHQClient';
+
+export const dynamic = 'force-dynamic';
 import type {
   ExecutiveDecision,
   ExecutiveTask,

@@ -383,7 +383,7 @@ export const SCOPES_BY_SERVICE: Record<ServiceType, ScopeDef[]> = {
     {
       key: 'laundry',
       label: 'Laundry',
-      inclusions: ['Wash, dry & fold', 'Ironing available as add-on', 'Pickup & delivery included', 'Eco, brightening & express options'],
+      inclusions: ['Wash, dry & fold', 'Ironing available as add-on', 'Pickup & delivery available ($12 per order)', 'Eco, brightening & express options'],
       desc: 'Fresh laundry returned clean and ready to wear. Add-ons available at checkout.',
     },
     {

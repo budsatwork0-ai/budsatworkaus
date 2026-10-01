@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { RepairQuarantinePanel, type QuarantineRow } from './_components/RepairQuarantinePanel';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchQuarantine(): Promise<QuarantineRow[]> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -1,5 +1,4 @@
 import React from 'react';
-import type { WizardState } from '../../types';
 import { cls } from '../../utils/formatting';
 import { GOOGLE_MAPS_API_KEY, QLD_BOUNDS } from '../../lib/pricing/constants';
 import { isQueenslandPlace } from '../../lib/routing';
@@ -14,20 +13,29 @@ type Props = {
 /**
  * Google Places-backed address input for Step 3.
  * Resolves a verified street address, extracts the suburb for region validation,
- * and restricts suggestions to Queensland addresses.
+ * and restricts suggestions to Queensland addresses. Manual entry remains
+ * available when the provider fails; the team must confirm these addresses.
  */
 export function ServiceAddressInput({ address, onAddressChange, onClear }: Props) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const autocompleteRef = React.useRef<google.maps.places.Autocomplete | null>(null);
   const listenerRef = React.useRef<google.maps.MapsEventListener | null>(null);
+  const preserveInputRef = React.useRef(false);
 
   const [inputValue, setInputValue] = React.useState(address);
   const [confirmed, setConfirmed] = React.useState(!!address);
   const [error, setError] = React.useState<string | null>(null);
   const [mapsReady, setMapsReady] = React.useState(false);
+  const [manual, setManual] = React.useState(false);
+  const [suburb, setSuburb] = React.useState('');
+  const [postcode, setPostcode] = React.useState('');
 
   // Keep local input in sync when parent resets
   React.useEffect(() => {
+    if (preserveInputRef.current) {
+      preserveInputRef.current = false;
+      return;
+    }
     setInputValue(address);
     setConfirmed(!!address);
   }, [address]);
@@ -70,13 +78,13 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
     let cancelled = false;
     loadGoogleMapsOnce({ apiKey: GOOGLE_MAPS_API_KEY, libraries: ['places'] })
       .then(() => { if (!cancelled) setMapsReady(true); })
-      .catch(() => { /* silently fall back to plain input */ });
+      .catch(() => { /* Manual entry remains available if the provider fails. */ });
     return () => { cancelled = true; };
   }, []);
 
   // Attach autocomplete once Maps is ready
   React.useEffect(() => {
-    if (!mapsReady || !inputRef.current) return;
+    if (manual || !mapsReady || !inputRef.current) return;
     const google = window.google;
     if (!google?.maps?.places) return;
 
@@ -125,7 +133,18 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
       listenerRef.current?.remove();
       autocompleteRef.current = null;
     };
-  }, [mapsReady, onAddressChange]);
+  }, [manual, mapsReady, onAddressChange]);
+
+  function confirmManualAddress() {
+    if (inputValue.trim().length < 5 || !suburb.trim() || !/^4\d{3}$/.test(postcode.trim())) {
+      setError('Enter a street address, suburb and four-digit Queensland postcode.');
+      return;
+    }
+    const formatted = `${inputValue.trim()}, ${suburb.trim()} QLD ${postcode.trim()}`;
+    setError(null);
+    setConfirmed(true);
+    onAddressChange(formatted, suburb.trim());
+  }
 
   function handleClear() {
     setInputValue('');
@@ -148,20 +167,23 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M20 6L9 17l-5-5" />
             </svg>
-            Verified
+            {manual ? 'Entered manually' : 'Address selected'}
           </span>
         )}
       </label>
 
       <div className="relative">
         <input
+          key={manual ? 'manual-address' : 'places-address'}
           ref={inputRef}
+          aria-label={manual ? 'Street address' : 'Service address search'}
           type="text"
           value={inputValue}
-          placeholder="Start typing your street address…"
+          placeholder={manual ? 'Street number and street name' : 'Start typing your street address…'}
           onChange={(e) => {
             setInputValue(e.target.value);
             if (confirmed) {
+              preserveInputRef.current = true;
               setConfirmed(false);
               onClear();
             }
@@ -192,6 +214,29 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
         )}
       </div>
 
+      {!manual && (
+        <button type="button" className="text-xs text-emerald-800 underline" onClick={() => {
+          setManual(true);
+          setConfirmed(false);
+          setInputValue('');
+          setError(null);
+          onClear();
+        }}>Enter address manually</button>
+      )}
+
+      {manual && !confirmed && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">Address lookup unavailable? Enter your Queensland address for our team to confirm.</p>
+          <label className="block text-xs">Suburb
+            <input aria-label="Suburb" autoComplete="address-level2" value={suburb} onChange={e => setSuburb(e.target.value)} className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm" />
+          </label>
+          <label className="block text-xs">Queensland postcode
+            <input aria-label="Queensland postcode" autoComplete="postal-code" inputMode="numeric" maxLength={4} value={postcode} onChange={e => setPostcode(e.target.value)} className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm" />
+          </label>
+          <button type="button" onClick={confirmManualAddress} className="rounded-xl bg-emerald-800 px-3 py-2 text-xs text-white">Use this address</button>
+        </div>
+      )}
+
       {error && (
         <p className="text-[11px] text-red-600 flex items-center gap-1">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -201,7 +246,7 @@ export function ServiceAddressInput({ address, onAddressChange, onClear }: Props
         </p>
       )}
 
-      {!confirmed && !error && (
+      {!manual && !confirmed && !error && (
         <p className="text-[11px] text-slate-500">
           Select from the dropdown to confirm your address.
         </p>

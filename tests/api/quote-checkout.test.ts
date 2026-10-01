@@ -177,7 +177,9 @@ describe('quote checkout route payment pricing', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.url).toBe('https://checkout.stripe.test/cs_test_123');
+    expect(body.url).toBe('https://budsatwork.test/pay/quote_test_123');
+    expect(body.session_id).toBe('cs_test_123');
+    expect(body.order_id).toBe('order_test_123');
     expect(mocks.stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
     expect(mocks.stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({

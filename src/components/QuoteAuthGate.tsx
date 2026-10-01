@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { Turnstile } from '@marsidev/react-turnstile';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { DEFAULT_SCRIPT_ID, Turnstile } from '@marsidev/react-turnstile';
 import { publicTheme } from '@/lib/design-system/themes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { authCallbackUrl } from '@/lib/auth-redirect';
 
 interface Props {
   prefillEmail: string;
   onGuestContinue?: (token: string) => void;
+  submitting?: boolean;
+  verificationResetKey?: number;
   className?: string;
 }
 
@@ -22,8 +26,10 @@ const GOOGLE_ICON = (
   </svg>
 );
 
-export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }: Props) {
+export function QuoteAuthGate({ prefillEmail, onGuestContinue, submitting = false, verificationResetKey = 0, className = '' }: Props) {
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [verificationError, setVerificationError] = useState(false);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
   const [emailExpanded, setEmailExpanded] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,35 +38,76 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
 
   const guestBlocked = !!SITE_KEY && !turnstileToken;
 
+  useEffect(() => {
+    setTurnstileToken('');
+    setVerificationError(false);
+    setVerificationAttempt(v => v + 1);
+  }, [verificationResetKey]);
+
+  useEffect(() => {
+    if (!guestBlocked) return;
+    const timeout = setTimeout(() => setVerificationError(true), 20_000);
+    return () => clearTimeout(timeout);
+  }, [guestBlocked, verificationAttempt]);
+
+  useEffect(() => {
+    const script = document.getElementById(DEFAULT_SCRIPT_ID);
+    const onScriptError = () => setVerificationError(true);
+    script?.addEventListener('error', onScriptError);
+    return () => script?.removeEventListener('error', onScriptError);
+  }, [verificationAttempt]);
+
+  const retryVerification = () => {
+    // Remounting alone cannot reload a script whose network request failed:
+    // the library sees its existing script tag and skips injection.
+    if (!(window as Window & { turnstile?: unknown }).turnstile) {
+      document.getElementById(DEFAULT_SCRIPT_ID)?.remove();
+    }
+    setTurnstileToken('');
+    setVerificationError(false);
+    setVerificationAttempt(v => v + 1);
+  };
+
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.href },
-    });
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: authCallbackUrl(window.location.origin, window.location.pathname + window.location.search) },
+      });
+      if (authError) setError(authError.message);
+    } catch {
+      setError('Unable to open Google sign-in. Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = getSupabaseBrowserClient();
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email: prefillEmail, password });
-    if (err || !data.user) {
-      setError(err?.message ?? 'Sign-in failed. Check your email and password.');
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email: prefillEmail, password });
+      if (err || !data.user) {
+        setError(err?.message ?? 'Sign-in failed. Check your email and password.');
+        return;
+      }
+      const role = data.user.app_metadata?.role as string | undefined;
+      if (role === 'admin' || role === 'employee') {
+        await supabase.auth.signOut();
+        setError('This sign-in is for customers only.');
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('svc:auth-signin', { detail: data.user }));
       setLoading(false);
-      return;
-    }
-    const role = data.user.app_metadata?.role as string | undefined;
-    if (role === 'admin' || role === 'employee') {
-      await supabase.auth.signOut();
-      setError('This sign-in is for customers only.');
+    } catch {
+      setError('Unable to sign in. Please try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-    window.dispatchEvent(new CustomEvent('svc:auth-signin', { detail: data.user }));
-    setLoading(false);
   };
 
   return (
@@ -77,23 +124,35 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
       {SITE_KEY && (
         <div className="mt-3">
           <Turnstile
+            key={verificationAttempt}
             siteKey={SITE_KEY}
-            onSuccess={setTurnstileToken}
-            onExpire={() => setTurnstileToken('')}
+            onSuccess={token => { setTurnstileToken(token); setVerificationError(false); }}
+            onExpire={() => { setTurnstileToken(''); setVerificationError(true); }}
+            onError={() => { setTurnstileToken(''); setVerificationError(true); }}
+            onTimeout={() => { setTurnstileToken(''); setVerificationError(true); }}
+            onUnsupported={() => { setTurnstileToken(''); setVerificationError(true); }}
             options={{ theme: 'light', size: 'flexible' }}
           />
         </div>
       )}
 
+      {guestBlocked && verificationError && (
+        <div role="alert" className="mt-3 text-xs text-slate-600">
+          <p>Verification is taking longer than expected. Your quote details are saved.</p>
+          <button type="button" disabled={submitting} className="mt-2 underline" onClick={retryVerification}>Retry verification</button>
+          <p className="mt-1">You can also sign in below, or <a href="mailto:admin@budsatwork.com" className="underline">email us</a>.</p>
+        </div>
+      )}
       {/* Primary — guest */}
       <button
         type="button"
         onClick={() => onGuestContinue?.(turnstileToken)}
-        disabled={guestBlocked}
+        disabled={guestBlocked || submitting}
+        aria-busy={submitting}
         className="mt-3 w-full py-2.5 rounded-xl text-[13.5px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ background: publicTheme.color.primary }}
       >
-        {guestBlocked ? 'Verifying…' : 'Submit as guest'}
+        {submitting ? 'Submitting…' : guestBlocked ? 'Verifying…' : 'Submit as guest'}
       </button>
 
       {/* Secondary — Google */}
@@ -103,12 +162,14 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
       <button
         type="button"
         onClick={handleGoogle}
-        disabled={googleLoading}
+        disabled={googleLoading || submitting}
         className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[12.5px] font-medium text-slate-600 bg-[#F5F8F6] ring-1 ring-black/6 transition-all hover:bg-[#ECF2EE] active:scale-[0.99] disabled:opacity-60"
       >
         {GOOGLE_ICON}
         {googleLoading ? 'Just a sec…' : 'Continue with Google'}
       </button>
+
+      {error && !emailExpanded && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
 
       {/* Tertiary — existing email account */}
       {!emailExpanded ? (
@@ -126,6 +187,8 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
           </div>
           <input
             type="password"
+            aria-label="Password"
+            autoComplete="current-password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -133,10 +196,11 @@ export function QuoteAuthGate({ prefillEmail, onGuestContinue, className = '' }:
             autoFocus
             className="w-full rounded-xl bg-white px-3 py-2 text-[12.5px] ring-1 ring-black/8 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0f3d2e]/25"
           />
+          <p className="text-xs text-slate-500"><Link className="underline" href="/account/forgot-password">Forgot password?</Link> · <Link className="underline" href="/account">Account options</Link></p>
           {error && <p className="text-[11.5px] text-red-500 px-0.5">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !prefillEmail}
+            disabled={loading || submitting || !prefillEmail}
             className="w-full py-2 rounded-xl text-[13px] font-semibold text-white transition-all hover:opacity-95 active:scale-[0.99] disabled:opacity-50"
             style={{ background: publicTheme.color.primary }}
           >

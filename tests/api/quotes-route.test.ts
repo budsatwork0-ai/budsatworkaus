@@ -5,7 +5,12 @@ import path from 'node:path';
 const getAuthUser = vi.fn();
 const createServiceClientSafe = vi.fn();
 const recordAnalyticsEvent = vi.fn();
-const getResendClient = vi.fn(() => null);
+const getResendClient = vi.fn();
+const postResponseWork: Array<() => Promise<void>> = [];
+vi.mock('next/server', async (original) => ({
+  ...await original<typeof import('next/server')>(),
+  after: (callback: () => Promise<void>) => postResponseWork.push(callback),
+}));
 
 vi.mock('@/lib/auth', () => ({ getAuthUser }));
 vi.mock('@/lib/supabase/server', () => ({ createServiceClientSafe }));
@@ -105,6 +110,8 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   getResendClient.mockReturnValue(null);
+  recordAnalyticsEvent.mockResolvedValue(undefined);
+  postResponseWork.length = 0;
 });
 
 describe('GET /api/quotes', () => {
@@ -288,8 +295,7 @@ describe('POST /api/quotes', () => {
     const { POST } = await import('@/app/api/quotes/route');
 
     await POST(post({ ...VALID_QUOTE_BODY, lead_id: LEAD_UUID }));
-    // Lead linking is fire-and-forget; flush microtasks so the async IIFE completes.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.all(postResponseWork.map(callback => callback()));
 
     const updateCall = client.callsByTable.leads?.find((c) => c.method === 'update');
     expect(updateCall?.args[0]).toMatchObject({ quote_id: expect.any(String), response_status: 'quoted' });
@@ -304,9 +310,53 @@ describe('POST /api/quotes', () => {
 
     // Admin creates a *production* quote (no ?workspace=sandbox) referencing a sandbox lead.
     await POST(post({ ...VALID_QUOTE_BODY, lead_id: LEAD_UUID }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.all(postResponseWork.map(callback => callback()));
 
     expect(client.callsByTable.leads?.some((c) => c.method === 'update')).toBe(false);
+  });
+
+  it('returns the saved quote before delivery, then waits for both receipt and owner email', async () => {
+    getAuthUser.mockResolvedValue(null);
+    createServiceClientSafe.mockReturnValue(makeClient({ quotes: [] }));
+    const send = vi.fn().mockResolvedValue({ data: { id: 'mail-1' }, error: null });
+    getResendClient.mockReturnValue({ emails: { send } });
+    const { POST } = await import('@/app/api/quotes/route');
+    const response = await POST(post(VALID_QUOTE_BODY));
+    const { quote } = await response.json();
+    expect(response.status).toBe(200);
+    expect(send).not.toHaveBeenCalled();
+    expect(postResponseWork).toHaveLength(2);
+    await Promise.all(postResponseWork.map(callback => callback()));
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls.map(([message]) => message.to)).toEqual(['sarah@example.com', 'admin@budsatwork.com']);
+    expect(send.mock.calls[0][1]).toEqual({ idempotencyKey: `quote-${quote.id}-quote_received` });
+  });
+
+  it('sends no real emails for a sandbox submission', async () => {
+    getAuthUser.mockResolvedValue(ADMIN);
+    createServiceClientSafe.mockReturnValue(makeClient({ quotes: [] }));
+    const send = vi.fn();
+    getResendClient.mockReturnValue({ emails: { send } });
+    const { POST } = await import('@/app/api/quotes/route');
+    await POST(post(VALID_QUOTE_BODY, 'https://app.test/api/quotes?workspace=sandbox'));
+    await Promise.all(postResponseWork.map(callback => callback()));
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('keeps a provider error visible and does not mark an NDIS quote as forwarded', async () => {
+    getAuthUser.mockResolvedValue(null);
+    const client = makeClient({ quotes: [] });
+    createServiceClientSafe.mockReturnValue(client);
+    const send = vi.fn().mockResolvedValue({ data: null, error: { message: 'Provider rejected message' } });
+    getResendClient.mockReturnValue({ emails: { send } });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('@/app/api/quotes/route');
+    const response = await POST(post({ ...VALID_QUOTE_BODY, context: 'ndis', ndis_management_type: 'plan_managed', ndis_forward_email: 'plan@example.com' }));
+    await Promise.all(postResponseWork.map(callback => callback()));
+    expect(response.status).toBe(200);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(log).toHaveBeenCalledWith('[email] ndis_forward send failed:', { message: 'Provider rejected message' });
+    expect(client.callsByTable.quotes.some(call => call.method === 'update')).toBe(false);
   });
 
   it('preserves existing validation behaviour', async () => {

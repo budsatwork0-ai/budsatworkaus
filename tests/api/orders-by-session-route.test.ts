@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createServiceClientSafe = vi.fn();
+const retrieve = vi.fn();
+vi.mock('@/lib/stripe/server', () => ({ createStripeClient: () => ({ checkout: { sessions: { retrieve } } }) }));
 
 vi.mock('@/lib/supabase/server', () => ({ createServiceClientSafe }));
 
@@ -25,6 +27,7 @@ function get(sessionId: string) {
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  retrieve.mockResolvedValue({ payment_status: 'paid' });
 });
 
 describe('GET /api/orders/by-session', () => {
@@ -50,6 +53,16 @@ describe('GET /api/orders/by-session', () => {
     expect(res.status).toBe(200);
     expect(body.id).toBe('o1');
     expect(body.customer_name).toBe('Sarah');
+    expect(body.payment_confirmed).toBe(true);
+    expect(retrieve).toHaveBeenCalledWith('sess_1');
+  });
+
+  it('does not claim payment for an unpaid checkout, even when the order is confirmed', async () => {
+    createServiceClientSafe.mockReturnValue(makeClient({ id: 'o1', status: 'confirmed', environment: 'production' }));
+    retrieve.mockResolvedValue({ payment_status: 'unpaid' });
+    const { GET } = await import('@/app/api/orders/by-session/route');
+    const res = await GET(get('sess_unpaid'));
+    expect((await res.json()).payment_confirmed).toBe(false);
   });
 
   it('does not expose a sandbox order — returns the same 404 as a non-existent session', async () => {

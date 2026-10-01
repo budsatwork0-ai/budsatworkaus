@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { trackPaymentCompleted } from '@/lib/analytics/conversions';
 
@@ -11,6 +12,7 @@ type OrderDetails = {
   context: string;
   final_price: number;
   status: string;
+  payment_confirmed: boolean;
 };
 
 function formatAUD(amount: number): string {
@@ -57,28 +59,60 @@ function SuccessContent() {
 
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(!!sessionId);
-  const conversionFiredRef = useRef(false);
+  const [verificationError, setVerificationError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const conversionFiredRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
-    fetch(`/api/orders/by-session?session_id=${encodeURIComponent(sessionId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) {
-          setOrder(data);
-          if (!conversionFiredRef.current) {
-            conversionFiredRef.current = true;
+    const controller = new AbortController();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setOrder(null);
+    setLoadingOrder(true);
+    setVerificationError(false);
+    const verify = async (attempt: number) => {
+      try {
+        const response = await fetch(`/api/orders/by-session?session_id=${encodeURIComponent(sessionId)}`, { signal: controller.signal });
+        // The webhook may not have linked the order yet. Retry briefly.
+        if (!response.ok && response.status !== 404) throw new Error('Payment verification unavailable');
+        const data: OrderDetails | null = response.ok ? await response.json() : null;
+        if (cancelled) return;
+        if (data) setOrder(data);
+        if (data?.payment_confirmed) {
+          setLoadingOrder(false);
+          if (conversionFiredRef.current !== sessionId) {
+            conversionFiredRef.current = sessionId;
             trackPaymentCompleted(data.final_price ?? 0);
           }
+        } else if (attempt < 7) {
+          timer = setTimeout(() => void verify(attempt + 1), 2_000);
+        } else {
+          setLoadingOrder(false);
+          if (!data) setVerificationError(true);
         }
-      })
-      .catch(() => null)
-      .finally(() => setLoadingOrder(false));
-  }, [sessionId]);
+      } catch {
+        if (cancelled) return;
+        setLoadingOrder(false);
+        setVerificationError(true);
+      }
+    };
+    void verify(0);
+    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
+  }, [sessionId, retry]);
 
-  const paymentCompleted = !!sessionId;
-  const quoteSubmitted = !!quoteId && !paymentCompleted;
-  const reference = order?.id || quoteId || sessionId;
+  const paymentCompleted = order?.payment_confirmed === true;
+  const quoteSubmitted = !!quoteId && !sessionId;
+  const reference = order?.id || quoteId;
+  const heading = paymentCompleted ? 'Payment confirmed'
+    : sessionId ? loadingOrder ? 'Checking your payment' : verificationError ? 'Unable to confirm payment' : 'Payment confirmation pending'
+    : quoteSubmitted ? "We've got your quote — nice one!" : 'No booking reference found';
+  const message = paymentCompleted
+    ? 'Your payment has been received. Our team will confirm schedule details shortly.'
+    : sessionId ? loadingOrder ? 'Please wait while we verify your payment. This can take a few moments.'
+      : 'We have not confirmed this payment yet. Please check again or contact us before making another payment.'
+    : quoteSubmitted ? "We'll review your details and email you a payment link once everything is confirmed. Check the inbox you provided."
+    : 'Return to services to start a quote, or contact us about an existing booking.';
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4">
@@ -101,13 +135,11 @@ function SuccessContent() {
         </div>
 
         <h1 className="text-2xl font-semibold text-slate-800 mb-3">
-          {paymentCompleted ? 'Payment confirmed' : "We've got your quote — nice one!"}
+          {heading}
         </h1>
 
         <p className="text-slate-600 mb-6">
-          {paymentCompleted
-            ? 'Your payment has been received. Our team will confirm schedule details shortly.'
-            : "We'll review your details and email you a payment link within 2–4 business hours on weekdays. Check the inbox you provided."}
+          {message}
         </p>
 
         {loadingOrder && (
@@ -122,6 +154,13 @@ function SuccessContent() {
         )}
 
         {!loadingOrder && paymentCompleted && order && <OrderSummaryCard order={order} />}
+
+        {sessionId && !loadingOrder && !paymentCompleted && (
+          <div className="mb-6 flex justify-center gap-4 text-sm">
+            <button type="button" className="underline" onClick={() => setRetry(v => v + 1)}>Check payment again</button>
+            <a href="mailto:admin@budsatwork.com" className="underline">Contact us</a>
+          </div>
+        )}
 
         {quoteSubmitted && (
           <div className="bg-white/60 backdrop-blur rounded-2xl p-6 border border-slate-200/50 mb-4 text-left">
@@ -148,13 +187,13 @@ function SuccessContent() {
         )}
 
         <div className="flex flex-wrap justify-center gap-2">
-          <a
+          <Link
             href="/services"
             className="inline-block px-6 py-2.5 rounded-2xl text-sm text-white"
             style={{ background: 'var(--accent, #166534)' }}
           >
             Back to services
-          </a>
+          </Link>
           {quoteSubmitted && (
             <a
               href="/portal/payments"
