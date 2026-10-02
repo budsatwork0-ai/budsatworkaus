@@ -2471,11 +2471,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                         .filter((s) => ALLOWED_SERVICES_BY_CONTEXT[S.context].includes(s.key))
                         .map((s) => {
                           const isActive = S.service === s.key;
-                          // Step 1 lead text is intentionally non-numeric across all
-                          // contexts (Home / Commercial / NDIS) so we never anchor on
-                          // a "from $X" that doesn't reflect the final scoped quote.
-                          // Real pricing is computed in Step 2+ once scope is known.
-                          const leadText = 'Tailored quote';
                           return (
                             <Tile
                               key={s.key}
@@ -2485,7 +2480,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                               subtitle={s.subtitle}
                               icon={s.icon}
                               popular={'popular' in s ? (s as { popular?: boolean }).popular : undefined}
-                              from={leadText}
                               variant={tileVariant}
                               tapHint
                             />
