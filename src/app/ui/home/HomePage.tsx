@@ -68,8 +68,8 @@ const STEPS = [
   },
   {
     n: '03',
-    title: 'Confirm & pay',
-    body: 'Leave your details. We review within 2–4 hours on weekdays then send a secure payment link.',
+    title: 'Send your quote',
+    body: 'Leave your details. We review within 2–4 hours on weekdays, confirm the job, then send a secure payment link.',
     tool: { icon: icons.calc, label: 'Every add-on is visible before you submit' },
   },
 ];
