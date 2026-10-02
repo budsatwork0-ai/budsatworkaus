@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { publicTheme } from '@/lib/design-system/themes';
@@ -314,9 +315,9 @@ export default function HomePage() {
           >
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
-                href="/services?service=yard"
+                href="/services"
                 data-track="hero_quote_click"
-                data-track-label="Homepage hero lawn quote"
+                data-track-label="Homepage hero quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
                 style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
@@ -402,13 +403,91 @@ export default function HomePage() {
 
         <div className="relative z-10 mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
 
+          {/* ── Real job proof ─────────────────────────────────────────── */}
+          <section aria-labelledby="recent-work-title">
+            <FadeUp>
+              <div
+                className="overflow-hidden rounded-3xl border"
+                style={{ background: BRAND.surface, borderColor: BRAND.border, boxShadow: '0 18px 48px rgba(15,61,46,0.08)' }}
+              >
+                <div className="grid lg:grid-cols-[0.82fr_1.18fr]">
+                  <div className="flex flex-col justify-center p-6 sm:p-8 md:p-10">
+                    <Eyebrow>Real job · Real result</Eyebrow>
+                    <h2
+                      id="recent-work-title"
+                      className="text-[clamp(1.8rem,4vw,2.7rem)] font-bold tracking-tight leading-tight"
+                      style={{ color: BRAND.text }}
+                    >
+                      See the difference.
+                    </h2>
+                    <p className="mt-4 text-[15px] leading-relaxed" style={{ color: BRAND.muted }}>
+                      A real Buds At Work window clean, photographed before and after. No stock photos — just the work.
+                    </p>
+
+                    <div className="mt-6">
+                      <motion.div className="inline-flex" whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                        <Link
+                          href="/services?service=windows"
+                          data-track="homepage_proof_window_quote_click"
+                          data-track-label="Homepage before after window quote"
+                          className="inline-flex items-center gap-2 text-[14px] font-semibold hover:opacity-75 transition-opacity"
+                          style={{ color: BRAND.primary }}
+                        >
+                          Get a window cleaning quote {icons.arrowRight}
+                        </Link>
+                      </motion.div>
+                    </div>
+
+                    <div className="mt-5 flex items-center gap-2 text-[12px]" style={{ color: BRAND.muted }}>
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full" style={{ background: BRAND.accentSoft, color: BRAND.primary }}>
+                        {icons.check}
+                      </span>
+                      Genuine Buds At Work job photos
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-px" style={{ background: BRAND.border }}>
+                    <figure className="relative min-h-[280px] aspect-[3/4] overflow-hidden bg-slate-100">
+                      <Image
+                        src="/images/work/window-clean-before.webp"
+                        alt="Window before Buds At Work cleaning, with visible dirt and marks on the glass"
+                        fill
+                        sizes="(max-width: 1024px) 50vw, 30vw"
+                        className="object-cover"
+                      />
+                      <figcaption className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+                        Before
+                      </figcaption>
+                    </figure>
+
+                    <figure className="relative min-h-[280px] aspect-[3/4] overflow-hidden bg-slate-100">
+                      <Image
+                        src="/images/work/window-clean-after.webp"
+                        alt="Window after Buds At Work cleaning, with visibly clearer glass"
+                        fill
+                        sizes="(max-width: 1024px) 50vw, 30vw"
+                        className="object-cover"
+                      />
+                      <figcaption
+                        className="absolute left-3 top-3 rounded-full px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm"
+                        style={{ background: 'rgba(15,61,46,0.88)' }}
+                      >
+                        After
+                      </figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </div>
+            </FadeUp>
+          </section>
+
           {/* ── Services grid ─────────────────────────────────────────── */}
           <section>
             <FadeUp className="text-center mb-10">
-              <Eyebrow>Six services · One platform</Eyebrow>
+              <Eyebrow>Six services · One local crew</Eyebrow>
               <SectionH2 center>What we do</SectionH2>
               <p className="mt-3 text-[15px] max-w-sm mx-auto" style={{ color: BRAND.muted }}>
-                Pick a service and your live quote builds instantly.
+                Pick what you need and we&apos;ll build a clear quote with you.
               </p>
             </FadeUp>
 
@@ -440,7 +519,7 @@ export default function HomePage() {
                       <p className="text-[12px] mt-0.5" style={{ color: BRAND.muted }}>From ${s.from}</p>
 
                       <div
-                        className="mt-2 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        className="mt-2 flex items-center gap-1 text-[13px] font-medium opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150"
                         style={{ color: BRAND.accent }}
                       >
                         Get quote {icons.arrowRight}
