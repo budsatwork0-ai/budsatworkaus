@@ -4748,7 +4748,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 )}
 
 {/* Spacer for sticky footers */}
-{(S.step === 2 || S.step === 3) && <div className="h-48 md:h-36" />}
+{(S.step === 2 || S.step === 3) && (
+  <div className={S.service === 'yard' && S.step === 2 ? 'h-48 md:h-36' : 'h-32 md:h-36'} />
+)}
 
 {/* ── Sticky quote-summary bar — STEP 3 (mobile-only: sidebar covers desktop) ── */}
 {S.step === 3 && (
@@ -4773,27 +4775,25 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               {S.service.replace('_', ' & ')}
             </div>
           )}
-        </div>
-        {/* Back + Submit */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <M.button
-            className="px-3 py-1.5 rounded-xl text-sm text-slate-600 border border-black/10 bg-white/70 hover:bg-white/90 transition-colors"
+          <button
+            type="button"
+            className="mt-0.5 text-[11px] font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
             onClick={() => goToStep(2)}
-            aria-label="Back to step 2"
           >
-            ← Back
-          </M.button>
+            Edit scope
+          </button>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <M.button
-            className="px-3 py-1.5 rounded-xl text-sm font-semibold text-white shadow-[0_6px_18px_rgba(20,83,45,0.25)]"
+            className="h-11 px-4 rounded-2xl text-sm font-semibold text-white whitespace-nowrap shadow-[0_6px_18px_rgba(20,83,45,0.25)]"
             style={{ background: 'var(--accent)' }}
             onClick={() => {
-              // Scroll to the submit button in the sidebar
               document.getElementById('step3-submit-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               document.getElementById('step3-submit-btn')?.focus();
             }}
-            aria-label="Go to submit"
+            aria-label="Finish quote details"
           >
-            Submit quote →
+            Finish quote →
           </M.button>
         </div>
       </div>
@@ -4832,23 +4832,44 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <M.button
-              className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
-              onClick={() => goToStep(1)}
-              aria-label="Back to step 1"
-            >
-              Back
-            </M.button>
-            <M.button
-              className={`h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
-              style={{ background: 'var(--accent)' }}
-              onClick={() => hasMinimumWork && goToStep(3)}
-              aria-label={isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get my quote'}
-              title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
-            >
-              {isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get My Quote →'}
-            </M.button>
+          <div className="shrink-0">
+            <div className="md:hidden flex flex-col items-end gap-1.5">
+              <M.button
+                className={`h-11 px-5 rounded-2xl text-sm font-semibold whitespace-nowrap text-white shadow-[0_6px_18px_rgba(20,83,45,0.20)] transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
+                style={{ background: 'var(--accent)' }}
+                onClick={() => hasMinimumWork && goToStep(3)}
+                aria-label={isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Continue to your details'}
+                title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
+              >
+                {isNdisContext && S.service === 'cleaning' ? 'Review quote →' : 'Continue →'}
+              </M.button>
+              <button
+                type="button"
+                className="text-[11px] font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+                onClick={() => goToStep(1)}
+              >
+                Change service
+              </button>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2">
+              <M.button
+                className="h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap border border-black/15 bg-white/80 text-slate-700"
+                onClick={() => goToStep(1)}
+                aria-label="Back to step 1"
+              >
+                Back
+              </M.button>
+              <M.button
+                className={`h-10 px-4 rounded-2xl text-sm font-medium whitespace-nowrap text-white transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
+                style={{ background: 'var(--accent)' }}
+                onClick={() => hasMinimumWork && goToStep(3)}
+                aria-label={isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get my quote'}
+                title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
+              >
+                {isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Get My Quote →'}
+              </M.button>
+            </div>
           </div>
         </div>
         <div className={cls('hidden md:block text-[11px] text-slate-500 mt-2 leading-relaxed', isNdisContext && S.service === 'cleaning' && 'md:hidden')}>
@@ -4963,17 +4984,17 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     : priceReady ? measurementHint : 'Tap "Draw" on the map above and outline your area.'}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <M.button
-                className="px-4 py-2 rounded-2xl text-sm font-semibold border border-black/15 bg-white/80 text-slate-700"
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-[11px] font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
                 onClick={() => goToStep(1)}
-                aria-label="Back to step 1"
               >
-                Back
-              </M.button>
+                Change service
+              </button>
               <M.button
                 className={cls(
-                  'px-4 py-2 rounded-2xl text-sm font-semibold text-white transition',
+                  'min-h-11 flex-1 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-[0_6px_18px_rgba(20,83,45,0.20)] transition',
                   priceReady ? 'bg-[color:var(--accent)]' : 'bg-[color:var(--accent)]/70'
                 )}
                 onClick={() => {
@@ -4981,9 +5002,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   goToStep(3);
                 }}
                 disabled={!priceReady}
-                aria-label="Review yard quote"
+                aria-label="Continue to yard quote details"
               >
-                Review quote
+                Continue →
               </M.button>
             </div>
           </div>
