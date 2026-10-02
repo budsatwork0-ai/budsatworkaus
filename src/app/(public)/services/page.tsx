@@ -2242,15 +2242,15 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             <div className="space-y-8">
             <section className={cls('mb-12', S.service === 'yard' && 'hidden')}>
               <div>
-                  <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">Build your quote</h1>
-                  <p className="mt-2 text-slate-400 text-base">Instant pricing. No surprises.</p>
+                  <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">What can we help with today?</h1>
+                  <p className="mt-2 text-slate-500 text-base">Choose a service and we&apos;ll build a clear quote with you.</p>
               </div>
               {/* Step progress indicator */}
               <div className="flex items-center gap-3 mt-6 select-none" aria-label="Quote progress">
                 {([
-                  { n: 1, label: 'Service' },
-                  { n: 2, label: 'Details' },
-                  { n: 3, label: 'Contact' },
+                  { n: 1, label: 'Choose' },
+                  { n: 2, label: 'Job details' },
+                  { n: 3, label: 'Your details' },
                 ] as const).map(({ n, label }, i) => {
                   const done = S.step > n;
                   const active = S.step === n;
@@ -2345,7 +2345,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                           }}
                           aria-label={`Select ${label} context`}
                         >
-                          {label}
+                          {key === 'home' ? 'My home' : key === 'commercial' ? 'My business' : 'NDIS support'}
                         </button>
                       );
                     })}
@@ -2447,18 +2447,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   </section>
                 )}
 
-                {/* New-user tap hint — visible only on step 1 */}
-                <div className="flex items-center gap-2 mb-4 px-1">
-                  <span
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M9 11V7a3 3 0 0 1 6 0v4" />
-                      <path d="M9 11H5l1 9h12l1-9h-4" />
-                    </svg>
-                    Tap a card to choose your service
-                  </span>
+                <div className="mb-4 px-1">
+                  <p className="text-sm font-medium text-slate-700">Choose what needs doing</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Pick the closest match — you can fine-tune the job next.</p>
                 </div>
 
                 {/* Service tiles — only show services available for the selected context. */}
@@ -3296,10 +3287,10 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     ) : (
                       <div>
                         <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                          Our Abilities
+                          What do you need done?
                         </h3>
                         <p className="mt-1 text-sm text-slate-600">
-                          Tell us what matters and we&apos;ll shape it to you.
+                          Pick the closest option — you can fine-tune the details before you submit.
                         </p>
                       </div>
                     )}
@@ -5028,7 +5019,8 @@ function ServicesPageLoading() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-emerald-600 border-r-transparent" />
-        <p className="mt-4 text-slate-600">Loading services...</p>
+        <p className="mt-4 font-medium text-slate-700">Getting your quote builder ready…</p>
+        <p className="mt-1 text-xs text-slate-400">Cleaning · Windows · Yard care · Car detailing · more</p>
       </div>
     </div>
   );
