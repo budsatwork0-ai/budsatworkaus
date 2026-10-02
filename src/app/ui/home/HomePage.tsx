@@ -315,9 +315,9 @@ export default function HomePage() {
           >
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
-                href="/services?service=yard"
+                href="/services"
                 data-track="hero_quote_click"
-                data-track-label="Homepage hero lawn quote"
+                data-track-label="Homepage hero quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
                 style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
