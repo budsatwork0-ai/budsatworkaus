@@ -404,7 +404,7 @@ export default function HomePage() {
         <div className="relative z-10 mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
 
           {/* ── Real job proof ─────────────────────────────────────────── */}
-          <section aria-labelledby="real-results-heading">
+          <section>
             <FadeUp className="text-center mb-8">
               <Eyebrow>Real work · Real results</Eyebrow>
               <SectionH2 center>See the difference</SectionH2>
@@ -415,7 +415,7 @@ export default function HomePage() {
 
             <FadeUp delay={0.08}>
               <div
-                className="rounded-3xl border p-3 sm:p-4 md:p-5"
+                className="mx-auto max-w-3xl rounded-3xl border p-3 sm:p-4 md:p-5"
                 style={{ background: BRAND.card, borderColor: BRAND.border }}
               >
                 <div className="grid grid-cols-2 gap-3 md:gap-5">
@@ -505,7 +505,7 @@ export default function HomePage() {
                       <p className="text-[12px] mt-0.5" style={{ color: BRAND.muted }}>From ${s.from}</p>
 
                       <div
-                        className="mt-2 flex items-center gap-1 text-[13px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        className="mt-2 flex items-center gap-1 text-[13px] font-medium opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150"
                         style={{ color: BRAND.accent }}
                       >
                         Get quote {icons.arrowRight}
