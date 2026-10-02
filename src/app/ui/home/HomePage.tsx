@@ -563,85 +563,52 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ── About split ───────────────────────────────────────────── */}
-          <section className="grid md:grid-cols-2 gap-8 md:gap-12 items-stretch">
-            {/* Left — text */}
-            <FadeUp className="flex flex-col justify-center">
-              <Eyebrow>Who are Buds?</Eyebrow>
-              <SectionH2>Your local crew,<br />not a faceless platform.</SectionH2>
-              <p className="mt-4 text-[15px] leading-relaxed" style={{ color: BRAND.muted }}>
-                We&apos;re a small team based in Logan. When you book with us you&apos;re dealing with real people
-                who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
-              </p>
-              <motion.div className="mt-6" whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
-                <Link
-                  href="/about"
-                  className="inline-flex items-center gap-2 text-[14px] font-semibold hover:opacity-75 transition-opacity"
-                  style={{ color: BRAND.primary }}
-                >
-                  Learn more about us {icons.arrowRight}
-                </Link>
-              </motion.div>
-            </FadeUp>
-
-            {/* Right — promises card, same visual weight */}
-            <FadeUp delay={0.1}>
-              <div
-                data-cursor-card
-                className="rounded-2xl p-7 border h-full flex flex-col justify-center"
-                style={{ background: BRAND.surface, borderColor: BRAND.border }}
-              >
-                <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-5" style={{ color: BRAND.accent }}>What we promise</p>
-                <ul className="space-y-4">
-                  {PROMISES.map((p, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <span
-                        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: BRAND.accentSoft, color: BRAND.primary }}
-                      >
-                        {icons.check}
-                      </span>
-                      <span className="text-[14px] leading-snug" style={{ color: BRAND.text }}>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </FadeUp>
-          </section>
-
-          {/* ── Early promise ──────────────────────────────────────────── */}
+          {/* ── About + trust ───────────────────────────────────────────── */}
           <section>
-            <FadeUp className="text-center mb-10">
-              <Eyebrow>Starting local · Built on trust</Eyebrow>
-              <SectionH2 center>What we want to be known for</SectionH2>
-              <p className="mt-3 text-[15px] max-w-lg mx-auto" style={{ color: BRAND.muted }}>
-                We&apos;re early, so we&apos;re keeping the promise simple: clear quotes, respectful work, and useful local support.
-              </p>
-            </FadeUp>
-
-            <div className="grid md:grid-cols-3 gap-4">
-              {[
-                { title: 'Quote first', text: 'You see the scope and estimated price before we ask you to commit.', tag: 'Visible before you commit' },
-                { title: 'Local crew', text: 'We are building around Logan and South Brisbane, not pretending to cover everywhere.', tag: 'Same names, every visit' },
-                { title: 'Community-backed', text: 'Bookings, partners, and donations help us create practical local work opportunities.', tag: 'Bookings fund local work' },
-              ].map((item, i) => (
-                <FadeUp key={item.title} delay={i * 0.08}>
-                  <motion.div
-                    data-cursor-card
-                    whileHover={{ y: -4, boxShadow: '0 12px 30px rgba(15,61,46,0.09)' }}
-                    className="rounded-2xl p-6 h-full border flex flex-col"
-                    style={{ background: BRAND.card, borderColor: BRAND.border }}
+            <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-stretch">
+              <FadeUp className="flex flex-col justify-center">
+                <Eyebrow>Who are Buds?</Eyebrow>
+                <SectionH2>Your local crew,<br />not a faceless platform.</SectionH2>
+                <p className="mt-4 text-[15px] leading-relaxed" style={{ color: BRAND.muted }}>
+                  We&apos;re a small team based in Logan. When you book with us, you&apos;re dealing with real people
+                  who take pride in the work — not an algorithm dispatching whoever&apos;s closest.
+                </p>
+                <p className="mt-3 text-[13px] leading-relaxed" style={{ color: BRAND.muted }}>
+                  Every booking also helps us build practical local work opportunities as Buds grows.
+                </p>
+                <motion.div className="mt-6" whileHover={{ x: 4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                  <Link
+                    href="/about"
+                    className="inline-flex items-center gap-2 text-[14px] font-semibold hover:opacity-75 transition-opacity"
+                    style={{ color: BRAND.primary }}
                   >
-                    <h3 className="text-[1rem] font-bold" style={{ color: BRAND.text }}>{item.title}</h3>
-                    <p className="mt-3 text-[14px] leading-relaxed flex-1" style={{ color: BRAND.muted }}>{item.text}</p>
-                    <div className="mt-4 pt-4 border-t" style={{ borderColor: BRAND.border }}>
-                      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: BRAND.primary }}>
-                        {icons.check} {item.tag}
-                      </span>
-                    </div>
-                  </motion.div>
-                </FadeUp>
-              ))}
+                    Meet the Buds {icons.arrowRight}
+                  </Link>
+                </motion.div>
+              </FadeUp>
+
+              <FadeUp delay={0.1}>
+                <div
+                  data-cursor-card
+                  className="rounded-2xl p-7 border h-full flex flex-col justify-center"
+                  style={{ background: BRAND.surface, borderColor: BRAND.border }}
+                >
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-5" style={{ color: BRAND.accent }}>What you can expect</p>
+                  <ul className="space-y-4">
+                    {PROMISES.map((p, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <span
+                          className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ background: BRAND.accentSoft, color: BRAND.primary }}
+                        >
+                          {icons.check}
+                        </span>
+                        <span className="text-[14px] leading-snug" style={{ color: BRAND.text }}>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </FadeUp>
             </div>
           </section>
 
@@ -670,7 +637,7 @@ export default function HomePage() {
                   Pick a service and build your free quote.
                   We&apos;ll lock in your price for 7 days.
                 </p>
-                <div className="mt-9 flex flex-wrap justify-center gap-3">
+                <div className="mt-9 flex justify-center">
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                     <Link
                       href="/services"
@@ -680,17 +647,6 @@ export default function HomePage() {
                       style={{ background: BRAND.accent, color: '#fff' }}
                     >
                       Get a free quote {icons.arrowRight}
-                    </Link>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                    <Link
-                      href="/get-involved"
-                      data-track="donation_interest_click"
-                      data-track-label="Homepage join or donate"
-                      className="inline-flex rounded-full px-8 py-4 text-[15px] font-semibold border hover:bg-white/10 transition-colors"
-                      style={{ borderColor: 'rgba(221,243,228,0.24)', color: BRAND.onDark }}
-                    >
-                      Join the crew
                     </Link>
                   </motion.div>
                 </div>
