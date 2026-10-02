@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
@@ -401,6 +402,70 @@ export default function HomePage() {
         </FadeUp>
 
         <div className="relative z-10 mx-auto max-w-5xl px-5 sm:px-8 pb-24 pt-20 space-y-24">
+
+          {/* ── Real job proof ─────────────────────────────────────────── */}
+          <section aria-labelledby="real-results-heading">
+            <FadeUp className="text-center mb-8">
+              <Eyebrow>Real work · Real results</Eyebrow>
+              <SectionH2 center>See the difference</SectionH2>
+              <p className="mt-3 text-[15px] max-w-lg mx-auto" style={{ color: BRAND.muted }}>
+                A recent window clean completed by the Buds — real job photos, before and after.
+              </p>
+            </FadeUp>
+
+            <FadeUp delay={0.08}>
+              <div
+                className="rounded-3xl border p-3 sm:p-4 md:p-5"
+                style={{ background: BRAND.card, borderColor: BRAND.border }}
+              >
+                <div className="grid grid-cols-2 gap-3 md:gap-5">
+                  {[
+                    { label: 'Before', src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' },
+                    { label: 'After', src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' },
+                  ].map((photo) => (
+                    <figure key={photo.label} className="relative overflow-hidden rounded-2xl">
+                      <div className="relative aspect-[3/4] overflow-hidden">
+                        <Image
+                          src={photo.src}
+                          alt={photo.alt}
+                          fill
+                          sizes="(max-width: 768px) 50vw, 480px"
+                          className="object-cover"
+                        />
+                        <span
+                          className="absolute left-2.5 top-2.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] shadow-sm"
+                          style={{
+                            background: photo.label === 'After' ? BRAND.accent : 'rgba(15,23,42,0.78)',
+                            color: '#fff',
+                          }}
+                        >
+                          {photo.label}
+                        </span>
+                      </div>
+                    </figure>
+                  ))}
+                </div>
+
+                <div className="flex flex-col gap-4 px-2 pb-2 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-3">
+                  <div>
+                    <p className="font-semibold text-[15px]" style={{ color: BRAND.text }}>Window clean — completed by the Buds</p>
+                    <p className="mt-1 text-[12px] leading-relaxed" style={{ color: BRAND.muted }}>
+                      Same job, photographed before and after the clean.
+                    </p>
+                  </div>
+                  <Link
+                    href="/services?service=windows"
+                    data-track="homepage_proof_window_quote_click"
+                    data-track-label="Homepage before after window quote"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold transition-all hover:brightness-[0.92]"
+                    style={{ background: BRAND.accent, color: '#fff' }}
+                  >
+                    Get a window quote {icons.arrowRight}
+                  </Link>
+                </div>
+              </div>
+            </FadeUp>
+          </section>
 
           {/* ── Services grid ─────────────────────────────────────────── */}
           <section>
