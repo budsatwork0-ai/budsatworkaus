@@ -70,3 +70,7 @@ Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-ci-plan.md
 Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-threshold-dry-run.md
 Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-release-cycle-evidence.md
 Buds At Work/01 Architecture/Architecture Doctor/architecture-doctor-proposed-baseline.json
+
+# Obsidian per-device layout state (rewritten on every use)
+Buds At Work/.obsidian/workspace.json
+Buds At Work/.obsidian/workspace-mobile.json
