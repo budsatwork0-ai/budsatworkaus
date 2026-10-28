@@ -272,7 +272,7 @@ function buildRecommendation(
     id: lead.id,
     title: `${lead.customer_name ?? 'Lead'} · ${lead.service_type ?? lead.source}`,
     detail: `${lead.temperature ?? 'UNSCORED'} · ${lead.response_status}`,
-    href: '/dashboard/insights/leads',
+    href: '/dashboard/leads',
   }));
 
   const relatedMilestones = context.events.filter((event) =>

@@ -358,7 +358,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 <RelatedRecordCard
                   label="Order"
                   title={orderService}
-                  href={`/dashboard/orders/${relatedOrder!.id}`}
+                  href="/dashboard/orders"
                   status={cap(relatedOrder!.status)}
                   statusTone={orderTone}
                 />

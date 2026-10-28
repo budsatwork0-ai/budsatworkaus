@@ -148,7 +148,7 @@ export function OpenEnquiriesPanel({ rows }: { rows: OpenEnquiryRow[] }) {
       {overLimit && (
         <p className="pt-1 text-center text-[11px] text-white/35">
           +{visible.length - 10} more ·{' '}
-          <Link href="/dashboard/insights/leads" className="text-white/55 underline-offset-2 hover:underline">
+          <Link href="/dashboard/leads" className="text-white/55 underline-offset-2 hover:underline">
             View all in Leads workspace
           </Link>
         </p>

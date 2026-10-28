@@ -54,7 +54,7 @@ export default function DispatchTab() {
     try {
       const [ordersRes, empRes] = await Promise.all([
         fetch('/api/orders?status=confirmed&unassigned=true'),
-        fetch('/api/employees'),
+        fetch('/api/crew/employees'),
       ]);
       if (ordersRes.ok) {
         const { orders: data } = await ordersRes.json();

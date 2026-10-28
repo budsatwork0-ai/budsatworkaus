@@ -141,11 +141,11 @@ const AGENT_NAMES: Record<string, string> = {
 
 const TARGET_HREF: Record<string, string> = {
   story_arcs:                '/dashboard/story-engine/arcs',
-  open_threads:              '/dashboard/story-engine/threads',
+  open_threads:              '/dashboard/story-engine/open-threads',
   content_production_cards:  '/dashboard/content-studio/production',
   content_assets:            '/dashboard/content-studio/assets',
   marketing_campaigns:       '/dashboard/marketing/campaigns',
-  social_channels:           '/dashboard/marketing/channels',
+  social_channels:           '/dashboard/marketing/social-channels',
   marketing_publishing_queue:'/dashboard/marketing/publishing',
   research_trends:           '/dashboard/research-lab/trends',
 };
@@ -165,12 +165,12 @@ const EVENT_AGENT: Record<string, string> = {
 
 const EVENT_HREF: Record<string, string> = {
   arc_stale_flag:            '/dashboard/story-engine/arcs',
-  thread_stale_flag:         '/dashboard/story-engine/threads',
+  thread_stale_flag:         '/dashboard/story-engine/open-threads',
   production_card_stale_flag:'/dashboard/content-studio/production',
   asset_match_suggested:     '/dashboard/content-studio/assets',
   consent_unresolved_flag:   '/dashboard/content-studio/assets',
   campaign_kpi_report:       '/dashboard/marketing/campaigns',
-  cadence_behind_flag:       '/dashboard/marketing/channels',
+  cadence_behind_flag:       '/dashboard/marketing/social-channels',
   format_learning_report:    '/dashboard/research-lab',
   format_learning_insight:   '/dashboard/research-lab',
   trend_adapted:             '/dashboard/research-lab/trends',
