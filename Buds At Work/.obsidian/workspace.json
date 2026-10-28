@@ -8,13 +8,17 @@
         "type": "tabs",
         "children": [
           {
-            "id": "2211cd3950a0860a",
+            "id": "b0d5da5eb0a7d001",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "00 System Core/Buds OS Dashboard.md",
+                "mode": "preview",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Buds OS Dashboard"
             }
           }
         ]
@@ -31,12 +35,25 @@
         "type": "tabs",
         "children": [
           {
+            "id": "74f3fbe64755aad3",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": true
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
             "id": "e4eae76c34c6e3c2",
             "type": "leaf",
             "state": {
               "type": "search",
               "state": {
-                "query": "file:",
+                "query": "",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -56,22 +73,9 @@
               "icon": "lucide-bookmark",
               "title": "Bookmarks"
             }
-          },
-          {
-            "id": "74f3fbe64755aad3",
-            "type": "leaf",
-            "state": {
-              "type": "file-explorer",
-              "state": {
-                "sortOrder": "alphabetical",
-                "autoReveal": false
-              },
-              "icon": "lucide-folder-closed",
-              "title": "Files"
-            }
           }
         ],
-        "currentTab": 2
+        "currentTab": 0
       }
     ],
     "direction": "horizontal",
@@ -85,6 +89,20 @@
         "id": "2bea9baf069639c4",
         "type": "tabs",
         "children": [
+          {
+            "id": "333819eb5ab55f06",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          },
           {
             "id": "5bf9fee480235bb8",
             "type": "leaf",
@@ -115,49 +133,6 @@
               "icon": "links-going-out",
               "title": "Outgoing links"
             }
-          },
-          {
-            "id": "ac226e2927f1895d",
-            "type": "leaf",
-            "state": {
-              "type": "tag",
-              "state": {
-                "sortOrder": "frequency",
-                "useHierarchy": true,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-tags",
-              "title": "Tags"
-            }
-          },
-          {
-            "id": "4d7dc07cd19ec366",
-            "type": "leaf",
-            "state": {
-              "type": "all-properties",
-              "state": {
-                "sortOrder": "frequency",
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-archive",
-              "title": "All properties"
-            }
-          },
-          {
-            "id": "333819eb5ab55f06",
-            "type": "leaf",
-            "state": {
-              "type": "outline",
-              "state": {
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-list",
-              "title": "Outline"
-            }
           }
         ]
       }
@@ -177,46 +152,11 @@
       "bases:Create new base": false
     }
   },
-  "active": "2211cd3950a0860a",
+  "active": "b0d5da5eb0a7d001",
   "lastOpenFiles": [
-    "Dev/Dev Log 2026-06-10.md",
-    "Dev/Dev Log 2026-06-04.md",
-    "Dev/Dev Log 2026-05-29.md",
-    "Dev/Dev Log 2026-05-28.md",
+    "00 System Core/Buds OS Dashboard.md",
+    "00 System Core/Home.md",
     "03 Active Refactors/Vault Restructure Plan.md",
-    "03 Active Refactors/Services Core Extraction.md",
-    "03 Active Refactors/Next Safe Refactor Batches.md",
-    "03 Active Refactors/Known Unsafe Areas.md",
-    "03 Active Refactors",
-    "00 System Core/Claude Memory/Convention Rules.md",
-    "00 System Core/Claude Memory/Anti-Patterns.md",
-    "00 System Core/Claude Memory",
-    "Dev/Projects/Services Page Apple Redesign — April 2026.md",
-    "Dev/Projects/Services Flow Improvements — April 2026.md",
-    "Dev/Projects/Services Flow Improvements — April 2026 Phase 6.md",
-    "Dev/Projects/Services Flow Improvements — April 2026 Phase 5.md",
-    "Dev/Projects/Services Flow Improvements — April 2026 Phase 4.md",
-    "Dev/Projects/Services Flow Improvements — April 2026 Phase 3.md",
-    "Dev/Projects/Schedule Page & DayScheduler Refactor — May 2026.md",
-    "Dev/Projects/Price Optimizer Agent — May 2026.md",
-    "Dev/Projects/NDIS Step 2 Visual Redesign — May 2026.md",
-    "Dev/Projects/NDIS Pricing Rewrite & Stripe Hardening — April 2026.md",
-    "Dev/Projects/NDIS Participant Matching — May 2026.md",
-    "Dev/Projects/Infrastructure & Integrations — April 2026.md",
-    "Dev/Projects/Homepage UI Polish — April 2026.md",
-    "Dev/Projects/GitHub-Automation.md",
-    "Dev/Projects/Design System — April 2026.md",
-    "Dev/Projects/Crew Pipeline Fix & Approval Flow — May 2026.md",
-    "Dev/Projects",
-    "Agents/sedvOuL2P",
-    "Agents/Meta-Agent/Reports/sedZritn2",
-    "Agents/Meta-Agent/Decisions/sedssAZVU",
-    "Agents/Performance-Agent/sed8zZ3kQ",
-    "Agents/Performance-Agent/Tasks/sed06pqw2",
-    "Agents/Admin-Agent/Resolved-Issues/sedcq1vNF",
-    "Agents/Admin-Agent/Findings/sed5wjgpl",
-    "Untitled 2.canvas",
-    "Untitled 1.canvas",
-    "Untitled.canvas"
+    "01 Architecture/00 Start Here.md"
   ]
 }

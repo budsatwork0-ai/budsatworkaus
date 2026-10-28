@@ -1,0 +1,17 @@
+{
+  "items": [
+    {"type": "file", "ctime": 1792130400000, "path": "00 System Core/Buds OS Dashboard.md", "title": "Buds OS Dashboard"},
+    {"type": "file", "ctime": 1792130400001, "path": "00 System Core/Home.md", "title": "Home"},
+    {"type": "group", "ctime": 1792130400002, "title": "Indexes", "items": [
+      {"type": "file", "ctime": 1792130400003, "path": "01 Architecture/00 Start Here.md", "title": "Architecture — Start Here"},
+      {"type": "file", "ctime": 1792130400004, "path": "06 Operations/Team Areas/Admin.md", "title": "Admin Command Centre"},
+      {"type": "file", "ctime": 1792130400005, "path": "Agents/README.md", "title": "Agent Workspaces"},
+      {"type": "file", "ctime": 1792130400006, "path": "Dev/ADR-Index.md", "title": "ADR Index"},
+      {"type": "file", "ctime": 1792130400007, "path": "Dev/Bug Tracker.md", "title": "Bug Tracker"}
+    ]},
+    {"type": "group", "ctime": 1792130400008, "title": "Active Refactors", "items": [
+      {"type": "file", "ctime": 1792130400009, "path": "03 Active Refactors/Vault Restructure Plan.md", "title": "Vault Restructure Plan"},
+      {"type": "file", "ctime": 1792130400010, "path": "03 Active Refactors/Known Unsafe Areas.md", "title": "Known Unsafe Areas"}
+    ]}
+  ]
+}
