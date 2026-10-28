@@ -4,6 +4,17 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 
 > **→ [[Buds OS Dashboard]]** is the canonical operational view. Start there.
 
+## Vault Map
+
+- [[00 System Core/System Core Index|System Core]] — governance, Claude memory, design system
+- [[01 Architecture/Architecture Index|Architecture]] — systems, components, Graphify, Architecture Doctor
+- [[03 Active Refactors/Active Refactors Index|Active Refactors]]
+- [[05 Automation/Automation Index|Automation]]
+- [[06 Operations/Operations Index|Operations]] — processes, SOPs, team areas
+- [[Agents/Agent Workspaces Index|Agents]] — every agent workspace and its notes
+- [[Dev/Dev Index|Dev]] — logs, ADRs, audits · [[Dev/Projects/Projects Index|Projects]]
+- [[99 Archive/Archive Index|Archive]]
+
 ---
 
 ## Admin Command Centre
@@ -40,7 +51,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 ## Automation
 - [[Automations Log]] — which automation recipes are currently live
 - [[Checklist Template]] — end-to-end test checklist for payment flow
-- [[05 Automation/Graph Maintenance|Graph Maintenance]] — scheduled graph health pass
+- [[05 Automation/Claude Code Prompts/Graph Maintenance Prompt|Graph Maintenance]] — scheduled graph health pass
 
 ---
 
@@ -48,7 +59,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 
 - [[Bug Tracker]] — quick-capture for bugs found during ops
 - [[ADR-Index]] — all Architectural Decision Records
-- [[Dev/Projects/|→ Dev/Projects/]] — all project change docs (Services Flow, NDIS, Admin, etc.)
+- [[Dev/Projects/Projects Index|→ Projects Index]] — all project change docs (Services Flow, NDIS, Admin, etc.)
 
 **Recent logs:**
 - [[Dev/Dev Log 2026-05-27|Dev Log 2026-05-27]]
@@ -58,10 +69,10 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 - [[Dev/Dev Log 2026-05-23|Dev Log 2026-05-23]]
 
 ## Active Refactors
-- [[../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — Batches 0–4 shipped; Batch 5 gated on code refactor
-- [[../03 Active Refactors/Services Core Extraction|Services Core Extraction]] — pricing, routing, estimation out of services/page.tsx
-- [[../03 Active Refactors/Next Safe Refactor Batches|Next Safe Refactor Batches]] — pre-scoped, risk-assessed batch queue
-- [[../03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]] — read before touching any of these
+- [[03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — Batches 0–3 shipped; Batch 4 in flight; Batch 5 gated on code refactor
+- [[03 Active Refactors/Services Core Extraction|Services Core Extraction]] — pricing, routing, estimation out of services/page.tsx
+- [[03 Active Refactors/Next Safe Refactor Batches|Next Safe Refactor Batches]] — pre-scoped, risk-assessed batch queue
+- [[03 Active Refactors/Known Unsafe Areas|Known Unsafe Areas]] — read before touching any of these
 
 ---
 
@@ -71,7 +82,7 @@ Local services platform (Logan & South Brisbane): cleaning, windows, yard care, 
 - [[Quote Pipeline]] — server-side quote → checkout → webhook lifecycle
 - [[ServicesPageContent]] — the public quote wizard
 - [[Mission Control]] — aggregated operational health state
-- [[Graphify]] — live codebase knowledge graph
+- [[01 Architecture/Graphify/Graphify Overview|Graphify]] — live codebase knowledge graph
 - [[Graph-Health-Agent]] — graph connectivity, orphan detection, hub health
 - [[Agents/README|Agent Workspaces]] — all agent workspaces, findings, decisions, and issues
 
