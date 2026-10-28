@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { DASHBOARD_COMMANDS, DASHBOARD_NAV_GROUPS } from '../../src/lib/dashboard/navigation';
+import { DASHBOARD_COMMANDS, DASHBOARD_NAV_GROUPS, SHOW_DEV_DASHBOARD_NAV } from '../../src/lib/dashboard/navigation';
 
 const renderNav = (viewport: 'desktop' | 'mobile', pathname = '/dashboard') => {
   const isActive = (href: string) => pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
@@ -35,24 +35,22 @@ test.describe('Dashboard navigation metadata', () => {
 
     const expectedGroups = [
       'Overview',
-      'Work',
-      'People',
-      'Growth',
-      'Money',
-      'Bud OS',
+      'Sales',
+      'Content',
+      'Campaigns',
+      'Insights',
+      'Team',
       'Settings',
-      'More / System',
+      ...(SHOW_DEV_DASHBOARD_NAV ? ['Developer'] : []),
     ];
 
     await expect(page.getByTestId('desktop-dashboard-nav').locator('section > button')).toHaveText(expectedGroups);
     await expect(page.getByTestId('mobile-dashboard-nav').locator('section > button')).toHaveText(expectedGroups);
 
-    await expect(page.getByTestId('desktop-group-more-system')).toHaveAttribute('data-collapsed', 'true');
-    await expect(page.getByTestId('desktop-group-more-system').locator('a')).toHaveCount(10);
-
-    await page.getByTestId('desktop-group-more-system').locator('div').evaluate((node) => node.removeAttribute('hidden'));
-    await expect(page.getByTestId('desktop-group-more-system').getByRole('link', { name: 'Reports' })).toBeVisible();
-    await expect(page.getByTestId('desktop-group-more-system').getByRole('link', { name: 'Quote Funnel' })).toBeVisible();
+    if (SHOW_DEV_DASHBOARD_NAV) {
+      await expect(page.getByTestId('desktop-group-developer')).toHaveAttribute('data-collapsed', 'true');
+      await expect(page.getByTestId('desktop-group-developer').locator('a')).toHaveCount(2);
+    }
 
     for (const label of ['Schedule', 'Quotes', 'Invoices', 'Applicants']) {
       await expect(page.getByTestId('desktop-dashboard-nav').getByRole('link', { name: label })).toBeVisible();

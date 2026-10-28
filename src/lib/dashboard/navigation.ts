@@ -54,29 +54,60 @@ export type DashboardCommand = {
   primary?: boolean;
 };
 
-export const DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
+/**
+ * Sidebar: 7 sections, 18 items. Every other admin route stays reachable by URL
+ * and through the command palette (DASHBOARD_COMMANDS). Developer tools
+ * (Sandbox, Design System) only appear outside production.
+ */
+const PRIMARY_DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
   {
     id: 'overview',
     label: 'Overview',
     items: [
       { href: '/dashboard', label: 'Overview', iconKey: 'dashboard', badgeKey: 'dashboard' },
-      { href: '/dashboard/alerts', label: 'Alerts', iconKey: 'alerts' },
+      { href: '/dashboard/schedule', label: 'Schedule', iconKey: 'schedule', badgeKey: 'schedule' },
       { href: '/dashboard/messages', label: 'Messages', iconKey: 'messages' },
     ],
   },
   {
-    id: 'work',
-    label: 'Work',
+    id: 'sales',
+    label: 'Sales',
     items: [
-      { href: '/dashboard/schedule', label: 'Schedule', iconKey: 'schedule', badgeKey: 'schedule' },
-      { href: '/dashboard/orders', label: 'Jobs & Orders', iconKey: 'jobs' },
+      { href: '/dashboard/leads', label: 'Leads', iconKey: 'leads' },
       { href: '/dashboard/quotes', label: 'Quotes', iconKey: 'quotes', badgeKey: 'quotes' },
+      { href: '/dashboard/orders', label: 'Jobs & Orders', iconKey: 'jobs' },
       { href: '/dashboard/customers', label: 'Customers', iconKey: 'customers' },
+      { href: '/dashboard/invoices', label: 'Invoices', iconKey: 'money', badgeKey: 'invoices' },
     ],
   },
   {
-    id: 'people',
-    label: 'People',
+    id: 'content',
+    label: 'Content',
+    adminOnly: true,
+    items: [
+      { href: '/dashboard/content', label: 'Content Studio', iconKey: 'contentStudio' },
+    ],
+  },
+  {
+    id: 'campaigns',
+    label: 'Campaigns',
+    adminOnly: true,
+    items: [
+      { href: '/dashboard/growth-hq', label: 'Campaigns', iconKey: 'growthHq' },
+    ],
+  },
+  {
+    id: 'insights',
+    label: 'Insights',
+    adminOnly: true,
+    items: [
+      { href: '/dashboard/insights', label: 'Insights', iconKey: 'insights' },
+      { href: '/dashboard/executive', label: 'Executive HQ', iconKey: 'executive' },
+    ],
+  },
+  {
+    id: 'team',
+    label: 'Team',
     adminOnly: true,
     items: [
       { href: '/dashboard/crew', label: 'Crew', iconKey: 'crew' },
@@ -85,62 +116,33 @@ export const DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
     ],
   },
   {
-    id: 'growth',
-    label: 'Growth',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/leads', label: 'Leads', iconKey: 'leads' },
-      { href: '/dashboard/growth-hq', label: 'Campaigns', iconKey: 'growthHq' },
-      { href: '/dashboard/content', label: 'Create', iconKey: 'contentStudio' },
-    ],
-  },
-  {
-    id: 'money',
-    label: 'Money',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/invoices', label: 'Invoices', iconKey: 'money', badgeKey: 'invoices' },
-      { href: '/dashboard/subscriptions', label: 'Subscriptions', iconKey: 'subscriptions' },
-    ],
-  },
-  {
-    id: 'bud-os',
-    label: 'Bud OS',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/mission-control', label: 'Mission Control', iconKey: 'mission' },
-      { href: '/dashboard/agents', label: 'Agents', iconKey: 'automations' },
-      { href: '/dashboard/executive', label: 'Executive HQ', iconKey: 'executive' },
-    ],
-  },
-  {
     id: 'settings',
     label: 'Settings',
     adminOnly: true,
     items: [
       { href: '/dashboard/settings', label: 'Workspace', iconKey: 'settings' },
+      { href: '/dashboard/mission-control', label: 'Bud OS', iconKey: 'mission' },
       { href: '/dashboard/automations', label: 'Automations', iconKey: 'automations' },
     ],
   },
-  {
-    id: 'more-system',
-    label: 'More / System',
-    adminOnly: true,
-    collapsedByDefault: true,
-    items: [
-      { href: '/dashboard/reports', label: 'Reports', iconKey: 'reports' },
-      { href: '/dashboard/insights', label: 'Insights', iconKey: 'insights' },
-      { href: '/dashboard/audit-log', label: 'Audit Log', iconKey: 'audit' },
-      { href: '/dashboard/sandbox', label: 'Sandbox', iconKey: 'sandbox' },
-      { href: '/dashboard/design', label: 'Design System', iconKey: 'design' },
-      { href: '/dashboard/fundraising', label: 'Fundraising', iconKey: 'fundraising' },
-      { href: '/dashboard/onboarding', label: 'Onboarding', iconKey: 'crew' },
-      { href: '/dashboard/inductions', label: 'Inductions', iconKey: 'audit' },
-      { href: '/dashboard/analytics/quote-funnel', label: 'Quote Funnel', iconKey: 'quoteFunnel' },
-      { href: '/dashboard/feedback', label: 'Feedback', iconKey: 'feedback' },
-    ],
-  },
-] as const;
+];
+
+export const DEV_DASHBOARD_NAV_GROUP: DashboardNavGroup = {
+  id: 'developer',
+  label: 'Developer',
+  adminOnly: true,
+  collapsedByDefault: true,
+  items: [
+    { href: '/dashboard/sandbox', label: 'Sandbox', iconKey: 'sandbox' },
+    { href: '/dashboard/design', label: 'Design System', iconKey: 'design' },
+  ],
+};
+
+export const SHOW_DEV_DASHBOARD_NAV = process.env.NODE_ENV !== 'production';
+
+export const DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = SHOW_DEV_DASHBOARD_NAV
+  ? [...PRIMARY_DASHBOARD_NAV_GROUPS, DEV_DASHBOARD_NAV_GROUP]
+  : PRIMARY_DASHBOARD_NAV_GROUPS;
 
 export const DASHBOARD_COMMANDS: readonly DashboardCommand[] = [
   { id: 'overview', label: 'Go to Overview', description: 'Admin overview and operating status', href: '/dashboard', keywords: ['home', 'dashboard', 'status', 'mission control'], category: 'Navigation', primary: true },
