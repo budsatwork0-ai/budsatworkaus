@@ -54,10 +54,10 @@ For a full graph health pass — orphan detection, weak cluster repair, hub stre
 - [[GRAPH_REPORT]] — vault copy of the report
 
 ## Related Systems
-- [[../Systems/Bud Core Runtime|Bud Core Runtime]]
-- [[../Systems/Agent Runtime|Agent Runtime]]
-- [[../Components/ServicesPageContent|ServicesPageContent]]
-- [[../Systems/Pricing Engine|Pricing Engine]]
-- [[../Systems/Mission Control|Mission Control]]
-- [[../Systems/Quote Pipeline|Quote Pipeline]]
-- [[../00 Start Here|Architecture Start Here]]
+- [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]]
+- [[01 Architecture/Systems/Agent Runtime|Agent Runtime]]
+- [[01 Architecture/Components/ServicesPageContent|ServicesPageContent]]
+- [[01 Architecture/Systems/Pricing Engine|Pricing Engine]]
+- [[01 Architecture/Systems/Mission Control|Mission Control]]
+- [[01 Architecture/Systems/Quote Pipeline|Quote Pipeline]]
+- [[01 Architecture/00 Start Here|Architecture Start Here]]

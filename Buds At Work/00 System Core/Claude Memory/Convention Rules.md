@@ -95,5 +95,5 @@ classifier so the guard keeps covering it.
 
 ## Related Systems
 - [[Anti-Patterns]]
-- [[../Components/Brand|Brand]]
-- [[../Systems/Bud Core Runtime|Bud Core Runtime]]
+- [[01 Architecture/Components/Brand|Brand]]
+- [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]]

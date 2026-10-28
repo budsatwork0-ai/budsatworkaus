@@ -124,5 +124,5 @@ Use the second person sparingly. The reader is usually Jackson or a future Claud
 
 - [[Vault Constitution]]
 - [[Metadata Rules]]
-- [[../../03 Active Refactors/Services Core Extraction|Services Core Extraction]] — reference example
-- [[../../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — this batch is from there
+- [[03 Active Refactors/Services Core Extraction|Services Core Extraction]] — reference example
+- [[03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]] — this batch is from there

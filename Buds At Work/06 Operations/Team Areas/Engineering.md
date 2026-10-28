@@ -147,4 +147,4 @@ If something breaks in production:
 - [[createServiceClient]] — Supabase service-role client, imported by every API route
 - [[getAuthUser]] — auth gate used across all protected routes
 - [[Brand]] — design token object, 137 dependents across the UI
-- [[Graphify]] — codebase knowledge graph (`graphify query "<question>"` for scoped lookups)
+- [[01 Architecture/Graphify/Graphify Overview]] — codebase knowledge graph (`graphify query "<question>"` for scoped lookups)

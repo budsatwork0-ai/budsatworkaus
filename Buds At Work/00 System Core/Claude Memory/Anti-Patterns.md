@@ -70,7 +70,7 @@ function DashboardTab() {
 // Use deriveGlobalTruth() or MissionControlHealth
 ```
 
-**Why:** The architectural principle is "UI visualises operational intelligence. Runtime owns it." See [[../Systems/Bud Core Runtime|Bud Core Runtime]].
+**Why:** The architectural principle is "UI visualises operational intelligence. Runtime owns it." See [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]].
 
 ---
 
@@ -139,7 +139,7 @@ and forces such PRs to a draft with a `[HumanReview]` tag in `improvement-execut
 ---
 
 ## Related Systems
-- [[../Components/Brand|Brand]]
-- [[../Systems/Bud Core Runtime|Bud Core Runtime]]
-- [[../Systems/createServiceClient|createServiceClient]]
+- [[01 Architecture/Components/Brand|Brand]]
+- [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]]
+- [[01 Architecture/Systems/createServiceClient|createServiceClient]]
 - [[Convention Rules]]

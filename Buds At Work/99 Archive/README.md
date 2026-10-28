@@ -30,7 +30,7 @@ The archive is currently empty. No Dev Logs are old enough to archive (earliest 
 
 ## Rules
 
-Full lifecycle rules: [[../00 System Core/Governance/Archive Policy|Archive Policy]].
+Full lifecycle rules: [[00 System Core/Governance/Archive Policy|Archive Policy]].
 
 Short version:
 
