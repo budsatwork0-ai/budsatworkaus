@@ -81,4 +81,4 @@ The constitution changes only by explicit human decision, recorded as a ADR in `
 - [[Generated Output Rules]]
 - [[Archive Policy]]
 - [[Refactor Doc Standards]]
-- [[../../03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]]
+- [[03 Active Refactors/Vault Restructure Plan|Vault Restructure Plan]]

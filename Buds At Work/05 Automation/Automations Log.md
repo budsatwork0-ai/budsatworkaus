@@ -55,5 +55,5 @@ Each recipe:
 - [[06 Operations/SOPs/New Booking|New Booking]]
 
 ## Architecture
-- [[../01 Architecture/Systems/Agent Runtime|Agent Runtime]] — the execution engine that runs automation agents
-- [[../01 Architecture/Systems/Mission Control|Mission Control]] — operational state that automation agents read and act on
+- [[01 Architecture/Systems/Agent Runtime|Agent Runtime]] — the execution engine that runs automation agents
+- [[01 Architecture/Systems/Mission Control|Mission Control]] — operational state that automation agents read and act on

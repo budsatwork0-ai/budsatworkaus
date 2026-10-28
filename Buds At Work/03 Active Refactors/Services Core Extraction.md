@@ -41,10 +41,10 @@ One extraction per PR. Do not mix logic moves with UI changes.
 - `src/app/(public)/services/lib/routing/index.ts`
 
 ## Related Systems
-- [[../Components/ServicesPageContent|ServicesPageContent]] — the component being refactored
-- [[../Components/useRouteResult|useRouteResult]] — route calculation hook
-- [[../Systems/Route Service|Route Service]] — underlying routing/distance lib
-- [[../Systems/Pricing Engine|Pricing Engine]] — pricing engine that estimation helpers feed into
-- [[../Systems/Bud Core Runtime|Bud Core Runtime]] — long-term home for extracted runtime logic
+- [[01 Architecture/Components/ServicesPageContent|ServicesPageContent]] — the component being refactored
+- [[01 Architecture/Components/useRouteResult|useRouteResult]] — route calculation hook
+- [[01 Architecture/Systems/Route Service|Route Service]] — underlying routing/distance lib
+- [[01 Architecture/Systems/Pricing Engine|Pricing Engine]] — pricing engine that estimation helpers feed into
+- [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]] — long-term home for extracted runtime logic
 - [[Known Unsafe Areas]]
 - [[Next Safe Refactor Batches]]

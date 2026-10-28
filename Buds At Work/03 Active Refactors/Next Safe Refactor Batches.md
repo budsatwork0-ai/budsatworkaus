@@ -67,7 +67,7 @@ Risk was assessed as LOW despite the vault saying MEDIUM: graphify path showed n
 ## Related Systems
 - [[Services Core Extraction]]
 - [[Known Unsafe Areas]]
-- [[../Components/ServicesPageContent|ServicesPageContent]]
-- [[../Systems/Pricing Engine|Pricing Engine]]
-- [[../Systems/Route Service|Route Service]]
-- [[../Systems/Bud Core Runtime|Bud Core Runtime]]
+- [[01 Architecture/Components/ServicesPageContent|ServicesPageContent]]
+- [[01 Architecture/Systems/Pricing Engine|Pricing Engine]]
+- [[01 Architecture/Systems/Route Service|Route Service]]
+- [[01 Architecture/Systems/Bud Core Runtime|Bud Core Runtime]]

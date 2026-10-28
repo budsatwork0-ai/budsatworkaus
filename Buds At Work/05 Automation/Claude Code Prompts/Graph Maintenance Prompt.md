@@ -59,7 +59,7 @@ After changes:
 - Monthly as part of the Continuous Learning Loop review
 
 ## Related
-- [[../Graphify/Graphify Overview|Graphify Overview]]
-- [[../../01 Architecture/00 Start Here|Architecture Start Here]]
-- [[../Automations Log]]
-- [[../Bud Automation Roadmap]]
+- [[01 Architecture/Graphify/Graphify Overview|Graphify Overview]]
+- [[01 Architecture/00 Start Here|Architecture Start Here]]
+- [[05 Automation/Automations Log]]
+- [[05 Automation/Bud Automation Roadmap]]
