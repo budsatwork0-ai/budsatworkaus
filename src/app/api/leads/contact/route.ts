@@ -123,7 +123,7 @@ async function sendAdminNotification(p: {
       <hr />
       <p style="color:#666;font-size:12px;">
         This enquiry has been recorded in
-        <a href="https://budsatwork.com/dashboard/insights/leads">Bud OS Leads</a>.
+        <a href="https://budsatwork.com/dashboard/leads">Bud OS Leads</a>.
       </p>
     `.trim(),
   }).catch((err: unknown) => {
