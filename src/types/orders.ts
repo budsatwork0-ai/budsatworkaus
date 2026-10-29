@@ -40,6 +40,12 @@ export interface Order {
   auto_completed_at?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_payment_intent_id?: string | null;
+  stripe_invoice_id?: string | null;
+  stripe_invoice_status?: string | null;
+  stripe_invoice_url?: string | null;
+  stripe_invoice_number?: string | null;
+  stripe_invoice_sent_at?: string | null;
+  stripe_invoice_paid_at?: string | null;
 }
 
 export interface OrderFilters {

@@ -378,6 +378,38 @@ describe('Stripe webhook route', () => {
     });
   });
 
+  it('marks a job invoice paid from invoice.paid and records a payment', async () => {
+    mocks.state.ordersById.set('order-inv', { id: 'order-inv', stripe_invoice_id: 'in_test_1', stripe_invoice_status: 'open' });
+    const res = await postEvent('invoice.paid', {
+      id: 'in_test_1', object: 'invoice', amount_paid: 15000, number: 'INV-0001',
+      metadata: { order_id: 'order-inv', source: 'buds_send_invoice' },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'orders', method: 'update', rows: expect.objectContaining({ stripe_invoice_status: 'paid' }) }),
+      expect.objectContaining({ table: 'payments', method: 'insert', rows: [expect.objectContaining({ order_id: 'order-inv', amount: 150, payment_reference: 'in_test_1' })] }),
+    ]));
+  });
+
+  it('ignores invoice.paid for a job already marked paid', async () => {
+    mocks.state.ordersById.set('order-inv', { id: 'order-inv', stripe_invoice_id: 'in_test_1', stripe_invoice_status: 'paid' });
+    await postEvent('invoice.paid', {
+      id: 'in_test_1', object: 'invoice', amount_paid: 15000,
+      metadata: { order_id: 'order-inv', source: 'buds_send_invoice' },
+    });
+    expect(mocks.calls.filter((c) => c.table === 'payments')).toHaveLength(0);
+  });
+
+  it('marks a job invoice overdue', async () => {
+    mocks.state.ordersById.set('order-inv', { id: 'order-inv', stripe_invoice_id: 'in_test_1', stripe_invoice_status: 'open' });
+    await postEvent('invoice.overdue', {
+      id: 'in_test_1', object: 'invoice', metadata: { order_id: 'order-inv', source: 'buds_send_invoice' },
+    });
+    expect(mocks.calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'orders', method: 'update', rows: { stripe_invoice_status: 'overdue' } }),
+    ]));
+  });
+
   it('returns safe success for unknown events without writing records', async () => {
     const response = await postEvent('customer.updated', { id: 'cus_test_123', object: 'customer' });
 
