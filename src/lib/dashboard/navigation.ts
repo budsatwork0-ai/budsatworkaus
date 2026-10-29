@@ -55,64 +55,20 @@ export type DashboardCommand = {
 };
 
 /**
- * Sidebar: 7 sections, 18 items. Every other admin route stays reachable by URL
- * and through the command palette (DASHBOARD_COMMANDS). Developer tools
- * (Sandbox, Design System) only appear outside production.
+ * Sidebar: Work (5 items) + Settings (3 items). Every other admin route stays
+ * reachable by URL and through the command palette (DASHBOARD_COMMANDS).
+ * Developer tools (Sandbox, Design System) only appear outside production.
  */
 const PRIMARY_DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
   {
-    id: 'overview',
-    label: 'Overview',
+    id: 'work',
+    label: 'Work',
     items: [
-      { href: '/dashboard', label: 'Overview', iconKey: 'dashboard', badgeKey: 'dashboard' },
-      { href: '/dashboard/schedule', label: 'Schedule', iconKey: 'schedule', badgeKey: 'schedule' },
-      { href: '/dashboard/messages', label: 'Messages', iconKey: 'messages' },
-    ],
-  },
-  {
-    id: 'sales',
-    label: 'Sales',
-    items: [
+      { href: '/dashboard/schedule', label: 'Jobs', iconKey: 'jobs', badgeKey: 'schedule' },
       { href: '/dashboard/leads', label: 'Leads', iconKey: 'leads' },
       { href: '/dashboard/quotes', label: 'Quotes', iconKey: 'quotes', badgeKey: 'quotes' },
-      { href: '/dashboard/orders', label: 'Jobs & Orders', iconKey: 'jobs' },
       { href: '/dashboard/customers', label: 'Customers', iconKey: 'customers' },
       { href: '/dashboard/invoices', label: 'Invoices', iconKey: 'money', badgeKey: 'invoices' },
-    ],
-  },
-  {
-    id: 'content',
-    label: 'Content',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/content', label: 'Content Studio', iconKey: 'contentStudio' },
-    ],
-  },
-  {
-    id: 'campaigns',
-    label: 'Campaigns',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/growth-hq', label: 'Campaigns', iconKey: 'growthHq' },
-    ],
-  },
-  {
-    id: 'insights',
-    label: 'Insights',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/insights', label: 'Insights', iconKey: 'insights' },
-      { href: '/dashboard/executive', label: 'Executive HQ', iconKey: 'executive' },
-    ],
-  },
-  {
-    id: 'team',
-    label: 'Team',
-    adminOnly: true,
-    items: [
-      { href: '/dashboard/crew', label: 'Crew', iconKey: 'crew' },
-      { href: '/dashboard/applicants', label: 'Applicants', iconKey: 'applicants', badgeKey: 'applicants' },
-      { href: '/dashboard/ndis', label: 'NDIS', iconKey: 'ndis' },
     ],
   },
   {

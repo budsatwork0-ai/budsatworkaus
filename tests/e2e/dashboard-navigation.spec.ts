@@ -34,12 +34,7 @@ test.describe('Dashboard navigation metadata', () => {
     await expect(page.getByTestId('dashboard-navigation-fixture')).toBeVisible();
 
     const expectedGroups = [
-      'Overview',
-      'Sales',
-      'Content',
-      'Campaigns',
-      'Insights',
-      'Team',
+      'Work',
       'Settings',
       ...(SHOW_DEV_DASHBOARD_NAV ? ['Developer'] : []),
     ];
@@ -52,7 +47,7 @@ test.describe('Dashboard navigation metadata', () => {
       await expect(page.getByTestId('desktop-group-developer').locator('a')).toHaveCount(2);
     }
 
-    for (const label of ['Schedule', 'Quotes', 'Invoices', 'Applicants']) {
+    for (const label of ['Jobs', 'Leads', 'Quotes', 'Customers', 'Invoices']) {
       await expect(page.getByTestId('desktop-dashboard-nav').getByRole('link', { name: label })).toBeVisible();
       await expect(page.getByTestId('mobile-dashboard-nav').getByRole('link', { name: label })).toHaveCount(1);
     }

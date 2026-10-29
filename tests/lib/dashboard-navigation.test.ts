@@ -14,20 +14,13 @@ describe('dashboard navigation metadata', () => {
   const primaryGroups = DASHBOARD_NAV_GROUPS.filter((group) => group.id !== DEV_DASHBOARD_NAV_GROUP.id);
   const primaryRoutes = primaryGroups.flatMap((group) => group.items.map((item) => item.href));
 
-  it('keeps the approved 7-section order', () => {
-    expect(primaryGroups.map((group) => group.label)).toEqual([
-      'Overview', 'Sales', 'Content', 'Campaigns', 'Insights', 'Team', 'Settings',
-    ]);
+  it('keeps the approved section order', () => {
+    expect(primaryGroups.map((group) => group.label)).toEqual(['Work', 'Settings']);
   });
 
-  it('keeps the approved primary routes visible (18 items)', () => {
+  it('keeps the approved primary routes visible (8 items)', () => {
     expect(primaryRoutes).toEqual([
-      '/dashboard', '/dashboard/schedule', '/dashboard/messages',
-      '/dashboard/leads', '/dashboard/quotes', '/dashboard/orders', '/dashboard/customers', '/dashboard/invoices',
-      '/dashboard/content',
-      '/dashboard/growth-hq',
-      '/dashboard/insights', '/dashboard/executive',
-      '/dashboard/crew', '/dashboard/applicants', '/dashboard/ndis',
+      '/dashboard/schedule', '/dashboard/leads', '/dashboard/quotes', '/dashboard/customers', '/dashboard/invoices',
       '/dashboard/settings', '/dashboard/mission-control', '/dashboard/automations',
     ]);
   });
@@ -41,7 +34,7 @@ describe('dashboard navigation metadata', () => {
 
   it('preserves every badge key', () => {
     const badges = DASHBOARD_NAV_GROUPS.flatMap((group) => group.items).map((item) => item.badgeKey).filter(Boolean).sort();
-    expect(badges).toEqual(['applicants', 'dashboard', 'invoices', 'quotes', 'schedule']);
+    expect(badges).toEqual(['invoices', 'quotes', 'schedule']);
   });
 
   it('prevents duplicate visible hrefs', () => {
@@ -56,7 +49,9 @@ describe('dashboard navigation metadata', () => {
   it('keeps every removed sidebar route reachable through the command palette', () => {
     const requiredCommandRoutes = [
       ...visibleRoutes,
-      '/dashboard/alerts', '/dashboard/subscriptions', '/dashboard/agents',
+      '/dashboard', '/dashboard/alerts', '/dashboard/messages', '/dashboard/orders', '/dashboard/subscriptions', '/dashboard/agents',
+      '/dashboard/content', '/dashboard/growth-hq', '/dashboard/insights', '/dashboard/executive',
+      '/dashboard/crew', '/dashboard/applicants', '/dashboard/ndis',
       '/dashboard/reports', '/dashboard/audit-log', '/dashboard/sandbox', '/dashboard/design',
       '/dashboard/fundraising', '/dashboard/onboarding', '/dashboard/inductions',
       '/dashboard/analytics/quote-funnel', '/dashboard/feedback',
