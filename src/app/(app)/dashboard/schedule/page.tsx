@@ -8,6 +8,7 @@ import { dashboardTheme } from '@/lib/design-system/themes';
 import { useDashboardData } from '../hooks/useDashboardData';
 import JobsTab from '../components/tabs/JobsTab';
 import DayScheduler from '../components/DayScheduler';
+import MobileDaySchedule from '../components/MobileDaySchedule';
 
 const SERVICE_COLORS: Record<string, string> = {
   windows: '#3B82F6', cleaning: '#8B5CF6', yard: '#10B981',
@@ -198,7 +199,7 @@ function SchedulePageContent() {
     <div className="flex flex-col gap-4">
       {/* ── Unified toolbar ── */}
       <div
-        className="flex items-center gap-2 px-3 py-2 rounded-xl"
+        className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl"
         style={{ background: 'white', border: `1px solid ${dashboardTheme.color.border}` }}
       >
         {/* View toggle */}
@@ -306,7 +307,7 @@ function SchedulePageContent() {
         {/* Unscheduled indicator (day + week views) */}
         {view !== 'list' && unscheduled.length > 0 && (
           <div
-            className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md"
+            className="hidden md:flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md"
             style={{ color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a' }}
           >
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -317,7 +318,14 @@ function SchedulePageContent() {
 
       {/* ── Content ── */}
       {view === 'day' ? (
-        <DayScheduler date={date} onDateChange={handleDateChange} />
+        <>
+          <div className="md:hidden">
+            <MobileDaySchedule date={date} />
+          </div>
+          <div className="hidden md:block">
+            <DayScheduler date={date} onDateChange={handleDateChange} />
+          </div>
+        </>
       ) : view === 'list' ? (
         <JobsTab
           jobs={jobs}
