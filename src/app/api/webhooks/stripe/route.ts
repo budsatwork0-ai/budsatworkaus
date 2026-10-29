@@ -976,6 +976,69 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'invoice.paid':
+      case 'invoice.payment_failed':
+      case 'invoice.overdue':
+      case 'invoice.voided': {
+        // Stripe invoices sent from the "Send invoice" button on a job.
+        const invoice = event.data.object as Stripe.Invoice;
+        const invoiceOrderId = invoice.metadata?.order_id;
+        if (!invoiceOrderId || invoice.metadata?.source !== 'buds_send_invoice') break;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: invoiceOrder } = await (client as any)
+          .from('orders')
+          .select('id, stripe_invoice_id, stripe_invoice_status')
+          .eq('id', invoiceOrderId)
+          .maybeSingle();
+        if (!invoiceOrder) {
+          console.warn('[webhook] invoice event for unknown order:', invoiceOrderId);
+          break;
+        }
+        if (invoiceOrder.stripe_invoice_id && invoiceOrder.stripe_invoice_id !== invoice.id) break;
+
+        if (event.type === 'invoice.paid') {
+          if (invoiceOrder.stripe_invoice_status === 'paid') break; // duplicate delivery
+          const paidAt = new Date().toISOString();
+          const amountPaid = (invoice.amount_paid || 0) / 100;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (client as any)
+            .from('orders')
+            .update({ stripe_invoice_status: 'paid', stripe_invoice_paid_at: paidAt })
+            .eq('id', invoiceOrderId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (client as any)
+            .from('payments')
+            .insert([{
+              order_id: invoiceOrderId,
+              amount: amountPaid,
+              payment_method: 'card',
+              payment_reference: invoice.id,
+              status: 'completed',
+              paid_at: paidAt,
+              notes: `Stripe Invoice: ${invoice.number ?? invoice.id}`,
+            }]);
+          logAudit(client, 'order', invoiceOrderId, 'invoice_paid', {
+            amount: amountPaid,
+            stripe_invoice_id: invoice.id,
+            invoice_number: invoice.number,
+          });
+        } else {
+          const nextStatus =
+            event.type === 'invoice.payment_failed' ? 'payment_failed'
+              : event.type === 'invoice.overdue' ? 'overdue'
+                : 'void';
+          if (invoiceOrder.stripe_invoice_status === 'paid') break;
+          const patch: Record<string, unknown> = { stripe_invoice_status: nextStatus };
+          // A voided invoice frees the job so a corrected invoice can be sent.
+          if (nextStatus === 'void') patch.stripe_invoice_id = null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (client as any).from('orders').update(patch).eq('id', invoiceOrderId);
+          logAudit(client, 'order', invoiceOrderId, `invoice_${nextStatus}`, { stripe_invoice_id: invoice.id });
+        }
+        break;
+      }
+
       default:
         break;
     }
