@@ -14,7 +14,7 @@ const SERVICE_LABELS: Record<string, string> = {
   laundry_sneakers: 'Laundry & Sneaker Care',
 };
 
-export const INVOICE_DAYS_UNTIL_DUE = 7;
+const INVOICE_DAYS_UNTIL_DUE = 7;
 
 /** Invoice statuses that block sending another invoice for the same job. */
 const ACTIVE_INVOICE_STATUSES = new Set(['sending', 'open', 'paid', 'overdue', 'payment_failed']);
