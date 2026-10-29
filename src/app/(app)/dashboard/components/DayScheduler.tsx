@@ -1,5 +1,6 @@
 'use client';
 
+import OrderInvoice from './shared/OrderInvoice';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { dashboardTheme } from '@/lib/design-system/themes';
@@ -892,6 +893,8 @@ export default function DayScheduler({ date, onDateChange }: DaySchedulerProps) 
                 </div>
               )}
             </div>
+
+            {modal.mode === 'edit' && <div className="mb-4"><OrderInvoice orderId={modal.order.id} /></div>}
 
             <div className="flex gap-2">
               {modal.mode === 'edit' && (

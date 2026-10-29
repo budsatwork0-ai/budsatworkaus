@@ -20,6 +20,7 @@ import EmptyState from '@/components/EmptyState';
 import LoadingSkeleton, { SummaryCardsSkeleton } from '@/components/LoadingSkeleton';
 import CreateOrderModal from '@/components/CreateOrderModal';
 import { formatCurrency, formatDate } from '@/lib/dashboard/utils';
+import OrderInvoice from '../components/shared/OrderInvoice';
 import { SummaryCard } from '../components/shared';
 
 type TabKey = 'all' | 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
@@ -69,7 +70,6 @@ export default function OrdersPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [employees, setEmployees] = useState<Array<{ id: string; full_name: string; services: string[] | null }>>([]);
   const [assignLoading, setAssignLoading] = useState(false);
-  const [invoiceSending, setInvoiceSending] = useState(false);
 
   // Variation order state
   const [variationModal, setVariationModal] = useState(false);
@@ -284,31 +284,7 @@ export default function OrdersPage() {
     }
   };
 
-  const sendInvoice = async () => {
-    if (!selectedOrder) return;
-    if (!selectedOrder.customer_email) { toast.error('Add a customer email before sending an invoice'); return; }
-    if (!window.confirm(`Email a Stripe invoice for ${formatCurrency(selectedOrder.final_price)} to ${selectedOrder.customer_email}?`)) return;
-    setInvoiceSending(true);
-    try {
-      const res = await fetch(`/api/orders/${selectedOrder.id}/send-invoice`, { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to send invoice');
-      const patch = {
-        stripe_invoice_id: data.stripe_invoice_id ?? null,
-        stripe_invoice_status: data.stripe_invoice_status ?? 'open',
-        stripe_invoice_url: data.stripe_invoice_url ?? null,
-        stripe_invoice_number: data.stripe_invoice_number ?? null,
-        stripe_invoice_sent_at: data.stripe_invoice_sent_at ?? null,
-      };
-      setSelectedOrder((prev) => (prev ? { ...prev, ...patch } : prev));
-      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? { ...o, ...patch } : o)));
-      toast.success(`Invoice sent to ${selectedOrder.customer_email}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send invoice');
-    } finally {
-      setInvoiceSending(false);
-    }
-  };
+
 
   const sendAgreement = async () => {
     if (!selectedOrder) return;
@@ -494,33 +470,14 @@ export default function OrdersPage() {
             </div>
 
             {/* Invoice */}
-            <div className="border-t border-slate-100 pt-4 space-y-2">
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Invoice</p>
-              {selectedOrder.stripe_invoice_id || selectedOrder.stripe_invoice_status === 'sending' ? (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700">
-                    {selectedOrder.stripe_invoice_number ? `${selectedOrder.stripe_invoice_number} · ` : ''}
-                    <span className="font-semibold capitalize">{(selectedOrder.stripe_invoice_status || 'open').replace('_', ' ')}</span>
-                  </span>
-                  {selectedOrder.stripe_invoice_url && (
-                    <a href={selectedOrder.stripe_invoice_url} target="_blank" rel="noreferrer" className="text-xs font-semibold underline" style={{ color: dashboardTheme.color.primary }}>
-                      View invoice
-                    </a>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={sendInvoice}
-                  disabled={invoiceSending || !selectedOrder.customer_email}
-                  title={selectedOrder.customer_email ? undefined : 'Add a customer email first'}
-                  className="rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                  style={{ background: dashboardTheme.color.primary }}
-                >
-                  {invoiceSending ? 'Sending…' : 'Send invoice'}
-                </button>
-              )}
-            </div>
+            <OrderInvoice
+              orderId={selectedOrder.id}
+              order={selectedOrder}
+              onChange={(patch) => {
+                setSelectedOrder((prev) => (prev ? { ...prev, ...patch } : prev));
+                setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? { ...o, ...patch } : o)));
+              }}
+            />
 
             {/* Actions */}
             <div className="border-t border-slate-100 pt-4 space-y-2">
