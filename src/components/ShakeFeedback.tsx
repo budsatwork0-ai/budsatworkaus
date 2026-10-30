@@ -52,22 +52,30 @@ function ShakeFeedbackInner() {
     // Ignore while capturing, while the form is open, or within 3s of closing.
     if (lockRef.current || openRef.current || Date.now() < cooldownUntil.current) return;
     lockRef.current = true;
+    // Safety: the lock can never stay stuck longer than 10s.
+    const safety = window.setTimeout(() => { lockRef.current = false; }, 10000);
     (document.activeElement as HTMLElement | null)?.blur?.();
     try {
       const { domToBlob } = await import('modern-screenshot');
-      const blob = await domToBlob(document.body, {
+      const capture = domToBlob(document.body, {
         type: 'image/png', scale: Math.min(window.devicePixelRatio || 1, 2),
         width: window.innerWidth, height: window.innerHeight,
         style: { transform: `translateY(-${window.scrollY}px)` },
         // Keep the feedback prompt/form out of the screenshot.
         filter: (node) => !(node instanceof Element && node.hasAttribute('data-shake-ui')),
       });
-      setShot(blob); setPreview((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); });
+      // Don't wait forever for the screenshot; open the form without one.
+      const blob = await Promise.race([capture, new Promise<null>((r) => setTimeout(() => r(null), 6000))]);
+      if (blob) { setShot(blob); setPreview((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); }); }
+      else { setShot(null); setPreview(null); }
     } catch { setShot(null); setPreview(null); }
-    setText(''); setStatus('idle');
-    setFormKey((k) => k + 1);
-    openRef.current = true; setOpen(true);
-    lockRef.current = false;
+    finally {
+      window.clearTimeout(safety);
+      setText(''); setStatus('idle');
+      setFormKey((k) => k + 1);
+      openRef.current = true; setOpen(true);
+      lockRef.current = false;
+    }
   }, []);
 
   // Decide once whether motion can be used (iOS needs a tap first).
@@ -77,7 +85,18 @@ function ShakeFeedbackInner() {
     if (typeof DM.requestPermission !== 'function') { setMotionOn(true); return; }
     const asked = localStorage.getItem(ASKED_KEY);
     if (asked === 'granted') {
-      DM.requestPermission().then((r) => { if (r === 'granted') setMotionOn(true); }).catch(() => {});
+      // Attach the listener straight away: if iOS still remembers the grant,
+      // motion events just arrive. (Calling requestPermission here without a
+      // tap is rejected by iOS, which is what broke shaking after a reload.)
+      setMotionOn(true);
+      // If iOS wants a fresh grant this page load, re-ask silently on the
+      // first tap anywhere. The prompt bar is not shown again.
+      const regrant = () => {
+        DM.requestPermission!().then((r) => { if (r !== 'granted') localStorage.setItem(ASKED_KEY, r); }).catch(() => {});
+      };
+      window.addEventListener('touchend', regrant, { once: true, capture: true });
+      window.addEventListener('click', regrant, { once: true, capture: true });
+      return () => { window.removeEventListener('touchend', regrant, true); window.removeEventListener('click', regrant, true); };
     } else if (!asked) setShowPrompt(true);
   }, []);
 
