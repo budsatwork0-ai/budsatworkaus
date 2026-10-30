@@ -65,8 +65,7 @@ const PRIMARY_DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
     label: 'Work',
     items: [
       { href: '/dashboard/schedule', label: 'Jobs', iconKey: 'jobs', badgeKey: 'schedule' },
-      { href: '/dashboard/leads', label: 'Leads', iconKey: 'leads' },
-      { href: '/dashboard/quotes', label: 'Quotes', iconKey: 'quotes', badgeKey: 'quotes' },
+      { href: '/dashboard/leads', label: 'Leads & Quotes', iconKey: 'leads', badgeKey: 'quotes' },
       { href: '/dashboard/customers', label: 'Customers', iconKey: 'customers' },
       { href: '/dashboard/invoices', label: 'Invoices', iconKey: 'money', badgeKey: 'invoices' },
     ],
