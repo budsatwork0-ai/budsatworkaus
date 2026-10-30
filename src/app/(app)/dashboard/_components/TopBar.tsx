@@ -48,7 +48,7 @@ export function TopBar({
           </svg>
         </button>
 
-        <h1 className="shrink-0 text-[26px] font-extrabold leading-none text-[#17392b] sm:text-[28px]">
+        <h1 className="min-w-0 truncate text-[22px] md:shrink-0 md:text-[26px] font-extrabold leading-none text-[#17392b] sm:text-[28px]">
           {title}
         </h1>
 
@@ -64,11 +64,11 @@ export function TopBar({
           <span className="truncate">Search anything...</span>
         </button>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm lg:hidden"
+            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm md:grid lg:hidden"
             aria-label="Search"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -80,9 +80,11 @@ export function TopBar({
           <div className="relative">
             <button
               onClick={onToggleNewDropdown}
-              className="h-10 rounded-full bg-[#3c8259] px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(60,130,89,0.20)] transition hover:bg-[#346f4d] sm:h-11 sm:px-6"
+              aria-label="Create"
+              className="grid h-10 w-10 place-items-center rounded-full bg-[#3c8259] text-xl font-bold text-white shadow-[0_12px_28px_rgba(60,130,89,0.20)] transition hover:bg-[#346f4d] md:h-11 md:w-auto md:px-6 md:text-sm"
             >
-              Create
+              <span className="md:hidden">+</span>
+              <span className="hidden md:inline">Create</span>
             </button>
             {newDropdownOpen ? (
               <>
@@ -111,7 +113,7 @@ export function TopBar({
           <button
             type="button"
             onClick={onOpenMessaging}
-            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm sm:grid sm:h-11 sm:w-11"
+            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm md:grid md:h-11 md:w-11"
             aria-label="Open messaging"
           >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -119,13 +121,15 @@ export function TopBar({
             </svg>
           </button>
 
-          <NotificationCenter onBadgesUpdate={onBadgesUpdate} />
+          <div className="hidden md:block">
+            <NotificationCenter onBadgesUpdate={onBadgesUpdate} />
+          </div>
 
           <button
             type="button"
             onClick={onOpenShortcuts}
             title="Keyboard shortcuts (?)"
-            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm sm:grid sm:h-11 sm:w-11"
+            className="hidden h-10 w-10 place-items-center rounded-full bg-white text-[#74877c] shadow-sm md:grid md:h-11 md:w-11"
             aria-label="Keyboard shortcuts"
           >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -134,7 +138,7 @@ export function TopBar({
             </svg>
           </button>
 
-          <details className="group relative">
+          <details className="group relative hidden md:block">
             <summary className="list-none">
               <div className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-[#dddfe0] text-sm font-bold text-[#4b4d4c] shadow-sm sm:h-11 sm:w-11">
                 {userInitials}

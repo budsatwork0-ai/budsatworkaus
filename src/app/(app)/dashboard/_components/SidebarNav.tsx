@@ -174,7 +174,13 @@ export function MobileSidebarNav({
   roleLabel,
   onClose,
   onToggleGroup,
+  onSearch,
+  onSignOut,
+  notifications,
 }: {
+  onSearch?: () => void;
+  onSignOut?: () => void;
+  notifications?: React.ReactNode;
   open: boolean;
   groups: NavGroup[];
   isAdmin: boolean;
@@ -216,6 +222,23 @@ export function MobileSidebarNav({
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onSearch ? (
+            <button
+              type="button"
+              onClick={() => { onClose(); onSearch(); }}
+              className="flex h-11 flex-1 items-center gap-2 rounded-full bg-white px-4 text-left text-[15px] font-medium text-[#7f9187] shadow-sm"
+            >
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              Search
+            </button>
+          ) : null}
+          {notifications}
         </div>
 
         <div className="space-y-3">
@@ -270,6 +293,11 @@ export function MobileSidebarNav({
               <div className="truncate text-sm font-bold text-[#17392b]">{userDisplayName}</div>
               <div className="text-xs font-medium text-[#7f9187]">{roleLabel}</div>
             </div>
+            {onSignOut ? (
+              <button type="button" onClick={onSignOut} className="ml-auto rounded-full px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50">
+                Sign out
+              </button>
+            ) : null}
           </div>
         </div>
       </aside>
