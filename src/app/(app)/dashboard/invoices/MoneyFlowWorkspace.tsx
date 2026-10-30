@@ -34,7 +34,7 @@ type GroupMode = 'worker' | 'role';
 type TransactionFilter = 'all' | MoneyTransaction['type'];
 type DisplayPayStatus = 'Draft' | 'Ready to pay' | 'Paid' | 'Needs review';
 
-type PayHistoryEntry = {
+export type PayHistoryEntry = {
   id: string;
   workerId: string;
   workerName: string;
@@ -101,7 +101,7 @@ function startOfMonth(date: Date) {
   return next;
 }
 
-function getPayPeriodBounds(key: PayPeriodKey) {
+export function getPayPeriodBounds(key: PayPeriodKey) {
   const now = new Date();
   if (key === 'month') {
     return {
@@ -191,7 +191,7 @@ function aggregateSeries(series: MoneyFlowPoint[], range: RangeKey) {
     .map(([date, value]) => ({ date, ...value }));
 }
 
-function readPayHistory() {
+export function readPayHistory() {
   if (typeof window === 'undefined') return [] as PayHistoryEntry[];
   try {
     const raw = window.localStorage.getItem(PAY_HISTORY_KEY);
@@ -203,12 +203,12 @@ function readPayHistory() {
   }
 }
 
-function writePayHistory(entries: PayHistoryEntry[]) {
+export function writePayHistory(entries: PayHistoryEntry[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(PAY_HISTORY_KEY, JSON.stringify(entries));
 }
 
-function filterWorkerToPeriod(worker: CrewPayWorker, payPeriod: PayPeriodKey, paidWorkerIds: Set<string>): DisplayWorker | null {
+export function filterWorkerToPeriod(worker: CrewPayWorker, payPeriod: PayPeriodKey, paidWorkerIds: Set<string>): DisplayWorker | null {
   const { start, end } = getPayPeriodBounds(payPeriod);
   const contributions = worker.contributions.filter((contribution) => {
     const date = new Date(contribution.date);
