@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Toaster } from 'sonner';
 import CommandPalette from '@/components/CommandPalette';
 import CreateOrderModal from '@/components/CreateOrderModal';
+import { ShakeFeedback } from './_components/ShakeFeedback';
 import CreateSubscriptionModal from '@/components/CreateSubscriptionModal';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { useAuth } from '@/app/hooks/useAuth';
@@ -375,6 +376,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }}
       />
 
+      <ShakeFeedback />
       <CreateOrderModal
         isOpen={createOrderOpen}
         onClose={() => setCreateOrderOpen(false)}

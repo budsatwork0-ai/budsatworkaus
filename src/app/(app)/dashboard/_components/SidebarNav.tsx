@@ -2,7 +2,6 @@
 
 import type React from 'react';
 import SideNavItem from './SideNavItem';
-import { FeedbackButton } from './FeedbackButton';
 
 export type NavBadgeKey = 'dashboard' | 'schedule' | 'quotes' | 'invoices' | 'applicants';
 
@@ -294,9 +293,8 @@ export function MobileSidebarNav({
               <div className="truncate text-sm font-bold text-[#17392b]">{userDisplayName}</div>
               <div className="text-xs font-medium text-[#7f9187]">{roleLabel}</div>
             </div>
-            <FeedbackButton className="ml-auto h-9 px-3" />
             {onSignOut ? (
-              <button type="button" onClick={onSignOut} className="rounded-full px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50">
+              <button type="button" onClick={onSignOut} className="ml-auto rounded-full px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50">
                 Sign out
               </button>
             ) : null}
