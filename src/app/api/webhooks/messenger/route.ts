@@ -72,16 +72,24 @@ async function fetchSenderProfile(
   source: 'messenger' | 'instagram',
 ): Promise<GraphProfile> {
   const token = process.env.MESSENGER_PAGE_ACCESS_TOKEN;
-  if (!token) return {};
+  if (!token) {
+    console.error('[messenger adapter] MESSENGER_PAGE_ACCESS_TOKEN is not set; cannot look up sender name');
+    return {};
+  }
   const fields = source === 'instagram' ? INSTAGRAM_GRAPH_FIELDS : MESSENGER_GRAPH_FIELDS;
   try {
     const res = await fetch(
       `${GRAPH_API_BASE}/${psid}?fields=${fields}&access_token=${token}`,
       { cache: 'no-store' }
     );
-    if (!res.ok) return {};
+    if (!res.ok) {
+      const body = (await res.text().catch(() => '')).slice(0, 300);
+      console.error(`[messenger adapter] profile lookup failed (${source}) status=${res.status}: ${body}`);
+      return {};
+    }
     return (await res.json()) as GraphProfile;
-  } catch {
+  } catch (err) {
+    console.error('[messenger adapter] profile lookup error:', err instanceof Error ? err.message : String(err));
     return {};
   }
 }
@@ -110,14 +118,43 @@ async function ingestEvent(event: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = client as any;
 
-  const existing = await db
-    .from('leads')
+  // Facebook retries deliveries: skip a message we already stored.
+  const dup = await db
+    .from('lead_conversations')
     .select('id')
-    .eq('source', event.source)
-    .eq('external_ref', event.external_id)
-    .maybeSingle();
+    .eq('channel', event.source)
+    .eq('external_id', event.external_id)
+    .limit(1);
+  if (dup?.data?.length) return;
+
+  // One lead per person: reuse their open lead (matched on sender id), then
+  // fall back to the legacy match on the first message id.
+  const senderCol = event.source === 'instagram' ? 'instagram_user_id' : 'messenger_psid';
+  const bySender = await db
+    .from('leads')
+    .select('id, customer_name, response_status')
+    .eq(senderCol, event.sender_psid)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  const openLead = Array.isArray(bySender?.data)
+    ? (bySender.data as Array<{ id: string; customer_name: string | null; response_status: string | null }>)
+        .find((l) => !['booked', 'completed', 'lost'].includes(l.response_status ?? ''))
+    : undefined;
+  let existing: { data: { id: string; customer_name?: string | null } | null } | null =
+    openLead ? { data: openLead } : null;
+  if (!existing?.data?.id) {
+    existing = await db
+      .from('leads')
+      .select('id, customer_name')
+      .eq('source', event.source)
+      .eq('external_ref', event.external_id)
+      .maybeSingle();
+  }
 
   if (existing?.data?.id) {
+    if (event.customer_name && !existing.data.customer_name) {
+      await db.from('leads').update({ customer_name: event.customer_name }).eq('id', existing.data.id);
+    }
     // Patch PSID if the lead was created before messenger_psid was added, or if
     // the PSID was absent from the initial ingest payload. Conditional update —
     // only fires when the column is NULL so it is safe to run on every message.
