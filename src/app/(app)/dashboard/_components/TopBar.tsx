@@ -50,10 +50,8 @@ export function TopBar({
 
         <h1
           title="Hold to send feedback"
-          onPointerDown={() => { const w = window as unknown as { __budLp?: number }; w.__budLp = window.setTimeout(() => window.dispatchEvent(new Event('bud:feedback')), 600); }}
-          onPointerUp={() => window.clearTimeout((window as unknown as { __budLp?: number }).__budLp)}
-          onPointerLeave={() => window.clearTimeout((window as unknown as { __budLp?: number }).__budLp)}
           onContextMenu={(e) => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' }}
           className="min-w-0 select-none truncate text-[22px] md:shrink-0 md:text-[26px] font-extrabold leading-none text-[#17392b] sm:text-[28px]">
           {title}
         </h1>
