@@ -32,6 +32,8 @@ function ShakeFeedbackInner() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showPrompt, setShowPrompt] = useState(false);
   const [motionOn, setMotionOn] = useState(false);
+  // New key per opening = brand-new textarea, so no old iOS undo history.
+  const [formKey, setFormKey] = useState(0);
   // Refs so the single motion listener never goes stale or gets re-added.
   const openRef = useRef(false);
   const lockRef = useRef(false);
@@ -40,13 +42,17 @@ function ShakeFeedbackInner() {
   const close = useCallback(() => {
     openRef.current = false;
     cooldownUntil.current = Date.now() + 3000;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    // Unmount the form (textarea goes away) rather than clearing its value.
     setOpen(false);
+    setText('');
   }, []);
 
   const trigger = useCallback(async () => {
     // Ignore while capturing, while the form is open, or within 3s of closing.
     if (lockRef.current || openRef.current || Date.now() < cooldownUntil.current) return;
     lockRef.current = true;
+    (document.activeElement as HTMLElement | null)?.blur?.();
     try {
       const { domToBlob } = await import('modern-screenshot');
       const blob = await domToBlob(document.body, {
@@ -59,6 +65,7 @@ function ShakeFeedbackInner() {
       setShot(blob); setPreview((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); });
     } catch { setShot(null); setPreview(null); }
     setText(''); setStatus('idle');
+    setFormKey((k) => k + 1);
     openRef.current = true; setOpen(true);
     lockRef.current = false;
   }, []);
@@ -89,6 +96,25 @@ function ShakeFeedbackInner() {
     return () => window.removeEventListener('devicemotion', onMotion);
   }, [motionOn, trigger]);
 
+  // Long-press (~0.6s) on a page title (h1) anywhere on the site opens the form.
+  // Alternative to shaking, which iOS can hijack for "Undo Typing".
+  useEffect(() => {
+    let timer: number | undefined; let sx = 0; let sy = 0;
+    const cancel = () => { if (timer) window.clearTimeout(timer); timer = undefined; };
+    const down = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t?.closest?.('h1') || t.closest('[data-shake-ui]')) return;
+      sx = e.clientX; sy = e.clientY; cancel();
+      timer = window.setTimeout(() => { timer = undefined; void trigger(); }, 600);
+    };
+    const move = (e: PointerEvent) => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); };
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', cancel);
+    window.addEventListener('pointercancel', cancel);
+    return () => { cancel(); window.removeEventListener('pointerdown', down); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', cancel); window.removeEventListener('pointercancel', cancel); };
+  }, [trigger]);
+
   useEffect(() => {
     const h = () => void trigger();
     window.addEventListener('bud:feedback', h);
@@ -118,7 +144,7 @@ function ShakeFeedbackInner() {
     <>
       {showPrompt && (
         <div data-shake-ui className="fixed inset-x-3 bottom-3 z-[60] flex items-center gap-2 rounded-2xl bg-white p-3 shadow-lg md:hidden">
-          <span className="flex-1 text-sm text-[#0F3F33]">Shake your phone to send feedback.</span>
+          <span className="flex-1 text-sm text-[#0F3F33]">Shake, or hold a page title, to send feedback.</span>
           <button onClick={enableIos} className="rounded-full bg-[#0F3F33] px-3 py-2 text-sm font-semibold text-white">Turn on shake feedback</button>
           <button onClick={() => { localStorage.setItem(ASKED_KEY, 'dismissed'); setShowPrompt(false); }} aria-label="Not now" className="px-2 text-lg text-[#0F3F33]/60">×</button>
         </div>
@@ -128,7 +154,7 @@ function ShakeFeedbackInner() {
           <div className="flex max-h-[90vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-[#0F3F33]">Send feedback</h2>
             {preview && <img src={preview} alt="Screenshot" className="max-h-60 w-full rounded-xl border object-contain object-top" />}
-            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} autoFocus placeholder="What's wrong or what would help?" className="w-full rounded-xl border border-[#0F3F33]/20 p-3 text-base" />
+            <textarea key={formKey} value={text} onChange={(e) => setText(e.target.value)} rows={4} autoFocus placeholder="What's wrong or what would help?" className="w-full rounded-xl border border-[#0F3F33]/20 p-3 text-base" />
             {status === 'error' && <p className="text-sm text-red-600">Couldn&apos;t send. Try again.</p>}
             <div className="flex gap-2">
               <button onClick={close} className="flex-1 rounded-full border border-[#0F3F33]/20 py-3 font-semibold text-[#0F3F33]">Cancel</button>
