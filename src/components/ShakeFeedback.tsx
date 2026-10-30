@@ -1,12 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getSupabaseBrowserClientSafe } from '@/lib/supabase/client';
 
 const ASKED_KEY = 'bud-shake-asked';
 type MotionPerm = { requestPermission?: () => Promise<'granted' | 'denied'> };
 
-/** Shake the phone (or long-press the page title) to send feedback with a screenshot. */
+/**
+ * Mounted in the root layout. Only active for signed-in users (admin, crew,
+ * customer); signed-out visitors get nothing — no listener, no prompt.
+ */
 export function ShakeFeedback() {
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    const sb = getSupabaseBrowserClientSafe();
+    if (!sb) return;
+    sb.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data } = sb.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => data.subscription.unsubscribe();
+  }, []);
+  if (!signedIn) return null;
+  return <ShakeFeedbackInner />;
+}
+
+/** Shake the phone (or long-press the admin page title) to send feedback with a screenshot. */
+function ShakeFeedbackInner() {
   const [open, setOpen] = useState(false);
   const [shot, setShot] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
