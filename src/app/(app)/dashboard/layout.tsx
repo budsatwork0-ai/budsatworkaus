@@ -169,6 +169,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleForceSignOut = async () => { const supabase = getSupabaseBrowserClient(); await supabase.auth.signOut(); window.location.href = '/account'; };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setCreateOrderOpen(true);
+    window.addEventListener('bud:new-job', open);
+    return () => window.removeEventListener('bud:new-job', open);
+  }, []);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
