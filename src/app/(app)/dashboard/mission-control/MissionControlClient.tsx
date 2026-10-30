@@ -53,6 +53,8 @@ const TABS = [
   { key: 'dev',          label: 'Dev' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
+const SHOW_DEV_TABS = process.env.NEXT_PUBLIC_VERCEL_ENV !== 'production';
+const VISIBLE_TABS = TABS.filter((t) => SHOW_DEV_TABS || (t.key !== 'improvements' && t.key !== 'dev'));
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
@@ -78,7 +80,7 @@ export function MissionControlClient({
   const search = useSearchParams();
 
   const rawTab = search?.get('tab');
-  const initialTab: TabKey = TABS.some((t) => t.key === rawTab)
+  const initialTab: TabKey = VISIBLE_TABS.some((t) => t.key === rawTab)
     ? (rawTab as TabKey)
     : 'home';
   const [tab, setTab] = useState<TabKey>(initialTab);
@@ -290,7 +292,7 @@ export function MissionControlClient({
         {/* Tabs */}
         <nav className="sticky top-0 z-10 -mx-4 mb-5 border-b border-white/[0.07] bg-slate-950/85 px-4 backdrop-blur sm:-mx-6 sm:px-6">
           <div className="flex gap-1 overflow-x-auto">
-            {TABS.map((entry) => {
+            {VISIBLE_TABS.map((entry) => {
               const active = tab === entry.key;
               return (
                 <button
@@ -342,9 +344,9 @@ export function MissionControlClient({
             <RepairQuarantineSection rows={quarantineRows} />
           )}
 
-          {tab === 'improvements' && <ImprovementsTab />}
+          {SHOW_DEV_TABS && tab === 'improvements' && <ImprovementsTab />}
 
-          {tab === 'dev' && <DevTab devOs={devOs} />}
+          {SHOW_DEV_TABS && tab === 'dev' && <DevTab devOs={devOs} />}
         </div>
 
         <footer className="mt-8 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4 text-[11px] text-white/40">
