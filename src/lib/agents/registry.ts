@@ -2,6 +2,7 @@
  * Agent registry — single import point for the runtime.
  */
 import type { AgentDefinition } from './types';
+import { OWNER_REMINDER_AGENTS } from './agents/owner-reminders';
 
 // Ops / sales / support / hiring / finance / compliance
 import { quoteTriageAgent } from './agents/quote-triage';
@@ -179,5 +180,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   [cfoAgent.id]:                     cfoAgent,
   [chiefOfStaffAgent.id]:            chiefOfStaffAgent,
 };
+
+for (const a of OWNER_REMINDER_AGENTS) AGENT_REGISTRY[a.id] = a;
 
 export const AGENT_LIST: AgentDefinition[] = Object.values(AGENT_REGISTRY);
