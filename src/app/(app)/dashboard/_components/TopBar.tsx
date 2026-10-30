@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { NotificationCenter } from './NotificationCenter';
 import type { NavBadgeKey } from './SidebarNav';
 
@@ -34,6 +34,9 @@ export function TopBar({
   onBadgesUpdate: (badges: Record<NavBadgeKey, number>) => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname() || '';
+  // Customers has its own add button and a New job button on every card.
+  const hideCreate = pathname === '/dashboard/customers';
 
   return (
     <header className="sticky top-0 z-30 px-3 pt-2 sm:px-4 sm:pt-3 lg:px-5">
@@ -81,7 +84,7 @@ export function TopBar({
             </svg>
           </button>
 
-          <div className="relative">
+          {hideCreate ? null : <div className="relative">
             <button
               onClick={onToggleNewDropdown}
               aria-label="Create"
@@ -112,7 +115,7 @@ export function TopBar({
                 </div>
               </>
             ) : null}
-          </div>
+          </div>}
 
           <button
             type="button"

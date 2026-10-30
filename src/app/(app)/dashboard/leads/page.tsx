@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { LeadsInbox, type InboxItem } from './LeadsInbox';
+import { fillMissingLeadNames } from '@/lib/leads/fill-missing-names';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,7 +18,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const since = new Date(Date.now() - 180 * 86_400_000).toISOString();
   const [leadsRes, quotesRes] = await Promise.all([
     db.from('leads')
-      .select('id, customer_name, customer_phone, customer_email, service_type, suburb, response_status, quote_id, created_at')
+      .select('id, customer_name, customer_phone, customer_email, service_type, suburb, response_status, quote_id, created_at, messenger_psid, instagram_user_id')
       .eq('environment', 'production').eq('is_test', false).gte('created_at', since)
       .order('created_at', { ascending: false }).limit(200),
     db.from('quotes')
@@ -27,6 +28,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   ]);
   const leads = leadsRes.data ?? [];
   const quotes = quotesRes.data ?? [];
+  // Messenger/Instagram leads that arrived without a name: look it up from Meta.
+  await fillMissingLeadNames(db, leads.filter((l) => NEW_LEAD.includes(l.response_status) || QUOTED_LEAD.includes(l.response_status)));
 
   const leadIds = leads.map((l) => l.id);
   const latest: Record<string, string> = {};
@@ -47,7 +50,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     items.push({
       key: `lead-${l.id}`,
       stage,
-      name: l.customer_name || 'No name yet',
+      name: l.customer_name || (l.messenger_psid ? 'Facebook Messenger contact' : l.instagram_user_id ? 'Instagram contact' : 'No name yet'),
       service: l.service_type,
       suburb: l.suburb,
       phone: l.customer_phone,
