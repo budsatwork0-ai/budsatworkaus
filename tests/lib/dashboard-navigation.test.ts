@@ -18,9 +18,9 @@ describe('dashboard navigation metadata', () => {
     expect(primaryGroups.map((group) => group.label)).toEqual(['Work', 'Settings']);
   });
 
-  it('keeps the approved primary routes visible (8 items)', () => {
+  it('keeps the approved primary routes visible (7 items)', () => {
     expect(primaryRoutes).toEqual([
-      '/dashboard/schedule', '/dashboard/leads', '/dashboard/quotes', '/dashboard/customers', '/dashboard/invoices',
+      '/dashboard/schedule', '/dashboard/leads', '/dashboard/customers', '/dashboard/invoices',
       '/dashboard/settings', '/dashboard/mission-control', '/dashboard/automations',
     ]);
   });
