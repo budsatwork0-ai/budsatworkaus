@@ -1,5 +1,7 @@
 'use client';
 
+import { NotificationCenter } from './_components/NotificationCenter';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
@@ -288,6 +290,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             roleLabel={roleLabel}
             onClose={() => setMobileMenuOpen(false)}
             onToggleGroup={toggleGroup}
+            onSearch={() => setCommandPaletteOpen(true)}
+            onSignOut={handleSignOut}
+            notifications={<NotificationCenter onBadgesUpdate={handleBadgesUpdate} />}
           />
         )}
         topBar={(
