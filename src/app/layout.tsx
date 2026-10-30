@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import "./globals.css";
 import { SkipLinks } from "@/components/SkipLinks";
+import { ShakeFeedback } from "@/components/ShakeFeedback";
 import VisitorTracker from "@/app/ui/VisitorTracker";
 import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData";
 import { ConsentAwareGoogleAnalytics } from "@/components/ConsentAwareGoogleAnalytics";
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SkipLinks />
           <VisitorTracker />
           <main id="main-content" className="flex-1">{children}</main>
+          <ShakeFeedback />
         </AnalyticsProviders>
       </body>
     </html>

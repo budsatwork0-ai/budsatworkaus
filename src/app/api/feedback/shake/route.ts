@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '@/lib/auth';
 
-// Shake-to-feedback from the admin. Saves to site_feedback; screenshot goes to
+// Shake-to-feedback from any signed-in user (admin, crew, customer). Saves to site_feedback; screenshot goes to
 // the private "feedback-screenshots" bucket. No AI, nothing sent to anyone.
 export async function POST(req: Request) {
   const user = await getAuthUser();
-  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
   const form = await req.formData();
   const text = String(form.get('text') ?? '').trim();
   const pageUrl = String(form.get('url') ?? '').slice(0, 500);
@@ -23,9 +23,9 @@ export async function POST(req: Request) {
       photoUrl = signed.data?.signedUrl ?? `feedback-screenshots/${path}`;
     }
   }
-  const description = `${text || '(no text)'}\n\nPage: ${pageUrl}\nTime: ${now.toLocaleString('en-AU', { timeZone: 'Australia/Brisbane' })} AEST\nFrom: ${user.email ?? user.id}`;
+  const description = `${text || '(no text)'}\n\nPage: ${pageUrl}\nTime: ${now.toLocaleString('en-AU', { timeZone: 'Australia/Brisbane' })} AEST\nFrom: ${user.email ?? user.id} (${user.role})`;
   const { error } = await db.from('site_feedback').insert({
-    type: 'general', subject: `Shake feedback: ${(text || pageUrl).slice(0, 60)}`, description, photo_url: photoUrl, status: 'new',
+    type: 'general', subject: `Shake feedback (${user.role}): ${(text || pageUrl).slice(0, 60)}`, description, photo_url: photoUrl, status: 'new',
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
