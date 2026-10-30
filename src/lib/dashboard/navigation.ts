@@ -68,6 +68,7 @@ const PRIMARY_DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
       { href: '/dashboard/leads', label: 'Leads & Quotes', iconKey: 'leads', badgeKey: 'quotes' },
       { href: '/dashboard/customers', label: 'Customers', iconKey: 'customers' },
       { href: '/dashboard/invoices', label: 'Invoices', iconKey: 'money', badgeKey: 'invoices' },
+      { href: '/dashboard/content', label: 'Content', iconKey: 'contentStudio' },
     ],
   },
   {
@@ -112,7 +113,7 @@ export const DASHBOARD_COMMANDS: readonly DashboardCommand[] = [
   { id: 'ndis', label: 'Go to NDIS', description: 'Organisations and participant matching', href: '/dashboard/ndis', keywords: ['participants', 'organisations', 'support'], category: 'People', primary: true },
   { id: 'leads', label: 'Go to Leads', description: 'Lead inbox and follow-up', href: '/dashboard/leads', keywords: ['sales', 'enquiries', 'inquiries'], category: 'Growth', primary: true },
   { id: 'growth-hq', label: 'Go to Campaigns', description: 'Growth HQ and campaign validation', href: '/dashboard/growth-hq', keywords: ['campaigns', 'growth', 'validation'], category: 'Growth', primary: true },
-  { id: 'content', label: 'Go to Create', description: 'Campaign Factory content creation', href: '/dashboard/content', keywords: ['content', 'create', 'campaign factory'], category: 'Growth', primary: true },
+  { id: 'content', label: 'Go to Content', description: 'Post templates to copy', href: '/dashboard/content', keywords: ['content', 'create', 'campaign factory'], category: 'Growth', primary: true },
   { id: 'invoices', label: 'Go to Invoices', description: 'Money overview and receivables', href: '/dashboard/invoices', keywords: ['money', 'finance', 'receivables'], category: 'Money', primary: true },
   { id: 'subscriptions', label: 'Go to Subscriptions', description: 'Recurring services', href: '/dashboard/subscriptions', keywords: ['recurring', 'plans'], category: 'Money', primary: true },
   { id: 'mission-control', label: 'Go to Mission Control', description: 'Bud OS operating console', href: '/dashboard/mission-control', keywords: ['bud os', 'agents', 'automation'], category: 'Bud OS', primary: true },
