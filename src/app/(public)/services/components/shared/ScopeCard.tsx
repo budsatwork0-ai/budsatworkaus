@@ -4,7 +4,8 @@ import React from 'react';
 import { cls, fmtAUD, fmtHrMin, titleCase } from '../../utils/formatting';
 import { hourlyRate } from '../../lib/pricing/engine';
 import { computeScopeCardState } from '../../lib/scope-card-state';
-import { SIMPLE_SERVICE_CARDS } from './simple-cards';
+import { SIMPLE_SERVICE_CARDS, MENU_SERVICE_CARDS, CARD_PHOTOS, CARD_LINES } from './simple-cards';
+import { calculateServicePrice } from '../../lib/estimation';
 import { glassCard } from './UIComponents';
 import { ChecklistSection } from './ChecklistSection';
 import { ServiceDetailRouter } from './ServiceDetailRouter';
@@ -76,8 +77,69 @@ export const ScopeCard = React.memo(function ScopeCard({
         }
       }}
     >
+      {MENU_SERVICE_CARDS && (() => {
+        const photo = CARD_PHOTOS[sc.key];
+        const line = CARD_LINES[sc.key] || (sc.desc ? String(sc.desc).split('.')[0] : '');
+        let price = 0;
+        try { price = calculateServicePrice(sc.key, S).price; } catch { price = 0; }
+        const time = isHourlyCard
+          ? `~${hourlyHours ?? 3}h`
+          : hourlyRateDisplay
+          ? hourlyRateDisplay
+          : minutes > 0
+          ? `~${fmtHrMin(minutes)}`
+          : '';
+        const meta = [price > 0 ? `From ${fmtAUD(price)}` : '', time].filter(Boolean).join(' · ');
+        return (
+          <div className="-mx-4 -mt-4 mb-3">
+            <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100">
+              {photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-emerald-700/70">
+                  <svg aria-hidden width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z" />
+                    <path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+                  </svg>
+                </div>
+              )}
+              <button
+                type="button"
+                data-card-interactive="true"
+                aria-label={isActive ? `Add ${sc.label} to quote` : `Choose ${sc.label}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setHasInteractedStep2(true);
+                  if (isActive) { onAdd(sc.key); return; }
+                  if (S.scope !== sc.key) onSelect(sc.key);
+                  if (S.service !== 'yard') setActiveServiceId(sc.key);
+                }}
+                className={cls(
+                  'absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition-colors',
+                  isActive ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700'
+                )}
+              >
+                <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  {isActive ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : <path d="M12 5v14M5 12h14" />}
+                </svg>
+              </button>
+            </div>
+            <div className="px-4 pt-3">
+              <div id={labelId} className="text-lg font-bold leading-tight tracking-tight text-slate-900">
+                {titleCase(sc.label)}
+              </div>
+              {!!line && <p id={hookId} className="mt-0.5 text-sm text-slate-600 line-clamp-1">{line}</p>}
+              {!!meta && (
+                <p className="mt-1.5 text-sm font-semibold text-emerald-800" style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Header */}
-      <div className="flex items-baseline gap-2 min-w-0">
+      {!MENU_SERVICE_CARDS && <div className="flex items-baseline gap-2 min-w-0">
         <svg
           aria-hidden
           width="16"
@@ -167,7 +229,7 @@ export const ScopeCard = React.memo(function ScopeCard({
             </svg>
           </span>
         )}
-      </div>
+      </div>}
 
       <ChecklistSection
         isHourlyCard={isHourlyCard}
@@ -209,7 +271,7 @@ export const ScopeCard = React.memo(function ScopeCard({
           carSelector={carSelector}
           routeSlot={routeSlot}
         />
-        <div className="pt-2.5 mt-1 border-t border-black/[0.06] flex items-center justify-between flex-wrap gap-2">
+        {(!MENU_SERVICE_CARDS || isActive) && <div className={cls('flex items-center justify-between flex-wrap gap-2', MENU_SERVICE_CARDS ? '' : 'pt-2.5 mt-1 border-t border-black/[0.06]')}>
           {!SIMPLE_SERVICE_CARDS && (
             <div className="text-[11px] text-slate-500">
               Builds a clear to-do list for our techs and your peace of mind.
@@ -226,10 +288,10 @@ export const ScopeCard = React.memo(function ScopeCard({
               className={cls(SIMPLE_SERVICE_CARDS ? 'w-full h-11 text-base font-semibold' : 'text-sm px-4 py-2', 'rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]')}
               style={{ background: 'var(--accent)' }}
             >
-              Add to quote
+              {MENU_SERVICE_CARDS ? 'Continue' : 'Add to quote'}
             </button>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );
