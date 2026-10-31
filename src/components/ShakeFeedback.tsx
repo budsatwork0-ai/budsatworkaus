@@ -78,42 +78,43 @@ function ShakeFeedbackInner() {
     }
   }, []);
 
-  // Decide once whether motion can be used (iOS needs a tap first).
+  // iOS: permission must be asked synchronously inside a real tap, and Safari
+  // often forgets it on reload. So: always listen; on the first tap anywhere ask
+  // again (no await before the call); show a persistent pill until motion
+  // events actually arrive. Old "dismissed"/"denied" flags no longer hide it.
+  const askingRef = useRef(false);
+  const ask = useCallback(() => {
+    const DM = window.DeviceMotionEvent as unknown as MotionPerm;
+    if (typeof DM?.requestPermission !== 'function' || askingRef.current) return;
+    askingRef.current = true;
+    DM.requestPermission().then((r) => {
+      if (r === 'granted') { sessionStorage.setItem(ASKED_KEY, 'granted'); setMotionOn(true); }
+    }).catch(() => {}).finally(() => { askingRef.current = false; });
+  }, []);
   useEffect(() => {
     if (typeof window === 'undefined' || !('DeviceMotionEvent' in window)) return;
+    setMotionOn(true); // listener on; on iOS events only flow once granted
     const DM = window.DeviceMotionEvent as unknown as MotionPerm;
-    if (typeof DM.requestPermission !== 'function') { setMotionOn(true); return; }
-    const asked = localStorage.getItem(ASKED_KEY);
-    if (asked === 'granted') {
-      // Attach the listener straight away: if iOS still remembers the grant,
-      // motion events just arrive. (Calling requestPermission here without a
-      // tap is rejected by iOS, which is what broke shaking after a reload.)
-      setMotionOn(true);
-      // iOS often wants a fresh grant each page load. Re-ask on every tap until
-      // motion events actually arrive (a once-only try could fail silently and
-      // leave shake dead with no prompt). If nothing arrives after a few taps,
-      // show the "Turn on" bar again so a real button tap can grant it.
-      let gotMotion = false; let tries = 0;
-      const seen = () => { gotMotion = true; detach(); };
-      const regrant = () => {
-        if (gotMotion) return detach();
-        tries += 1;
-        DM.requestPermission!().then((r) => {
-          if (r === 'granted') return;
-          localStorage.setItem(ASKED_KEY, r); detach();
-        }).catch(() => { if (tries >= 3) { detach(); setShowPrompt(true); } });
-      };
-      const detach = () => {
-        window.removeEventListener('devicemotion', seen);
-        window.removeEventListener('click', regrant, true);
-      };
-      window.addEventListener('devicemotion', seen, { once: true });
-      // click only: iOS treats click as a user gesture; touchend + click fired a double request.
-      window.addEventListener('click', regrant, { capture: true });
-      const fallback = window.setTimeout(() => { if (!gotMotion && tries === 0) setShowPrompt(true); }, 8000);
-      return () => { window.clearTimeout(fallback); detach(); };
-    } else if (!asked) setShowPrompt(true);
-  }, []);
+    if (typeof DM.requestPermission !== 'function') return;
+    let got = false;
+    const seen = (e: DeviceMotionEvent) => {
+      if (!e.accelerationIncludingGravity) return;
+      got = true; sessionStorage.setItem(ASKED_KEY, 'granted'); setShowPrompt(false); detach();
+    };
+    const tap = () => { if (!got) ask(); };
+    const detach = () => {
+      window.removeEventListener('devicemotion', seen);
+      window.removeEventListener('touchend', tap, true);
+      window.removeEventListener('click', tap, true);
+    };
+    window.addEventListener('devicemotion', seen);
+    window.addEventListener('touchend', tap, true);
+    window.addEventListener('click', tap, true);
+    const t = window.setTimeout(() => {
+      if (!got && sessionStorage.getItem(ASKED_KEY + '-hide') !== '1') setShowPrompt(true);
+    }, 1500);
+    return () => { window.clearTimeout(t); detach(); };
+  }, [ask]);
 
   // Exactly one devicemotion listener, removed on cleanup.
   useEffect(() => {
@@ -123,8 +124,8 @@ function ShakeFeedbackInner() {
       const a = e.accelerationIncludingGravity; if (!a) return;
       const mag = Math.sqrt((a.x ?? 0) ** 2 + (a.y ?? 0) ** 2 + (a.z ?? 0) ** 2);
       const now = Date.now();
-      if (mag > 25) { hits = now - lastHit < 600 ? hits + 1 : 1; lastHit = now; }
-      if (hits >= 3) { hits = 0; void trigger(); }
+      if (mag > 20) { hits = now - lastHit < 600 ? hits + 1 : 1; lastHit = now; }
+      if (hits >= 2) { hits = 0; void trigger(); }
     };
     window.addEventListener('devicemotion', onMotion);
     return () => window.removeEventListener('devicemotion', onMotion);
@@ -155,15 +156,7 @@ function ShakeFeedbackInner() {
     return () => window.removeEventListener('bud:feedback', h);
   }, [trigger]);
 
-  async function enableIos() {
-    const DM = window.DeviceMotionEvent as unknown as MotionPerm;
-    try {
-      const r = await DM.requestPermission!();
-      localStorage.setItem(ASKED_KEY, r);
-      if (r === 'granted') setMotionOn(true);
-    } catch { localStorage.setItem(ASKED_KEY, 'denied'); }
-    setShowPrompt(false);
-  }
+  function enableIos() { ask(); }
 
   async function send() {
     setStatus('sending');
@@ -179,8 +172,8 @@ function ShakeFeedbackInner() {
       {showPrompt && (
         <div data-shake-ui className="fixed inset-x-3 bottom-3 z-[60] flex items-center gap-2 rounded-2xl bg-white p-3 shadow-lg md:hidden">
           <span className="flex-1 text-sm text-[#0F3F33]">Shake, or hold a page title, to send feedback.</span>
-          <button onClick={enableIos} className="rounded-full bg-[#0F3F33] px-3 py-2 text-sm font-semibold text-white">Turn on shake feedback</button>
-          <button onClick={() => { localStorage.setItem(ASKED_KEY, 'dismissed'); setShowPrompt(false); }} aria-label="Not now" className="px-2 text-lg text-[#0F3F33]/60">×</button>
+          <button onClick={enableIos} className="rounded-full bg-[#0F3F33] px-3 py-2 text-sm font-semibold text-white">Enable shake feedback</button>
+          <button onClick={() => { sessionStorage.setItem(ASKED_KEY + '-hide', '1'); setShowPrompt(false); }} aria-label="Not now" className="px-2 text-lg text-[#0F3F33]/60">×</button>
         </div>
       )}
       {open && (
