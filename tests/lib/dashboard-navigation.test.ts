@@ -22,7 +22,7 @@ describe('dashboard navigation metadata', () => {
     expect(primaryRoutes).toEqual([
       '/dashboard/schedule', '/dashboard/leads', '/dashboard/customers', '/dashboard/invoices',
       '/dashboard/content',
-      '/dashboard/settings', '/dashboard/mission-control', '/dashboard/automations',
+      '/dashboard/settings', '/dashboard/price-list', '/dashboard/mission-control', '/dashboard/automations',
     ]);
   });
 

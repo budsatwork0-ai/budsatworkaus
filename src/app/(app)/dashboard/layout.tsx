@@ -112,6 +112,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/marketing/playbooks': 'Distribution Playbooks',
   '/dashboard/marketing/social-channels': 'Social Channels',
   '/dashboard/growth-hq': 'Campaigns',
+  '/dashboard/price-list': 'Price list',
   '/dashboard/research-lab': 'Research',
   '/dashboard/research-lab/trends': 'Research Trends',
   '/dashboard/content/story-intelligence': 'Story Intelligence',

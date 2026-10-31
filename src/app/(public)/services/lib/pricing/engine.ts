@@ -19,6 +19,7 @@ import type {
   SneakerTier,
 } from '../../types';
 
+import { getWindowPriceBook, windowQuoteTotal } from '@/lib/pricing/window-price-book';
 import { toNumber, clamp, fmtAUD, roundTo, roundToHalfHour, roundTo5 } from '../../utils/formatting';
 import {
   WINDOW_PRICES,
@@ -595,6 +596,7 @@ export function selectedFromParams(
     } else if (scope === 'windows_interior') {
       if (inP > 0) sel['window.pane_int_solo'] = inP;
       if (tracks > 0) sel['window.track'] = tracks;
+      if (screens > 0 && ctx !== 'commercial') sel['window.screen'] = screens;
     } else if (scope === 'windows_exterior') {
       if (exP > 0) sel['window.pane_ext_solo'] = exP;
       if (tracks > 0) sel['window.track'] = tracks;
@@ -1028,6 +1030,36 @@ export function priceQuote(params: QuoteParams) {
       confidence: 'High' as const,
       baseBeforeFees: 0,
       disposalFee: 0,
+    };
+  }
+
+  // Residential windows: simple price list (per pane per side, per track,
+  // per screen, job minimum). No GST (not registered). Read from price_list.
+  if (currentService === 'windows' && context !== 'commercial') {
+    const book = getWindowPriceBook();
+    const { subtotal, total } = windowQuoteTotal({
+      interior: (selected['window.pane_int_solo'] || 0) + (selected['window.full'] || 0),
+      exterior: (selected['window.pane_ext_solo'] || 0) + (selected['window.full'] || 0),
+      tracks: selected['window.track'] || 0,
+      screens: selected['window.screen'] || 0,
+    }, book);
+    const winMinutes = windowsMinutesOverride != null ? windowsMinutesOverride : 0;
+    return {
+      total,
+      minutes: winMinutes,
+      billableMinutes: winMinutes,
+      unitSum: subtotal,
+      labourFloor: 0,
+      travel: 0,
+      parking: 0,
+      tip: 0,
+      hourlyUsed: 0,
+      billingMode: 'Per-unit' as const,
+      confidence: 'High' as const,
+      baseBeforeFees: total,
+      bottleCredit: 0,
+      disposalFee: 0,
+      displayPrice: fmtAUD(total),
     };
   }
 

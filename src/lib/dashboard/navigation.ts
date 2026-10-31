@@ -77,6 +77,7 @@ const PRIMARY_DASHBOARD_NAV_GROUPS: readonly DashboardNavGroup[] = [
     adminOnly: true,
     items: [
       { href: '/dashboard/settings', label: 'Workspace', iconKey: 'settings' },
+      { href: '/dashboard/price-list', label: 'Price list', iconKey: 'money' },
       { href: '/dashboard/mission-control', label: 'Bud OS', iconKey: 'mission' },
       { href: '/dashboard/automations', label: 'Automations', iconKey: 'automations' },
     ],
@@ -119,6 +120,7 @@ export const DASHBOARD_COMMANDS: readonly DashboardCommand[] = [
   { id: 'mission-control', label: 'Go to Mission Control', description: 'Bud OS operating console', href: '/dashboard/mission-control', keywords: ['bud os', 'agents', 'automation'], category: 'Bud OS', primary: true },
   { id: 'agents', label: 'Go to Agents', description: 'Agent fleet and repair quarantine', href: '/dashboard/agents', keywords: ['bud', 'automation', 'agent runs'], category: 'Bud OS', primary: true },
   { id: 'executive', label: 'Go to Executive HQ', description: 'Executive decisions and weekly reviews', href: '/dashboard/executive', keywords: ['ceo', 'decisions', 'weekly'], category: 'Bud OS', primary: true },
+  { id: 'price-list', label: 'Go to Price list', description: 'Edit website prices and market checks', href: '/dashboard/price-list', keywords: ['prices', 'pricing', 'market', 'rates'], category: 'Settings', primary: true },
   { id: 'settings', label: 'Go to Settings', description: 'Workspace and account settings', href: '/dashboard/settings', keywords: ['workspace', 'account', 'config'], category: 'Settings', primary: true },
   { id: 'automations', label: 'Go to Automations', description: 'Automation configuration', href: '/dashboard/automations', keywords: ['settings', 'automatic'], category: 'Settings', primary: true },
   { id: 'reports', label: 'Go to Reports', description: 'Operational reports', href: '/dashboard/reports', keywords: ['analytics', 'metrics'], category: 'System' },
