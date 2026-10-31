@@ -89,14 +89,29 @@ function ShakeFeedbackInner() {
       // motion events just arrive. (Calling requestPermission here without a
       // tap is rejected by iOS, which is what broke shaking after a reload.)
       setMotionOn(true);
-      // If iOS wants a fresh grant this page load, re-ask silently on the
-      // first tap anywhere. The prompt bar is not shown again.
+      // iOS often wants a fresh grant each page load. Re-ask on every tap until
+      // motion events actually arrive (a once-only try could fail silently and
+      // leave shake dead with no prompt). If nothing arrives after a few taps,
+      // show the "Turn on" bar again so a real button tap can grant it.
+      let gotMotion = false; let tries = 0;
+      const seen = () => { gotMotion = true; detach(); };
       const regrant = () => {
-        DM.requestPermission!().then((r) => { if (r !== 'granted') localStorage.setItem(ASKED_KEY, r); }).catch(() => {});
+        if (gotMotion) return detach();
+        tries += 1;
+        DM.requestPermission!().then((r) => {
+          if (r === 'granted') return;
+          localStorage.setItem(ASKED_KEY, r); detach();
+        }).catch(() => { if (tries >= 3) { detach(); setShowPrompt(true); } });
       };
-      window.addEventListener('touchend', regrant, { once: true, capture: true });
-      window.addEventListener('click', regrant, { once: true, capture: true });
-      return () => { window.removeEventListener('touchend', regrant, true); window.removeEventListener('click', regrant, true); };
+      const detach = () => {
+        window.removeEventListener('devicemotion', seen);
+        window.removeEventListener('click', regrant, true);
+      };
+      window.addEventListener('devicemotion', seen, { once: true });
+      // click only: iOS treats click as a user gesture; touchend + click fired a double request.
+      window.addEventListener('click', regrant, { capture: true });
+      const fallback = window.setTimeout(() => { if (!gotMotion && tries === 0) setShowPrompt(true); }, 8000);
+      return () => { window.clearTimeout(fallback); detach(); };
     } else if (!asked) setShowPrompt(true);
   }, []);
 
