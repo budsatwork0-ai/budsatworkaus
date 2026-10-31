@@ -81,8 +81,12 @@ export function computeWindowsMinutes(
   const round15 = (n: number) => Math.round(n / 15) * 15;
   minutes = round15(minutes);
 
-  const minTarget = (WIN_RULES.TARGETS as Record<string, number>)[scope] || 0;
-  if (minTarget > 0 && minutes < minTarget) minutes = minTarget;
+  // Old per-scope minimum targets removed for residential (Oct 2026 price list);
+  // commercial keeps them. See git history for the previous behaviour.
+  if (context === 'commercial') {
+    const minTarget = (WIN_RULES.TARGETS as Record<string, number>)[scope] || 0;
+    if (minTarget > 0 && minutes < minTarget) minutes = minTarget;
+  }
 
   return Math.max(0, minutes);
 }

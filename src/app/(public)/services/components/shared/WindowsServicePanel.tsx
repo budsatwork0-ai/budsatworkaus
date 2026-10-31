@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { WizardState } from '../../types';
+import { HomeWindowCalculator } from '../windows/HomeWindowCalculator';
 
 const WindowsEditor = dynamic(
   () => import('../windows/WindowsEditor').then(m => ({ default: m.WindowsEditor })),
@@ -24,7 +25,11 @@ export function WindowsServicePanel({ S, setMany, notifyDelta }: WindowsServiceP
       onPointerDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
     >
-      <WindowsEditor S={S} setMany={setMany} notifyDelta={notifyDelta} />
+      {S.context === 'commercial' ? (
+        <WindowsEditor S={S} setMany={setMany} notifyDelta={notifyDelta} />
+      ) : (
+        <HomeWindowCalculator S={S} setMany={setMany} />
+      )}
     </div>
   );
 }
