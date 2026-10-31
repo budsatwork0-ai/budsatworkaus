@@ -4,6 +4,7 @@ import React from 'react';
 import { cls, fmtAUD, fmtHrMin, titleCase } from '../../utils/formatting';
 import { hourlyRate } from '../../lib/pricing/engine';
 import { computeScopeCardState } from '../../lib/scope-card-state';
+import { SIMPLE_SERVICE_CARDS } from './simple-cards';
 import { glassCard } from './UIComponents';
 import { ChecklistSection } from './ChecklistSection';
 import { ServiceDetailRouter } from './ServiceDetailRouter';
@@ -100,7 +101,7 @@ export const ScopeCard = React.memo(function ScopeCard({
           >
             {titleCase(sc.label)}
           </div>
-          {!!hookText && (
+          {!!hookText && !SIMPLE_SERVICE_CARDS && (
             <p
               id={hookId}
               className="mt-1 text-[11px] text-slate-600 line-clamp-2 min-h-[28px]"
@@ -110,13 +111,13 @@ export const ScopeCard = React.memo(function ScopeCard({
           )}
         </div>
 
-        {recommended && (
+        {recommended && !SIMPLE_SERVICE_CARDS && (
           <span className="ml-1 inline-flex items-center rounded-md bg-emerald-600/10 text-emerald-800 px-2 py-0.5 text-[10px] font-medium">
             Most booked
           </span>
         )}
 
-        {isActive && S.service !== 'laundry_sneakers' && (
+        {(isActive || SIMPLE_SERVICE_CARDS) && S.service !== 'laundry_sneakers' && (
           <div className="flex flex-col items-end gap-1 shrink-0" aria-live="polite">
             <span
               className="rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 text-[10px] md:text-[11px] text-slate-600"
@@ -140,7 +141,7 @@ export const ScopeCard = React.memo(function ScopeCard({
         {/* Expand affordance — text label + chevron, hidden for yard */}
         {S.service !== 'yard' && (
           <span className="shrink-0 self-center flex items-center gap-1">
-            {!isConfigOpen && (
+            {!isConfigOpen && !SIMPLE_SERVICE_CARDS && (
               <span className="hidden sm:inline text-[11px] font-medium text-emerald-700 group-hover:text-emerald-800 transition-colors whitespace-nowrap">
                 View full checklist
               </span>
@@ -209,9 +210,11 @@ export const ScopeCard = React.memo(function ScopeCard({
           routeSlot={routeSlot}
         />
         <div className="pt-2.5 mt-1 border-t border-black/[0.06] flex items-center justify-between flex-wrap gap-2">
-          <div className="text-[11px] text-slate-500">
-            Builds a clear to-do list for our techs and your peace of mind.
-          </div>
+          {!SIMPLE_SERVICE_CARDS && (
+            <div className="text-[11px] text-slate-500">
+              Builds a clear to-do list for our techs and your peace of mind.
+            </div>
+          )}
           {S.service !== 'yard' && (
             <button
               type="button"
@@ -220,7 +223,7 @@ export const ScopeCard = React.memo(function ScopeCard({
                 e.stopPropagation();
                 onAdd(sc.key);
               }}
-              className="text-sm px-4 py-2 rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]"
+              className={cls(SIMPLE_SERVICE_CARDS ? 'w-full h-11 text-base font-semibold' : 'text-sm px-4 py-2', 'rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]')}
               style={{ background: 'var(--accent)' }}
             >
               Add to quote

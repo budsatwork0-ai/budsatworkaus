@@ -16,10 +16,7 @@ const SCOPE: Record<Mode, ScopeKey> = { both: 'windows_full', inside: 'windows_i
 function Stepper({ label, hint, value, onChange }: { label: string; hint: string; value: number; onChange: (n: number) => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="text-base font-semibold text-[#0F3F33]">{label}</p>
-        <p className="text-xs text-slate-500">{hint}</p>
-      </div>
+      <p className="min-w-0 text-base font-semibold text-[#0F3F33]">{label} <span className="text-sm font-normal text-slate-500">· {hint}</span></p>
       <div className="flex items-center gap-2">
         <button type="button" aria-label={`Fewer ${label}`} onClick={() => onChange(Math.max(0, value - 1))}
           className="h-10 w-10 rounded-full border border-emerald-200 text-xl font-bold text-emerald-700 active:bg-emerald-50">−</button>
@@ -80,21 +77,14 @@ export function HomeWindowCalculator({ S, setMany }: { S: WizardState; setMany: 
           </button>
         ))}
       </div>
-      <Stepper label="Panes" hint={`${money(book.paneInterior)} inside · ${money(book.paneExterior)} outside, per pane`} value={panes}
+      <Stepper label="Panes" hint={mode === 'both' ? `${money(book.paneInterior + book.paneExterior)} both sides` : `${money(mode === 'inside' ? book.paneInterior : book.paneExterior)} each`} value={panes}
         onChange={(n) => write(mode, n, tracks, screens)} />
       <Stepper label="Tracks" hint={`${money(book.track)} each`} value={tracks} onChange={(n) => write(mode, panes, n, screens)} />
       <Stepper label="Screens" hint={`${money(book.screen)} each`} value={screens} onChange={(n) => write(mode, panes, tracks, n)} />
 
-      <div className="rounded-xl bg-white border border-emerald-100 p-3 text-sm text-slate-600 space-y-1" aria-live="polite">
-        {interior > 0 && <div className="flex justify-between"><span>Inside {interior} × {money(book.paneInterior)}</span><span>{money(interior * book.paneInterior)}</span></div>}
-        {exterior > 0 && <div className="flex justify-between"><span>Outside {exterior} × {money(book.paneExterior)}</span><span>{money(exterior * book.paneExterior)}</span></div>}
-        {tracks > 0 && <div className="flex justify-between"><span>Tracks {tracks} × {money(book.track)}</span><span>{money(tracks * book.track)}</span></div>}
-        {screens > 0 && <div className="flex justify-between"><span>Screens {screens} × {money(book.screen)}</span><span>{money(screens * book.screen)}</span></div>}
-        {q.minimumApplied && <div className="flex justify-between text-amber-700"><span>Minimum job</span><span>{money(book.minimum)}</span></div>}
-        <div className="flex justify-between border-t border-emerald-100 pt-1.5 text-base font-bold text-[#0F3F33]">
-          <span>Total</span><span data-testid="window-total">{money(q.total)}</span>
-        </div>
-        <p className="text-xs text-slate-500">No GST. Minimum job {money(book.minimum)}.</p>
+      <div className="flex items-baseline justify-between border-t border-emerald-100 pt-2" aria-live="polite">
+        <span className="text-xs text-slate-500">No GST · min {money(book.minimum)}</span>
+        <span className="text-xl font-bold text-[#0F3F33]" data-testid="window-total">{money(q.total)}</span>
       </div>
       <p className="text-xs text-slate-500">
         Oversized panes, heavily soiled windows, and paint or hard-water stains are quoted on the day.

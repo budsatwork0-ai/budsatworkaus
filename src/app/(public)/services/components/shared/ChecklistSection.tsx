@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CommercialCleaningType, WizardState } from '../../types';
 import { HourlyCleaningPanel } from './HourlyCleaningPanel';
 import { InclusionList } from './InclusionList';
+import { SIMPLE_SERVICE_CARDS } from './simple-cards';
 import { CleaningWizardPanel } from './CleaningWizardPanel';
 import { CommercialCleaningNichePanel } from './CommercialCleaningNichePanel';
 
@@ -48,6 +49,16 @@ export function ChecklistSection({
 }: ChecklistSectionProps) {
   if (isHourlyCard) {
     return <HourlyCleaningPanel inclusionMinClass={inclusionMinClass} />;
+  }
+  if (SIMPLE_SERVICE_CARDS) {
+    // Simple cards: no checklist box, only the controls the customer acts on.
+    if (!isCleaningWizardCard && !(isActive && isCommercialNicheCard)) return null;
+    return (
+      <div className="mt-2">
+        {isCleaningWizardCard && <CleaningWizardPanel S={S} set={set} isConfigOpen={isConfigOpen} isActive={isActive} scopeKey={scopeKey} />}
+        {isActive && isCommercialNicheCard && <CommercialCleaningNichePanel S={S} set={set} isConfigOpen={isConfigOpen} nicheKey={scopeKey as CommercialCleaningType} />}
+      </div>
+    );
   }
   if (visibleInclusions.length === 0) return null;
 
