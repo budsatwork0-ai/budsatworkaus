@@ -199,6 +199,10 @@ export default function HomePage() {
           style={{ top: '-100px', left: 0, right: 0, bottom: 0 }}
         >
           {/* Mobile: static thumbnail */}
+          {HERO_VIDEO_ON_MOBILE ? (
+            <HeroVideo />
+          ) : (
+            <>
           <div
             className="md:hidden w-full h-full bg-cover bg-center"
             style={{ backgroundImage: 'url(/images/hero-thumbnail.jpg)' }}
@@ -210,6 +214,8 @@ export default function HomePage() {
           >
             <source src="/videos/hero.mp4" type="video/mp4" />
           </video>
+            </>
+          )}
 
           {/* Layer 1 — uniform base: ensures text is always legible regardless of video content */}
           <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.46)' }} />
@@ -658,5 +664,68 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * Hero video on every screen size (1 Nov 2026). Mobile used to get a still image only.
+ * Set false to go back to image-on-mobile, video-on-desktop.
+ */
+const HERO_VIDEO_ON_MOBILE = true;
+
+function HeroVideo() {
+  const ref = React.useRef<HTMLVideoElement>(null);
+  const [src, setSrc] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    // Respect reduced motion: keep the poster.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    setSrc(window.matchMedia('(max-width: 767px)').matches ? '/videos/hero-mobile.mp4' : '/videos/hero.mp4');
+  }, []);
+
+  React.useEffect(() => {
+    const v = ref.current;
+    if (!v || !src) return;
+    // iOS needs the muted property set (not just the attribute) before play().
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute('muted', '');
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    const tryPlay = () => { const p = v.play(); if (p && typeof p.catch === 'function') p.catch(() => {}); };
+    tryPlay();
+    // Low Power Mode or a blocked autoplay: try again on the first touch or scroll.
+    const retry = () => { if (v.paused) tryPlay(); };
+    const opts = { passive: true } as AddEventListenerOptions;
+    window.addEventListener('touchstart', retry, opts);
+    window.addEventListener('scroll', retry, opts);
+    window.addEventListener('click', retry);
+    const onVis = () => { if (document.visibilityState === 'visible') retry(); };
+    document.addEventListener('visibilitychange', onVis);
+    v.addEventListener('canplay', retry);
+    return () => {
+      window.removeEventListener('touchstart', retry);
+      window.removeEventListener('scroll', retry);
+      window.removeEventListener('click', retry);
+      document.removeEventListener('visibilitychange', onVis);
+      v.removeEventListener('canplay', retry);
+    };
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      key={src ?? 'poster'}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      poster="/images/hero-thumbnail.jpg"
+      className="block w-full h-full object-cover"
+      src={src ?? undefined}
+      aria-hidden
+    />
   );
 }
