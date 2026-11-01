@@ -101,7 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
-import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT, SIMPLE_YARD, YARD_FULLSCREEN_DRAW } from './components/shared/simple-cards';
+import { ALL_CARDS_SHELL, COMMERCIAL_GROUP, ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT, SIMPLE_YARD, YARD_FULLSCREEN_DRAW } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -2911,6 +2911,24 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 
             return (
               <section aria-labelledby="ndis-step2-heading" className="space-y-5">
+                {ALL_CARDS_SHELL && PREMIUM_UI && (
+                  <div className="overflow-hidden rounded-[24px] border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03),0_12px_32px_rgba(0,0,0,0.06)]">
+                    <div className="flex h-36 w-full items-center justify-center bg-gradient-to-br from-violet-50/80 to-slate-50">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-white/80 text-violet-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                        <svg aria-hidden width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                          {S.service === 'cleaning'
+                            ? <><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>
+                            : <><path d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15" /><path d="M5 19l7-7" /></>}
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="px-5 py-5">
+                      <div className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">{S.service === 'cleaning' ? 'NDIS Cleaning' : 'NDIS Yard Care'}</div>
+                      <p className="mt-1 text-[15px] text-slate-500 line-clamp-1">{S.service === 'cleaning' ? 'Household cleaning, billed by the hour' : 'Mowing and garden care, billed by the hour'}</p>
+                      <p className="mt-2 text-[15px] font-medium text-slate-900" style={{ fontVariantNumeric: 'tabular-nums' }}>From {fmtAUD(effectiveRate)}/hr · ~{fmtHours(hours)}h suggested</p>
+                    </div>
+                  </div>
+                )}
                 {/* Hero — title left, live price right. Distinctive violet
                     gradient with a soft dot pattern overlay so the panel
                     announces itself instead of fading into the page. The
@@ -3374,6 +3392,15 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                                 const firstIdx = rawScopes.findIndex((x) => keys.includes(x.key));
                                 const rest = rawScopes.filter((x) => !keys.includes(x.key));
                                 return [...rest.slice(0, firstIdx), merged, ...rest.slice(firstIdx)];
+                              })()
+                            : ALL_CARDS_SHELL && ONE_CARD_PER_SERVICE && S.service === 'cleaning' && S.context === 'commercial'
+                            ? (() => {
+                                const keys = COMMERCIAL_GROUP.variants.map((v) => v.key);
+                                const t = S.commercialCleaningType as string | undefined;
+                                const cur = t && keys.includes(t) ? t : keys[0];
+                                const base = rawScopes.find((x) => x.key === cur) || rawScopes[0];
+                                if (!base) return rawScopes;
+                                return [{ ...base, key: cur, label: COMMERCIAL_GROUP.label, groupLine: COMMERCIAL_GROUP.line, groupWrap: true, groupVariants: COMMERCIAL_GROUP.variants.filter((v) => rawScopes.some((x) => x.key === v.key)) }];
                               })()
                             : rawScopes;
 
