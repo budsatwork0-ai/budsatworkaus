@@ -591,7 +591,7 @@ export default function YardMap({
             map,
             icon: {
               path: googleLib.maps.SymbolPath.CIRCLE,
-              scale: isFirst ? 8 : 6,
+              scale: (isFirst ? 8 : 6) * (new URLSearchParams(window.location.search).get("compact") === "1" ? 1.4 : 1),
               fillColor: isFirst ? "#22c55e" : "#ffffff",
               fillOpacity: 1,
               strokeColor: "#0f5132",
@@ -712,6 +712,44 @@ export default function YardMap({
       inputEl.removeEventListener("blur", onBlur);
     };
   }, []);
+
+  const isCompact = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("compact") === "1";
+  const [hintVisible, setHintVisible] = React.useState(false);
+  React.useEffect(() => {
+    if (!drawingEnabled || !isCompact) return undefined;
+    setHintVisible(true);
+    const t = window.setTimeout(() => setHintVisible(false), 3500);
+    const m = mapRef.current;
+    const z = m?.getZoom();
+    if (m && typeof z === "number" && z < 20) m.setZoom(20);
+    return () => window.clearTimeout(t);
+  }, [drawingEnabled, isCompact]);
+  const previewArea = React.useMemo(() => {
+    const v = drawingVerticesRef.current;
+    if (v.length < 3) return 0;
+    const R0 = 6378137;
+    const lat0 = (v.reduce((a, p) => a + p.lat(), 0) / v.length) * Math.PI / 180;
+    const pts = v.map((p) => [p.lng() * Math.PI / 180 * R0 * Math.cos(lat0), p.lat() * Math.PI / 180 * R0]);
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i]; const [x2, y2] = pts[(i + 1) % pts.length];
+      a += x1 * y2 - x2 * y1;
+    }
+    return Math.round(Math.abs(a) / 2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vertexCount]);
+  const undoLastPoint = React.useCallback(() => {
+    const v = drawingVerticesRef.current;
+    if (!v.length) return;
+    v.pop();
+    const mk = vertexMarkersRef.current.pop();
+    mk?.setMap(null);
+    previewPolylineRef.current?.setPath(v);
+    setVertexCount(v.length);
+  }, []);
+  const notifyDrawDone = React.useCallback(() => {
+    if (isInIframe()) window.parent.postMessage({ type: "YARD_DRAW_DONE" }, window.location.origin);
+  }, [isCompact]);
 
   const drawingStatusText = () => {
     if (vertexCount === 0) return "Tap to place points on the map";
@@ -1132,7 +1170,47 @@ export default function YardMap({
         </div>
       )}
 
-      {drawingEnabled && (
+      {drawingEnabled && isCompact && (
+        <>
+          <div
+            style={{
+              position: "absolute", top: 72, left: "50%", transform: "translateX(-50%)",
+              padding: "6px 14px", borderRadius: 9999, background: "rgba(15,23,42,0.72)", color: "#fff",
+              fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", pointerEvents: "none", zIndex: 4,
+              opacity: hintVisible ? 1 : 0, transition: "opacity 600ms ease",
+            }}
+          >
+            Tap corners of your yard
+          </div>
+          <div
+            style={{
+              position: "absolute", left: 12, right: 12, bottom: "calc(env(safe-area-inset-bottom) + 12px)",
+              display: "flex", alignItems: "center", gap: 8, padding: 8, borderRadius: 9999,
+              background: "rgba(255,255,255,0.82)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.18)", zIndex: 5,
+              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif',
+            }}
+          >
+            <button type="button" onClick={undoLastPoint} disabled={vertexCount === 0} aria-label="Undo last point"
+              style={{ height: 48, padding: "0 16px", borderRadius: 9999, border: "none", background: "transparent", color: vertexCount === 0 ? "#94a3b8" : "#0f172a", fontSize: 15, fontWeight: 500 }}>
+              Undo
+            </button>
+            <button type="button" onClick={() => { clearDrawingState(); clearAllZones(); }} aria-label="Clear"
+              style={{ height: 48, padding: "0 16px", borderRadius: 9999, border: "none", background: "transparent", color: "#0f172a", fontSize: 15, fontWeight: 500 }}>
+              Clear
+            </button>
+            <button type="button"
+              onClick={() => {
+                if (vertexCount >= 3) closeShape(); else setDrawingEnabled(false);
+                notifyDrawDone();
+              }}
+              style={{ flex: 1, height: 48, borderRadius: 9999, border: "none", background: "#0f172a", color: "#fff", fontSize: 15, fontWeight: 600 }}>
+              {vertexCount >= 3 ? `Done · ${previewArea.toLocaleString()} m²` : "Done"}
+            </button>
+          </div>
+        </>
+      )}
+      {drawingEnabled && !isCompact && (
         <div
           style={{
             position: "fixed",

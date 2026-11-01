@@ -101,7 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
-import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT, SIMPLE_YARD } from './components/shared/simple-cards';
+import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT, SIMPLE_YARD, YARD_FULLSCREEN_DRAW } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -279,6 +279,21 @@ function ServicesPageContent() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
   const [yardMapOpen, setYardMapOpen] = useState(false);
+  const [yardSheetOpen, setYardSheetOpen] = useState(false);
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data && typeof e.data === 'object' && (e.data as { type?: string }).type === 'YARD_DRAW_DONE') setYardSheetOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  useEffect(() => {
+    if (!yardSheetOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [yardSheetOpen]);
   const assistant = useAssistant({
     dispatch,
     wizardStep: S.step,
@@ -3521,7 +3536,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             ref={iframeRef}
             title="Yard map"
             src={mapFrameSrc}
-            loading="lazy"
+            loading={PREMIUM_UI && SIMPLE_YARD && YARD_FULLSCREEN_DRAW ? 'eager' : 'lazy'}
             allow="geolocation"
             sandbox="allow-scripts allow-same-origin allow-popups"
             className="h-full w-full border-0"
@@ -3729,7 +3744,14 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         const inlineLayout = isDesktop;
         const simpleYard = PREMIUM_UI && SIMPLE_YARD && !inlineLayout && !isNdisContext && S.service === 'yard';
         const yardIsArea = yardMeasurementConfig.mode === 'area';
-        const yardMapShown = !yardIsArea || yardMapOpen;
+        const yardFullscreen = simpleYard && YARD_FULLSCREEN_DRAW;
+        const yardMapShown = yardFullscreen ? yardSheetOpen : (!yardIsArea || yardMapOpen);
+        const openYardSheet = () => {
+          setYardSheetOpen(true);
+          setHasInteractedStep2(true);
+          window.setTimeout(() => postMessageToIframe({ type: 'YARD_TOGGLE_DRAWING', enabled: true }), 350);
+        };
+        const measuredM2 = hasZones ? Math.round((yardIsArea ? S.yardArea : S.yardPerimeter) ?? 0) : 0;
         const YARD_JOBS = [
           { key: 'yard_mow', label: 'Mow' },
           { key: 'yard_hedge', label: 'Hedge' },
@@ -3793,9 +3815,21 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 </div>
               </div>
             ) : (
-              <p className="text-[14px] text-slate-500">Hedges and gutters are priced by length. Outline them on the map below.</p>
+              <p className="text-[14px] text-slate-500">{yardFullscreen ? 'Hedges and gutters are priced by length. Outline them on the map.' : 'Hedges and gutters are priced by length. Outline them on the map below.'}</p>
             )}
-            {yardIsArea && (
+            {yardFullscreen && (
+              hasZones ? (
+                <button type="button" onClick={openYardSheet} className="flex w-full items-center justify-between rounded-2xl bg-emerald-50/60 px-3 py-2.5 text-left">
+                  <span className="text-[14px] font-medium text-slate-900">{measuredM2.toLocaleString()} {yardIsArea ? 'm²' : 'm'} measured</span>
+                  <span className="text-[14px] font-medium text-emerald-700">Edit</span>
+                </button>
+              ) : (
+                <button type="button" onClick={openYardSheet} className="text-[14px] font-medium text-emerald-700">
+                  {yardIsArea ? 'Measure on map instead' : 'Open map to measure'}
+                </button>
+              )
+            )}
+            {yardIsArea && !yardFullscreen && (
               <button type="button" onClick={() => setYardMapOpen((v) => !v)} className="text-[14px] font-medium text-emerald-700">
                 {yardMapOpen ? 'Hide map' : 'Measure on map instead'}
               </button>
@@ -3891,7 +3925,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                       inlineLayout
                         ? ''
                         : simpleYard
-                          ? cls('w-full rounded-[20px] border border-black/[0.06] overflow-hidden', yardMapShown ? 'h-[240px]' : 'h-0 border-0')
+                          ? yardFullscreen
+                            ? (yardSheetOpen ? 'fixed inset-0 z-[100] h-[100dvh] w-full bg-black' : 'w-full h-0 overflow-hidden')
+                            : cls('w-full rounded-[20px] border border-black/[0.06] overflow-hidden', yardMapShown ? 'h-[240px]' : 'h-0 border-0')
                           : 'w-full h-[480px] sm:h-[560px] rounded-2xl border border-black/10 shadow-lg overflow-hidden'
                     }
                     style={inlineLayout ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } : undefined}
@@ -3909,7 +3945,18 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                       {sitesWidget}
                     </div>
                   )}
-                  {simpleYard && yardMapShown && (
+                  {yardFullscreen && yardSheetOpen && (
+                    <button
+                      type="button"
+                      onClick={() => { postMessageToIframe({ type: 'YARD_TOGGLE_DRAWING', enabled: false }); setYardSheetOpen(false); }}
+                      aria-label="Close map"
+                      className="fixed right-3 z-[101] flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-slate-900 shadow-[0_4px_14px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+                      style={{ top: 'calc(env(safe-area-inset-top) + 12px)' }}
+                    >
+                      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                  )}
+                  {simpleYard && !yardFullscreen && yardMapShown && (
                     <div className="flex flex-col gap-2">
                       {clearZonesBtn}
                       {instructionText}
