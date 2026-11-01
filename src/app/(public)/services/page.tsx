@@ -101,7 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
-import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI } from './components/shared/simple-cards';
+import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -2314,8 +2314,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 {/* Context segmented control */}
                 <div className="mb-10">
                   <div
-                    className="inline-flex items-center rounded-full p-1 gap-0.5"
-                    style={{ background: '#eff0f2' }}
+                    className={PREMIUM_UI ? "flex w-full max-w-md items-center rounded-full bg-slate-100 p-1" : "inline-flex items-center rounded-full p-1 gap-0.5"}
+                    style={PREMIUM_UI ? undefined : { background: '#eff0f2' }}
                     role="tablist"
                     aria-label="Context"
                   >
@@ -2326,8 +2326,12 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                           key={key}
                           role="tab"
                           aria-selected={isActive}
-                          className="relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"
-                          style={{
+                          className={PREMIUM_UI ? "relative flex-1 px-3 py-2 rounded-full text-[14px] font-medium tracking-[-0.01em] focus-visible:outline-none transition-all duration-200" : "relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"}
+                          style={PREMIUM_UI ? {
+                            background: isActive ? '#fff' : 'transparent',
+                            color: isActive ? '#0f172a' : '#64748b',
+                            boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                          } : {
                             background: isActive ? activeColor : 'transparent',
                             color: isActive ? '#fff' : 'rgba(75,85,99,0.85)',
                             boxShadow: isActive
@@ -2353,7 +2357,36 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   </div>
                 </div>
 
-                {isNdisContext && (
+                {isNdisContext && PREMIUM_UI && (
+                  <section aria-labelledby="ndis-hero-title" className="mb-8" style={{ fontFamily: PREMIUM_FONT }}>
+                    <h3 id="ndis-hero-title" className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">
+                      Cleaning and yard care for NDIS participants
+                    </h3>
+                    <p className="mt-1 text-[15px] text-slate-500">Plan, self and agency-managed</p>
+                    <div className="mt-4 flex items-center gap-3 border-t border-black/[0.06] pt-4">
+                      <Image
+                        src="/images/partners/malucare-logo.png"
+                        alt=""
+                        width={48}
+                        height={24}
+                        className="h-6 w-auto object-contain"
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1 text-[14px] text-slate-600">In partnership with <span className="font-medium text-slate-900">MaluCare</span></span>
+                      <a
+                        href="https://malucare.org/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Visit MaluCare website"
+                        onClick={handlePartnerReferralClick}
+                        className="text-[14px] font-medium text-emerald-700 hover:text-emerald-800"
+                      >
+                        Visit ↗
+                      </a>
+                    </div>
+                  </section>
+                )}
+                {isNdisContext && !PREMIUM_UI && (
                   <section
                     aria-labelledby="ndis-hero-title"
                     className="mb-8 rounded-[28px] border border-violet-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,245,255,0.96))] shadow-[0_18px_40px_-26px_rgba(109,40,217,0.22)]"
@@ -5036,7 +5069,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
       {/* Quote Assistant — floating trigger + slide-in panel */}
       <QuoteAssistantTrigger
         onOpen={assistant.handlers.onOpen}
-        visible={!assistant.open && !assistant.dismissed && !hasInteractedStep2 && S.step === 1}
+        visible={!assistant.open && !assistant.dismissed && !hasInteractedStep2 && S.step === 1 && !(PREMIUM_UI && S.context === 'ndis')}
         context={S.context}
       />
       <QuoteAssistantPanel assistant={assistant} />
