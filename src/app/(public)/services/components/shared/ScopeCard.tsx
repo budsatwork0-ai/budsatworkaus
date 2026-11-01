@@ -78,10 +78,11 @@ export const ScopeCard = React.memo(function ScopeCard({
       }}
     >
       {MENU_SERVICE_CARDS && (() => {
-        const photo = CARD_PHOTOS[sc.key];
-        const line = CARD_LINES[sc.key] || (sc.desc ? String(sc.desc).split('.')[0] : '');
+        const photo = sc.groupPhoto || (sc.groupLine ? undefined : CARD_PHOTOS[sc.key]);
+        const line = sc.groupLine || CARD_LINES[sc.key] || (sc.desc ? String(sc.desc).split('.')[0] : '');
         let price = 0;
-        try { price = calculateServicePrice(sc.key, S).price; } catch { price = 0; }
+        if (typeof sc.groupFrom === 'number') price = sc.groupFrom;
+        else { try { price = calculateServicePrice(sc.key, S).price; } catch { price = 0; } }
         const time = isHourlyCard
           ? `~${hourlyHours ?? 3}h`
           : hourlyRateDisplay
@@ -89,7 +90,7 @@ export const ScopeCard = React.memo(function ScopeCard({
           : minutes > 0
           ? `~${fmtHrMin(minutes)}`
           : '';
-        const meta = [price > 0 ? `From ${fmtAUD(price)}` : '', time].filter(Boolean).join(' · ');
+        const meta = [price > 0 ? `From ${fmtAUD(price)}` : '', sc.groupLine ? '' : time].filter(Boolean).join(' · ');
         return (
           <div className="-mx-4 -mt-4 mb-3">
             <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100">
@@ -132,6 +133,30 @@ export const ScopeCard = React.memo(function ScopeCard({
               {!!line && <p id={hookId} className="mt-0.5 text-sm text-slate-600 line-clamp-1">{line}</p>}
               {!!meta && (
                 <p className="mt-1.5 text-sm font-semibold text-emerald-800" style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>
+              )}
+              {isActive && Array.isArray(sc.groupVariants) && sc.groupVariants.length > 1 && (
+                <div data-card-interactive="true" className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Choose an option">
+                  {sc.groupVariants.map((v: { key: string; label: string }) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={sc.key === v.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (v.key === sc.key) return;
+                        onSelect(v.key);
+                        setActiveServiceId(v.key);
+                      }}
+                      className={cls(
+                        'rounded-xl px-3 py-2 text-sm font-semibold',
+                        sc.key === v.key ? 'bg-emerald-600 text-white' : 'bg-white text-[#0F3F33] border border-emerald-100'
+                      )}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>
