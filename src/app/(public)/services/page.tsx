@@ -3930,7 +3930,11 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                             : cls('w-full rounded-[20px] border border-black/[0.06] overflow-hidden', yardMapShown ? 'h-[240px]' : 'h-0 border-0')
                           : 'w-full h-[480px] sm:h-[560px] rounded-2xl border border-black/10 shadow-lg overflow-hidden'
                     }
-                    style={inlineLayout ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } : undefined}
+                    style={inlineLayout
+                      ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }
+                      : simpleYard && YARD_FULLSCREEN_DRAW && yardSheetOpen
+                        ? { position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, height: '100dvh', zIndex: 100 }
+                        : undefined}
                   >
                     {mapIframe}
                     {calculatingOverlay}
