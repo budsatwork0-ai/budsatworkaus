@@ -217,11 +217,15 @@ export default function HomePage() {
             </>
           )}
 
-          {CLEAN_HERO && (
+          {CLEAN_HERO && !HERO_COLOUR && (
             <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.60) 100%)' }} />
           )}
+          {CLEAN_HERO && HERO_COLOUR && (<>
+            <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.12) 30%, rgba(0,0,0,0.30) 62%, rgba(4,20,14,0.72) 100%)' }} />
+            <div className="absolute inset-0 z-[1] pointer-events-none" style={{ background: 'radial-gradient(60% 38% at 50% 52%, rgba(16,120,80,0.38) 0%, rgba(10,60,40,0.18) 45%, transparent 75%)' }} />
+          </>)}
           {/* Layer 1 — uniform base: ensures text is always legible regardless of video content */}
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.46)' }} />
+          <div className="absolute inset-0" style={{ background: CLEAN_HERO && HERO_COLOUR ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.46)' }} />
           {/* Layer 2 — directional vignette: darker at top (behind nav) and bottom edge */}
           <div
             className="absolute inset-0"
@@ -297,7 +301,8 @@ export default function HomePage() {
             </span>
             <br />
             <span style={{
-              color: CLEAN_HERO ? 'rgba(255,255,255,0.72)' : '#7BBFA0',
+              color: CLEAN_HERO && !HERO_COLOUR ? 'rgba(255,255,255,0.72)' : '#7BBFA0',
+              ...(CLEAN_HERO && HERO_COLOUR ? { background: 'linear-gradient(90deg, #9BE7C0 0%, #5FCF98 50%, #A8E6CF 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', textShadow: 'none' } : {}),
               padding: CLEAN_HERO ? '0 0 4px' : '0 10px 4px',
               display: 'inline-block',
             }}>looked after.</span>
@@ -332,13 +337,13 @@ export default function HomePage() {
                 data-track="hero_quote_click"
                 data-track-label="Homepage hero quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
-                style={CLEAN_HERO ? { background: '#fff', color: '#111', fontFamily: SYSTEM_FONT, padding: '15px 34px' } : { background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
+                style={CLEAN_HERO && HERO_COLOUR ? { background: 'linear-gradient(180deg, #22A06B 0%, #138A57 100%)', color: '#fff', fontFamily: SYSTEM_FONT, padding: '15px 34px', boxShadow: '0 8px 28px rgba(34,160,107,0.45), inset 0 1px 0 rgba(255,255,255,0.18)' } : CLEAN_HERO ? { background: '#fff', color: '#111', fontFamily: SYSTEM_FONT, padding: '15px 34px' } : { background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
                 Get a quote {!CLEAN_HERO && icons.arrowRight}
               </Link>
             </motion.div>
             {CLEAN_HERO ? (
-              <Link href="/about" className="text-[14px] font-medium hover:underline" style={{ color: 'rgba(255,255,255,0.72)', fontFamily: SYSTEM_FONT }}>
+              <Link href="/about" className={HERO_COLOUR ? 'inline-flex items-center rounded-full px-5 py-2.5 text-[14px] font-medium' : 'text-[14px] font-medium hover:underline'} style={HERO_COLOUR ? { color: 'rgba(255,255,255,0.92)', fontFamily: SYSTEM_FONT, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' } : { color: 'rgba(255,255,255,0.72)', fontFamily: SYSTEM_FONT }}>
                 Meet the team
               </Link>
             ) : (
@@ -356,9 +361,17 @@ export default function HomePage() {
 
           {/* Trust chips */}
           {CLEAN_HERO ? (
+            HERO_COLOUR ? (
+            <p className="mt-10 flex justify-center gap-4 text-[12.5px] tracking-wide" style={{ color: 'rgba(255,255,255,0.78)', fontFamily: SYSTEM_FONT }}>
+              {['Insured', 'Vetted crew', 'NDIS-ready'].map((t) => (
+                <span key={t} className="inline-flex items-center gap-1.5"><span style={{ color: '#5FCF98', fontSize: 11 }}>✓</span>{t}</span>
+              ))}
+            </p>
+            ) : (
             <p className="mt-10 text-[12.5px] tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontFamily: SYSTEM_FONT }}>
               Insured · Vetted crew · NDIS-ready
             </p>
+            )
           ) : (
           <motion.div
             className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2"
@@ -694,6 +707,8 @@ export default function HomePage() {
 const HERO_VIDEO_ON_MOBILE = true;
 // Clean hero: one headline, one line, one button. Set false to restore the old hero.
 const CLEAN_HERO = true;
+// Colour pass on the clean hero (green accents, lighter overlay). Set false for the plain clean hero.
+const HERO_COLOUR = true;
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 function HeroVideo() {
