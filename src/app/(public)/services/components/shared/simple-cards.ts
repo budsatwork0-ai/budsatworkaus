@@ -103,3 +103,6 @@ export const PREMIUM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display"
 
 /** Simple yard step (1 Nov 2026): one card, job chips, size chips first, map optional. Set false for the old map-first yard step. */
 export const SIMPLE_YARD = true;
+
+/** Mobile yard map opens as a full-screen drawing sheet (1 Nov 2026). Set false for the small inline map. */
+export const YARD_FULLSCREEN_DRAW = true;
