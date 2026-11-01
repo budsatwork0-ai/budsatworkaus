@@ -718,7 +718,7 @@ const HERO_MODERN = true;
 const MODERN_GREEN = '#5FD39A';
 
 function ModernHeroText({ word, show }: { word: string; show: boolean }) {
-  const font = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif';
+  const font = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif';
   const w = word.charAt(0).toUpperCase() + word.slice(1);
   return (
     <motion.div
@@ -770,7 +770,7 @@ function ModernHeroText({ word, show }: { word: string; show: boolean }) {
     </motion.div>
   );
 }
-const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+const SYSTEM_FONT = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 function HeroVideo() {
   const ref = React.useRef<HTMLVideoElement>(null);

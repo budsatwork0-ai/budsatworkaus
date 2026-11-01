@@ -99,7 +99,7 @@ export const CARD_GROUPS: Record<string, CardGroup> = {
 
 /** Premium look for step 2 (1 Nov 2026): white cards, hairlines, soft shadows, pill buttons. Set false for the previous look. */
 export const PREMIUM_UI = true;
-export const PREMIUM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif';
+export const PREMIUM_FONT = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif';
 
 /** Simple yard step (1 Nov 2026): one card, job chips, size chips first, map optional. Set false for the old map-first yard step. */
 export const SIMPLE_YARD = true;

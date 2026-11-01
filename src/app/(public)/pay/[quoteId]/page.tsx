@@ -205,7 +205,7 @@ export default function PayPage() {
       <div style={containerStyle}>
         <div style={cardStyle}>
           <div style={headerStyle}>
-            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'system-ui, sans-serif' }}>Buds At Work</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Buds At Work</span>
           </div>
           <div style={{ ...bodyStyle, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
@@ -227,11 +227,11 @@ export default function PayPage() {
       <div style={containerStyle}>
         <div style={cardStyle}>
           <div style={headerStyle}>
-            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'system-ui, sans-serif' }}>Buds At Work</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Buds At Work</span>
           </div>
           <div style={{ ...bodyStyle, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: PRIMARY, margin: '0 0 8px', fontFamily: 'system-ui, sans-serif' }}>Payment received!</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: PRIMARY, margin: '0 0 8px', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Payment received!</h1>
             <p style={{ fontSize: 14, color: MUTED, margin: '0 0 24px' }}>
               Thanks {quote.customer_name}. We&apos;ll be in touch to confirm your booking.
             </p>
@@ -249,7 +249,7 @@ export default function PayPage() {
       <div style={containerStyle}>
         <div style={cardStyle}>
           <div style={headerStyle}>
-            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'system-ui, sans-serif' }}>Buds At Work</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Buds At Work</span>
           </div>
           <div style={{ ...bodyStyle, textAlign: 'center' }}>
             <p style={{ fontSize: 15, color: '#374151', marginBottom: 8 }}>This quote has been cancelled.</p>
@@ -270,7 +270,7 @@ export default function PayPage() {
         {/* Header */}
         <div style={headerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'system-ui, sans-serif' }}>Buds At Work</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: PRIMARY, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Buds At Work</span>
             <span style={{ fontSize: 11, background: '#ecfdf5', color: '#065f46', borderRadius: 20, padding: '3px 10px', fontWeight: 600 }}>Secure checkout</span>
           </div>
         </div>
@@ -278,13 +278,13 @@ export default function PayPage() {
         <div style={bodyStyle}>
           {/* Quote summary */}
           <div style={{ background: '#f8fbf9', borderRadius: 14, padding: '16px 18px', marginBottom: 24 }}>
-            <p style={{ fontSize: 11, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px', fontFamily: 'system-ui, sans-serif' }}>Your booking</p>
-            <p style={{ fontSize: 15, fontWeight: 600, color: PRIMARY, margin: '0 0 2px', fontFamily: 'system-ui, sans-serif' }}>
+            <p style={{ fontSize: 11, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>Your booking</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: PRIMARY, margin: '0 0 2px', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>
               {contextLabel} {quote.service_label}
             </p>
             <p style={{ fontSize: 12, color: MUTED, margin: '0 0 12px' }}>For {quote.customer_name}</p>
             <p style={{ fontSize: 11, color: MUTED, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total due</p>
-            <p style={{ fontSize: 26, fontWeight: 700, color: PRIMARY, margin: 0, fontFamily: 'system-ui, sans-serif' }}>{formatAUD(quote.amount)}</p>
+            <p style={{ fontSize: 26, fontWeight: 700, color: PRIMARY, margin: 0, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>{formatAUD(quote.amount)}</p>
           </div>
 
           {/* Stripe option */}
@@ -302,7 +302,7 @@ export default function PayPage() {
                   fontWeight: 600,
                   fontSize: 15,
                   textAlign: 'center',
-                  fontFamily: 'system-ui, sans-serif',
+                  fontFamily: 'var(--font-inter), system-ui, sans-serif',
                 }}
               >
                 Pay with Card, Afterpay or Zip
@@ -328,7 +328,7 @@ export default function PayPage() {
                   fontWeight: 600,
                   fontSize: 15,
                   textAlign: 'center',
-                  fontFamily: 'system-ui, sans-serif',
+                  fontFamily: 'var(--font-inter), system-ui, sans-serif',
                 }}
               >
                 {regenerating ? 'Loading payment…' : 'Pay with Card, Afterpay or Zip'}

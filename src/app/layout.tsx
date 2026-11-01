@@ -7,6 +7,11 @@ import { LocalBusinessSchema, WebsiteSchema } from "@/components/StructuredData"
 import { ConsentAwareGoogleAnalytics } from "@/components/ConsentAwareGoogleAnalytics";
 import { AnalyticsProviders } from "@/components/analytics/AnalyticsProviders";
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+
+// Modern font: Inter site-wide. Set false to go back to the old Arial body font.
+const MODERN_FONT = true;
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-inter", display: "swap" });
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -72,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (
-    <html lang="en">
+    <html lang="en" className={MODERN_FONT ? `${inter.variable} modern-font` : undefined}>
       <head>
         <LocalBusinessSchema />
         <WebsiteSchema />
