@@ -106,3 +106,35 @@ export const SIMPLE_YARD = true;
 
 /** Mobile yard map opens as a full-screen drawing sheet (1 Nov 2026). Set false for the small inline map. */
 export const YARD_FULLSCREEN_DRAW = true;
+
+/**
+ * House Cleaning card shell for every service on every tab (1 Nov 2026):
+ * icon on a soft tint where there's no photo, commercial cleaning as one card
+ * with wrapping chips, NDIS cards in the same shell. Set false to go back.
+ */
+export const ALL_CARDS_SHELL = true;
+
+/** Commercial cleaning folded into one card. Price still comes from the pricing code per type. */
+export const COMMERCIAL_GROUP = {
+  label: 'Commercial Cleaning',
+  line: 'Offices, clinics, gyms, venues and more',
+  variants: [
+    { key: 'office', label: 'Office' },
+    { key: 'medical', label: 'Medical' },
+    { key: 'fitness', label: 'Fitness' },
+    { key: 'hospitality', label: 'Hospitality' },
+    { key: 'education', label: 'Education' },
+    { key: 'event', label: 'Events' },
+    { key: 'accommodation', label: 'Accommodation' },
+  ],
+};
+
+/** Icon per card key (or service) for cards without a photo. */
+export const CARD_ICONS: Record<string, string> = {
+  clean_std: 'home', clean_deep: 'home', clean_move: 'box', general: 'home', weekly: 'home', deep: 'home', endoflease: 'box',
+  office: 'building', medical: 'building', fitness: 'building', hospitality: 'building', education: 'building', event: 'building', accommodation: 'building',
+  yard_mow: 'leaf', yard_hedge: 'leaf', yard_leaves: 'leaf', blast_and_shine: 'drop', gutter_clean: 'home',
+  dump_runs: 'truck', dump_delivery: 'truck', dump_transport: 'truck', bin_cleans: 'bin',
+  auto_express: 'car', auto_interior: 'car', auto_full: 'car',
+  laundry: 'shirt', sneaker_care: 'shoe',
+};

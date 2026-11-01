@@ -4,7 +4,7 @@ import React from 'react';
 import { cls, fmtAUD, fmtHrMin, titleCase } from '../../utils/formatting';
 import { hourlyRate } from '../../lib/pricing/engine';
 import { computeScopeCardState } from '../../lib/scope-card-state';
-import { PREMIUM_UI, PREMIUM_FONT, SIMPLE_SERVICE_CARDS, MENU_SERVICE_CARDS, CARD_PHOTOS, CARD_LINES } from './simple-cards';
+import { PREMIUM_UI, PREMIUM_FONT, SIMPLE_SERVICE_CARDS, MENU_SERVICE_CARDS, CARD_PHOTOS, CARD_LINES, ALL_CARDS_SHELL, CARD_ICONS } from './simple-cards';
 import { calculateServicePrice } from '../../lib/estimation';
 import { glassCard } from './UIComponents';
 import { ChecklistSection } from './ChecklistSection';
@@ -98,10 +98,17 @@ export const ScopeCard = React.memo(function ScopeCard({
         const meta = [price > 0 ? `From ${fmtAUD(price)}` : '', sc.groupLine ? '' : time].filter(Boolean).join(' · ');
         return (
           <div className="-mx-4 -mt-4 mb-3">
-            <div className={cls("relative w-full overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100", PREMIUM_UI ? "h-48 rounded-t-[24px]" : "h-32")}>
+            <div className={cls("relative w-full overflow-hidden", ALL_CARDS_SHELL && !photo ? "bg-gradient-to-br from-emerald-50/80 to-slate-50" : "bg-gradient-to-br from-emerald-50 to-emerald-100", PREMIUM_UI ? (ALL_CARDS_SHELL && !photo ? "h-36 rounded-t-[24px]" : "h-48 rounded-t-[24px]") : "h-32")}>
               {photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+ALL_CARDS_SHELL ? (
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-white/80 text-emerald-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                    <CardIcon name={CARD_ICONS[sc.key] || CARD_ICONS[S.service] || 'home'} />
+                  </div>
+                </div>
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-emerald-700/70">
                   <svg aria-hidden width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -109,6 +116,7 @@ export const ScopeCard = React.memo(function ScopeCard({
                     <path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
                   </svg>
                 </div>
+              )
               )}
               <button
                 type="button"
@@ -142,7 +150,7 @@ export const ScopeCard = React.memo(function ScopeCard({
                 <p className={PREMIUM_UI ? "mt-2 text-[15px] font-medium text-slate-900" : "mt-1.5 text-sm font-semibold text-emerald-800"} style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>
               )}
               {isActive && Array.isArray(sc.groupVariants) && sc.groupVariants.length > 1 && (
-                <div data-card-interactive="true" className={PREMIUM_UI ? "mt-4 flex rounded-full bg-slate-100 p-1" : "mt-3 flex flex-wrap gap-2"} role="radiogroup" aria-label="Choose an option">
+                <div data-card-interactive="true" className={sc.groupWrap ? "mt-4 flex flex-wrap gap-2" : PREMIUM_UI ? "mt-4 flex rounded-full bg-slate-100 p-1" : "mt-3 flex flex-wrap gap-2"} role="radiogroup" aria-label="Choose an option">
                   {sc.groupVariants.map((v: { key: string; label: string }) => (
                     <button
                       key={v.key}
@@ -156,8 +164,10 @@ export const ScopeCard = React.memo(function ScopeCard({
                         setActiveServiceId(v.key);
                       }}
                       className={cls(
-                        PREMIUM_UI ? 'flex-1 rounded-full px-2 py-2 text-[13px] font-medium transition-all duration-200' : 'rounded-xl px-3 py-2 text-sm font-semibold',
-                        PREMIUM_UI
+                        sc.groupWrap ? 'rounded-full px-3.5 py-2 text-[13px] font-medium transition-all duration-200' : PREMIUM_UI ? 'flex-1 rounded-full px-2 py-2 text-[13px] font-medium transition-all duration-200' : 'rounded-xl px-3 py-2 text-sm font-semibold',
+                        sc.groupWrap
+                          ? (sc.key === v.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600')
+                          : PREMIUM_UI
                           ? (sc.key === v.key ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-slate-500')
                           : (sc.key === v.key ? 'bg-emerald-600 text-white' : 'bg-white text-[#0F3F33] border border-emerald-100')
                       )}
@@ -330,3 +340,25 @@ export const ScopeCard = React.memo(function ScopeCard({
     </div>
   );
 }, scopeCardPropsAreEqual);
+
+const ICON_PATHS: Record<string, string[]> = {
+  home: ['M3 11l9-7 9 7', 'M5 10v10h14V10', 'M10 20v-6h4v6'],
+  box: ['M3 7l9-4 9 4-9 4-9-4z', 'M3 7v10l9 4 9-4V7', 'M12 11v10'],
+  building: ['M4 21V5l8-2v18', 'M12 8h8v13', 'M7 8h2M7 12h2M7 16h2M15 12h2M15 16h2', 'M2 21h20'],
+  leaf: ['M5 19c0-8 6-14 15-14 0 9-6 15-14 15', 'M5 19l7-7'],
+  drop: ['M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z'],
+  truck: ['M2 6h11v10H2z', 'M13 10h4l3 3v3h-7', 'M6 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z'],
+  bin: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13'],
+  car: ['M3 16v-4l2-5h14l2 5v4', 'M3 16h18', 'M7 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z'],
+  shirt: ['M8 3l4 2 4-2 5 4-3 3-2-1v12H8V9L6 10 3 7z'],
+  shoe: ['M3 17v-6l5-1 3 3 7 1a3 3 0 013 3H3z', 'M3 20h18'],
+  heart: ['M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z'],
+};
+function CardIcon({ name }: { name: string }) {
+  const paths = ICON_PATHS[name] || ICON_PATHS.home;
+  return (
+    <svg aria-hidden width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      {paths.map((d, i) => <path key={i} d={d} />)}
+    </svg>
+  );
+}
