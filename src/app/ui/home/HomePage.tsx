@@ -217,6 +217,9 @@ export default function HomePage() {
             </>
           )}
 
+          {CLEAN_HERO && (
+            <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.60) 100%)' }} />
+          )}
           {/* Layer 1 — uniform base: ensures text is always legible regardless of video content */}
           <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.46)' }} />
           {/* Layer 2 — directional vignette: darker at top (behind nav) and bottom edge */}
@@ -238,7 +241,7 @@ export default function HomePage() {
         {/* Hero text */}
         <div className="relative z-10 px-5 sm:px-8 max-w-3xl mx-auto w-full">
           {/* Location chip */}
-          <motion.span
+          {!CLEAN_HERO && <motion.span
             className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-[12px] font-semibold border mb-7"
             style={{
               background: 'rgba(248,252,249,0.12)',
@@ -253,12 +256,12 @@ export default function HomePage() {
           >
             <span style={{ color: BRAND.accentSoft }}>●</span>
             Logan &amp; South Brisbane · Locally owned
-          </motion.span>
+          </motion.span>}
 
           {/* Headline */}
           <motion.h1
-            className="text-[clamp(3rem,8vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.02em]"
-            style={{ color: BRAND.onDark }}
+            className={CLEAN_HERO ? 'text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.05] tracking-[-0.03em]' : 'text-[clamp(3rem,8vw,5.75rem)] font-bold leading-[1.04] tracking-[-0.02em]'}
+            style={{ color: BRAND.onDark, ...(CLEAN_HERO ? { fontFamily: SYSTEM_FONT } : {}) }}
             initial={{ opacity: 0, y: 22 }}
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.22, duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
@@ -294,8 +297,8 @@ export default function HomePage() {
             </span>
             <br />
             <span style={{
-              color: '#7BBFA0',
-              padding: '0 10px 4px',
+              color: CLEAN_HERO ? 'rgba(255,255,255,0.72)' : '#7BBFA0',
+              padding: CLEAN_HERO ? '0 0 4px' : '0 10px 4px',
               display: 'inline-block',
             }}>looked after.</span>
           </motion.h1>
@@ -308,13 +311,17 @@ export default function HomePage() {
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.34, duration: 0.55 }}
           >
+            {CLEAN_HERO ? (
+              <span style={{ fontFamily: SYSTEM_FONT, color: 'rgba(255,255,255,0.82)' }}>Cleaning, yard care and more across Logan &amp; South Brisbane.</span>
+            ) : (<>
             Cleaning, yard care, dump runs, car detailing &amp; more.
             Get a real price in minutes — not a callback next week.
+            </>)}
           </motion.p>
 
           {/* CTAs */}
           <motion.div
-            className="mt-9 flex flex-wrap justify-center gap-3"
+            className={CLEAN_HERO ? 'mt-10 flex flex-col items-center gap-4' : 'mt-9 flex flex-wrap justify-center gap-3'}
             initial={{ opacity: 0, y: 10 }}
             animate={heroIn ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.45, duration: 0.5 }}
@@ -325,11 +332,16 @@ export default function HomePage() {
                 data-track="hero_quote_click"
                 data-track-label="Homepage hero quote"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold transition-all hover:brightness-[0.92]"
-                style={{ background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
+                style={CLEAN_HERO ? { background: '#fff', color: '#111', fontFamily: SYSTEM_FONT, padding: '15px 34px' } : { background: BRAND.accent, color: '#fff', boxShadow: '0 4px 14px rgba(15,61,46,0.20)' }}
               >
-                Get a quote {icons.arrowRight}
+                Get a quote {!CLEAN_HERO && icons.arrowRight}
               </Link>
             </motion.div>
+            {CLEAN_HERO ? (
+              <Link href="/about" className="text-[14px] font-medium hover:underline" style={{ color: 'rgba(255,255,255,0.72)', fontFamily: SYSTEM_FONT }}>
+                Meet the team
+              </Link>
+            ) : (
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/about"
@@ -339,9 +351,15 @@ export default function HomePage() {
                 Meet the team
               </Link>
             </motion.div>
+            )}
           </motion.div>
 
           {/* Trust chips */}
+          {CLEAN_HERO ? (
+            <p className="mt-10 text-[12.5px] tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontFamily: SYSTEM_FONT }}>
+              Insured · Vetted crew · NDIS-ready
+            </p>
+          ) : (
           <motion.div
             className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2"
             initial={{ opacity: 0 }}
@@ -362,10 +380,11 @@ export default function HomePage() {
               </motion.span>
             ))}
           </motion.div>
+          )}
         </div>
 
         {/* Scroll cue */}
-        <motion.div
+        {!CLEAN_HERO && <motion.div
           className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5"
           style={{ color: BRAND.subtleOnDark }}
           initial={{ opacity: 0 }}
@@ -376,7 +395,7 @@ export default function HomePage() {
           <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
             {icons.chevDown}
           </motion.div>
-        </motion.div>
+        </motion.div>}
       </section>
 
       {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
@@ -673,6 +692,9 @@ export default function HomePage() {
  * Set false to go back to image-on-mobile, video-on-desktop.
  */
 const HERO_VIDEO_ON_MOBILE = true;
+// Clean hero: one headline, one line, one button. Set false to restore the old hero.
+const CLEAN_HERO = true;
+const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 function HeroVideo() {
   const ref = React.useRef<HTMLVideoElement>(null);
