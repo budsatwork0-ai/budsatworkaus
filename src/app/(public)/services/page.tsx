@@ -292,7 +292,11 @@ function ServicesPageContent() {
     if (!yardSheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    // Hide site header + quote bar so the map sheet owns the whole screen.
+    const st = document.createElement('style');
+    st.textContent = 'header, div[aria-live="polite"].fixed { display: none !important; }';
+    document.head.appendChild(st);
+    return () => { document.body.style.overflow = prev; st.remove(); };
   }, [yardSheetOpen]);
   const assistant = useAssistant({
     dispatch,
@@ -3951,7 +3955,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                       onClick={() => { postMessageToIframe({ type: 'YARD_TOGGLE_DRAWING', enabled: false }); setYardSheetOpen(false); }}
                       aria-label="Close map"
                       className="fixed right-3 z-[101] flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-slate-900 shadow-[0_4px_14px_rgba(0,0,0,0.18)] backdrop-blur-xl"
-                      style={{ top: 'calc(env(safe-area-inset-top) + 12px)' }}
+                      style={{ top: 'calc(env(safe-area-inset-top) + 76px)' }}
                     >
                       <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
                     </button>
