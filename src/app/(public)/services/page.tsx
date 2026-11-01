@@ -101,7 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
-import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT } from './components/shared/simple-cards';
+import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI, PREMIUM_FONT, SIMPLE_YARD } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -278,6 +278,7 @@ function ServicesPageContent() {
   const motionEnabled = !yardActive;
   const [activeServiceId, setActiveServiceId] = useState<string | null>(null);
   const [hasInteractedStep2, setHasInteractedStep2] = useState(false);
+  const [yardMapOpen, setYardMapOpen] = useState(false);
   const assistant = useAssistant({
     dispatch,
     wizardStep: S.step,
@@ -825,7 +826,7 @@ function ServicesPageContent() {
   };
 
 
-  const mapFrameSrc = '/yard-map-frame';
+  const mapFrameSrc = PREMIUM_UI && SIMPLE_YARD ? '/yard-map-frame?compact=1' : '/yard-map-frame';
 
   // Reset handler + mount
   const hardResetQuote = React.useCallback((silent = false) => {
@@ -3726,6 +3727,87 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         // Desktop gets the side-by-side layout (cards left, map right). Mobile always
         // stacks vertically: heading → cards → map → price bar.
         const inlineLayout = isDesktop;
+        const simpleYard = PREMIUM_UI && SIMPLE_YARD && !inlineLayout && !isNdisContext && S.service === 'yard';
+        const yardIsArea = yardMeasurementConfig.mode === 'area';
+        const yardMapShown = !yardIsArea || yardMapOpen;
+        const YARD_JOBS = [
+          { key: 'yard_mow', label: 'Mow' },
+          { key: 'yard_hedge', label: 'Hedge' },
+          { key: 'yard_leaves', label: 'Garden' },
+          { key: 'blast_and_shine', label: 'Wash' },
+          { key: 'gutter_clean', label: 'Gutter' },
+        ];
+        const yardSimplePanel = simpleYard ? (
+          <div className="rounded-[24px] border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_12px_36px_rgba(0,0,0,0.05)] space-y-4" style={{ fontFamily: PREMIUM_FONT }}>
+            <div className="flex items-center gap-3">
+              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 20h18" /><path d="M6 20c0-4 1-7 2-9M10 20c0-5 .5-9 2-12M14 20c0-4 1-7 3-10M18 20c0-3 .5-5 1.5-7" /></svg>
+              </span>
+              <div className="min-w-0">
+                <div className="text-[20px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">Yard Care</div>
+                <div className="text-[14px] text-slate-500 truncate">Mowing, hedges, gardens, washing and gutters</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-5 rounded-full bg-slate-100 p-1" role="radiogroup" aria-label="Job type">
+              {YARD_JOBS.map((j) => (
+                <button
+                  key={j.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={S.scope === j.key}
+                  onClick={() => {
+                    trackQuoteEvent('scope_selected', { service: S.service, scope: j.key, context: S.context });
+                    set('scope', j.key);
+                    applyScopePreset(S.service, j.key);
+                    setHasInteractedStep2(true);
+                  }}
+                  className={cls('rounded-full py-2 text-[13px] font-medium transition-all duration-200', S.scope === j.key ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-slate-500')}
+                >
+                  {j.label}
+                </button>
+              ))}
+            </div>
+            {yardIsArea ? (
+              <div>
+                <div className="mb-2 text-[15px] font-medium text-slate-900">How big is your yard?</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {YARD_SIZE_BUCKETS.map((b) => {
+                    let cost = 0;
+                    try {
+                      cost = computeYardQuote({ ...S.paramsByService.yard, yard_area: b.areaM2 }, {
+                        scope: S.scope, conditionMultiplier: conditionMult, accessTight: S.clutterAccess, conditionLevel: S.conditionLevel,
+                      }).cost;
+                    } catch { cost = 0; }
+                    const on = !hasZones && S.manualYardAreaM2 === b.areaM2;
+                    return (
+                      <button
+                        key={b.areaM2}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          set('manualYardAreaM2', b.areaM2);
+                          set('yardArea', b.areaM2);
+                          setHasInteractedStep2(true);
+                        }}
+                        className={cls('rounded-2xl border px-3 py-2.5 text-left transition-all active:scale-[0.98]', on ? 'border-emerald-500 bg-emerald-50/60' : 'border-black/[0.08] bg-white')}
+                      >
+                        <div className="text-[14px] font-medium text-slate-900">{b.label}</div>
+                        <div className="text-[12px] text-slate-500">~{b.areaM2.toLocaleString()} m²{cost > 0 ? ` · ${fmtAUD(cost)}` : ''}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[14px] text-slate-500">Hedges and gutters are priced by length. Outline them on the map below.</p>
+            )}
+            {yardIsArea && (
+              <button type="button" onClick={() => setYardMapOpen((v) => !v)} className="text-[14px] font-medium text-emerald-700">
+                {yardMapOpen ? 'Hide map' : 'Measure on map instead'}
+              </button>
+            )}
+          </div>
+        ) : null;
 
         return (
           <>
@@ -3751,7 +3833,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   {/* Scrollable content */}
                   <div className={inlineLayout ? 'flex-1 min-h-0 overflow-y-auto' : 'space-y-6'}>
                     <div className={inlineLayout ? 'px-4 pt-4 pb-2 space-y-4' : undefined}>
-                      {step2Body}
+                      {simpleYard ? yardSimplePanel : step2Body}
                     </div>
                     {inlineLayout && (
                       <div className="px-4 pt-2 pb-4 space-y-2.5">
@@ -3807,14 +3889,16 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 {/* RIGHT PANEL / BELOW PANEL: map */}
                 <div className={inlineLayout ? 'flex-1 relative overflow-hidden' : 'flex flex-col gap-3'}>
                   {/* Stacked-mobile only: scope tabs or NDIS card above the map */}
-                  {!inlineLayout && (isNdisContext ? ndisCard : scopeTabs)}
+                  {!inlineLayout && !simpleYard && (isNdisContext ? ndisCard : scopeTabs)}
 
                   {/* The map — absolute fill in inline layout, fixed height in stacked-mobile */}
                   <StableMapSlot
                     className={
                       inlineLayout
                         ? ''
-                        : 'w-full h-[480px] sm:h-[560px] rounded-2xl border border-black/10 shadow-lg overflow-hidden'
+                        : simpleYard
+                          ? cls('w-full rounded-[20px] border border-black/[0.06] overflow-hidden', yardMapShown ? 'h-[240px]' : 'h-0 border-0')
+                          : 'w-full h-[480px] sm:h-[560px] rounded-2xl border border-black/10 shadow-lg overflow-hidden'
                     }
                     style={inlineLayout ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } : undefined}
                   >
@@ -3823,11 +3907,18 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                   </StableMapSlot>
 
                   {/* Stacked-mobile only: actions below the map */}
-                  {!inlineLayout && (
+                  {!inlineLayout && !simpleYard && (
                     <div className="flex flex-col gap-2">
                       {clearZonesBtn}
                       {instructionText}
                       {yardSizeFallback}
+                      {sitesWidget}
+                    </div>
+                  )}
+                  {simpleYard && yardMapShown && (
+                    <div className="flex flex-col gap-2">
+                      {clearZonesBtn}
+                      {instructionText}
                       {sitesWidget}
                     </div>
                   )}
@@ -4864,6 +4955,12 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         aria-label="Step 2 price bar"
       >
         <div className="flex items-center justify-between gap-4">
+          {PREMIUM_UI ? (
+            <div className="min-w-0 truncate pl-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <span className="text-[17px] font-semibold tracking-[-0.01em] text-slate-900">{priceLabelBase}</span>
+              <span className="text-[15px] text-slate-500"> · {isNdisContext && S.service === 'cleaning' ? `~${effectiveNdisHours || NDIS_MIN_HOURS} hr` : timeLabel}</span>
+            </div>
+          ) : (
           <div>
             <div className="text-[10px] md:text-[11px] uppercase tracking-wide text-slate-500">
               {isNdisContext && S.service === 'cleaning' ? 'Total' : 'Price for this scope'}
@@ -4881,6 +4978,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               </div>
             )}
           </div>
+          )}
           <div className="shrink-0">
             <div className="md:hidden flex flex-col items-end gap-1.5">
               <M.button
@@ -4933,7 +5031,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   const zones = S.yardPolygon ?? [];
   const polygonReady = zones.some((z: any[]) => z.length >= 3);
   const ndisYardAddressReady = !isNdisContext || S.address.trim().length > 0;
-  const priceReady = polygonReady && ndisYardAddressReady && (isNdisContext ? ndisHourlyPrice !== null : estimate.total > 0);
+  const manualSizeReady = PREMIUM_UI && SIMPLE_YARD && !isNdisContext && yardMeasurementConfig.mode === 'area' && (S.manualYardAreaM2 ?? 0) > 0;
+  const priceReady = (polygonReady || manualSizeReady) && ndisYardAddressReady && (isNdisContext ? ndisHourlyPrice !== null : estimate.total > 0);
   const siteCount = S.yardJobs?.length || 0;
   const zoneCount = zones.filter((z: any[]) => z.length >= 3).length;
   const siteLabel = `${siteCount} site${siteCount === 1 ? '' : 's'} · ${zoneCount} zone${zoneCount !== 1 ? 's' : ''}`;
@@ -4995,6 +5094,34 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             </div>
           </div>
         )}
+        {PREMIUM_UI ? (
+        <div
+          className="pointer-events-auto flex items-center justify-between gap-3 rounded-full border border-black/[0.06] bg-white/70 py-2 pl-5 pr-2 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_10px_40px_rgba(0,0,0,0.10)]"
+          role="region"
+          aria-label="Yard price bar"
+          style={{ fontFamily: PREMIUM_FONT }}
+        >
+          <div className="min-w-0 truncate">
+            {priceReady ? (
+              <span className="text-[17px] font-semibold tracking-[-0.01em] text-slate-900" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {priceLabel}<span className="font-normal text-slate-500"> · {isLargeProperty ? `${numVisits} visits` : timeLabel}</span>
+              </span>
+            ) : (
+              <span className="text-[14px] text-slate-500">
+                {polygonReady && !ndisYardAddressReady ? 'Search your address' : yardMeasurementConfig.mode === 'area' ? 'Pick a yard size' : 'Outline it on the map'}
+              </span>
+            )}
+          </div>
+          <M.button
+            className={cls('h-10 shrink-0 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition active:scale-[0.97]', !priceReady && 'opacity-40')}
+            onClick={() => { if (priceReady) goToStep(3); }}
+            disabled={!priceReady}
+            aria-label="Continue to yard quote details"
+          >
+            Continue
+          </M.button>
+        </div>
+        ) : (
         <div
           className="pointer-events-auto rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-xl"
           role="region"
@@ -5058,6 +5185,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             </div>
           </div>
         </div>
+        )}
       </M.div>
     </div>
   );
