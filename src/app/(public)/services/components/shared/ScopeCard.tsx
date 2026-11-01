@@ -4,7 +4,7 @@ import React from 'react';
 import { cls, fmtAUD, fmtHrMin, titleCase } from '../../utils/formatting';
 import { hourlyRate } from '../../lib/pricing/engine';
 import { computeScopeCardState } from '../../lib/scope-card-state';
-import { SIMPLE_SERVICE_CARDS, MENU_SERVICE_CARDS, CARD_PHOTOS, CARD_LINES } from './simple-cards';
+import { PREMIUM_UI, PREMIUM_FONT, SIMPLE_SERVICE_CARDS, MENU_SERVICE_CARDS, CARD_PHOTOS, CARD_LINES } from './simple-cards';
 import { calculateServicePrice } from '../../lib/estimation';
 import { glassCard } from './UIComponents';
 import { ChecklistSection } from './ChecklistSection';
@@ -49,13 +49,18 @@ export const ScopeCard = React.memo(function ScopeCard({
       tabIndex={0}
       aria-pressed={isActive ? 'true' : 'false'}
       aria-labelledby={labelId}
+      style={PREMIUM_UI ? { fontFamily: PREMIUM_FONT } : undefined}
       aria-describedby={hookId}
       className={cls(
-        glassCard(isActive),
+        PREMIUM_UI
+          ? cls('rounded-[24px] p-4 cursor-pointer select-none bg-white border transition-all duration-300 ease-out active:scale-[0.98]',
+              isActive ? 'border-emerald-500/50 shadow-[0_2px_4px_rgba(0,0,0,0.03),0_20px_50px_rgba(16,94,60,0.10)]' : 'border-black/[0.06] shadow-[0_1px_2px_rgba(0,0,0,0.03),0_12px_36px_rgba(0,0,0,0.05)]')
+          : glassCard(isActive),
         'group relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1 transition-all active:scale-[0.99]',
-        isConfigOpen
+        PREMIUM_UI ? '' : isConfigOpen
           ? 'shadow-[0_20px_60px_rgba(2,6,23,0.18)] z-10'
           : 'hover:shadow-[0_16px_40px_rgba(2,6,23,0.10)] hover:ring-emerald-200/70',
+        PREMIUM_UI && !isActive ? 'hover:shadow-[0_2px_4px_rgba(0,0,0,0.03),0_18px_44px_rgba(0,0,0,0.08)]' : '',
         'flex flex-col h-full min-w-0',
         className
       )}
@@ -93,7 +98,7 @@ export const ScopeCard = React.memo(function ScopeCard({
         const meta = [price > 0 ? `From ${fmtAUD(price)}` : '', sc.groupLine ? '' : time].filter(Boolean).join(' · ');
         return (
           <div className="-mx-4 -mt-4 mb-3">
-            <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100">
+            <div className={cls("relative w-full overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100", PREMIUM_UI ? "h-48 rounded-t-[24px]" : "h-32")}>
               {photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -117,8 +122,10 @@ export const ScopeCard = React.memo(function ScopeCard({
                   if (S.service !== 'yard') setActiveServiceId(sc.key);
                 }}
                 className={cls(
-                  'absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition-colors',
-                  isActive ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700'
+                  PREMIUM_UI
+                    ? 'absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-xl transition-all duration-300 active:scale-90 shadow-[0_4px_14px_rgba(0,0,0,0.12)]'
+                    : 'absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition-colors',
+                  isActive ? (PREMIUM_UI ? 'bg-emerald-600 text-white scale-105' : 'bg-emerald-600 text-white') : (PREMIUM_UI ? 'bg-white/85 text-slate-900' : 'bg-white text-emerald-700')
                 )}
               >
                 <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -126,16 +133,16 @@ export const ScopeCard = React.memo(function ScopeCard({
                 </svg>
               </button>
             </div>
-            <div className="px-4 pt-3">
-              <div id={labelId} className="text-lg font-bold leading-tight tracking-tight text-slate-900">
+            <div className={PREMIUM_UI ? "px-5 pt-5" : "px-4 pt-3"}>
+              <div id={labelId} className={PREMIUM_UI ? "text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900" : "text-lg font-bold leading-tight tracking-tight text-slate-900"}>
                 {titleCase(sc.label)}
               </div>
-              {!!line && <p id={hookId} className="mt-0.5 text-sm text-slate-600 line-clamp-1">{line}</p>}
+              {!!line && <p id={hookId} className={PREMIUM_UI ? "mt-1 text-[15px] text-slate-500 line-clamp-1" : "mt-0.5 text-sm text-slate-600 line-clamp-1"}>{line}</p>}
               {!!meta && (
-                <p className="mt-1.5 text-sm font-semibold text-emerald-800" style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>
+                <p className={PREMIUM_UI ? "mt-2 text-[15px] font-medium text-slate-900" : "mt-1.5 text-sm font-semibold text-emerald-800"} style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>
               )}
               {isActive && Array.isArray(sc.groupVariants) && sc.groupVariants.length > 1 && (
-                <div data-card-interactive="true" className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Choose an option">
+                <div data-card-interactive="true" className={PREMIUM_UI ? "mt-4 flex rounded-full bg-slate-100 p-1" : "mt-3 flex flex-wrap gap-2"} role="radiogroup" aria-label="Choose an option">
                   {sc.groupVariants.map((v: { key: string; label: string }) => (
                     <button
                       key={v.key}
@@ -149,8 +156,10 @@ export const ScopeCard = React.memo(function ScopeCard({
                         setActiveServiceId(v.key);
                       }}
                       className={cls(
-                        'rounded-xl px-3 py-2 text-sm font-semibold',
-                        sc.key === v.key ? 'bg-emerald-600 text-white' : 'bg-white text-[#0F3F33] border border-emerald-100'
+                        PREMIUM_UI ? 'flex-1 rounded-full px-2 py-2 text-[13px] font-medium transition-all duration-200' : 'rounded-xl px-3 py-2 text-sm font-semibold',
+                        PREMIUM_UI
+                          ? (sc.key === v.key ? 'bg-white text-slate-900 shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-slate-500')
+                          : (sc.key === v.key ? 'bg-emerald-600 text-white' : 'bg-white text-[#0F3F33] border border-emerald-100')
                       )}
                     >
                       {v.label}
@@ -310,8 +319,8 @@ export const ScopeCard = React.memo(function ScopeCard({
                 e.stopPropagation();
                 onAdd(sc.key);
               }}
-              className={cls(SIMPLE_SERVICE_CARDS ? 'w-full h-11 text-base font-semibold' : 'text-sm px-4 py-2', 'rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]')}
-              style={{ background: 'var(--accent)' }}
+              className={PREMIUM_UI ? 'ml-auto h-10 px-6 rounded-full bg-slate-900 text-white text-sm font-medium transition-transform active:scale-[0.97]' : cls(SIMPLE_SERVICE_CARDS ? 'w-full h-11 text-base font-semibold' : 'text-sm px-4 py-2', 'rounded-2xl text-white shadow-[0_8px_20px_rgba(20,83,45,0.2)]')}
+              style={PREMIUM_UI ? undefined : { background: 'var(--accent)' }}
             >
               {MENU_SERVICE_CARDS ? 'Continue' : 'Add to quote'}
             </button>

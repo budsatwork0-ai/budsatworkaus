@@ -101,7 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
-import { ONE_CARD_PER_SERVICE, CARD_GROUPS } from './components/shared/simple-cards';
+import { ONE_CARD_PER_SERVICE, CARD_GROUPS, PREMIUM_UI } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -2243,8 +2243,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             <div className="space-y-8">
             <section className={cls('mb-12', S.service === 'yard' && 'hidden')}>
               <div>
-                  <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">What can we help with today?</h1>
-                  <p className="mt-2 text-slate-500 text-base">Choose a service and we&apos;ll build a clear quote with you.</p>
+                  <h1 className={PREMIUM_UI ? "text-[34px] md:text-5xl font-semibold tracking-[-0.03em] leading-[1.08] text-slate-900" : "text-4xl md:text-5xl font-semibold tracking-tight text-slate-900"}>What can we help with today?</h1>
+                  <p className={PREMIUM_UI ? "mt-3 text-slate-500 text-[17px] tracking-[-0.01em]" : "mt-2 text-slate-500 text-base"}>Choose a service and we&apos;ll build a clear quote with you.</p>
               </div>
               {/* Step progress indicator */}
               <div className="flex items-center gap-3 mt-6 select-none" aria-label="Quote progress">
@@ -3281,10 +3281,10 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                       ) : null
                     ) : (
                       <div>
-                        <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
+                        <h3 className={PREMIUM_UI ? "text-[26px] md:text-3xl font-semibold tracking-[-0.025em] text-slate-900" : "text-2xl md:text-3xl font-semibold tracking-tight text-slate-900"}>
                           What do you need done?
                         </h3>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className={PREMIUM_UI ? "mt-1.5 text-[15px] text-slate-500" : "mt-1 text-sm text-slate-600"}>
                           Pick the closest option — you can fine-tune the details before you submit.
                         </p>
                       </div>
@@ -4826,7 +4826,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   >
     <div className="mx-auto max-w-3xl px-4">
       <div
-        className={`pointer-events-auto rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
+        className={PREMIUM_UI ? 'pointer-events-auto rounded-[22px] px-4 py-3 bg-white/70 backdrop-blur-2xl backdrop-saturate-150 border border-black/[0.06] shadow-[0_10px_40px_rgba(0,0,0,0.10)]' : `pointer-events-auto rounded-2xl px-3 py-2 md:px-4 md:py-3 ${glass}`}
         role="region"
         aria-label="Step 2 price bar"
       >
@@ -4851,8 +4851,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
           <div className="shrink-0">
             <div className="md:hidden flex flex-col items-end gap-1.5">
               <M.button
-                className={`h-11 px-5 rounded-2xl text-sm font-semibold whitespace-nowrap text-white shadow-[0_6px_18px_rgba(20,83,45,0.20)] transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
-                style={{ background: 'var(--accent)' }}
+                className={PREMIUM_UI ? `h-10 px-5 rounded-full bg-slate-900 text-sm font-medium whitespace-nowrap text-white transition active:scale-[0.97]${!hasMinimumWork ? ' opacity-40 cursor-not-allowed' : ''}` : `h-11 px-5 rounded-2xl text-sm font-semibold whitespace-nowrap text-white shadow-[0_6px_18px_rgba(20,83,45,0.20)] transition-opacity${!hasMinimumWork ? ' opacity-50 cursor-not-allowed' : ''}`}
+                style={PREMIUM_UI ? undefined : { background: 'var(--accent)' }}
                 onClick={() => hasMinimumWork && goToStep(3)}
                 aria-label={isNdisContext && S.service === 'cleaning' ? 'Review quote' : 'Continue to your details'}
                 title={!hasMinimumWork ? 'Configure your service above to continue' : undefined}
