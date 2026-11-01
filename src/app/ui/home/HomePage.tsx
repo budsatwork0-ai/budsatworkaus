@@ -217,6 +217,7 @@ export default function HomePage() {
             </>
           )}
 
+          {HERO_MODERN ? (<div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.38) 50%, rgba(0,0,0,0.55) 100%)' }} />) : (<>
           {CLEAN_HERO && !HERO_COLOUR && (
             <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.60) 100%)' }} />
           )}
@@ -240,8 +241,10 @@ export default function HomePage() {
             transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
             style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.20) 0%, transparent 55%)' }}
           />
+          </>)}
         </div>
 
+        {HERO_MODERN ? <ModernHeroText word={ROTATING_WORDS[wordIndex]} show={heroIn} /> : (<>
         {/* Hero text */}
         <div className="relative z-10 px-5 sm:px-8 max-w-3xl mx-auto w-full">
           {/* Location chip */}
@@ -395,6 +398,7 @@ export default function HomePage() {
           </motion.div>
           )}
         </div>
+        </>)}
 
         {/* Scroll cue */}
         {!CLEAN_HERO && <motion.div
@@ -709,6 +713,63 @@ const HERO_VIDEO_ON_MOBILE = true;
 const CLEAN_HERO = true;
 // Colour pass on the clean hero (green accents, lighter overlay). Set false for the plain clean hero.
 const HERO_COLOUR = true;
+// Modern hero: white headline, one green accent word, solid white pill, even scrim. Set false for the HERO_COLOUR version.
+const HERO_MODERN = true;
+const MODERN_GREEN = '#5FD39A';
+
+function ModernHeroText({ word, show }: { word: string; show: boolean }) {
+  const font = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif';
+  const w = word.charAt(0).toUpperCase() + word.slice(1);
+  return (
+    <motion.div
+      className="relative z-10 px-6 sm:px-8 max-w-4xl mx-auto w-full text-center"
+      style={{ fontFamily: font }}
+      initial={{ opacity: 0, y: 16 }}
+      animate={show ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <h1
+        className="font-semibold text-white"
+        style={{ fontSize: 'clamp(2.5rem, 7.5vw, 5.5rem)', lineHeight: 1.05, letterSpacing: '-0.035em' }}
+      >
+        <span className="block relative overflow-hidden" style={{ height: '1.12em' }} aria-live="polite">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={w}
+              className="absolute inset-x-0 top-0 whitespace-nowrap"
+              initial={{ y: '0.5em', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '-0.5em', opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            >
+              Your <span style={{ color: MODERN_GREEN }}>{w}</span>,
+            </motion.span>
+          </AnimatePresence>
+        </span>
+        <span className="block">looked after.</span>
+      </h1>
+      <p className="mt-5 mx-auto max-w-md text-[17px] md:text-[19px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+        Cleaning, yard care and more across Logan &amp; South Brisbane.
+      </p>
+      <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-5">
+        <Link
+          href="/services"
+          data-track="hero_quote_click"
+          data-track-label="Homepage hero quote"
+          className="inline-flex items-center rounded-full bg-white text-black text-[16px] font-medium px-8 py-3.5 transition-opacity hover:opacity-90"
+        >
+          Get a quote
+        </Link>
+        <Link href="/about" className="text-[15px] font-medium text-white/80 hover:text-white transition-colors">
+          Meet the team →
+        </Link>
+      </div>
+      <p className="mt-10 text-[12px] tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>
+        Insured · Vetted crew · NDIS-ready
+      </p>
+    </motion.div>
+  );
+}
 const SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 function HeroVideo() {
