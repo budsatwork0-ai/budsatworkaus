@@ -197,3 +197,14 @@ body {
     font-size: 16px !important;
   }
 }
+
+
+/* MODERN_FONT (layout.tsx): Inter everywhere. Remove the .modern-font class to restore Arial. */
+html.modern-font body {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  line-height: 1.5;
+  font-feature-settings: 'cv11', 'ss01';
+}
+html.modern-font h1, html.modern-font h2, html.modern-font h3 { letter-spacing: -0.025em; }
+html.modern-font h4, html.modern-font h5, html.modern-font h6 { letter-spacing: -0.015em; }
+html.modern-font button, html.modern-font input, html.modern-font select, html.modern-font textarea { font-family: inherit; }
