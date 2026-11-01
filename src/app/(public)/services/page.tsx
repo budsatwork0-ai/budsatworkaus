@@ -1893,6 +1893,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
   }, [effectiveNdisHours, estMinutes, isLaundryService, isSneakerService, S.sneakerTurnaround, S.context, S.service]);
 
   const isNdisContext = S.context === 'ndis';
+  // Mobile simple-yard: trim the empty space above the Yard Care card.
+  const compactYardTop = PREMIUM_UI && SIMPLE_YARD && !isDesktop && !isNdisContext && S.service === 'yard' && S.step >= 2;
   const serviceContextLabel = CONTEXT_LABELS[S.context];
 
 /* =========================
@@ -2242,7 +2244,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 
         <main
           className={cls(
-            'relative mx-auto max-w-6xl px-4 sm:px-6 md:px-8 py-10 overflow-x-hidden',
+            'relative mx-auto max-w-6xl px-4 sm:px-6 md:px-8 overflow-x-hidden',
+            compactYardTop ? 'pt-0 pb-10' : 'py-10',
             !yardActive && S.step >= 2 ? 'pb-[12rem]' : ''
           )}
         >
@@ -2322,7 +2325,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
             </section>
             <div className="grid gap-6">
               <div className="space-y-8">
-                <div className="grid grid-cols-1 gap-8 items-start">
+                <div className={cls('grid grid-cols-1 items-start', compactYardTop ? 'gap-0' : 'gap-8')}>
                   <div>
 
           {/* ===== STEP 1 ===== */}

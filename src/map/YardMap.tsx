@@ -2,6 +2,7 @@
 
 import { loadGoogleMapsOnce } from "./yardMapLoader";
 import { LatLng } from "./types";
+import { computeAreaFromPath } from "@/lib/services-core/yard-pricing";
 import React from "react";
 
 const DEFAULT_CENTER: LatLng = { lat: -27.4698, lng: 153.0251 };
@@ -725,17 +726,11 @@ export default function YardMap({
     return () => window.clearTimeout(t);
   }, [drawingEnabled, isCompact]);
   const previewArea = React.useMemo(() => {
+    // Same maths as pricing (computeAreaFromPath) summed across all zones, so Done matches the card.
     const v = drawingVerticesRef.current;
-    if (v.length < 3) return 0;
-    const R0 = 6378137;
-    const lat0 = (v.reduce((a, p) => a + p.lat(), 0) / v.length) * Math.PI / 180;
-    const pts = v.map((p) => [p.lng() * Math.PI / 180 * R0 * Math.cos(lat0), p.lat() * Math.PI / 180 * R0]);
-    let a = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const [x1, y1] = pts[i]; const [x2, y2] = pts[(i + 1) % pts.length];
-      a += x1 * y2 - x2 * y1;
-    }
-    return Math.round(Math.abs(a) / 2);
+    const current = v.length >= 3 ? computeAreaFromPath(v.map((p) => ({ lat: roundCoord(p.lat()), lng: roundCoord(p.lng()) }))) : 0;
+    const existing = zonesRef.current.reduce((sum, z) => sum + computeAreaFromPath(coordsFromPath(z.polygon.getPath())), 0);
+    return Math.round(current + existing);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vertexCount]);
   const undoLastPoint = React.useCallback(() => {
