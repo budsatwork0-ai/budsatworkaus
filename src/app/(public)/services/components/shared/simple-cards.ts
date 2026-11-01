@@ -96,3 +96,7 @@ export const CARD_GROUPS: Record<string, CardGroup> = {
     ],
   },
 };
+
+/** Premium look for step 2 (1 Nov 2026): white cards, hairlines, soft shadows, pill buttons. Set false for the previous look. */
+export const PREMIUM_UI = true;
+export const PREMIUM_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif';
