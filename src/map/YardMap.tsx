@@ -843,6 +843,15 @@ export default function YardMap({
         #__MAP_ROOT__ .gm-style button[title="Zoom out"] { display: none !important; }
       `}</style>
 
+      {/* Compact mode (?compact=1): only Draw and clear; pinch to zoom. */}
+      {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("compact") === "1" && (
+        <style>{`
+          button[aria-label="Toggle map information"],
+          button[aria-label="Center map on my location"],
+          button[aria-label="Zoom in"],
+          button[aria-label="Zoom out"] { display: none !important; }
+        `}</style>
+      )}
       {/* Right-rail control stack — Draw at top, then locate/info, then zoom */}
       {!loadError && (
         <div
