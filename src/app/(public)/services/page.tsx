@@ -3460,7 +3460,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                                     .slice(0, 3)
                                     .join(', ')}…`
                                 : 'A simple, reliable preset tailored to your place.');
-                            const isBlurred = !mapVisible && !!activeServiceId && activeServiceId !== sc.key;
+                            const isBlurred = !mapVisible && !!activeServiceId && activeServiceId !== sc.key && !(ALL_CARDS_SHELL && sc.groupWrap);
                             const className = cls(
                               spanLastOdd ? 'md:col-span-2' : '',
                               'transition-all duration-200',
