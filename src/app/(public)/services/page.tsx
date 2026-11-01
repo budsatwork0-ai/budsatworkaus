@@ -3772,12 +3772,6 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 <div className="mb-2 text-[15px] font-medium text-slate-900">How big is your yard?</div>
                 <div className="grid grid-cols-2 gap-2">
                   {YARD_SIZE_BUCKETS.map((b) => {
-                    let cost = 0;
-                    try {
-                      cost = computeYardQuote({ ...S.paramsByService.yard, yard_area: b.areaM2 }, {
-                        scope: S.scope, conditionMultiplier: conditionMult, accessTight: S.clutterAccess, conditionLevel: S.conditionLevel,
-                      }).cost;
-                    } catch { cost = 0; }
                     const on = !hasZones && S.manualYardAreaM2 === b.areaM2;
                     return (
                       <button
@@ -3792,7 +3786,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                         className={cls('rounded-2xl border px-3 py-2.5 text-left transition-all active:scale-[0.98]', on ? 'border-emerald-500 bg-emerald-50/60' : 'border-black/[0.08] bg-white')}
                       >
                         <div className="text-[14px] font-medium text-slate-900">{b.label}</div>
-                        <div className="text-[12px] text-slate-500">~{b.areaM2.toLocaleString()} m²{cost > 0 ? ` · ${fmtAUD(cost)}` : ''}</div>
+                        <div className="text-[12px] text-slate-500">~{b.areaM2.toLocaleString()} m²</div>
                       </button>
                     );
                   })}
