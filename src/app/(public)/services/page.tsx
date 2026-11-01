@@ -2925,7 +2925,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     <div className="px-5 py-5">
                       <div className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">{S.service === 'cleaning' ? 'NDIS Cleaning' : 'NDIS Yard Care'}</div>
                       <p className="mt-1 text-[15px] text-slate-500 line-clamp-1">{S.service === 'cleaning' ? 'Household cleaning, billed by the hour' : 'Mowing and garden care, billed by the hour'}</p>
-                      <p className="mt-2 text-[15px] font-medium text-slate-900" style={{ fontVariantNumeric: 'tabular-nums' }}>From {fmtAUD(effectiveRate)}/hr · ~{fmtHours(hours)}h suggested</p>
+                      <p className="mt-2 text-[15px] font-medium text-slate-900" style={{ fontVariantNumeric: 'tabular-nums' }}>From ${Number.isInteger(effectiveRate) ? effectiveRate : effectiveRate.toFixed(2)}/hr · ~{fmtHours(hours)}h suggested</p>
                     </div>
                   </div>
                 )}
@@ -2934,7 +2934,8 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     announces itself instead of fading into the page. The
                     price tile uses inverted contrast (deep violet bg, white
                     figures) so it reads as the unmistakable answer. */}
-                <div className="relative overflow-hidden rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6 shadow-[0_4px_24px_-8px_rgba(124,58,237,0.18)]">
+                {!(ALL_CARDS_SHELL && PREMIUM_UI) && (
+<div className="relative overflow-hidden rounded-2xl border border-violet-200/70 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6 shadow-[0_4px_24px_-8px_rgba(124,58,237,0.18)]">
                   {/* Decorative dot pattern */}
                   <div
                     aria-hidden
@@ -3001,6 +3002,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Card 1 — About the property/yard.
                     Note: input changes do NOT touch ndisHoursOrigin. The
