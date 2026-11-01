@@ -101,6 +101,7 @@ import { useRouteResult } from './lib/hooks/useRouteResult';
 import { Tile, glassCard, CommSqmSlider, NumberStepper } from './components/shared/UIComponents';
 import { type ScopeCardProps, type RouteSlot, type LaundrySlot } from './components/shared/ScopeCard.types';
 import { ScopeCard } from './components/shared/ScopeCard';
+import { ONE_CARD_PER_SERVICE, CARD_GROUPS } from './components/shared/simple-cards';
 
 // Extracted modules - Service data & helpers
 import {
@@ -3300,10 +3301,25 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     )}>
                       <div className={cls('grid gap-4 md:gap-5', mapVisible ? 'grid-cols-1' : 'md:grid-cols-2')}>
                         {(() => {
-                          const scopes =
+                          const rawScopes =
                             S.service === 'cleaning'
                               ? cleaningScopesForContext(S.context)
                               : SCOPES_BY_SERVICE[S.service] || [];
+                          const group = ONE_CARD_PER_SERVICE && !(S.service === 'cleaning' && S.context === 'commercial')
+                            ? CARD_GROUPS[S.service] : undefined;
+                          const scopes: any[] = group
+                            ? (() => {
+                                const keys = group.variants.map((v) => v.key);
+                                const inGroup = rawScopes.filter((x) => keys.includes(x.key));
+                                if (!inGroup.length) return rawScopes;
+                                const cur = keys.includes(S.scope as string) ? (S.scope as string) : keys[0];
+                                const base = rawScopes.find((x) => x.key === cur) || inGroup[0];
+                                const merged = { ...base, key: cur, label: group.label, groupLine: group.line, groupFrom: group.from, groupPhoto: group.photo, groupVariants: group.hideToggle ? undefined : group.variants.filter((v) => inGroup.some((x) => x.key === v.key)) };
+                                const firstIdx = rawScopes.findIndex((x) => keys.includes(x.key));
+                                const rest = rawScopes.filter((x) => !keys.includes(x.key));
+                                return [...rest.slice(0, firstIdx), merged, ...rest.slice(firstIdx)];
+                              })()
+                            : rawScopes;
 
 
                           const commercialNiches: CommercialCleaningType[] = ['office', 'medical', 'fitness', 'hospitality', 'education', 'event', 'accommodation'];
