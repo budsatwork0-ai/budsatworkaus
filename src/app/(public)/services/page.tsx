@@ -2326,7 +2326,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                           key={key}
                           role="tab"
                           aria-selected={isActive}
-                          className={PREMIUM_UI ? "relative flex-1 px-3 py-2 rounded-full text-[14px] font-medium tracking-[-0.01em] focus-visible:outline-none transition-all duration-200" : "relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"}
+                          className={PREMIUM_UI ? "relative flex-1 whitespace-nowrap px-2 py-2 rounded-full text-[14px] font-medium tracking-[-0.01em] focus-visible:outline-none transition-all duration-200" : "relative px-5 py-1.5 rounded-full text-sm font-medium focus-visible:outline-none"}
                           style={PREMIUM_UI ? {
                             background: isActive ? '#fff' : 'transparent',
                             color: isActive ? '#0f172a' : '#64748b',
