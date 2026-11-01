@@ -3797,6 +3797,26 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
         ];
         const yardSimplePanel = simpleYard ? (
           <div className="rounded-[24px] border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_12px_36px_rgba(0,0,0,0.05)] space-y-4" style={{ fontFamily: PREMIUM_FONT }}>
+            {ALL_CARDS_SHELL ? (() => {
+              const ready = hasZones || (yardIsArea && (S.manualYardAreaM2 ?? 0) > 0);
+              let fromPrice = 0;
+              try { fromPrice = calculateServicePrice(S.scope, { ...S, manualYardAreaM2: YARD_SIZE_BUCKETS[0].areaM2, yardArea: YARD_SIZE_BUCKETS[0].areaM2 } as any).price; } catch { fromPrice = 0; }
+              const meta = ready ? `${priceLabel} · ${timeLabel}` : fromPrice > 0 ? `From ${fmtAUD(fromPrice)}` : '';
+              return (
+                <div className="-mx-4 -mt-4">
+                  <div className="flex h-28 w-full items-center justify-center rounded-t-[24px] bg-gradient-to-br from-emerald-50/80 to-slate-50">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-white/80 text-emerald-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                      <svg aria-hidden width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15" /><path d="M5 19l7-7" /></svg>
+                    </div>
+                  </div>
+                  <div className="px-5 pt-4">
+                    <div className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-slate-900">Yard Care</div>
+                    <p className="mt-1 text-[15px] leading-snug text-slate-500">Mowing, hedges, gardens, washing and gutters</p>
+                    {!!meta && <p className="mt-2 text-[15px] font-medium text-slate-900" style={{ fontVariantNumeric: 'tabular-nums' }}>{meta}</p>}
+                  </div>
+                </div>
+              );
+            })() : (
             <div className="flex items-center gap-3">
               <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 20h18" /><path d="M6 20c0-4 1-7 2-9M10 20c0-5 .5-9 2-12M14 20c0-4 1-7 3-10M18 20c0-3 .5-5 1.5-7" /></svg>
@@ -3806,6 +3826,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                 <div className="text-[14px] text-slate-500 truncate">Mowing, hedges, gardens, washing and gutters</div>
               </div>
             </div>
+            )}
             <div className="grid grid-cols-5 rounded-full bg-slate-100 p-1" role="radiogroup" aria-label="Job type">
               {YARD_JOBS.map((j) => (
                 <button
@@ -3869,6 +3890,18 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
               <button type="button" onClick={() => setYardMapOpen((v) => !v)} className="text-[14px] font-medium text-emerald-700">
                 {yardMapOpen ? 'Hide map' : 'Measure on map instead'}
               </button>
+            )}
+            {ALL_CARDS_SHELL && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={!(hasZones || (yardIsArea && (S.manualYardAreaM2 ?? 0) > 0))}
+                  onClick={() => goToStep(3)}
+                  className="h-11 rounded-full bg-slate-900 px-6 text-[15px] font-medium text-white transition active:scale-[0.97] disabled:opacity-40"
+                >
+                  Continue
+                </button>
+              </div>
             )}
           </div>
         ) : null;
