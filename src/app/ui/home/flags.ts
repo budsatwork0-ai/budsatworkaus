@@ -5,3 +5,7 @@ export const HOME_MODERN_SECTIONS = true;
 // Light four-number stats row under the hero (modern sections). Hidden 2 Nov 2026 at
 // Jackson's request. Set true to bring it back.
 export const HOME_STATS_ROW = false;
+
+// One draggable before/after comparison slider in "See the difference" (2 Nov 2026).
+// Set false to restore the two side-by-side photos.
+export const HOME_BA_SLIDER = true;

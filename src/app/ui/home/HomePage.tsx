@@ -1,6 +1,7 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER } from './flags';
+import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
@@ -882,6 +883,16 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
         {/* Before / after */}
         <section>
           <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
+          {HOME_BA_SLIDER ? (
+            <FadeUp delay={0.06}>
+              <div className="mt-8">
+                <BeforeAfterSlider
+                  before={{ src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' }}
+                  after={{ src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' }}
+                />
+              </div>
+            </FadeUp>
+          ) : (
           <FadeUp delay={0.06}>
             <div className="mt-8 grid grid-cols-2 gap-2 px-2 sm:px-6">
               {[
@@ -897,6 +908,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
               ))}
             </div>
           </FadeUp>
+          )}
           <div className="mt-6 text-center">
             <MsLink href="/services?service=windows" track="homepage_proof_window_quote_click">Get a window quote</MsLink>
           </div>
