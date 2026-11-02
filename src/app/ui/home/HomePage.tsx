@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW } from './flags';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
@@ -862,7 +862,8 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
   ];
   return (
     <div className="bg-white" style={{ fontFamily: MS_FONT }}>
-      {/* Stats — light inline row */}
+      {/* Stats — light inline row (HOME_STATS_ROW) */}
+      {HOME_STATS_ROW && (
       <FadeUp>
         <div className="mx-auto max-w-4xl px-6 pt-16 pb-4 grid grid-cols-4 gap-2 text-center">
           {stats.map(({ val, suf, pre, lbl }) => (
@@ -875,6 +876,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
           ))}
         </div>
       </FadeUp>
+      )}
 
       <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
         {/* Before / after */}
