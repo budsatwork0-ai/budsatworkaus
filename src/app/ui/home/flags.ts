@@ -9,3 +9,7 @@ export const HOME_STATS_ROW = false;
 // One draggable before/after comparison slider in "See the difference" (2 Nov 2026).
 // Set false to restore the two side-by-side photos.
 export const HOME_BA_SLIDER = true;
+
+// Serve before/after slider photos as the original files (no Next.js re-compression).
+// Sources are only 300x400; a sharp result needs higher-res photos. Set false to revert.
+export const HOME_BA_ORIGINAL_FILES = true;
