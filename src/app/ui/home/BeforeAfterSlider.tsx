@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { HOME_BA_ORIGINAL_FILES } from './flags';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type Photo = { src: string; alt: string };
@@ -116,9 +117,9 @@ export default function BeforeAfterSlider({ before, after }: { before: Photo; af
         className="relative aspect-[4/5] sm:aspect-[4/3] w-full overflow-hidden rounded-[22px] bg-neutral-100 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] select-none outline-none focus-visible:ring-2 focus-visible:ring-green-600 cursor-ew-resize"
         style={{ touchAction: 'pan-y' }}
       >
-        <Image src={before.src} alt={before.alt} fill sizes="(max-width: 768px) 100vw, 672px" className="object-cover pointer-events-none" draggable={false} />
+        <Image src={before.src} alt={before.alt} fill sizes="(max-width: 768px) 100vw, 720px" quality={90} unoptimized={HOME_BA_ORIGINAL_FILES} className="object-cover pointer-events-none" draggable={false} />
         <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${pos}%)` }}>
-          <Image src={after.src} alt={after.alt} fill sizes="(max-width: 768px) 100vw, 672px" className="object-cover pointer-events-none" draggable={false} />
+          <Image src={after.src} alt={after.alt} fill sizes="(max-width: 768px) 100vw, 720px" quality={90} unoptimized={HOME_BA_ORIGINAL_FILES} className="object-cover pointer-events-none" draggable={false} />
         </div>
         <span className={`${pill} left-3`} style={{ opacity: 0.35 + 0.65 * Math.min(1, pos / 30) }}>Before</span>
         <span className={`${pill} right-3`} style={{ opacity: 0.35 + 0.65 * Math.min(1, (100 - pos) / 30) }}>After</span>
