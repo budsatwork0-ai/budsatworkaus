@@ -1,5 +1,6 @@
 'use client';
 
+import { HOME_MODERN_SECTIONS } from './flags';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
@@ -416,7 +417,8 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
-      {/* Clean white below the hero — no overlap, no floating band */}
+      {HOME_MODERN_SECTIONS ? <ModernSections ctaRef={ctaSectionRef} /> : (
+      /* Clean white below the hero — no overlap, no floating band */
       <div className="relative overflow-hidden">
 
         {/* ── Stats band — flush below hero, no overlap ── */}
@@ -699,6 +701,7 @@ export default function HomePage() {
 
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -825,5 +828,144 @@ function HeroVideo() {
       src={src ?? undefined}
       aria-hidden
     />
+  );
+}
+
+
+// ─── Modern sections (HOME_MODERN_SECTIONS) ──────────────────────────────────
+const MS_FONT = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const MS_GREEN = '#15803D';
+
+function MsHeading({ title, sub }: { title: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <FadeUp className="text-center">
+      <h2 className="text-[clamp(1.9rem,6vw,3rem)] font-semibold leading-[1.1] text-neutral-900" style={{ letterSpacing: '-0.03em' }}>{title}</h2>
+      {sub && <p className="mt-3 mx-auto max-w-md text-[16px] leading-relaxed text-neutral-500">{sub}</p>}
+    </FadeUp>
+  );
+}
+
+function MsLink({ href, children, track }: { href: string; children: React.ReactNode; track?: string }) {
+  return (
+    <Link href={href} data-track={track} className="inline-flex items-center gap-1 text-[15px] font-medium hover:opacity-70 transition-opacity" style={{ color: MS_GREEN }}>
+      {children} <span aria-hidden>→</span>
+    </Link>
+  );
+}
+
+function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | null> }) {
+  const stats = [
+    { val: 6, suf: '', pre: '', lbl: 'Services online' },
+    { val: 2, suf: '', pre: '', lbl: 'Regions' },
+    { val: 4, suf: 'h', pre: '<', lbl: 'Quote review' },
+    { val: 0, suf: '', pre: '', lbl: 'Surprise fees' },
+  ];
+  return (
+    <div className="bg-white" style={{ fontFamily: MS_FONT }}>
+      {/* Stats — light inline row */}
+      <FadeUp>
+        <div className="mx-auto max-w-4xl px-6 pt-16 pb-4 grid grid-cols-4 gap-2 text-center">
+          {stats.map(({ val, suf, pre, lbl }) => (
+            <div key={lbl}>
+              <div className="text-[clamp(1.6rem,6vw,2.5rem)] font-semibold tabular-nums text-neutral-900" style={{ letterSpacing: '-0.03em' }}>
+                <AnimatedStat target={val} suffix={suf} prefix={pre} />
+              </div>
+              <div className="mt-1 text-[11.5px] leading-tight text-neutral-500">{lbl}</div>
+            </div>
+          ))}
+        </div>
+      </FadeUp>
+
+      <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
+        {/* Before / after */}
+        <section>
+          <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
+          <FadeUp delay={0.06}>
+            <div className="mt-8 grid grid-cols-2 gap-2 px-2 sm:px-6">
+              {[
+                { label: 'Before', src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' },
+                { label: 'After', src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' },
+              ].map((photo) => (
+                <figure key={photo.label} className="relative aspect-[3/4] overflow-hidden rounded-[22px] bg-neutral-100">
+                  <Image src={photo.src} alt={photo.alt} fill sizes="(max-width: 768px) 50vw, 480px" className="object-cover" />
+                  <figcaption className="absolute left-3 bottom-3 rounded-full bg-black/45 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                    {photo.label}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </FadeUp>
+          <div className="mt-6 text-center">
+            <MsLink href="/services?service=windows" track="homepage_proof_window_quote_click">Get a window quote</MsLink>
+          </div>
+        </section>
+
+        {/* Services — clean list */}
+        <section className="px-6">
+          <MsHeading title="What we do" sub="Pick a service and see your price instantly." />
+          <FadeUp delay={0.06}>
+            <ul className="mt-8 mx-auto max-w-xl divide-y divide-neutral-200/70">
+              {SERVICES.map((s) => (
+                <li key={s.key}>
+                  <Link href={s.href} className="group flex items-center gap-4 py-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-800">{s.icon}</span>
+                    <span className="flex-1 text-[16px] font-medium text-neutral-900">{s.label}</span>
+                    <span className="text-[14px] text-neutral-500 tabular-nums">From ${s.from}</span>
+                    <span aria-hidden className="text-neutral-300 group-hover:text-neutral-500 transition-colors">›</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
+        </section>
+
+        {/* How it works */}
+        <section className="px-6">
+          <MsHeading title="Quoting that makes sense" sub="No callbacks, no guesswork." />
+          <div className="mt-10 mx-auto max-w-3xl grid gap-10 md:grid-cols-3 md:gap-8">
+            {STEPS.map((step, i) => (
+              <FadeUp key={step.n} delay={i * 0.06}>
+                <div className="text-center md:text-left">
+                  <div className="text-[13px] font-medium tabular-nums" style={{ color: MS_GREEN }}>{Number(step.n)}</div>
+                  <h3 className="mt-1 text-[18px] font-semibold text-neutral-900" style={{ letterSpacing: '-0.02em' }}>{step.title}</h3>
+                  <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">{step.body}</p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </section>
+
+        {/* About + promises */}
+        <section className="px-6">
+          <MsHeading title={<>Your local crew,<br />not a faceless platform.</>} sub="A small team based in Logan. Real people who take pride in the work." />
+          <FadeUp delay={0.06}>
+            <ul className="mt-8 mx-auto max-w-md space-y-3">
+              {PROMISES.map((p) => (
+                <li key={p} className="flex items-start gap-3 text-[15px] text-neutral-700">
+                  <span aria-hidden className="mt-[2px] text-[13px]" style={{ color: MS_GREEN }}>✓</span>{p}
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
+          <div className="mt-7 text-center"><MsLink href="/about">Meet the Buds</MsLink></div>
+        </section>
+
+        {/* Final CTA — quiet */}
+        <div ref={ctaRef} className="px-6">
+          <FadeUp>
+            <section className="text-center">
+              <h2 className="text-[clamp(2.2rem,7vw,3.75rem)] font-semibold leading-[1.05] text-neutral-900" style={{ letterSpacing: '-0.035em' }}>Ready when you are.</h2>
+              <p className="mt-4 mx-auto max-w-sm text-[16px] text-neutral-500">Build your free quote in minutes. Price locked for 7 days.</p>
+              <div className="mt-8">
+                <Link href="/services" data-track="final_quote_click" data-track-label="Homepage final quote" className="inline-flex items-center rounded-full bg-neutral-900 px-8 py-3.5 text-[16px] font-medium text-white hover:opacity-90 transition-opacity">
+                  Get a quote
+                </Link>
+              </div>
+              <p className="mt-4 text-[13px] text-neutral-400">No payment until you confirm.</p>
+            </section>
+          </FadeUp>
+        </div>
+      </div>
+    </div>
   );
 }
