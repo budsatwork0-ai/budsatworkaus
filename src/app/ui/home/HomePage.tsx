@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS } from './flags';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -887,8 +887,12 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
             <FadeUp delay={0.06}>
               <div className="mt-8">
                 <BeforeAfterSlider
-                  before={{ src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' }}
-                  after={{ src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' }}
+                  before={HOME_BA_HD_PHOTOS
+                    ? { src: '/images/window-clean-before-hd.webp', alt: 'Dirty, streaky verandah window before a Buds At Work clean' }
+                    : { src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' }}
+                  after={HOME_BA_HD_PHOTOS
+                    ? { src: '/images/window-clean-after-hd.webp', alt: 'The same verandah window sparkling clean after a Buds At Work clean' }
+                    : { src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' }}
                 />
               </div>
             </FadeUp>

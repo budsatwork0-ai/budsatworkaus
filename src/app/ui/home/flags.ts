@@ -13,3 +13,7 @@ export const HOME_BA_SLIDER = true;
 // Serve before/after slider photos as the original files (no Next.js re-compression).
 // Sources are only 300x400; a sharp result needs higher-res photos. Set false to revert.
 export const HOME_BA_ORIGINAL_FILES = true;
+
+// Full-size before/after photos from Jackson (1200x1600, metadata stripped) in the slider.
+// Set false to use the old 300x400 photos.
+export const HOME_BA_HD_PHOTOS = true;
