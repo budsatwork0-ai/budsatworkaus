@@ -1,5 +1,6 @@
 'use client';
 
+import { HOME_MODERN_SECTIONS } from '@/app/ui/home/flags';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -185,7 +186,21 @@ export function FeedbackWidget() {
       {/* ─────────────────────────────────────────────────────────────────────
           2. Primary floating CTA — mobile full-width bottom sticky bar
          ───────────────────────────────────────────────────────────────────── */}
-      {isHome && shouldShow && !footerVisible && (
+      {HOME_MODERN_SECTIONS && isHome && shouldShow && !footerVisible && (
+        <div className="md:hidden fixed left-1/2 -translate-x-1/2 z-40" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+          <Link
+            href="/services"
+            aria-label="Get a quote"
+            data-tracking-name="floating_quote_cta"
+            onClick={handleCTAClick}
+            className="inline-flex items-center rounded-full bg-neutral-900 px-6 text-[15px] font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] active:opacity-80"
+            style={{ height: 46, fontFamily: 'var(--font-inter), -apple-system, sans-serif' }}
+          >
+            Get a quote
+          </Link>
+        </div>
+      )}
+      {!HOME_MODERN_SECTIONS && isHome && shouldShow && !footerVisible && (
         <div
           className="md:hidden fixed bottom-0 inset-x-0 z-40"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
