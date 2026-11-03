@@ -1312,6 +1312,31 @@ function ServicesPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, urlServiceHandled]);
 
+  // Buds Street (windows trial) hand-off: /services?service=windows&street=1&int=&ext=&tracks=&screens=
+  // Prefills the same winRows/scope the window calculator writes. Read once at first render
+  // because the service handler above strips the query string.
+  const streetPrefillRef = useRef<Partial<WizardState> | null | undefined>(undefined);
+  if (streetPrefillRef.current === undefined) {
+    const sp = searchParams;
+    const n = (k: string) => Math.max(0, Math.min(500, Math.floor(Number(sp?.get(k)) || 0)));
+    if (sp?.get('street') === '1' && sp?.get('service') === 'windows') {
+      const int = n('int'), ext = n('ext');
+      streetPrefillRef.current = {
+        context: 'home',
+        scope: int > 0 && ext === 0 ? 'windows_interior' : ext > 0 && int === 0 ? 'windows_exterior' : 'windows_full',
+        winRows: [{ label: 'Home', int, ext, tracks: n('tracks'), screens: n('screens') }],
+        winStoreys: 1,
+      } as Partial<WizardState>;
+    } else streetPrefillRef.current = null;
+  }
+  useEffect(() => {
+    const pre = streetPrefillRef.current;
+    if (!pre || !urlServiceHandled || S.service !== 'windows') return;
+    streetPrefillRef.current = null;
+    dispatch({ type: 'merge', value: pre });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlServiceHandled, S.service]);
+
   // Handle rebook URL params — pre-fill service, context, scope, and notes from a previous order/subscription.
   // Runs once on mount; clears params from the URL immediately so back-navigation doesn't re-trigger.
   useEffect(() => {
