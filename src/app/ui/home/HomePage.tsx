@@ -1,11 +1,11 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES } from './flags';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence, useInView, useMotionValue, useSpring } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { publicTheme } from '@/lib/design-system/themes';
 import { MARKETING_SERVICE_LIST } from '@/lib/marketing-services';
 
@@ -858,6 +858,45 @@ function MsLink({ href, children, track }: { href: string; children: React.React
 // content centred, top padding clears the sticky header, bottom clears the floating pill.
 const FS_SECTION = 'min-h-screen min-h-[100svh] flex flex-col justify-center pt-[76px] pb-[88px] snap-start';
 
+// Soft card grid for "What we do" (HOME_RICH_SERVICES).
+function RichServices() {
+  const reduce = useReducedMotion();
+  return (
+    <motion.ul
+      className="mt-6 [@media(max-height:700px)]:mt-4 mx-auto grid max-w-xl grid-cols-2 gap-3 [@media(max-height:700px)]:gap-2.5"
+      initial={reduce ? false : 'hidden'}
+      whileInView="show"
+      viewport={{ once: true, margin: '-40px' }}
+      variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+    >
+      {SERVICES.map((s) => (
+        <motion.li
+          key={s.key}
+          variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } } }}
+        >
+          <Link href={s.href} className="block h-full">
+            <motion.div
+              whileTap={reduce ? undefined : { scale: 0.96 }}
+              whileHover={reduce ? undefined : { y: -3 }}
+              className="relative flex h-full flex-col rounded-[20px] border border-neutral-200/70 bg-white p-4 [@media(max-height:700px)]:p-3 shadow-[0_6px_24px_-12px_rgba(21,128,61,0.28)]"
+            >
+              {s.key === 'windows' && (
+                <span className="absolute right-2.5 top-2.5 rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold" style={{ background: 'rgba(21,128,61,0.1)', color: MS_GREEN }}>Most popular</span>
+              )}
+              <span className="flex h-10 w-10 [@media(max-height:700px)]:h-8 [@media(max-height:700px)]:w-8 items-center justify-center rounded-[12px]" style={{ background: 'rgba(21,128,61,0.1)', color: MS_GREEN }}>{s.icon}</span>
+              <span className="mt-3 [@media(max-height:700px)]:mt-2 text-[15px] [@media(max-height:700px)]:text-[14px] font-semibold leading-snug text-neutral-900" style={{ letterSpacing: '-0.01em' }}>{s.label}</span>
+              <span className="mt-auto pt-1.5 flex items-baseline justify-between">
+                <span className="text-[13px] text-neutral-500">From <span className="text-[16px] font-semibold tabular-nums text-neutral-900">${s.from}</span></span>
+                <span aria-hidden className="text-[15px]" style={{ color: MS_GREEN }}>›</span>
+              </span>
+            </motion.div>
+          </Link>
+        </motion.li>
+      ))}
+    </motion.ul>
+  );
+}
+
 function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | null> }) {
   // Gentle snapping so a full-screen section settles in frame (proximity, never traps).
   useEffect(() => {
@@ -945,6 +984,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
         {/* Services — clean list */}
         <section className={HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />
+          {HOME_RICH_SERVICES ? <RichServices /> : (
           <FadeUp delay={0.06}>
             <ul className={`${HOME_FULLSCREEN_SECTIONS ? 'mt-6' : 'mt-8'} mx-auto max-w-xl divide-y divide-neutral-200/70`}>
               {SERVICES.map((s) => (
@@ -959,6 +999,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
               ))}
             </ul>
           </FadeUp>
+          )}
         </section>
 
         {/* How it works */}
