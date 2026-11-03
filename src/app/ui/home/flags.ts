@@ -35,3 +35,6 @@ export const HOME_SERVICES_COVERFLOW = true;
 
 // Services ("What we do") above "See the difference" (4 Nov 2026). Set false for the old order.
 export const HOME_SERVICES_FIRST = true;
+
+// Buds Street windows trial at /street (noindex). Set false to make the route 404.
+export const BUDS_STREET_WINDOWS = true;
