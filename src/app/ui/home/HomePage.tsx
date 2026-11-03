@@ -1,6 +1,7 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW } from './flags';
+import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
@@ -983,7 +984,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
         </section>
 
         {/* Services — clean list */}
-        <section className={HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
+        <section className={HOME_SERVICES_COVERFLOW ? 'bg-white px-6 py-12 md:py-16' : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           {HOME_SERVICES_CAROUSEL ? (
             <>
               <FadeUp className="text-center">
@@ -991,7 +992,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
                 <h2 className="mt-2 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-neutral-900" style={{ letterSpacing: '-0.04em' }}>What we do<span style={{ color: MS_GREEN }}>.</span></h2>
                 <p className="mt-2.5 mx-auto max-w-md text-[16px] [@media(max-height:700px)]:text-[15px] leading-relaxed text-neutral-500">Practical services to make your life easier.</p>
               </FadeUp>
-              <div className="-mx-6 md:mx-0"><ServicesCarousel services={SERVICES} /></div>
+              <div className="-mx-6 md:mx-0">{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
             </>
           ) : (<>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />

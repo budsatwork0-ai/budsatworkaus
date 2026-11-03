@@ -28,3 +28,7 @@ export const HOME_RICH_SERVICES = true;
 // "What we do" as a swipeable photo-card carousel (3 Nov 2026, Jackson's mockup).
 // Set false to bring back the HOME_RICH_SERVICES card grid.
 export const HOME_SERVICES_CAROUSEL = true;
+
+// "What we do" as a true coverflow (centre card large, neighbours smaller either side),
+// natural height instead of full-screen (3 Nov 2026, Jackson's mockup). Set false for the #296 carousel.
+export const HOME_SERVICES_COVERFLOW = true;

@@ -8,13 +8,15 @@ export type CarouselService = { key: string; label: string; href: string; from: 
 
 const GREEN = '#15803D';
 
-const COPY: Record<string, { img: string; line: string }> = {
+export const COPY: Record<string, { img: string; line: string }> = {
   windows: { img: '/images/window-clean-after-hd.webp', line: 'Crystal-clear windows, inside and out.' },
   cleaning: { img: '/images/services/home-cleaning.webp', line: 'A fresh, tidy home, with less effort.' },
   yard: { img: '/images/services/yard-garden.webp', line: 'Tidy outdoor spaces, all year round.' },
   dump: { img: '/images/services/dump-runs.webp', line: 'Junk gone, without the trailer hire.' },
   auto: { img: '/images/services/car-detailing.webp', line: 'A showroom finish, at your place.' },
   laundry: { img: '/images/services/laundry-sneakers.webp', line: 'Fresh clothes and clean kicks, sorted.' },
+  // Real service key is laundry_sneakers; without this the card fell back to the window photo + line.
+  laundry_sneakers: { img: '/images/services/laundry-sneakers.webp', line: 'Fresh clothes and clean kicks, sorted.' },
 };
 
 const Arrow = ({ dir = 'right' }: { dir?: 'left' | 'right' }) => (
