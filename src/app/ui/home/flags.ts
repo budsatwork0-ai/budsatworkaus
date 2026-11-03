@@ -21,3 +21,6 @@ export const HOME_BA_HD_PHOTOS = true;
 // "See the difference" and "What we do" each fill one phone screen (100svh), centred,
 // with gentle y-proximity scroll snapping (3 Nov 2026, Jackson's request). Set false to restore.
 export const HOME_FULLSCREEN_SECTIONS = true;
+
+// "What we do" as a 2-column grid of soft green-accent cards (3 Nov 2026). Set false for the plain list.
+export const HOME_RICH_SERVICES = true;
