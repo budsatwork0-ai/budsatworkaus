@@ -24,3 +24,7 @@ export const HOME_FULLSCREEN_SECTIONS = true;
 
 // "What we do" as a 2-column grid of soft green-accent cards (3 Nov 2026). Set false for the plain list.
 export const HOME_RICH_SERVICES = true;
+
+// "What we do" as a swipeable photo-card carousel (3 Nov 2026, Jackson's mockup).
+// Set false to bring back the HOME_RICH_SERVICES card grid.
+export const HOME_SERVICES_CAROUSEL = true;
