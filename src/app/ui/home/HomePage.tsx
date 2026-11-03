@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST } from './flags';
 import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
@@ -944,6 +944,8 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
       )}
 
       <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
+        {(() => {
+          const baSection = (<React.Fragment key="ba">
         {/* Before / after */}
         <section className={HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined}>
           <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
@@ -983,8 +985,10 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
           </div>
         </section>
 
+          </React.Fragment>);
+          const servicesSection = (<React.Fragment key="services">
         {/* Services — clean list */}
-        <section className={HOME_SERVICES_COVERFLOW ? 'bg-white px-6 py-12 md:py-16' : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
+        <section className={HOME_SERVICES_COVERFLOW ? (HOME_SERVICES_FIRST ? 'bg-white px-6 pt-0 pb-12 md:pb-16' : 'bg-white px-6 py-12 md:py-16') : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           {HOME_SERVICES_CAROUSEL ? (
             <>
               <FadeUp className="text-center">
@@ -1015,6 +1019,9 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
           </>)}
         </section>
 
+          </React.Fragment>);
+          return HOME_SERVICES_FIRST ? [servicesSection, baSection] : [baSection, servicesSection];
+        })()}
         {/* How it works */}
         <section className="px-6">
           <MsHeading title="Quoting that makes sense" sub="No callbacks, no guesswork." />

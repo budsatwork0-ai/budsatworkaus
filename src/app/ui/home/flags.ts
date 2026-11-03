@@ -32,3 +32,6 @@ export const HOME_SERVICES_CAROUSEL = true;
 // "What we do" as a true coverflow (centre card large, neighbours smaller either side),
 // natural height instead of full-screen (3 Nov 2026, Jackson's mockup). Set false for the #296 carousel.
 export const HOME_SERVICES_COVERFLOW = true;
+
+// Services ("What we do") above "See the difference" (4 Nov 2026). Set false for the old order.
+export const HOME_SERVICES_FIRST = true;
