@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type Photo = { src: string; alt: string };
 
-export default function BeforeAfterSlider({ before, after }: { before: Photo; after: Photo }) {
+export default function BeforeAfterSlider({ before, after, fitScreen = false }: { before: Photo; after: Photo; fitScreen?: boolean }) {
   const [pos, setPos] = useState(50);
   const boxRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; active: boolean; decided: boolean } | null>(null);
@@ -115,7 +115,7 @@ export default function BeforeAfterSlider({ before, after }: { before: Photo; af
         onPointerCancel={() => (drag.current = null)}
         onKeyDown={onKeyDown}
         className="relative aspect-[4/5] sm:aspect-[4/3] w-full overflow-hidden rounded-[22px] bg-neutral-100 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] select-none outline-none focus-visible:ring-2 focus-visible:ring-green-600 cursor-ew-resize"
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: 'pan-y', ...(fitScreen ? { maxHeight: 'calc(100svh - 360px)', minHeight: 240 } : {}) }}
       >
         <Image src={before.src} alt={before.alt} fill sizes="(max-width: 768px) 100vw, 720px" quality={90} unoptimized={HOME_BA_ORIGINAL_FILES} className="object-cover pointer-events-none" draggable={false} />
         <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${pos}%)` }}>
