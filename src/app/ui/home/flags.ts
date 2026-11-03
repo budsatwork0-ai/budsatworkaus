@@ -38,3 +38,5 @@ export const HOME_SERVICES_FIRST = true;
 
 // Buds Street windows trial at /street (noindex). Set false to make the route 404.
 export const BUDS_STREET_WINDOWS = true;
+// /street uses the home page palette (white, neutral greys, #15803D). False = original warm paper palette.
+export const BUDS_STREET_HOME_PALETTE = true;

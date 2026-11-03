@@ -11,10 +11,27 @@ import {
   windowQuoteTotal,
   type PriceListRow,
 } from '@/lib/pricing/window-price-book';
+import { BUDS_STREET_HOME_PALETTE } from '@/app/ui/home/flags';
 
-const GREEN = '#15803D';
-const INK = '#2B2A26';
-const PAPER = '#F6F1E6';
+// Palette (BUDS_STREET_HOME_PALETTE): the home page's modern-section tokens —
+// MS_GREEN, Tailwind neutral greys and the globals.css vars (--surface, --accent-soft, --primary, --focus, --star).
+const HOME = {
+  green: '#15803D', ink: '#262626', paper: '#FFFFFF', sky: '#FAFAFA', ground: '#EAF6EE', hills: '#EAF6EE',
+  roof: '#D4D4D4', wall: '#FFFFFF', glass: '#F1F7F3', glassOn: '#DDF3E4', door: '#F1F7F3', foliage: '#8BC8A8',
+  leaf: '#8BC8A8', flower: '#FFFFFF', sun: '#F59E0B', sunOpacity: 0.3, sparkle: '#F59E0B', letterbox: '#E5E5E5',
+  bin: '#0F3D2E', binLid: '#F59E0B', light: '#DDF3E4',
+};
+// Original warm "paper" palette from the first trial, kept for reference/rollback.
+const WARM = {
+  green: '#15803D', ink: '#2B2A26', paper: '#F6F1E6', sky: '#EAF1F2', ground: '#E4E9D2', hills: '#D6E2CF',
+  roof: '#C9D3CB', wall: '#FBF7EE', glass: '#D7E3EA', glassOn: '#DDF3E4', door: '#E9EFE6', foliage: '#A9C4A0',
+  leaf: '#B8CFA8', flower: '#FFF6D6', sun: '#F7D774', sunOpacity: 0.75, sparkle: '#FBBF24', letterbox: '#E6DCC8',
+  bin: '#3F5F4A', binLid: '#E3B341', light: '#FFE9B0',
+};
+const C = BUDS_STREET_HOME_PALETTE ? HOME : WARM;
+const GREEN = C.green;
+const INK = C.ink;
+const PAPER = C.paper;
 
 type Win = { id: string; label: string; x: number; y: number; w: number; h: number; panes: number; track: boolean; screen: boolean; split?: boolean };
 const WINDOWS: Win[] = [
@@ -83,7 +100,7 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
   return (
     <g>
       {/* sky light + sun */}
-      <circle cx={292} cy={14} r={16} fill="#F7D774" opacity={0.75} className="bs-sun" />
+      <g opacity={C.sunOpacity}><circle cx={292} cy={14} r={16} fill={C.sun} className="bs-sun" /></g>
       <g className="bs-cloud" fill="#fff" stroke={INK} strokeWidth={0.9} filter="url(#bs-ink)">
         <path d="M40 70 q8 -14 22 -6 q10 -12 22 0 q14 -2 12 10 q-2 8 -12 6 h-40 q-12 0 -4 -10z" />
       </g>
@@ -93,9 +110,9 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
       {/* birds */}
       <path d="M150 20 q4 -4 8 0 q4 -4 8 0 M178 4 q3 -3 6 0 q3 -3 6 0" fill="none" stroke={INK} strokeWidth={0.7} opacity={0.6} />
       {/* distant hills */}
-      <path d="M-600 228 L-20 228 Q60 196 140 214 Q230 186 330 206 Q400 190 460 212 L1000 228 Z" fill="#D6E2CF" opacity={0.7} />
+      <path d="M-600 228 L-20 228 Q60 196 140 214 Q230 186 330 206 Q400 190 460 212 L1000 228 Z" fill={C.hills} opacity={0.7} />
       {/* ground */}
-      <rect x={-600} y={228} width={1600} height={300} fill="#E4E9D2" />
+      <rect x={-600} y={228} width={1600} height={300} fill={C.ground} />
       <path d="M-600 228 H1000" stroke={INK} strokeWidth={1} filter="url(#bs-ink)" />
       <path d="M-600 262 H1000" stroke={INK} strokeWidth={0.8} strokeDasharray="10 7" opacity={0.5} />
       <path d="M185 228 L170 262 M221 228 L236 262" stroke={INK} strokeWidth={0.8} opacity={0.55} />
@@ -109,10 +126,10 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
         {/* stairs */}
         <g fill={PAPER}><path d="M190 205 L184 228 M216 205 L222 228" />{[210, 216, 222].map((y) => <path key={y} d={`M${188 - (y - 205) / 4} ${y} H${218 + (y - 205) / 4}`} />)}</g>
         {/* walls (weatherboard) */}
-        <rect x={98} y={128} width={206} height={77} fill="#FBF7EE" />
+        <rect x={98} y={128} width={206} height={77} fill={C.wall} />
         {Array.from({ length: 10 }, (_, i) => <path key={i} d={`M98 ${134 + i * 7.5} H304`} strokeWidth={0.5} opacity={0.35} />)}
         {/* roof — corrugated hip */}
-        <path d="M80 130 L322 130 L272 84 L130 84 Z" fill="#C9D3CB" />
+        <path d="M80 130 L322 130 L272 84 L130 84 Z" fill={C.roof} />
         {corr.map((x) => <path key={x} d={`M${x + (x - 200) * -0.0} 130 L${130 + (x - 84) * (142 / 238)} 84`} strokeWidth={0.45} opacity={0.5} />)}
         <path d="M80 130 L322 130" strokeWidth={1.6} />
         {/* verandah posts + rail */}
@@ -120,7 +137,7 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
         <path d="M100 186 H186 M228 186 H302 M100 204 H302" />
         {balusters.map((x) => <path key={x} d={`M${x} 187 V203`} strokeWidth={0.6} />)}
         {/* screen door */}
-        <rect x={190} y={142} width={22} height={62} fill="#E9EFE6" />
+        <rect x={190} y={142} width={22} height={62} fill={C.door} />
         <path d="M193 145 h16 v26 h-16z M193 175 h16 v26 h-16z" strokeWidth={0.6} fill="none" />
         <path d="M193 158 q8 -6 16 0 M193 188 q8 -6 16 0" strokeWidth={0.5} opacity={0.6} fill="none" />
         <circle cx={208} cy={174} r={0.9} fill={INK} />
@@ -131,7 +148,7 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
         const on = !!sel[w.id];
         return (
           <g key={w.id}>
-            <rect x={w.x} y={w.y} width={w.w} height={w.h} fill={on ? '#DDF3E4' : '#D7E3EA'} stroke={INK} strokeWidth={1.1} filter="url(#bs-ink)" className="bs-glass" />
+            <rect x={w.x} y={w.y} width={w.w} height={w.h} fill={on ? C.glassOn : C.glass} stroke={INK} strokeWidth={1.1} filter="url(#bs-ink)" className="bs-glass" />
             {on && <rect x={w.x - 3} y={w.y - 3} width={w.w + 6} height={w.h + 6} rx={3} fill="none" stroke={GREEN} strokeWidth={1.4} opacity={active === w.id ? 1 : 0.55} className="bs-glow" />}
             {w.split && <path d={`M${w.x + w.w / 2} ${w.y} V${w.y + w.h}`} stroke={INK} strokeWidth={0.8} filter="url(#bs-ink)" />}
             {w.id === 'bath' && [0, 1, 2, 3].map((i) => <path key={i} d={`M${w.x + 1} ${w.y + 4 + i * 4} H${w.x + w.w - 1}`} stroke={INK} strokeWidth={0.4} opacity={0.6} />)}
@@ -140,7 +157,7 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
               <g key={sparkle.n} className="bs-sparkle" style={{ transformOrigin: `${w.x + w.w / 2}px ${w.y + w.h / 2}px` }}>
                 <clipPath id={`clip-${w.id}-${sparkle.n}`}><rect x={w.x} y={w.y} width={w.w} height={w.h} /></clipPath>
                 <rect className="bs-squeegee" x={w.x - 14} y={w.y} width={10} height={w.h} fill="#fff" opacity={0.7} clipPath={`url(#clip-${w.id}-${sparkle.n})`} />
-                <path d={`M${w.x + w.w - 4} ${w.y - 6} l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z`} fill="#FBBF24" />
+                <path d={`M${w.x + w.w - 4} ${w.y - 6} l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z`} fill={C.sparkle} />
               </g>
             )}
             <rect role="button" tabIndex={0} aria-pressed={on} aria-label={`${w.label}, ${w.panes} pane${w.panes > 1 ? 's' : ''}`}
@@ -153,7 +170,7 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
       {/* gum tree */}
       <g className="bs-tree" filter="url(#bs-ink)" stroke={INK} strokeWidth={1.1} strokeLinecap="round">
         <path d="M52 228 C50 200 56 170 48 140 M50 175 C40 160 30 150 26 136 M52 160 C62 148 70 140 74 124" fill="none" strokeWidth={2.2} />
-        <g fill="#A9C4A0" opacity={0.95}>
+        <g fill={C.foliage} opacity={0.95}>
           <path d="M14 140 q10 -26 34 -22 q14 -18 34 -2 q16 4 8 22 q-6 14 -24 8 q-14 12 -30 2 q-26 6 -22 -8z" />
           <path d="M30 116 q12 -16 30 -10 q14 -6 18 8" fill="none" />
         </g>
@@ -161,17 +178,17 @@ function House({ sel, active, onTap, sparkle }: { sel: Record<string, Sel>; acti
       {/* frangipani */}
       <g filter="url(#bs-ink)" stroke={INK} strokeWidth={0.9}>
         <path d="M322 228 V206 L314 196 M322 206 L330 196" fill="none" strokeWidth={1.4} />
-        <ellipse cx={312} cy={193} rx={8} ry={5} fill="#B8CFA8" /><ellipse cx={331} cy={193} rx={8} ry={5} fill="#B8CFA8" />
-        {[[309, 191], [315, 194], [329, 190], [334, 194]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r={1.6} fill="#FFF6D6" />)}
+        <ellipse cx={312} cy={193} rx={8} ry={5} fill={C.leaf} /><ellipse cx={331} cy={193} rx={8} ry={5} fill={C.leaf} />
+        {[[309, 191], [315, 194], [329, 190], [334, 194]].map(([x, y]) => <circle key={`${x}`} cx={x} cy={y} r={1.6} fill={C.flower} />)}
       </g>
       {/* letterbox + wheelie bin */}
       <g filter="url(#bs-ink)" stroke={INK} strokeWidth={1}>
-        <path d="M344 236 V216" strokeWidth={1.4} /><rect x={337} y={208} width={14} height={9} rx={2} fill="#E6DCC8" /><path d="M340 211 h8" strokeWidth={0.6} />
-        <rect x={358} y={214} width={14} height={20} fill="#3F5F4A" /><rect x={357} y={211} width={16} height={4} fill="#E3B341" />
+        <path d="M344 236 V216" strokeWidth={1.4} /><rect x={337} y={208} width={14} height={9} rx={2} fill={C.letterbox} /><path d="M340 211 h8" strokeWidth={0.6} />
+        <rect x={358} y={214} width={14} height={20} fill={C.bin} /><rect x={357} y={211} width={16} height={4} fill={C.binLid} />
         <circle cx={360} cy={236} r={1.8} fill={PAPER} />
       </g>
       {/* soft light shift */}
-      <rect x={-600} y={-600} width={1600} height={1200} fill="#FFE9B0" className="bs-light" pointerEvents="none" />
+      <rect x={-600} y={-600} width={1600} height={1200} fill={C.light} className="bs-light" pointerEvents="none" />
     </g>
   );
 }
@@ -281,34 +298,34 @@ export function BudsStreet() {
 
   const Toggle = ({ on, label, onClick, disabled }: { on: boolean; label: string; onClick: () => void; disabled?: boolean }) => (
     <button type="button" onClick={onClick} disabled={disabled} aria-pressed={on}
-      className={`min-h-[44px] flex-1 rounded-full px-3 text-[15px] font-semibold transition active:scale-95 disabled:opacity-40 ${on ? 'bg-[#15803D] text-white shadow-[0_4px_14px_rgba(21,128,61,0.35)]' : 'bg-white text-slate-800 ring-1 ring-black/10'}`}>
+      className={`min-h-[44px] flex-1 rounded-full px-3 text-[15px] font-semibold transition active:scale-95 disabled:opacity-40 ${on ? 'bg-[#15803D] text-white shadow-[0_4px_14px_rgba(21,128,61,0.35)]' : 'bg-white text-neutral-800 ring-1 ring-black/10'}`}>
       {label}
     </button>
   );
 
   const ticket = (
-    <div className="bs-ticket relative mx-auto w-full max-w-[380px] rounded-t-md bg-[#FFFDF8] px-5 pb-6 pt-4 font-mono text-[13px] tabular-nums text-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
-      <div className="text-center text-[11px] uppercase tracking-[0.25em] text-slate-500">Buds At Work</div>
+    <div className="bs-ticket relative mx-auto w-full max-w-[380px] rounded-t-md bg-white ring-1 ring-neutral-200 px-5 pb-6 pt-4 font-mono text-[13px] tabular-nums text-neutral-800 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+      <div className="text-center text-[11px] uppercase tracking-[0.25em] text-neutral-500">Buds At Work</div>
       <div className="text-center text-[15px] font-bold tracking-[0.12em]">YOUR VISIT</div>
-      <div className="my-2 border-t border-dashed border-slate-400" />
+      <div className="my-2 border-t border-dashed border-neutral-400" />
       {lines.length === 0 ? (
-        <p className="py-3 text-center text-slate-500">{zoomed ? 'Tap a window to add it.' : 'Tap the house to walk up.'}</p>
+        <p className="py-3 text-center text-neutral-500">{zoomed ? 'Tap a window to add it.' : 'Tap the house to walk up.'}</p>
       ) : (
         <ul className="space-y-1">
           {lines.map((l) => (
-            <li key={l.key} className={`bs-line flex justify-between gap-3 ${l.muted ? 'text-slate-500' : ''}`}>
+            <li key={l.key} className={`bs-line flex justify-between gap-3 ${l.muted ? 'text-neutral-500' : ''}`}>
               <span className="truncate">{l.left}</span>{l.right && <span>{l.right}</span>}
             </li>
           ))}
         </ul>
       )}
-      <div className="my-2 border-t border-dashed border-slate-400" />
+      <div className="my-2 border-t border-dashed border-neutral-400" />
       <div className="flex items-baseline justify-between text-[17px] font-bold">
         <span>ESTIMATE</span><span aria-live="polite" data-testid="street-total">{money(shown)}</span>
       </div>
-      <p className="mt-2 text-[11px] leading-snug text-slate-500">Indicative, no GST. A Bud reviews every estimate. Oversized panes, heavily soiled windows and paint or hard-water stains are quoted on the day.</p>
-      <button type="button" disabled={!panes} onClick={() => { setTorn(true); buzz(20); }}
-        className="mt-3 min-h-[48px] w-full rounded-full bg-[#15803D] font-sans text-[16px] font-semibold text-white shadow-[0_6px_18px_rgba(21,128,61,0.3)] transition active:scale-[0.97] disabled:bg-slate-300 disabled:shadow-none">
+      <p className="mt-2 text-[11px] leading-snug text-neutral-500">Indicative, no GST. A Bud reviews every estimate. Oversized panes, heavily soiled windows and paint or hard-water stains are quoted on the day.</p>
+      <button type="button" disabled={!panes} onClick={() => { setTorn(true); buzz(20); }} style={{ fontFamily: 'var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif' }}
+        className="mt-3 min-h-[48px] w-full rounded-full bg-neutral-900 text-[16px] font-medium text-white transition hover:opacity-90 active:scale-[0.97] disabled:bg-neutral-300">
         Tear off my estimate
       </button>
     </div>
@@ -324,20 +341,20 @@ export function BudsStreet() {
       <section className={`relative flex h-[calc(100dvh-140px)] min-h-[560px] flex-col lg:h-[calc(100dvh-100px)] lg:pb-0 ${zoomed ? '' : 'pb-[calc(126px+env(safe-area-inset-bottom))]'}`}>
         <header className="flex items-center justify-between px-5 pt-[max(16px,env(safe-area-inset-top))]">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#15803D]">Buds Street</p>
-            <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-slate-900">{zoomed ? 'Tap the windows you want done' : 'Which windows need a clean?'}</h1>
+            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-neutral-500">Buds Street</p>
+            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-neutral-900">{zoomed ? 'Tap the windows you want done' : 'Which windows need a clean'}<span style={{ color: GREEN }}>{zoomed ? '.' : '?'}</span></h1>
           </div>
-          {zoomed && <button type="button" onClick={() => setZoomed(false)} className="min-h-[44px] rounded-full px-4 text-[14px] font-medium text-slate-600 ring-1 ring-black/10">Street</button>}
+          {zoomed && <button type="button" onClick={() => setZoomed(false)} className="min-h-[44px] rounded-full px-4 text-[14px] font-medium text-neutral-600 ring-1 ring-black/10">Street</button>}
         </header>
 
-        <div ref={stageRef} className="relative mx-2 mt-2 min-h-[200px] flex-1 overflow-hidden rounded-3xl">
+        <div ref={stageRef} className="relative mx-2 mt-2 min-h-[200px] flex-1 overflow-hidden rounded-3xl ring-1 ring-neutral-200">
           <svg viewBox={(vb ?? target).join(' ')} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full touch-manipulation select-none"
             onClick={() => { if (!zoomed) setZoomed(true); }} role="img" aria-label="A hand-drawn Queenslander on Buds Street">
-            <rect x={-600} y={-600} width={1600} height={830} fill="#EAF1F2" />
+            <rect x={-600} y={-600} width={1600} height={830} fill={C.sky} />
             <House sel={sel} active={active} onTap={tap} sparkle={sparkle} />
           </svg>
           {!zoomed && (
-            <button type="button" onClick={() => setZoomed(true)} className="absolute bottom-4 left-1/2 min-h-[48px] -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-6 text-[16px] font-semibold text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] active:scale-95">
+            <button type="button" onClick={() => setZoomed(true)} className="absolute bottom-4 left-1/2 min-h-[48px] -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-6 text-[16px] font-semibold text-neutral-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] active:scale-95">
               Walk up to the house →
             </button>
           )}
@@ -347,10 +364,10 @@ export function BudsStreet() {
           <div className="space-y-2 px-4 pb-[calc(126px+env(safe-area-inset-bottom))] pt-3 lg:pb-6">
             {activeWin && sel[activeWin.id] ? (
               <div className="flex items-center gap-2 rounded-2xl bg-white p-2 pl-4 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
-                <p className="flex-1 text-[14px] font-medium text-slate-800">{activeWin.label} <span className="text-slate-500">· {activeWin.panes} pane{activeWin.panes > 1 ? 's' : ''}</span></p>
-                {activeWin.track && <button type="button" aria-pressed={sel[activeWin.id].tracks} onClick={() => { setSel({ ...sel, [activeWin.id]: { ...sel[activeWin.id], tracks: !sel[activeWin.id].tracks } }); buzz(8); }} className={`min-h-[40px] rounded-full px-3 text-[13px] font-semibold ${sel[activeWin.id].tracks ? 'bg-[#DCFCE7] text-[#15803D]' : 'text-slate-500 ring-1 ring-black/10'}`}>Track</button>}
-                {activeWin.screen && <button type="button" aria-pressed={sel[activeWin.id].screens} onClick={() => { setSel({ ...sel, [activeWin.id]: { ...sel[activeWin.id], screens: !sel[activeWin.id].screens } }); buzz(8); }} className={`min-h-[40px] rounded-full px-3 text-[13px] font-semibold ${sel[activeWin.id].screens ? 'bg-[#DCFCE7] text-[#15803D]' : 'text-slate-500 ring-1 ring-black/10'}`}>Screen</button>}
-                <button type="button" aria-label="Remove window" onClick={() => tap(activeWin.id)} className="min-h-[40px] rounded-full px-3 text-[13px] text-slate-500 ring-1 ring-black/10">✕</button>
+                <p className="flex-1 text-[14px] font-medium text-neutral-800">{activeWin.label} <span className="text-neutral-500">· {activeWin.panes} pane{activeWin.panes > 1 ? 's' : ''}</span></p>
+                {activeWin.track && <button type="button" aria-pressed={sel[activeWin.id].tracks} onClick={() => { setSel({ ...sel, [activeWin.id]: { ...sel[activeWin.id], tracks: !sel[activeWin.id].tracks } }); buzz(8); }} className={`min-h-[40px] rounded-full px-3 text-[13px] font-semibold ${sel[activeWin.id].tracks ? 'bg-[var(--accent-soft)] text-[#15803D]' : 'text-neutral-500 ring-1 ring-black/10'}`}>Track</button>}
+                {activeWin.screen && <button type="button" aria-pressed={sel[activeWin.id].screens} onClick={() => { setSel({ ...sel, [activeWin.id]: { ...sel[activeWin.id], screens: !sel[activeWin.id].screens } }); buzz(8); }} className={`min-h-[40px] rounded-full px-3 text-[13px] font-semibold ${sel[activeWin.id].screens ? 'bg-[var(--accent-soft)] text-[#15803D]' : 'text-neutral-500 ring-1 ring-black/10'}`}>Screen</button>}
+                <button type="button" aria-label="Remove window" onClick={() => tap(activeWin.id)} className="min-h-[40px] rounded-full px-3 text-[13px] text-neutral-500 ring-1 ring-black/10">✕</button>
               </div>
             ) : null}
             <div className="flex gap-2">
@@ -360,7 +377,7 @@ export function BudsStreet() {
               <Toggle on={allScreens} label="Screens" disabled={!chosen.some((w) => w.screen)} onClick={() => setAll('screens', !allScreens)} />
             </div>
             <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)]">
-              <p className="text-[14px] text-slate-700">Add a window not shown<span className="block text-[12px] text-slate-500">Counted as a 2-pane slider</span></p>
+              <p className="text-[14px] text-neutral-700">Add a window not shown<span className="block text-[12px] text-neutral-500">Counted as a 2-pane slider</span></p>
               <div className="flex items-center gap-3">
                 <button type="button" aria-label="One fewer window" onClick={() => { setExtra(Math.max(0, extra - 1)); buzz(6); }} className="h-11 w-11 rounded-full text-xl ring-1 ring-black/10 active:scale-90">−</button>
                 <span className="w-5 text-center text-[17px] font-semibold tabular-nums">{extra}</span>
@@ -373,10 +390,10 @@ export function BudsStreet() {
 
       {/* ticket: bottom sheet on mobile, side column on desktop */}
       <aside className={`bs-sheet fixed inset-x-0 bottom-0 z-30 transition-transform duration-500 lg:static lg:flex lg:items-center lg:justify-center lg:p-8 lg:!translate-y-0 ${sheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-118px-env(safe-area-inset-bottom))]'}`}>
-        <div className="max-h-[80dvh] overflow-y-auto overscroll-contain rounded-t-3xl bg-[#EFE8DA] px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.12)] lg:max-h-none lg:w-full lg:rounded-3xl lg:bg-transparent lg:shadow-none">
+        <div className="max-h-[80dvh] overflow-y-auto overscroll-contain rounded-t-3xl bg-neutral-100 px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.12)] lg:max-h-none lg:w-full lg:rounded-3xl lg:bg-transparent lg:shadow-none">
           <button type="button" onClick={() => setSheetOpen(!sheetOpen)} aria-expanded={sheetOpen} className="flex w-full flex-col items-center pb-2 lg:hidden">
             <span className="h-1.5 w-10 rounded-full bg-black/20" />
-            <span className="mt-2 flex w-full items-baseline justify-between px-3 text-[15px] font-semibold text-slate-900">
+            <span className="mt-2 flex w-full items-baseline justify-between px-3 text-[15px] font-semibold text-neutral-900">
               <span>Your visit · {panes} pane{panes === 1 ? '' : 's'}</span><span className="font-mono tabular-nums">{money(shown)}</span>
             </span>
           </button>
@@ -387,15 +404,15 @@ export function BudsStreet() {
       {torn && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center" onClick={() => setTorn(false)}>
           <div className="bs-card w-full max-w-[380px] rounded-3xl bg-white p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)]" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#15803D]">Your estimate</p>
-            <p className="mt-1 font-mono text-[40px] font-bold tabular-nums tracking-tight text-slate-900">{money(q.total)}</p>
-            <p className="text-[14px] text-slate-600">{panes} pane{panes === 1 ? '' : 's'}{outside && inside ? ', inside and out' : outside ? ', outside' : ', inside'}{tracks ? ` · ${tracks} track${tracks > 1 ? 's' : ''}` : ''}{screens ? ` · ${screens} screen${screens > 1 ? 's' : ''}` : ''}</p>
-            <p className="mt-4 text-[17px] font-semibold text-slate-900">A Bud will be in touch.</p>
-            <p className="mt-1 text-[13px] leading-snug text-slate-500">Send it through and we&apos;ll carry your windows into the booking form. A Bud reviews every estimate; oversized, soiled or stained glass is quoted on the day.</p>
-            <Link href={handoff} onClick={() => buzz(16)} className="mt-5 flex min-h-[52px] items-center justify-center rounded-full bg-[#15803D] text-[17px] font-semibold text-white shadow-[0_8px_22px_rgba(21,128,61,0.35)] active:scale-[0.97]">
+            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-neutral-500">Your estimate</p>
+            <p className="mt-1 font-mono text-[40px] font-bold tabular-nums tracking-tight text-neutral-900">{money(q.total)}</p>
+            <p className="text-[14px] text-neutral-600">{panes} pane{panes === 1 ? '' : 's'}{outside && inside ? ', inside and out' : outside ? ', outside' : ', inside'}{tracks ? ` · ${tracks} track${tracks > 1 ? 's' : ''}` : ''}{screens ? ` · ${screens} screen${screens > 1 ? 's' : ''}` : ''}</p>
+            <p className="mt-4 text-[17px] font-semibold text-neutral-900">A Bud will be in touch.</p>
+            <p className="mt-1 text-[13px] leading-snug text-neutral-500">Send it through and we&apos;ll carry your windows into the booking form. A Bud reviews every estimate; oversized, soiled or stained glass is quoted on the day.</p>
+            <Link href={handoff} onClick={() => buzz(16)} className="mt-5 flex min-h-[52px] items-center justify-center rounded-full bg-neutral-900 text-[17px] font-medium text-white transition hover:opacity-90 active:scale-[0.97]">
               Send to a Bud
             </Link>
-            <button type="button" onClick={() => setTorn(false)} className="mt-2 min-h-[44px] w-full text-[14px] font-medium text-slate-500">Keep tapping</button>
+            <button type="button" onClick={() => setTorn(false)} className="mt-2 min-h-[44px] w-full text-[14px] font-medium text-neutral-500">Keep tapping</button>
           </div>
         </div>
       )}
@@ -404,7 +421,7 @@ export function BudsStreet() {
 }
 
 const CSS = `
-.bs-root{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.bs-root{font-family:var(--font-inter),Inter,ui-sans-serif,system-ui,sans-serif}
 .bs-root .font-mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
 .bs-hit{cursor:pointer;outline:none;transition:transform .15s}
 .bs-hit:active{transform:scale(.96)}
@@ -419,7 +436,7 @@ const CSS = `
 .bs-sparkle path{transform-box:fill-box;transform-origin:center;animation:bsSpark .7s ease-out forwards}
 .bs-line{animation:bsType .45s steps(22,end) both}
 .bs-ticket{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px);}
-.bs-ticket::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:8px;background:radial-gradient(circle at 6px 0,transparent 5px,#FFFDF8 5.5px) 0 0/12px 8px repeat-x;transform:scaleY(-1)}
+.bs-ticket::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:8px;background:radial-gradient(circle at 6px 0,transparent 5px,#fff 5.5px) 0 0/12px 8px repeat-x;transform:scaleY(-1)}
 .bs-card{animation:bsTear .5s cubic-bezier(.2,.9,.3,1.2) both}
 @keyframes bsSway{0%,100%{transform:rotate(-.8deg)}50%{transform:rotate(.9deg)}}
 @keyframes bsDrift{from{transform:translateX(-80px)}to{transform:translateX(460px)}}
