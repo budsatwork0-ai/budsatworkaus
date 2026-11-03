@@ -17,3 +17,7 @@ export const HOME_BA_ORIGINAL_FILES = true;
 // Full-size before/after photos from Jackson (1200x1600, metadata stripped) in the slider.
 // Set false to use the old 300x400 photos.
 export const HOME_BA_HD_PHOTOS = true;
+
+// "See the difference" and "What we do" each fill one phone screen (100svh), centred,
+// with gentle y-proximity scroll snapping (3 Nov 2026, Jackson's request). Set false to restore.
+export const HOME_FULLSCREEN_SECTIONS = true;

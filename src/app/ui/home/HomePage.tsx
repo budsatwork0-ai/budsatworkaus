@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS } from './flags';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -854,7 +854,30 @@ function MsLink({ href, children, track }: { href: string; children: React.React
   );
 }
 
+// Full-screen section shell (HOME_FULLSCREEN_SECTIONS): one section per phone screen,
+// content centred, top padding clears the sticky header, bottom clears the floating pill.
+const FS_SECTION = 'min-h-screen min-h-[100svh] flex flex-col justify-center pt-[76px] pb-[88px] snap-start';
+
 function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | null> }) {
+  // Gentle snapping so a full-screen section settles in frame (proximity, never traps).
+  useEffect(() => {
+    if (!HOME_FULLSCREEN_SECTIONS) return;
+    const html = document.documentElement;
+    const prev = html.style.scrollSnapType;
+    html.style.scrollSnapType = 'y proximity';
+    return () => { html.style.scrollSnapType = prev; };
+  }, []);
+  // Hide the floating quote pill while the "Get a window quote" link is on screen.
+  const baLinkRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = baLinkRef.current;
+    if (!HOME_FULLSCREEN_SECTIONS || !el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      window.dispatchEvent(new CustomEvent(e.isIntersecting ? 'home:cta-enter' : 'home:cta-leave'));
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   const stats = [
     { val: 6, suf: '', pre: '', lbl: 'Services online' },
     { val: 2, suf: '', pre: '', lbl: 'Regions' },
@@ -881,12 +904,13 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
 
       <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
         {/* Before / after */}
-        <section>
+        <section className={HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined}>
           <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
           {HOME_BA_SLIDER ? (
             <FadeUp delay={0.06}>
               <div className="mt-8">
                 <BeforeAfterSlider
+                  fitScreen={HOME_FULLSCREEN_SECTIONS}
                   before={HOME_BA_HD_PHOTOS
                     ? { src: '/images/window-clean-before-hd.webp', alt: 'Dirty, streaky verandah window before a Buds At Work clean' }
                     : { src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' }}
@@ -913,19 +937,19 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
             </div>
           </FadeUp>
           )}
-          <div className="mt-6 text-center">
+          <div ref={baLinkRef} className="mt-6 text-center">
             <MsLink href="/services?service=windows" track="homepage_proof_window_quote_click">Get a window quote</MsLink>
           </div>
         </section>
 
         {/* Services — clean list */}
-        <section className="px-6">
+        <section className={HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />
           <FadeUp delay={0.06}>
-            <ul className="mt-8 mx-auto max-w-xl divide-y divide-neutral-200/70">
+            <ul className={`${HOME_FULLSCREEN_SECTIONS ? 'mt-6' : 'mt-8'} mx-auto max-w-xl divide-y divide-neutral-200/70`}>
               {SERVICES.map((s) => (
                 <li key={s.key}>
-                  <Link href={s.href} className="group flex items-center gap-4 py-4">
+                  <Link href={s.href} className={`group flex items-center gap-4 ${HOME_FULLSCREEN_SECTIONS ? 'py-3 [@media(min-height:740px)]:py-4' : 'py-4'}`}>
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-800">{s.icon}</span>
                     <span className="flex-1 text-[16px] font-medium text-neutral-900">{s.label}</span>
                     <span className="text-[14px] text-neutral-500 tabular-nums">From ${s.from}</span>
