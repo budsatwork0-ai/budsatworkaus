@@ -1109,6 +1109,7 @@ function ServicesPageContent() {
   const [openChecklists, setOpenChecklists] = React.useState<Record<string, boolean>>({});
   const [floorPlanResetKey, setFloorPlanResetKey] = React.useState<number>(0);
 
+  const streetRowsScopeRef = useRef<string | null>(null);
   const applyScopePreset = React.useCallback((svc: ServiceType, sc: ScopeKey) => {
     const prev = winSessionMinutes(S);
     const preset = scopePresetFor(svc, sc, S.context);
@@ -1136,6 +1137,15 @@ function ServicesPageContent() {
       if (sc === 'dump_runs') set('dumpRun', { ...DEFAULT_DUMP_RUN });
       if (sc === 'dump_delivery') set('dumpDelivery', { ...DEFAULT_DUMP_DELIVERY });
       if (sc === 'dump_transport') set('dumpTransport', { ...DEFAULT_DUMP_TRANSPORT });
+    }
+
+    // Buds Street hand-off: the first windows preset after a prefill keeps the
+    // prefilled rows and side (scope) instead of resetting to the 12-pane default.
+    if (svc === 'windows' && streetRowsScopeRef.current) {
+      const keep = streetRowsScopeRef.current as ScopeKey;
+      streetRowsScopeRef.current = null;
+      if (keep !== sc) set('scope', keep);
+      return;
     }
 
     if (svc === 'windows') {
@@ -1333,6 +1343,7 @@ function ServicesPageContent() {
     const pre = streetPrefillRef.current;
     if (!pre || !urlServiceHandled || S.service !== 'windows') return;
     streetPrefillRef.current = null;
+    streetRowsScopeRef.current = (pre.scope as string) ?? null;
     dispatch({ type: 'merge', value: pre });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlServiceHandled, S.service]);
