@@ -554,7 +554,7 @@ const CSS = `
 .bs-hit{cursor:pointer;outline:none;transition:transform .15s}
 .bs-hit:active{transform:scale(.96)}
 .bs-hit:focus-visible{stroke:${GREEN};stroke-width:1}
-.bs-scene{transform-origin:0 0;transition:transform .9s cubic-bezier(.65,0,.35,1);backface-visibility:hidden}
+.bs-scene{transform-origin:0 0;transition:transform .9s cubic-bezier(.65,0,.35,1);backface-visibility:hidden;will-change:transform}
 .bs-glow-still{filter:drop-shadow(0 0 2.5px rgba(21,128,61,.55))}
 .bs-light-html{background:radial-gradient(120% 80% at 85% 0%,rgba(221,243,228,.55),transparent 60%);opacity:0;animation:bsLight 14s ease-in-out infinite;will-change:opacity}
 .bs-glow{filter:drop-shadow(0 0 3px rgba(21,128,61,.6));animation:bsPulse 2.4s ease-in-out infinite}
