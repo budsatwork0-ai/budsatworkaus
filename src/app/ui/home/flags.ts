@@ -40,3 +40,7 @@ export const HOME_SERVICES_FIRST = true;
 export const BUDS_STREET_WINDOWS = true;
 // /street uses the home page palette (white, neutral greys, #15803D). False = original warm paper palette.
 export const BUDS_STREET_HOME_PALETTE = true;
+// /street: static ink layer + CSS-transform zoom + isolated idle motion (false = original viewBox tween).
+export const BUDS_STREET_SMOOTH = true;
+// /street: per-window values and a gentle progress bar toward the visit minimum (false = original ticket).
+export const BUDS_STREET_EXPLORE = true;
