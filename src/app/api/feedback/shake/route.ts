@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const text = String(form.get('text') ?? '').trim();
   const pageUrl = String(form.get('url') ?? '').slice(0, 500);
+  const ua = String(form.get('ua') ?? '').slice(0, 400);
   const shot = form.get('screenshot');
   if (!text && !(shot instanceof Blob)) return NextResponse.json({ error: 'Empty' }, { status: 400 });
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
@@ -23,7 +24,8 @@ export async function POST(req: Request) {
       photoUrl = signed.data?.signedUrl ?? `feedback-screenshots/${path}`;
     }
   }
-  const description = `${text || '(no text)'}\n\nPage: ${pageUrl}\nTime: ${now.toLocaleString('en-AU', { timeZone: 'Australia/Brisbane' })} AEST\nFrom: ${user.email ?? user.id} (${user.role})`;
+  const deviceLine = ua ? `\nDevice: ${ua}` : '';
+  const description = `${text || '(no text)'}\n\nPage: ${pageUrl}\nTime: ${now.toLocaleString('en-AU', { timeZone: 'Australia/Brisbane' })} AEST\nFrom: ${user.email ?? user.id} (${user.role})${deviceLine}`;
   const { error } = await db.from('site_feedback').insert({
     type: 'general', subject: `Shake feedback (${user.role}): ${(text || pageUrl).slice(0, 60)}`, description, photo_url: photoUrl, status: 'new',
   });

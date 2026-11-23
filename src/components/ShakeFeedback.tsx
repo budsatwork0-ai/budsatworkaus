@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSupabaseBrowserClientSafe } from '@/lib/supabase/client';
+import { SHAKE_ONLY_FEEDBACK } from '@/app/ui/home/flags';
 
 const ASKED_KEY = 'bud-shake-asked';
 type MotionPerm = { requestPermission?: () => Promise<'granted' | 'denied'> };
@@ -162,6 +163,7 @@ function ShakeFeedbackInner() {
     setStatus('sending');
     const fd = new FormData();
     fd.set('text', text); fd.set('url', window.location.href);
+    if (SHAKE_ONLY_FEEDBACK) fd.set('ua', navigator.userAgent);
     if (shot) fd.set('screenshot', shot, 'screenshot.png');
     const res = await fetch('/api/feedback/shake', { method: 'POST', body: fd }).catch(() => null);
     if (res?.ok) { setStatus('sent'); setTimeout(close, 1200); } else setStatus('error');
@@ -181,7 +183,7 @@ function ShakeFeedbackInner() {
           <div className="flex max-h-[90vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-[#0F3F33]">Send feedback</h2>
             {preview && <img src={preview} alt="Screenshot" className="max-h-60 w-full rounded-xl border object-contain object-top" />}
-            <textarea key={formKey} value={text} onChange={(e) => setText(e.target.value)} rows={4} autoFocus placeholder="What's wrong or what would help?" className="w-full rounded-xl border border-[#0F3F33]/20 p-3 text-base" />
+            <textarea key={formKey} value={text} onChange={(e) => setText(e.target.value)} rows={4} autoFocus placeholder={SHAKE_ONLY_FEEDBACK ? 'What do you want changed?' : "What's wrong or what would help?"} className="w-full rounded-xl border border-[#0F3F33]/20 p-3 text-base" />
             {status === 'error' && <p className="text-sm text-red-600">Couldn&apos;t send. Try again.</p>}
             <div className="flex gap-2">
               <button onClick={close} className="flex-1 rounded-full border border-[#0F3F33]/20 py-3 font-semibold text-[#0F3F33]">Cancel</button>

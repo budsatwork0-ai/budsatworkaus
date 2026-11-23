@@ -51,3 +51,9 @@ export const BUDS_STREET_EXPLORE = true;
 // deployment (or locally) by setting that env var. Set false-equivalent by
 // leaving the env unset or any value other than "1".
 export const BOOK_SERVICE_CTA = process.env.NEXT_PUBLIC_BOOK_SERVICE_CTA === '1';
+
+// Hide the public floating "Report an issue" button and use shake-to-feedback
+// only (23 Nov 2026). Off unless NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK=1. Production
+// stays off; enable on a Preview deployment (or locally) by setting that env
+// var. Shake itself stays limited to signed-in users (admin, crew, customer).
+export const SHAKE_ONLY_FEEDBACK = process.env.NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK === '1';
