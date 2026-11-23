@@ -17,6 +17,8 @@ import { trackFunnelStart, trackFunnelStepComplete, trackFunnelAbandon, trackFun
 import { trackFunnelEvent } from '@/lib/analytics/quote-funnel';
 import type { AnalyticsEventData } from '@/lib/analytics/shared';
 import { SMALL_JOB_PAYMENT_COPY } from '@/lib/payments/pricing';
+import { BOOK_SERVICE_CTA } from '@/app/ui/home/flags';
+import { ServicesFirstPaint } from '@/app/(public)/services/components/shared/ServicesFirstPaint';
 import StableMapSlot from '@/components/StableMapSlot';
 import YardZonesPreview from '@/components/YardZonesPreview';
 import {
@@ -4935,7 +4937,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                     style={{ background: 'var(--accent)' }}
                     disabled={isCheckoutLoading}
                     onClick={() => void handleSubmitQuote(false)}
-                    aria-label="Get my quote"
+                    aria-label={BOOK_SERVICE_CTA ? 'Request booking' : 'Get my quote'}
                   >
                     {isCheckoutLoading ? (
                       <>
@@ -4945,7 +4947,7 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
                         Submitting...
                       </>
                     ) : (
-                      'Get my quote →'
+                      BOOK_SERVICE_CTA ? 'Request booking →' : 'Get my quote →'
                     )}
                   </M.button>
 
@@ -5357,6 +5359,9 @@ const scopedPricing = useMemo(() => calculateServicePrice(S.scope, S), [
 
 // Loading fallback for Suspense
 function ServicesPageLoading() {
+  if (BOOK_SERVICE_CTA) {
+    return <ServicesFirstPaint />;
+  }
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">

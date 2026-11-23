@@ -7,6 +7,7 @@ import type { User } from '@supabase/supabase-js';
 import { brand } from './theme';
 import { ServicesAuthBar } from '@/components/ServicesAuthBar';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { BOOK_SERVICE_CTA } from '@/app/ui/home/flags';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -24,6 +25,32 @@ function CloseIcon() {
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6" strokeWidth={1.8}>
       <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
+  );
+}
+
+
+function BookServiceButton({
+  className,
+  style,
+  onClick,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      href="/services"
+      onClick={onClick}
+      data-cta="book-service"
+      className={cx(
+        'inline-flex items-center justify-center rounded-full font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+        className,
+      )}
+      style={style}
+    >
+      Book a service
+    </Link>
   );
 }
 
@@ -143,6 +170,17 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {BOOK_SERVICE_CTA && (
+              <BookServiceButton
+                onClick={() => handleNavClick('/services')}
+                style={{
+                  background: brand.accent,
+                  height: '38px',
+                  padding: '0 16px',
+                  fontSize: '14px',
+                }}
+              />
+            )}
             {onServices ? (
               /* Services page: ServicesAuthBar handles auth inline */
               <ServicesAuthBar inline />
@@ -214,6 +252,18 @@ export default function Header() {
             style={{ borderColor: brand.border }}
             aria-label="Mobile"
           >
+            {BOOK_SERVICE_CTA && (
+              <BookServiceButton
+                onClick={() => handleNavClick('/services')}
+                className="w-full mb-2"
+                style={{
+                  background: brand.accent,
+                  height: '44px',
+                  padding: '0 20px',
+                  fontSize: '15px',
+                }}
+              />
+            )}
             {navLinks.map((link) => (
               <Link
                 key={link.href}
