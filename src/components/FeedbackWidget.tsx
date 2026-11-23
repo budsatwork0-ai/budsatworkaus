@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS } from '@/app/ui/home/flags';
+import { HOME_MODERN_SECTIONS, SHAKE_ONLY_FEEDBACK } from '@/app/ui/home/flags';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -227,7 +227,7 @@ export function FeedbackWidget() {
           3. Feedback pill — bottom-right corner, all screen sizes
           Hidden on /services — the quote assistant occupies that space.
          ───────────────────────────────────────────────────────────────────── */}
-      {!onServices && (
+      {!SHAKE_ONLY_FEEDBACK && !onServices && (
         <div className="fixed bottom-5 right-4 z-40">
           <button
             onClick={() => setFeedbackOpen(true)}
@@ -247,7 +247,9 @@ export function FeedbackWidget() {
         </div>
       )}
 
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      {!SHAKE_ONLY_FEEDBACK && (
+        <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      )}
     </>
   );
 }

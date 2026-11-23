@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST, BOOK_SERVICE_CTA } from './flags';
 import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
@@ -189,6 +189,7 @@ export default function HomePage() {
       {/* ════════════════════════════════════════════════ HERO — full-screen video ══ */}
       <section
         data-cursor-exclude
+        data-home-hero
         className="relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10"
         style={{
           minHeight: '100svh',
@@ -762,9 +763,13 @@ function ModernHeroText({ word, show }: { word: string; show: boolean }) {
           href="/services"
           data-track="hero_quote_click"
           data-track-label="Homepage hero quote"
-          className="inline-flex items-center rounded-full bg-white text-black text-[16px] font-medium px-8 py-3.5 transition-opacity hover:opacity-90"
+          data-cta={BOOK_SERVICE_CTA ? 'book-service' : undefined}
+          className={BOOK_SERVICE_CTA
+            ? 'inline-flex items-center rounded-full text-white text-[16px] font-semibold px-8 py-3.5 transition-opacity hover:opacity-90'
+            : 'inline-flex items-center rounded-full bg-white text-black text-[16px] font-medium px-8 py-3.5 transition-opacity hover:opacity-90'}
+          style={BOOK_SERVICE_CTA ? { background: BRAND.accent, boxShadow: '0 4px 18px rgba(28,124,84,0.35)' } : undefined}
         >
-          Get a quote
+          {BOOK_SERVICE_CTA ? 'Book a service' : 'Get a quote'}
         </Link>
         <Link href="/about" className="text-[15px] font-medium text-white/80 hover:text-white transition-colors">
           Meet the team →

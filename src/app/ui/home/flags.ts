@@ -44,3 +44,16 @@ export const BUDS_STREET_HOME_PALETTE = true;
 export const BUDS_STREET_SMOOTH = true;
 // /street: per-window values and a gentle progress bar toward the visit minimum (false = original ticket).
 export const BUDS_STREET_EXPLORE = true;
+
+// Public "Book a service" CTA, /book and /booking redirects, services first-paint
+// cards, and Step 3 "Request booking" label (23 Nov 2026). Off unless
+// NEXT_PUBLIC_BOOK_SERVICE_CTA=1. Production stays off; enable on a Preview
+// deployment (or locally) by setting that env var. Set false-equivalent by
+// leaving the env unset or any value other than "1".
+export const BOOK_SERVICE_CTA = process.env.NEXT_PUBLIC_BOOK_SERVICE_CTA === '1';
+
+// Hide the public floating "Report an issue" button and use shake-to-feedback
+// only (23 Nov 2026). Off unless NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK=1. Production
+// stays off; enable on a Preview deployment (or locally) by setting that env
+// var. Shake itself stays limited to signed-in users (admin, crew, customer).
+export const SHAKE_ONLY_FEEDBACK = process.env.NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK === '1';
