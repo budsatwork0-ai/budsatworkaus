@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST, BOOK_SERVICE_CTA } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST, BOOK_SERVICE_CTA, HOME_CAROUSEL_CLEAN_BG } from './flags';
 import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
@@ -1001,7 +1001,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
                 <h2 className="mt-2 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-neutral-900" style={{ letterSpacing: '-0.04em' }}>What we do<span style={{ color: MS_GREEN }}>.</span></h2>
                 <p className="mt-2.5 mx-auto max-w-md text-[16px] [@media(max-height:700px)]:text-[15px] leading-relaxed text-neutral-500">Practical services to make your life easier.</p>
               </FadeUp>
-              <div className="-mx-6 md:mx-0">{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
+              <div className={HOME_CAROUSEL_CLEAN_BG ? '-mx-10 md:mx-0' : '-mx-6 md:mx-0'}>{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
             </>
           ) : (<>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />
