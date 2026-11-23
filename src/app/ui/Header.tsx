@@ -33,18 +33,21 @@ function BookServiceButton({
   className,
   style,
   onClick,
+  tabIndex,
 }: {
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
+  tabIndex?: number;
 }) {
   return (
     <Link
       href="/services"
       onClick={onClick}
+      tabIndex={tabIndex}
       data-cta="book-service"
       className={cx(
-        'inline-flex items-center justify-center rounded-full font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         className,
       )}
       style={style}
@@ -96,6 +99,27 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // On the home page, hide the header Book button while the hero is on screen
+  // and fade it in once the user scrolls past it. Other pages show it as normal.
+  const [heroOnScreen, setHeroOnScreen] = React.useState(true);
+  React.useEffect(() => {
+    if (!BOOK_SERVICE_CTA || pathname !== '/') {
+      setHeroOnScreen(false);
+      return;
+    }
+    const hero = document.querySelector('[data-home-hero]');
+    if (!hero) {
+      setHeroOnScreen(false);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => setHeroOnScreen(entry.isIntersecting),
+      { threshold: 0 },
+    );
+    obs.observe(hero);
+    return () => obs.disconnect();
+  }, [pathname]);
+
   if (pathname?.startsWith('/dashboard')) return null;
 
   const onServices = pathname?.startsWith('/services');
@@ -120,6 +144,7 @@ export default function Header() {
 
   const isHome = pathname === '/';
   const showLight = isHome && !scrolled;
+  const hideHomeBook = isHome && heroOnScreen;
 
   const linkBase = 'hover:underline transition-[color,opacity] duration-150';
 
@@ -171,15 +196,26 @@ export default function Header() {
 
           <div className="flex items-center gap-3">
             {BOOK_SERVICE_CTA && (
-              <BookServiceButton
-                onClick={() => handleNavClick('/services')}
-                style={{
-                  background: brand.accent,
-                  height: '38px',
-                  padding: '0 16px',
-                  fontSize: '14px',
-                }}
-              />
+              <div
+                className={cx(
+                  'overflow-hidden transition-[max-width,opacity] duration-300 ease-out',
+                  hideHomeBook
+                    ? 'max-w-0 opacity-0 pointer-events-none'
+                    : 'max-w-[12rem] opacity-100',
+                )}
+                aria-hidden={hideHomeBook}
+              >
+                <BookServiceButton
+                  onClick={() => handleNavClick('/services')}
+                  tabIndex={hideHomeBook ? -1 : undefined}
+                  style={{
+                    background: brand.accent,
+                    height: '38px',
+                    padding: '0 16px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
             )}
             {onServices ? (
               /* Services page: ServicesAuthBar handles auth inline */
@@ -252,18 +288,6 @@ export default function Header() {
             style={{ borderColor: brand.border }}
             aria-label="Mobile"
           >
-            {BOOK_SERVICE_CTA && (
-              <BookServiceButton
-                onClick={() => handleNavClick('/services')}
-                className="w-full mb-2"
-                style={{
-                  background: brand.accent,
-                  height: '44px',
-                  padding: '0 20px',
-                  fontSize: '15px',
-                }}
-              />
-            )}
             {navLinks.map((link) => (
               <Link
                 key={link.href}
