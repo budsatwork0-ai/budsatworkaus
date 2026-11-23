@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { COPY, type CarouselService } from './ServicesCarousel';
+import { HOME_CAROUSEL_CLEAN_BG } from './flags';
 
 const GREEN = '#15803D';
 
@@ -75,8 +76,10 @@ export default function ServicesCoverflow({ services }: { services: CarouselServ
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => (drag.current = null)}
-        className="relative mx-auto w-full overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-[28px] select-none md:[mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)]"
-        style={{ height: cardH + 40, touchAction: 'pan-y' }}
+        className={HOME_CAROUSEL_CLEAN_BG
+          ? 'relative mx-auto w-full overflow-x-clip overflow-y-visible outline-none focus-visible:ring-2 focus-visible:ring-green-600 select-none md:[mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)]'
+          : 'relative mx-auto w-full overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-[28px] select-none md:[mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)]'}
+        style={{ height: cardH + (HOME_CAROUSEL_CLEAN_BG ? 88 : 40), touchAction: 'pan-y' }}
       >
         {services.map((s, i) => {
           const c = COPY[s.key] ?? COPY.windows;
@@ -97,10 +100,13 @@ export default function ServicesCoverflow({ services }: { services: CarouselServ
               onClick={(e) => {
                 if (suppressClick.current || !isActive) { e.preventDefault(); if (!suppressClick.current) go(i); }
               }}
-              className="absolute left-1/2 top-5 block overflow-hidden rounded-[24px] bg-neutral-200 shadow-[0_22px_44px_-20px_rgba(0,0,0,0.5)] outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className={HOME_CAROUSEL_CLEAN_BG
+                ? `absolute left-1/2 block overflow-hidden rounded-[24px] bg-neutral-200 outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? 'shadow-[0_10px_24px_-10px_rgba(0,0,0,0.22)]' : 'shadow-none'}`
+                : 'absolute left-1/2 top-5 block overflow-hidden rounded-[24px] bg-neutral-200 shadow-[0_22px_44px_-20px_rgba(0,0,0,0.5)] outline-none focus-visible:ring-2 focus-visible:ring-green-600'}
               style={{
                 width: cardW,
                 height: cardH,
+                top: HOME_CAROUSEL_CLEAN_BG ? 28 : undefined,
                 marginLeft: -cardW / 2,
                 transform: `translateX(${x}px) scale(${scale})`,
                 zIndex: 10 - abs,

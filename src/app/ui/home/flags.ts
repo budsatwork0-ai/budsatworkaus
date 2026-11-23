@@ -57,3 +57,9 @@ export const BOOK_SERVICE_CTA = process.env.NEXT_PUBLIC_BOOK_SERVICE_CTA === '1'
 // stays off; enable on a Preview deployment (or locally) by setting that env
 // var. Shake itself stays limited to signed-in users (admin, crew, customer).
 export const SHAKE_ONLY_FEEDBACK = process.env.NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK === '1';
+
+// Home "What we do" coverflow: no rounded clipping box, softer card shadow,
+// and full-bleed peeking cards on mobile (24 Nov 2026). Off unless
+// NEXT_PUBLIC_HOME_CAROUSEL_CLEAN_BG=1. Production stays off; enable on a
+// Preview deployment (or locally) by setting that env var.
+export const HOME_CAROUSEL_CLEAN_BG = process.env.NEXT_PUBLIC_HOME_CAROUSEL_CLEAN_BG === '1';
