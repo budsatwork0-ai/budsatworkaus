@@ -13,10 +13,22 @@ import ServicesCoverflow from './ServicesCoverflow';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import type { CarouselService } from './ServicesCarousel';
 
-const serif = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], display: 'swap' });
+const serif = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], display: 'swap', preload: false });
 
 const SANS = 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+const MONO_STACK = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+
+// One type family across the home page (24 Nov 2026, Jackson's request): Inter, the
+// same face as the hero headline, header and the rest of the public site. Headlines
+// use the hero's semibold + tight tracking; accents are colour only. Set false to
+// bring back the Instrument Serif headline + monospace label pairing.
+const STORY_UNIFIED_FONT = true;
+const MONO = STORY_UNIFIED_FONT ? SANS : MONO_STACK;
+const IT = STORY_UNIFIED_FONT ? '' : 'italic';
+// Headline class: unified (Inter) size/weight vs the serif original.
+const headline = (serifSize: string, sansSize: string) =>
+  STORY_UNIFIED_FONT ? `font-semibold ${sansSize}` : `${serif.className} ${serifSize}`;
+const track = (serifTrack: string) => (STORY_UNIFIED_FONT ? '-0.035em' : serifTrack);
 
 type RGB = [number, number, number];
 const TONES: Record<string, RGB> = {
@@ -218,13 +230,13 @@ function Manifesto() {
       <div className="sticky top-0 mx-auto flex h-[100svh] max-w-7xl flex-col justify-between px-6 pb-10 pt-28 md:px-16 md:pb-14 md:pt-36" style={{ opacity: EXIT }}>
         <Label n="I">Who we are</Label>
         <h2
-          className={`${serif.className} max-w-[17ch] text-[clamp(2.55rem,10.4vw,5.6rem)] leading-[1.04] md:max-w-[22ch]`}
-          style={{ color: INK, letterSpacing: '-0.012em' }}
+          className={`${STORY_UNIFIED_FONT ? 'font-medium text-[clamp(1.9rem,7.7vw,4.2rem)] leading-[1.14]' : `${serif.className} text-[clamp(2.55rem,10.4vw,5.6rem)] leading-[1.04]`} max-w-[17ch] md:max-w-[22ch]`}
+          style={{ color: INK, letterSpacing: STORY_UNIFIED_FONT ? '-0.03em' : '-0.012em' }}
         >
           {MANIFESTO.map((t, i) => (
             <React.Fragment key={i}>
               <span
-                className={t.accent ? 'italic' : undefined}
+                className={t.accent && IT ? IT : undefined}
                 style={{
                   color: t.accent ? ACC : undefined,
                   opacity: `clamp(0.16, calc((var(--p) * ${k.toFixed(3)} - ${i}) * 0.5 + 0.16), 1)`,
@@ -256,11 +268,11 @@ function Craft({ services }: { services: CarouselService[] }) {
       <div className="mx-auto grid max-w-7xl gap-y-6 px-6 md:grid-cols-12 md:px-16" style={{ opacity: ENTER }}>
         <Label n="II" className="md:col-span-12">What we do</Label>
         <h2
-          className={`${serif.className} text-[clamp(3.1rem,14vw,7.5rem)] leading-[0.94] md:col-span-8`}
-          style={{ color: INK, letterSpacing: '-0.02em', transform: 'translate3d(0, calc((1 - var(--e)) * 40px), 0)' }}
+          className={`${headline('text-[clamp(3.1rem,14vw,7.5rem)] leading-[0.94]', 'text-[clamp(2.4rem,10vw,5.5rem)] leading-[1.03]')} md:col-span-8`}
+          style={{ color: INK, letterSpacing: track('-0.02em'), transform: 'translate3d(0, calc((1 - var(--e)) * 40px), 0)' }}
         >
           Practical help,<br />
-          <span className="italic" style={{ color: ACC }}>done properly.</span>
+          <span className={IT || undefined} style={{ color: ACC }}>done properly.</span>
         </h2>
         <div className="flex items-end justify-between gap-6 md:col-span-4 md:flex-col md:items-end md:justify-end md:text-right">
           <p className="max-w-[16rem] text-[15px] leading-relaxed" style={{ color: INK_SOFT, fontFamily: SANS }}>
@@ -292,12 +304,12 @@ function Proof({ hd }: { hd: boolean }) {
       <div className="mx-auto grid max-w-7xl items-center gap-y-8 px-4 md:grid-cols-12 md:gap-x-10 md:px-16">
         <div className="px-2 md:col-span-5 md:px-0">
           <Label n="III">The proof</Label>
-          <h2 className={`${serif.className} mt-8 text-[clamp(2.9rem,13vw,6.6rem)] leading-[0.95]`} style={{ color: INK, letterSpacing: '-0.02em' }}>
+          <h2 className={`${headline('text-[clamp(2.9rem,13vw,6.6rem)] leading-[0.95]', 'text-[clamp(2.4rem,10.5vw,5.2rem)] leading-[1.03]')} mt-8`} style={{ color: INK, letterSpacing: track('-0.02em') }}>
             Before<br />we arrive.
           </h2>
           <h2
-            className={`${serif.className} mt-3 hidden text-[clamp(2.9rem,13vw,6.6rem)] italic leading-[0.95] md:block`}
-            style={{ color: ACC, letterSpacing: '-0.02em' }}
+            className={`${headline('text-[clamp(2.9rem,13vw,6.6rem)] italic leading-[0.95]', 'text-[clamp(2.4rem,10.5vw,5.2rem)] leading-[1.03]')} mt-3 hidden md:block`}
+            style={{ color: ACC, letterSpacing: track('-0.02em') }}
           >
             After<br />we leave.
           </h2>
@@ -323,7 +335,7 @@ function Proof({ hd }: { hd: boolean }) {
           />
         </div>
         <div className="px-2 text-right md:hidden">
-          <h2 className={`${serif.className} text-[clamp(2.9rem,13vw,6.6rem)] italic leading-[0.95]`} style={{ color: ACC, letterSpacing: '-0.02em' }}>
+          <h2 className={headline('text-[clamp(2.9rem,13vw,6.6rem)] italic leading-[0.95]', 'text-[clamp(2.4rem,10.5vw,5.2rem)] leading-[1.03]')} style={{ color: ACC, letterSpacing: track('-0.02em') }}>
             After<br />we leave.
           </h2>
           <Link href="/services?service=windows" data-track="homepage_proof_window_quote_click" className="mt-6 inline-flex items-center gap-2 text-[15px] font-medium" style={{ color: ACC, fontFamily: SANS }}>
@@ -345,8 +357,8 @@ function Rhythm({ steps }: { steps: Step[] }) {
         <div className="grid gap-y-6 md:grid-cols-12 md:items-end">
           <div className="md:col-span-8">
             <Label n="IV">How it works</Label>
-            <h2 className={`${serif.className} mt-8 text-[clamp(2.9rem,12.5vw,6.8rem)] leading-[0.95]`} style={{ color: INK, letterSpacing: '-0.02em' }}>
-              Quoting that<br /><span className="italic" style={{ color: ACC }}>makes sense.</span>
+            <h2 className={`${headline('text-[clamp(2.9rem,12.5vw,6.8rem)] leading-[0.95]', 'text-[clamp(2.4rem,10.5vw,5.4rem)] leading-[1.03]')} mt-8`} style={{ color: INK, letterSpacing: track('-0.02em') }}>
+              Quoting that<br /><span className={IT || undefined} style={{ color: ACC }}>makes sense.</span>
             </h2>
           </div>
           <p className="text-[15px] md:col-span-4 md:text-right" style={{ color: INK_SOFT, fontFamily: SANS }}>No callbacks, no guesswork.</p>
@@ -362,9 +374,10 @@ function Rhythm({ steps }: { steps: Step[] }) {
           {steps.map((s, i) => (
             <li key={s.n} className={`grid md:grid-cols-12 ${i ? 'mt-[11svh] md:mt-[14svh]' : ''}`}>
               <span
-                className={`${serif.className} block text-[clamp(5rem,26vw,9.5rem)] leading-[0.8] tabular-nums md:col-span-3`}
+                className={`${STORY_UNIFIED_FONT ? 'font-normal text-[clamp(4.25rem,21vw,8.5rem)] leading-[0.85]' : `${serif.className} text-[clamp(5rem,26vw,9.5rem)] leading-[0.8]`} block tabular-nums md:col-span-3`}
                 style={{
                   color: INK,
+                  letterSpacing: STORY_UNIFIED_FONT ? '-0.05em' : undefined,
                   opacity: `clamp(0.14, calc((var(--line) * ${count + 0.6} - ${i}) * 0.9), 1)`,
                 }}
                 aria-hidden
@@ -391,9 +404,9 @@ function Crew({ promises }: { promises: string[] }) {
     <section data-tone="dark" data-scrub aria-label="Your local crew" className="relative pb-[18svh] pt-[24svh]" style={v({ '--e': 1, '--x': 1 })}>
       <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: `min(${ENTER}, ${EXIT})` }}>
         <Label n="V">The crew</Label>
-        <h2 className={`${serif.className} mt-10 text-[clamp(3.2rem,14.5vw,8.6rem)] leading-[0.92]`} style={{ color: INK, letterSpacing: '-0.025em' }}>
+        <h2 className={`${headline('text-[clamp(3.2rem,14.5vw,8.6rem)] leading-[0.92]', 'text-[clamp(2.5rem,10.8vw,6.4rem)] leading-[1.03]')} mt-10`} style={{ color: INK, letterSpacing: track('-0.025em') }}>
           Your local crew,
-          <span className="mt-2 block italic md:pl-[18%]" style={{ color: ACC }}>not a faceless platform.</span>
+          <span className={`mt-2 block ${IT} md:pl-[18%]`} style={{ color: ACC }}>not a faceless platform.</span>
         </h2>
         <div className="mt-[10svh] grid gap-y-10 md:grid-cols-12">
           <p className="max-w-sm text-[17px] leading-relaxed md:col-span-4" style={{ color: INK_SOFT, fontFamily: SANS }}>
@@ -422,8 +435,8 @@ function Finale({ ctaRef, accent }: { ctaRef: React.RefObject<HTMLDivElement | n
   return (
     <section data-tone="paper" data-scrub aria-label="Book a service" style={v({ '--e': 1 })} className="relative flex min-h-[112svh] flex-col items-center justify-center px-6 pb-[16svh] pt-[22svh] text-center">
       <div ref={ctaRef} className="relative z-10 flex flex-col items-center" style={{ opacity: ENTER, transform: 'translate3d(0, calc((1 - var(--e)) * 40px), 0)' }}>
-        <h2 className={`${serif.className} text-[clamp(3.6rem,17vw,11rem)] leading-[0.9]`} style={{ color: INK, letterSpacing: '-0.03em' }}>
-          Ready when<br /><span className="italic" style={{ color: ACC }}>you are.</span>
+        <h2 className={headline('text-[clamp(3.6rem,17vw,11rem)] leading-[0.9]', 'text-[clamp(2.9rem,13vw,8rem)] leading-[1.0]')} style={{ color: INK, letterSpacing: track('-0.03em') }}>
+          Ready when<br /><span className={IT || undefined} style={{ color: ACC }}>you are.</span>
         </h2>
         <p className="mt-8 max-w-xs text-[17px] leading-relaxed md:max-w-md" style={{ color: INK_SOFT, fontFamily: SANS }}>
           Build your free quote in minutes. Price locked for 7 days.
