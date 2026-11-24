@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, SHAKE_ONLY_FEEDBACK } from '@/app/ui/home/flags';
+import { HOME_MODERN_SECTIONS, SHAKE_ONLY_FEEDBACK, HOME_HERO_SHEET_TRANSITION } from '@/app/ui/home/flags';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -150,7 +150,7 @@ export function FeedbackWidget() {
       {/* ─────────────────────────────────────────────────────────────────────
           1. Primary floating CTA — desktop (fixed right, vertically centred)
          ───────────────────────────────────────────────────────────────────── */}
-      {isHome && (
+      {isHome && !HOME_HERO_SHEET_TRANSITION && (
         <div
           className="hidden md:block fixed right-4 z-40"
           style={{
@@ -186,7 +186,7 @@ export function FeedbackWidget() {
       {/* ─────────────────────────────────────────────────────────────────────
           2. Primary floating CTA — mobile full-width bottom sticky bar
          ───────────────────────────────────────────────────────────────────── */}
-      {HOME_MODERN_SECTIONS && isHome && shouldShow && !footerVisible && (
+      {HOME_MODERN_SECTIONS && isHome && !HOME_HERO_SHEET_TRANSITION && shouldShow && !footerVisible && (
         <div className="md:hidden fixed left-1/2 -translate-x-1/2 z-40" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
           <Link
             href="/services"
@@ -200,7 +200,7 @@ export function FeedbackWidget() {
           </Link>
         </div>
       )}
-      {!HOME_MODERN_SECTIONS && isHome && shouldShow && !footerVisible && (
+      {!HOME_MODERN_SECTIONS && isHome && !HOME_HERO_SHEET_TRANSITION && shouldShow && !footerVisible && (
         <div
           className="md:hidden fixed bottom-0 inset-x-0 z-40"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}

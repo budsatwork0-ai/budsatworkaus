@@ -190,6 +190,7 @@ export default function HomePage() {
       <section
         data-cursor-exclude
         data-home-hero
+        data-story-frame="hero"
         className={HOME_HERO_SHEET_TRANSITION
           ? 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10 pb-16 md:pb-20'
           : 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10'}
@@ -420,10 +421,11 @@ export default function HomePage() {
             {icons.chevDown}
           </motion.div>
         </motion.div>}
+        {HOME_HERO_SHEET_TRANSITION && <HeroScrollCue />}
       </section>
 
       {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
-      {HOME_MODERN_SECTIONS ? <ModernSections ctaRef={ctaSectionRef} /> : (
+      {HOME_MODERN_SECTIONS ? (HOME_HERO_SHEET_TRANSITION ? <StorySections ctaRef={ctaSectionRef} /> : <ModernSections ctaRef={ctaSectionRef} />) : (
       /* Clean white below the hero — no overlap, no floating band */
       <div className="relative overflow-hidden">
 
@@ -906,6 +908,224 @@ function RichServices() {
   );
 }
 
+function StoryFade({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const reduce = useReducedMotion();
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, amount: 0.15, margin: '0px 0px -8% 0px' });
+  const [shown, setShown] = useState(false);
+  useEffect(() => { if (inView) setShown(true); }, [inView]);
+  // Fallback so a missed observer never leaves a chapter invisible.
+  useEffect(() => {
+    const t = window.setTimeout(() => setShown(true), 1800 + Math.round(delay * 1000));
+    return () => window.clearTimeout(t);
+  }, [delay]);
+  if (reduce) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 18 }}
+      animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
+      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function HeroScrollCue() {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2"
+      style={{ bottom: '4.5rem', color: 'rgba(255,255,255,0.5)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 1.2, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+      aria-hidden
+    >
+      <span className="text-[10px] font-medium uppercase tracking-[0.22em]">Scroll</span>
+      <motion.div
+        className="flex flex-col items-center gap-1"
+        animate={reduce ? undefined : { y: [0, 6, 0], opacity: [0.45, 0.75, 0.45] }}
+        transition={reduce ? undefined : { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <span className="block h-7 w-px bg-white/50" />
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden>
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+const STORY_BLEED: React.CSSProperties = {
+  fontFamily: MS_FONT,
+  marginLeft: 'calc(-50vw + 50%)',
+  marginRight: 'calc(-50vw + 50%)',
+  width: '100vw',
+};
+
+function StoryHeading({
+  eyebrow,
+  eyebrowClassName = 'text-[12px] font-medium tracking-[0.18em] text-neutral-500',
+  title,
+  titleClassName = 'mt-3 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-neutral-900',
+  periodColor = MS_GREEN,
+  sub,
+  subClassName = 'mt-3 mx-auto max-w-md text-[16px] leading-relaxed text-neutral-500',
+}: {
+  eyebrow: string;
+  eyebrowClassName?: string;
+  title: React.ReactNode;
+  titleClassName?: string;
+  periodColor?: string;
+  sub?: React.ReactNode;
+  subClassName?: string;
+}) {
+  return (
+    <StoryFade className="text-center px-6">
+      <p className={eyebrowClassName}>{eyebrow}</p>
+      <h2 className={titleClassName} style={{ letterSpacing: '-0.04em' }}>
+        {title}<span style={{ color: periodColor }}>.</span>
+      </h2>
+      {sub && <p className={subClassName}>{sub}</p>}
+    </StoryFade>
+  );
+}
+
+function StorySections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | null> }) {
+  return (
+    <div className="relative z-10" style={STORY_BLEED}>
+      {/* Frame 2 — What we do */}
+      <section
+        data-story-frame="services"
+        className="relative z-10 flex min-h-[100svh] flex-col justify-center bg-white pt-16 pb-12 md:py-20 rounded-t-[28px] md:rounded-t-[36px] -mt-7 md:-mt-9 shadow-[0_-12px_32px_rgba(0,0,0,0.18)]"
+      >
+        <StoryHeading
+          eyebrow="OUR SERVICES"
+          title="What we do"
+          sub="Practical services to make your life easier."
+        />
+        <div className="w-full">
+          <ServicesCoverflow services={SERVICES} />
+        </div>
+      </section>
+
+      {/* Frame 3 — See the difference */}
+      <section
+        data-story-frame="proof"
+        className="flex min-h-[100svh] flex-col justify-center px-6 py-20 md:py-28"
+        style={{ background: '#F6F5F1' }}
+      >
+        <StoryHeading
+          eyebrow="REAL RESULTS"
+          title="See the difference"
+          sub="A recent window clean by the Buds."
+        />
+        <StoryFade delay={0.1} className="mt-8 md:mt-10">
+          <BeforeAfterSlider
+            fitScreen
+            before={HOME_BA_HD_PHOTOS
+              ? { src: '/images/window-clean-before-hd.webp', alt: 'Dirty, streaky verandah window before a Buds At Work clean' }
+              : { src: '/images/window-clean-before.webp', alt: 'Window before a Buds At Work window clean' }}
+            after={HOME_BA_HD_PHOTOS
+              ? { src: '/images/window-clean-after-hd.webp', alt: 'The same verandah window sparkling clean after a Buds At Work clean' }
+              : { src: '/images/window-clean-after.webp', alt: 'Window after a Buds At Work window clean' }}
+          />
+        </StoryFade>
+        <StoryFade delay={0.18} className="mt-7 text-center">
+          <MsLink href="/services?service=windows" track="homepage_proof_window_quote_click">Get a window quote</MsLink>
+        </StoryFade>
+      </section>
+
+      {/* Frame 4 — Quoting that makes sense */}
+      <section
+        data-story-frame="steps"
+        className="flex min-h-[100svh] flex-col justify-center bg-white px-6 py-20 md:py-28"
+      >
+        <StoryHeading
+          eyebrow="HOW IT WORKS"
+          title="Quoting that makes sense"
+          sub="No callbacks, no guesswork."
+        />
+        <div className="mt-12 mx-auto w-full max-w-3xl grid gap-0 md:grid-cols-3 md:gap-12">
+          {STEPS.map((step, i) => (
+            <StoryFade key={step.n} delay={[0.08, 0.16, 0.24][i] ?? 0.08}>
+              <div className={i === 0 ? 'pt-0' : 'border-t border-neutral-200/70 pt-5 md:border-t-0 md:pt-0'}>
+                <div className="text-[13px] font-semibold tabular-nums tracking-[0.08em]" style={{ color: MS_GREEN }}>{step.n}</div>
+                <h3 className="mt-3 text-[22px] font-semibold leading-snug text-neutral-900" style={{ letterSpacing: '-0.02em' }}>{step.title}</h3>
+                <p className="mt-3 text-[15px] leading-relaxed text-neutral-500">{step.body}</p>
+              </div>
+            </StoryFade>
+          ))}
+        </div>
+      </section>
+
+      {/* Frame 5 — Your local crew */}
+      <section
+        data-story-frame="crew"
+        className="flex min-h-[100svh] flex-col justify-center px-6 py-24 md:py-32 text-white"
+        style={{ background: '#0D1F15' }}
+      >
+        <StoryHeading
+          eyebrow="WHO WE ARE"
+          eyebrowClassName="text-[12px] font-medium tracking-[0.18em] text-emerald-300/80"
+          title={<>Your local crew,<br />not a faceless platform</>}
+          titleClassName="mt-3 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-white"
+          periodColor="#6EE7B7"
+          sub="A small team based in Logan. Real people who take pride in the work."
+          subClassName="mt-4 mx-auto max-w-md text-[16px] leading-relaxed text-white/70"
+        />
+        <StoryFade delay={0.12}>
+          <ul className="mt-10 mx-auto max-w-md space-y-4">
+            {PROMISES.map((p) => (
+              <li key={p} className="flex items-start gap-3 text-[16px] text-white/90">
+                <span aria-hidden className="mt-[2px] text-[14px] text-emerald-300">✓</span>{p}
+              </li>
+            ))}
+          </ul>
+        </StoryFade>
+        <StoryFade delay={0.2} className="mt-10 text-center">
+          <Link href="/about" className="inline-flex items-center gap-1 text-[15px] font-medium text-white transition-colors hover:text-emerald-300">
+            Meet the Buds <span aria-hidden>→</span>
+          </Link>
+        </StoryFade>
+      </section>
+
+      {/* Frame 6 — Ready when you are */}
+      <section
+        data-story-frame="finale"
+        className="flex min-h-[100svh] flex-col items-center justify-center bg-white px-6 py-24 md:py-32 text-center"
+      >
+        <div ref={ctaRef} className="flex w-full flex-col items-center">
+        <StoryFade>
+          <h2
+            className="text-[clamp(2.5rem,9vw,4.5rem)] font-bold leading-[1.03] text-neutral-900"
+            style={{ letterSpacing: '-0.04em' }}
+          >
+            Ready when you are<span style={{ color: MS_GREEN }}>.</span>
+          </h2>
+          <p className="mt-5 mx-auto max-w-sm text-[17px] text-neutral-500">Build your free quote in minutes. Price locked for 7 days.</p>
+          <div className="mt-10">
+            <Link
+              href="/services"
+              data-track="final_quote_click"
+              data-track-label="Homepage final quote"
+              className="inline-flex items-center rounded-full px-8 py-3.5 text-[16px] font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: BRAND.accent, boxShadow: '0 4px 18px rgba(28,124,84,0.35)' }}
+            >
+              Book a service
+            </Link>
+          </div>
+          <p className="mt-5 text-[13px] text-neutral-400">No payment until you confirm.</p>
+        </StoryFade>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | null> }) {
   // Gentle snapping so a full-screen section settles in frame (proximity, never traps).
   useEffect(() => {
@@ -934,17 +1154,8 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
   ];
   return (
     <div
-      className={HOME_HERO_SHEET_TRANSITION
-        ? 'relative z-10 bg-white rounded-t-[28px] md:rounded-t-[36px] -mt-7 md:-mt-9 shadow-[0_-12px_32px_rgba(0,0,0,0.18)]'
-        : 'bg-white'}
-      style={{
-        fontFamily: MS_FONT,
-        ...(HOME_HERO_SHEET_TRANSITION ? {
-          marginLeft: 'calc(-50vw + 50%)',
-          marginRight: 'calc(-50vw + 50%)',
-          width: '100vw',
-        } : {}),
-      }}
+      className="bg-white"
+      style={{ fontFamily: MS_FONT }}
     >
       {/* Stats — light inline row (HOME_STATS_ROW) */}
       {HOME_STATS_ROW && (
@@ -962,11 +1173,11 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
       </FadeUp>
       )}
 
-      <div className={HOME_HERO_SHEET_TRANSITION ? 'mx-auto max-w-5xl pt-14 md:pt-16 pb-20 space-y-12 md:space-y-24' : 'mx-auto max-w-5xl pt-20 pb-28 space-y-28'}>
+      <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
         {(() => {
           const baSection = (<React.Fragment key="ba">
         {/* Before / after */}
-        <section className={HOME_HERO_SHEET_TRANSITION ? undefined : (HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined)}>
+        <section className={HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined}>
           <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
           {HOME_BA_SLIDER ? (
             <FadeUp delay={0.06}>
@@ -1007,7 +1218,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
           </React.Fragment>);
           const servicesSection = (<React.Fragment key="services">
         {/* Services — clean list */}
-        <section className={HOME_SERVICES_COVERFLOW ? (HOME_SERVICES_FIRST ? (HOME_HERO_SHEET_TRANSITION ? 'bg-white px-6 pt-0 pb-0' : 'bg-white px-6 pt-0 pb-12 md:pb-16') : 'bg-white px-6 py-12 md:py-16') : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
+        <section className={HOME_SERVICES_COVERFLOW ? (HOME_SERVICES_FIRST ? 'bg-white px-6 pt-0 pb-12 md:pb-16' : 'bg-white px-6 py-12 md:py-16') : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           {HOME_SERVICES_CAROUSEL ? (
             <>
               <FadeUp className="text-center">
@@ -1015,7 +1226,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
                 <h2 className="mt-2 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-neutral-900" style={{ letterSpacing: '-0.04em' }}>What we do<span style={{ color: MS_GREEN }}>.</span></h2>
                 <p className="mt-2.5 mx-auto max-w-md text-[16px] [@media(max-height:700px)]:text-[15px] leading-relaxed text-neutral-500">Practical services to make your life easier.</p>
               </FadeUp>
-              <div className={HOME_CAROUSEL_CLEAN_BG && !HOME_HERO_SHEET_TRANSITION ? '-mx-10 md:mx-0' : '-mx-6 md:mx-0'}>{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
+              <div className={HOME_CAROUSEL_CLEAN_BG ? '-mx-10 md:mx-0' : '-mx-6 md:mx-0'}>{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
             </>
           ) : (<>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />
