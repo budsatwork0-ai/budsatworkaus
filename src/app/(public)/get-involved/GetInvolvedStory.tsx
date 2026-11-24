@@ -1,11 +1,12 @@
 'use client';
 
 // Get Involved in the home page's story pattern (GET_INVOLVED_STORY).
-// Visual only: every heading, sentence, link, button, form and checkout handler
-// comes from GetInvolvedClient unchanged; this file only lays them out on one
-// continuous canvas that glides between paper, linen and eucalyptus (#0B1A12),
-// with Inter headlines, numbered labels and scroll reveals. Turning the flag off
-// restores the original layout in GetInvolvedClient.
+// v2 (24 Nov 2026, Jackson: "too many words and not enough direction"): fewer
+// words and a clear path. What this is -> three ways to help -> who it helps ->
+// proof -> wishlist (main action) -> other ways -> final action. Copy here is
+// trimmed from the original page; the full original copy and layout still live
+// in GetInvolvedClient and render whenever the flag is off. All forms, checkout
+// handlers, social links and anchors are passed in unchanged.
 
 import React, { useRef } from 'react';
 import Link from 'next/link';
@@ -75,46 +76,54 @@ function Label({ n, children, className = '' }: { n?: string; children: React.Re
 const pillBase =
   'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-7 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60';
 
+// Short lines for the "Other ways" index (trimmed from the original card copy,
+// which still renders in full with the flag off).
+const WAY_SHORT: Record<string, string> = {
+  'Hire Buds At Work': 'Your local job becomes a paid shift.',
+  'Donate Equipment': 'Tools, safety gear, supplies or transport.',
+  'Become A Training Partner': 'Share practical skills on the job.',
+  'Offer Workplace Experience': 'A supported place to learn routines.',
+  'Sponsor A Shift': 'Fund the support around a shift.',
+};
+
+const PRIMARY_LABEL = 'Support A Wishlist Item';
+
+function NextLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} className="inline-flex min-h-[44px] items-center gap-2 text-[15.5px] font-semibold transition-opacity hover:opacity-75" style={{ color: INK }}>
+      {children}
+      <span aria-hidden style={{ color: ACC }}>↓</span>
+    </a>
+  );
+}
+
 export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   useStoryCanvas(rootRef, '[data-gi-hero]');
 
   const showImage = Boolean(p.heroImageUrl && !p.heroMissing);
-  const impact = [
-    { label: 'Participant Supported', value: p.stats.participants_supported ?? 0 },
-    { label: 'Paid Jobs Completed', value: p.stats.paid_jobs_completed ?? 0 },
-    { label: 'Equipment Purchased', value: p.stats.employment_opportunities_created ?? 0 },
+  const equipment = p.stats.employment_opportunities_created ?? 0;
+  const proof = [
+    { label: 'Participant supported', value: (p.stats.participants_supported ?? 0).toLocaleString() },
+    { label: 'Paid jobs completed', value: p.currentPaidJobs.toLocaleString() },
+    ...(equipment > 0 ? [{ label: 'Equipment purchased', value: equipment.toLocaleString() }] : []),
+    { label: 'Jobs to next milestone', value: String(p.remainingJobs) },
   ];
-  const showImpact = impact.some((s) => s.value > 0);
   let sceneIdx = 0;
   const nextN = () => ROMAN[sceneIdx++];
 
-  const milestones = [
-    {
-      status: (p.stats.participants_supported ?? 0) > 0 ? 'done' : 'current',
-      title: 'First participant supported',
-      detail: 'Silvan is being supported through practical work routines and real job expectations.',
-      value: p.stats.participants_supported,
-    },
-    {
-      status: p.currentPaidJobs > 0 ? 'done' : 'current',
-      title: 'First paid jobs completed',
-      detail: 'Window cleaning and local service jobs are turning community demand into paid shifts.',
-      value: p.currentPaidJobs,
-    },
-    {
-      status: (p.stats.employment_opportunities_created ?? 0) > 0 ? 'done' : 'current',
-      title: 'Equipment purchased and opportunities created',
-      detail: 'Tools and supplies are being added as the work expands into more service types.',
-      value: p.stats.employment_opportunities_created,
-    },
-    {
-      status: 'next',
-      title: 'Next milestone: 10 paid jobs',
-      detail: 'The next target is proving repeatable work, repeatable training and repeatable customer value.',
-      value: p.nextJobsTarget,
-    },
-  ] as const;
+  const primary = (extra = '') => (
+    <a href="#wishlist" className={`${pillBase} text-white ${extra}`} style={{ background: BTN_GREEN, boxShadow: '0 10px 30px -8px rgba(28,124,84,0.55)' }}>
+      {PRIMARY_LABEL}
+      {p.arrow}
+    </a>
+  );
+
+  const ways = [
+    { n: '01', title: 'Fund a wishlist item', line: 'Equipment that creates more shifts.', href: '#wishlist' },
+    { n: '02', title: 'Book a job', line: 'Your local job becomes a paid shift.', href: '/services' },
+    { n: '03', title: 'Give tools, skills or time', line: 'Equipment, training or work experience.', href: '#ways-to-help' },
+  ];
 
   return (
     <div
@@ -137,12 +146,8 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
       {/* Sticky header needs a non-scrolling overflow clip on the page shell. */}
       <style>{'html:has([data-story-gi]),body:has([data-story-gi]),div:has(> main [data-story-gi]){overflow-x:clip}'}</style>
 
-      {/* ── Opening: full-bleed photo, copy anchored bottom-left ───────────── */}
-      <section
-        data-gi-hero
-        className="relative flex flex-col justify-end"
-        style={{ minHeight: 'calc(100svh - 44px)', clipPath: 'inset(-100px 0 0 0)' }}
-      >
+      {/* ── What this is ───────────────────────────────────────────────────── */}
+      <section data-gi-hero className="relative flex flex-col justify-end" style={{ minHeight: 'calc(100svh - 44px)', clipPath: 'inset(-100px 0 0 0)' }}>
         <div
           data-hero-media
           aria-hidden={!showImage || undefined}
@@ -151,12 +156,7 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
         >
           {showImage && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.heroImageUrl as string}
-              alt={p.heroAlt}
-              onError={p.onHeroError}
-              className="h-full w-full object-cover object-[58%_center] md:object-center"
-            />
+            <img src={p.heroImageUrl as string} alt={p.heroAlt} onError={p.onHeroError} className="h-full w-full object-cover object-[58%_center] md:object-center" />
           )}
         </div>
         <div
@@ -164,244 +164,155 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
           className="pointer-events-none absolute inset-0 z-[1]"
           style={{
             background:
-              'linear-gradient(to top, rgb(11 26 18) 0%, rgb(11 26 18 / 0.86) 34%, rgb(11 26 18 / 0.25) 70%, rgb(11 26 18 / 0.35) 100%), linear-gradient(90deg, rgb(11 26 18 / 0.55) 0%, rgb(11 26 18 / 0) 70%)',
+              'linear-gradient(to top, rgb(11 26 18) 0%, rgb(11 26 18 / 0.82) 30%, rgb(11 26 18 / 0.2) 66%, rgb(11 26 18 / 0.35) 100%), linear-gradient(90deg, rgb(11 26 18 / 0.5) 0%, rgb(11 26 18 / 0) 70%)',
           }}
         />
         <div data-hero-dim aria-hidden className="pointer-events-none absolute inset-0 z-[2]" style={{ background: 'rgb(11 26 18)', opacity: 0 }} />
 
-        <div data-hero-copy className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-12 pt-28 md:px-16 md:pb-14" style={{ willChange: 'transform, opacity', color: '#F3F0E8' }}>
-          <p className="text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: 'rgb(243 240 232 / 0.72)' }}>
-            Creating Real Paid Work Opportunities
-          </p>
-          <h1 className={`${HEAD} mt-4 max-w-[12ch] text-[clamp(2.6rem,11.5vw,6.25rem)] leading-[0.98]`} style={{ letterSpacing: TRACK }}>
+        <div data-hero-copy className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-14 pt-28 md:px-16 md:pb-20" style={{ willChange: 'transform, opacity', color: '#F3F0E8' }}>
+          <h1 className={`${HEAD} max-w-[12ch] text-[clamp(2.8rem,12.5vw,6.5rem)] leading-[0.98]`} style={{ letterSpacing: TRACK }}>
             From First Shift To <span style={{ color: 'rgb(143 217 174)' }}>First Career</span>
           </h1>
-          <p className="mt-5 max-w-xl text-[16px] leading-relaxed md:text-[18px]" style={{ color: 'rgb(243 240 232 / 0.82)' }}>
-            Buds At Work helps people with disabilities build confidence, skills and income through real local jobs across Logan and South Brisbane.
+          <p className="mt-5 max-w-md text-[17px] leading-relaxed md:text-[19px]" style={{ color: 'rgb(243 240 232 / 0.84)' }}>
+            Real paid local jobs for people with disabilities across Logan and South Brisbane.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <a href="#wishlist" className={`${pillBase} text-white`} style={{ background: BTN_GREEN, boxShadow: '0 10px 30px -8px rgba(28,124,84,0.55)' }}>
-              Support The Next Opportunity
-              {p.arrow}
-            </a>
-            <a href="#meet-silvan" className={`${pillBase} border border-white/40 bg-white/10 text-white backdrop-blur-sm`}>
-              Meet Silvan
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+            {primary()}
+            <a href="#three-ways" className="inline-flex min-h-[44px] items-center gap-2 text-[15.5px] font-semibold text-white transition-opacity hover:opacity-75">
+              Three ways to help <span aria-hidden style={{ color: 'rgb(143 217 174)' }}>↓</span>
             </a>
           </div>
-
-          {p.fundedPct !== null && (
-            <p className="mt-5 text-[13.5px] font-medium" style={{ color: 'rgb(243 240 232 / 0.86)' }}>
-              {p.fundedPct >= 100
-                ? 'Wishlist fully funded — thank you!'
-                : `✦  ${p.fundedPct}% of our current wishlist is funded — help us reach 100%`}
-            </p>
-          )}
-
-          <dl className="mt-7 grid grid-cols-3 gap-4 border-t pt-4 md:mt-10 md:max-w-3xl" style={{ borderColor: 'rgb(243 240 232 / 0.18)' }}>
-            {[
-              { v: (p.stats.participants_supported ?? 0).toLocaleString(), l: 'Participant supported' },
-              { v: p.currentPaidJobs.toLocaleString(), l: 'Paid jobs completed' },
-              { v: String(p.remainingJobs), l: 'Jobs to next milestone' },
-            ].map((s) => (
-              <div key={s.l} className="flex flex-col-reverse">
-                <dt className="mt-1.5 text-[10.5px] font-medium uppercase leading-snug tracking-[0.14em] md:text-[11px]" style={{ color: 'rgb(243 240 232 / 0.6)' }}>{s.l}</dt>
-                <dd className="text-[clamp(1.75rem,7.5vw,2.75rem)] font-semibold tabular-nums leading-none" style={{ letterSpacing: '-0.04em' }}>{s.v}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
-        {/* Dissolve into the canvas so no edge crosses the screen. */}
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-10" style={{ background: 'linear-gradient(to bottom, rgb(var(--sc-bg) / 0), rgb(var(--sc-bg)))' }} />
       </section>
 
-      {/* ── Meet Silvan ────────────────────────────────────────────────────── */}
-      <section id="meet-silvan" data-tone="paper" data-scrub aria-label="Meet Silvan" className="relative scroll-mt-20 pb-[14svh] pt-[22svh] md:pt-[26svh]" style={v({ '--e': 1 })}>
+      {/* ── Three ways to help: an early chooser ───────────────────────────── */}
+      <section id="three-ways" data-tone="paper" data-scrub aria-label="Three ways to help" className="relative scroll-mt-20 pb-[12svh] pt-[20svh] md:pt-[24svh]" style={v({ '--e': 1 })}>
         <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: ENTER, transform: RISE }}>
-          <Label n={nextN()}>Meet Silvan</Label>
-          <h2 className={`${HEAD} mt-8 max-w-[18ch] text-[clamp(2.1rem,8.6vw,4.9rem)] leading-[1.04]`} style={{ color: INK, letterSpacing: TRACK }}>
-            The work starts with one person, one shift and <span style={{ color: ACC }}>one practical win at a time.</span>
+          <Label n={nextN()}>Get involved</Label>
+          <h2 className={`${HEAD} mt-8 text-[clamp(2.5rem,11vw,5.6rem)] leading-[1.02]`} style={{ color: INK, letterSpacing: TRACK }}>
+            Three ways <span style={{ color: ACC }}>to help.</span>
           </h2>
-          <div className="mt-[9svh] grid gap-y-10 md:grid-cols-12 md:gap-x-12">
-            <figure className="md:col-span-5">
-              {showImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.heroImageUrl as string} alt={p.heroAlt} className="aspect-[4/5] w-full rounded-[6px] object-cover object-[70%_center]" />
-              ) : (
-                <div className="aspect-[4/5] w-full rounded-[6px]" style={{ background: '#0B1A12' }} />
-              )}
-              <figcaption className="mt-4 flex gap-3 text-[13.5px] leading-relaxed" style={{ color: INK_SOFT }}>
-                <span aria-hidden className="mt-[0.7em] h-px w-6 shrink-0" style={{ background: ACC }} />
-                A real window cleaning job, a real customer, and a real paid work pathway beginning to form.
-              </figcaption>
-            </figure>
-            <div className="md:col-span-6 md:col-start-7 md:pt-4">
-              <p className="text-[19px] leading-relaxed md:text-[21px]" style={{ color: INK }}>
-                Silvan is one of the first people being supported through Buds At Work. He is building confidence through hands-on routines, clear expectations and paid jobs that happen in the community.
-              </p>
-              <div className="mt-10 grid gap-6 border-t pt-6 sm:grid-cols-2" style={{ borderColor: HAIR }}>
-                <p className="text-[15.5px] leading-relaxed" style={{ color: INK_SOFT }}>
-                  The goal is not a token activity. It is useful work with real standards: turning up, learning the task, using the tools safely and finishing a job someone values.
-                </p>
-                <p className="text-[15.5px] leading-relaxed" style={{ color: INK_SOFT }}>
-                  Every piece of support helps create the environment around that work: equipment, training, supervision, transport and the next customer opportunity.
-                </p>
-              </div>
-              <p className="mt-10 text-[clamp(1.4rem,5vw,2rem)] font-semibold leading-snug" style={{ color: ACC, letterSpacing: '-0.025em' }}>
-                This is how a first shift can become the start of a first career.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Impact so far (only when there is something to show) ───────────── */}
-      {showImpact && (
-        <section data-tone="paper" data-scrub aria-label="Impact so far" className="relative py-[14svh]" style={v({ '--e': 1 })}>
-          <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: REVEAL, transform: RISE }}>
-            <Label n={nextN()}>Impact So Far</Label>
-            <h2 className={`${HEAD} mt-8 text-[clamp(2.4rem,10vw,5.4rem)] leading-[1.03]`} style={{ color: INK, letterSpacing: TRACK }}>
-              Real work. <span style={{ color: ACC }}>Real outcomes.</span>
-            </h2>
-            <dl className="mt-[8svh] grid gap-y-8 md:grid-cols-3 md:gap-x-12">
-              {impact.filter((s) => s.value > 0).map((s) => (
-                <div key={s.label} className="flex flex-col-reverse border-t pt-5" style={{ borderColor: HAIR }}>
-                  <dt className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]" style={{ color: INK_SOFT }}>{s.label}</dt>
-                  <dd className="text-[clamp(4.5rem,22vw,9rem)] font-normal tabular-nums leading-[0.85]" style={{ color: INK, letterSpacing: '-0.05em' }}>
-                    {s.value.toLocaleString()}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </section>
-      )}
-
-      {/* ── Progress so far: a rail that fills as you read ─────────────────── */}
-      <section data-tone="paper" data-scrub aria-label="Progress so far" className="relative pb-[16svh] pt-[14svh]" style={v({ '--e': 1 })}>
-        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: REVEAL }}>
-          <div className="grid gap-y-6 md:grid-cols-12 md:items-end">
-            <div className="md:col-span-7">
-              <Label n={nextN()}>Progress So Far</Label>
-              <h2 className={`${HEAD} mt-8 text-[clamp(2.3rem,9.6vw,5rem)] leading-[1.03]`} style={{ color: INK, letterSpacing: TRACK }}>
-                A pathway is being built <span style={{ color: ACC }}>in public.</span>
-              </h2>
-            </div>
-            <p className="max-w-sm text-[16px] leading-relaxed md:col-span-4 md:col-start-9" style={{ color: INK_SOFT }}>
-              The numbers matter because they represent visible movement: first support, first jobs, first tools and the next milestone.
-            </p>
-          </div>
-
-          <ol data-scrub className="relative mt-[10svh] pl-10 md:ml-[33.333%] md:mt-[12svh] md:pl-14" style={v({ '--line': 1 })}>
-            <span aria-hidden className="absolute bottom-3 left-[13px] top-3 w-px" style={{ background: HAIR }} />
-            <span aria-hidden className="absolute bottom-3 left-[13px] top-3 w-px origin-top" style={{ background: ACC, transform: 'scaleY(var(--line))' }} />
-            {milestones.map((m, i) => (
-              <li key={m.title} className={`relative ${i ? 'mt-[7svh]' : ''}`} style={{ opacity: `clamp(0.38, calc((var(--line) * ${milestones.length + 0.6} - ${i}) * 0.9), 1)` }}>
-                <span
-                  aria-hidden
-                  className="absolute -left-10 top-0.5 inline-flex h-[27px] w-[27px] items-center justify-center rounded-full border text-[12px] font-semibold md:-left-14"
-                  style={{
-                    background: m.status === 'done' ? ACC : 'rgb(var(--sc-bg))',
-                    borderColor: m.status === 'next' ? HAIR : ACC,
-                    color: m.status === 'done' ? 'rgb(var(--sc-bg))' : ACC,
-                  }}
-                >
-                  {m.status === 'done' ? p.check : m.status === 'current' ? '→' : '•'}
-                </span>
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h3 className="text-[22px] font-semibold leading-tight md:text-[26px]" style={{ color: INK, letterSpacing: '-0.025em' }}>{m.title}</h3>
-                  {typeof m.value === 'number' && (
-                    <span className="text-[15px] font-semibold tabular-nums" style={{ color: ACC }}>{m.value.toLocaleString()}</span>
+          <ul className="mt-[7svh] grid border-b md:grid-cols-3 md:border-b-0" style={{ borderColor: HAIR }}>
+            {ways.map((w) => {
+              const inner = (
+                <>
+                  <span className="text-[11px] font-medium tabular-nums tracking-[0.15em]" style={{ color: ACC }}>{w.n}</span>
+                  <span className="mt-3 flex items-center justify-between gap-4 text-[24px] font-semibold leading-tight md:text-[28px]" style={{ color: INK, letterSpacing: '-0.025em' }}>
+                    {w.title}
+                    <span aria-hidden className="shrink-0 transition-transform group-hover:translate-x-1" style={{ color: ACC }}>{w.href.startsWith('#') ? '↓' : '→'}</span>
+                  </span>
+                  <span className="mt-2 block text-[15.5px] leading-relaxed" style={{ color: INK_SOFT }}>{w.line}</span>
+                </>
+              );
+              const cls = 'group block border-t py-7 md:border-t md:py-8 md:pr-10';
+              return (
+                <li key={w.n}>
+                  {w.href.startsWith('/') ? (
+                    <Link href={w.href} className={cls} style={{ borderColor: HAIR }}>{inner}</Link>
+                  ) : (
+                    <a href={w.href} className={cls} style={{ borderColor: HAIR }}>{inner}</a>
                   )}
-                </div>
-                <p className="mt-2 max-w-lg text-[15.5px] leading-relaxed" style={{ color: INK_SOFT }}>{m.detail}</p>
-              </li>
-            ))}
-          </ol>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </section>
 
-      {/* ── The journey (social) ───────────────────────────────────────────── */}
-      <section data-tone="linen" data-scrub aria-label="Watch the journey" className="relative pb-[18svh] pt-[16svh]" style={v({ '--e': 1, '--x': 1 })}>
-        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: `min(${REVEAL}, ${EXIT})` }}>
-          <Label n={nextN()}>Real Work. Real Progress.</Label>
-          <div className="mt-8 grid gap-y-6 md:grid-cols-12 md:items-end">
-            <h2 className={`${HEAD} text-[clamp(2.3rem,9.6vw,5rem)] leading-[1.03] md:col-span-8`} style={{ color: INK, letterSpacing: TRACK }}>
-              Watch the journey <span style={{ color: ACC }}>as it happens.</span>
+      {/* ── Who it helps ───────────────────────────────────────────────────── */}
+      <section id="meet-silvan" data-tone="paper" data-scrub aria-label="Who it helps" className="relative scroll-mt-20 py-[12svh]" style={v({ '--e': 1 })}>
+        <div className="mx-auto grid max-w-7xl gap-y-10 px-6 md:grid-cols-12 md:items-end md:gap-x-12 md:px-16" style={{ opacity: REVEAL, transform: RISE }}>
+          <div className="md:col-span-7">
+            <Label n={nextN()}>Who it helps</Label>
+            <h2 className={`${HEAD} mt-8 text-[clamp(2.2rem,9.4vw,4.9rem)] leading-[1.04]`} style={{ color: INK, letterSpacing: TRACK }}>
+              Many people want paid work. <span style={{ color: ACC }}>The opportunity is the missing piece.</span>
             </h2>
-            <div className="md:col-span-4 md:flex md:justify-end">{p.socialLinks}</div>
-          </div>
-          <p className="mt-6 max-w-xl text-[16px] leading-relaxed" style={{ color: INK_SOFT }}>
-            The social feed brings the work closer: jobs, training, customer moments and the everyday progress behind the pathway.
-          </p>
-          <div className="mt-4">{p.socialFeed}</div>
-        </div>
-      </section>
-
-      {/* ── Wishlist ───────────────────────────────────────────────────────── */}
-      <section id="wishlist" data-tone="dark" data-scrub aria-label="Opportunities to fund" className="relative scroll-mt-20 pb-[14svh] pt-[22svh]" style={v({ '--e': 1 })}>
-        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: ENTER, transform: RISE }}>
-          <Label n={nextN()}>Opportunities To Fund</Label>
-          <div className="mt-8 grid gap-y-6 md:grid-cols-12 md:items-end">
-            <h2 className={`${HEAD} max-w-[16ch] text-[clamp(2.3rem,9.8vw,5.4rem)] leading-[1.03] md:col-span-8`} style={{ color: INK, letterSpacing: TRACK }}>
-              Fund the practical pieces that create <span style={{ color: ACC }}>more paid work.</span>
-            </h2>
-            <p className="max-w-sm text-[16px] leading-relaxed md:col-span-4" style={{ color: INK_SOFT }}>
-              Each wishlist item is connected to a work outcome: safer jobs, better training, larger service capacity or more shifts.
+            <p className="mt-6 max-w-md text-[17px] leading-relaxed" style={{ color: INK_SOFT }}>
+              Founded by Jackson. Started with Silvan. Making room for more people like him, one paid shift at a time.
             </p>
+            <div className="mt-7"><NextLink href="#progress">See the progress</NextLink></div>
+          </div>
+          <figure className="md:col-span-5">
+            {showImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.heroImageUrl as string} alt={p.heroAlt} className="aspect-[4/5] w-full rounded-[6px] object-cover object-[70%_center] md:aspect-[5/6]" />
+            ) : (
+              <div className="aspect-[4/5] w-full rounded-[6px]" style={{ background: '#0B1A12' }} />
+            )}
+            <figcaption className="mt-3 text-[13px]" style={{ color: INK_SOFT }}>A real window cleaning job.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      {/* ── Proof ──────────────────────────────────────────────────────────── */}
+      <section id="progress" data-tone="linen" data-scrub aria-label="Progress so far" className="relative scroll-mt-20 pb-[16svh] pt-[14svh]" style={v({ '--e': 1, '--x': 1 })}>
+        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: `min(${REVEAL}, ${EXIT})` }}>
+          <Label n={nextN()}>Progress so far</Label>
+          <h2 className={`${HEAD} mt-8 text-[clamp(2.4rem,10vw,5.4rem)] leading-[1.03]`} style={{ color: INK, letterSpacing: TRACK }}>
+            Real work. <span style={{ color: ACC }}>Real progress.</span>
+          </h2>
+          <dl className={`mt-[7svh] grid gap-x-5 gap-y-8 ${proof.length === 4 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
+            {proof.map((s) => (
+              <div key={s.label} className="flex flex-col-reverse border-t pt-4" style={{ borderColor: HAIR }}>
+                <dt className="mt-2 text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: INK_SOFT }}>{s.label}</dt>
+                <dd className="text-[clamp(2.9rem,14vw,7rem)] font-normal tabular-nums leading-[0.9]" style={{ color: INK, letterSpacing: '-0.05em' }}>{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-8 text-[17px] font-medium" style={{ color: INK }}>
+            Next milestone: <span style={{ color: ACC }}>{p.nextJobsTarget} paid jobs</span>.
+          </p>
+          <div className="mt-[8svh] grid gap-y-5 md:grid-cols-12 md:items-center">
+            <p className="text-[15.5px] md:col-span-6" style={{ color: INK_SOFT }}>Watch the journey as it happens.</p>
+            <div className="md:col-span-6 md:flex md:justify-end">{p.socialLinks}</div>
+          </div>
+          <div className="mt-2">{p.socialFeed}</div>
+          <div className="mt-[7svh]">{primary()}</div>
+        </div>
+      </section>
+
+      {/* ── Wishlist: the main action ──────────────────────────────────────── */}
+      <section id="wishlist" data-tone="dark" data-scrub aria-label="Wishlist" className="relative scroll-mt-20 pb-[12svh] pt-[20svh]" style={v({ '--e': 1 })}>
+        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: ENTER, transform: RISE }}>
+          <Label n={nextN()}>Wishlist</Label>
+          <div className="mt-8 grid gap-y-5 md:grid-cols-12 md:items-end">
+            <h2 className={`${HEAD} max-w-[14ch] text-[clamp(2.4rem,10vw,5.4rem)] leading-[1.03] md:col-span-8`} style={{ color: INK, letterSpacing: TRACK }}>
+              Fund the tools that create <span style={{ color: ACC }}>paid work.</span>
+            </h2>
+            <div className="md:col-span-4">
+              <p className="text-[16px] leading-relaxed" style={{ color: INK_SOFT }}>Pick an item. Each one is tied to a work outcome.</p>
+              {p.fundedPct !== null && (
+                <p className="mt-3 text-[14px] font-medium" style={{ color: ACC }}>
+                  {p.fundedPct >= 100 ? 'Wishlist fully funded — thank you!' : `✦  ${p.fundedPct}% funded — help us reach 100%`}
+                </p>
+              )}
+            </div>
           </div>
 
           {p.wishlistCards === null ? (
-            <div className="mt-[8svh] border-t pt-8" style={{ borderColor: HAIR }}>
-              <p className="max-w-2xl text-[18px] leading-relaxed" style={{ color: INK_SOFT }}>
-                The next funding needs are being prepared. You can still support the work directly or start a conversation about equipment, jobs and training.
-              </p>
+            <div className="mt-[7svh] border-t pt-8" style={{ borderColor: HAIR }}>
+              <p className="max-w-xl text-[17px] leading-relaxed" style={{ color: INK_SOFT }}>New items are being prepared. You can still support the work directly.</p>
               <button type="button" onClick={p.onOpenSponsor} className={`${pillBase} mt-6 text-white`} style={{ background: BTN_GREEN }}>
                 Start A Conversation
                 {p.arrow}
               </button>
             </div>
           ) : (
-            <div className="mt-[8svh] grid gap-6 md:grid-cols-2 lg:grid-cols-3">{p.wishlistCards}</div>
+            <div className="mt-[7svh] grid gap-6 md:grid-cols-2 lg:grid-cols-3">{p.wishlistCards}</div>
           )}
+          <div className="mt-10"><NextLink href="#ways-to-help">Other ways to help</NextLink></div>
         </div>
       </section>
 
-      {/* ── Why we started ─────────────────────────────────────────────────── */}
-      <section data-tone="dark" data-scrub aria-label="Why we started" className="relative pb-[20svh] pt-[14svh]" style={v({ '--e': 1, '--x': 1 })}>
-        <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: `min(${REVEAL}, ${EXIT})` }}>
-          <Label n={nextN()}>Why We Started</Label>
-          <h2 className={`${HEAD} mt-10 text-[clamp(2.4rem,10.4vw,6rem)] leading-[1.02]`} style={{ color: INK, letterSpacing: TRACK }}>
-            Many people want paid work.
-            <span className="mt-2 block md:pl-[16%]" style={{ color: ACC }}>The opportunity is the missing piece.</span>
-          </h2>
-          <div className="mt-[9svh] grid gap-y-8 md:grid-cols-12 md:gap-x-12">
-            <p className="max-w-sm text-[17px] leading-relaxed md:col-span-4" style={{ color: INK_SOFT }}>
-              Buds At Work was created to bridge that gap through practical jobs, community support and real employment pathways.
-            </p>
-            <div className="space-y-6 text-[18px] leading-relaxed md:col-span-7 md:col-start-6 md:text-[20px]" style={{ color: INK }}>
-              <p>Buds At Work is not a charity. It is a practical employment pathway built around useful services local customers already need.</p>
-              <p style={{ color: INK_SOFT }}>
-                Window cleaning, lawn mowing, property maintenance, cleaning and community work can become structured opportunities where people learn, earn and contribute.
-              </p>
-              <p className="border-t pt-6 font-semibold" style={{ color: ACC, borderColor: HAIR }}>The support around the job is what makes the work possible.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Other ways to help: an index, not a grid of boxes ──────────────── */}
-      <section id="ways-to-help" data-tone="linen" data-scrub aria-label="Other ways to help" className="relative scroll-mt-20 pb-[12svh] pt-[22svh]" style={v({ '--e': 1 })}>
+      {/* ── Other ways to help ─────────────────────────────────────────────── */}
+      <section id="ways-to-help" data-tone="linen" data-scrub aria-label="Other ways to help" className="relative scroll-mt-20 pb-[10svh] pt-[20svh]" style={v({ '--e': 1 })}>
         <div className="mx-auto max-w-7xl px-6 md:px-16" style={{ opacity: ENTER, transform: RISE }}>
-          <Label n={nextN()}>Other Ways To Help</Label>
-          <div className="mt-8 grid gap-y-6 md:grid-cols-12 md:items-end">
-            <h2 className={`${HEAD} text-[clamp(2.3rem,9.6vw,5rem)] leading-[1.03] md:col-span-8`} style={{ color: INK, letterSpacing: TRACK }}>
-              Support the pathway <span style={{ color: ACC }}>from more than one angle.</span>
-            </h2>
-            <p className="max-w-sm text-[16px] leading-relaxed md:col-span-4" style={{ color: INK_SOFT }}>
-              The strongest support is often practical: work to do, tools to use, people to learn from and shifts worth showing up for.
-            </p>
-          </div>
-          <ul className="mt-[9svh] border-b" style={{ borderColor: HAIR }}>
+          <Label n={nextN()}>Other ways</Label>
+          <h2 className={`${HEAD} mt-8 text-[clamp(2.4rem,10vw,5.4rem)] leading-[1.03]`} style={{ color: INK, letterSpacing: TRACK }}>
+            More ways <span style={{ color: ACC }}>to help.</span>
+          </h2>
+          <ul className="mt-[7svh] border-b" style={{ borderColor: HAIR }}>
             {p.otherWays.map((card, i) => {
               const cta = (
                 <>
@@ -409,19 +320,16 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
                   <span aria-hidden style={{ color: ACC }}>{p.arrow}</span>
                 </>
               );
-              const ctaClass = 'inline-flex min-h-[44px] items-center gap-2 text-[15.5px] font-semibold transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
+              const ctaClass = 'inline-flex min-h-[44px] shrink-0 items-center gap-2 text-[15px] font-semibold transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
               return (
-                <li key={card.title} className="grid gap-y-3 border-t py-8 md:grid-cols-12 md:items-start md:gap-x-8 md:py-10" style={{ borderColor: HAIR }}>
-                  <div className="flex items-center gap-4 md:col-span-1">
-                    <span className="text-[11px] font-medium tabular-nums tracking-[0.15em]" style={{ color: ACC }}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="md:hidden" style={{ color: ACC }} aria-hidden>{card.icon}</span>
+                <li key={card.title} className="grid gap-y-1 border-t py-6 md:grid-cols-12 md:items-center md:gap-x-8" style={{ borderColor: HAIR }}>
+                  <div className="flex items-center gap-4 md:col-span-5">
+                    <span className="w-5 text-[11px] font-medium tabular-nums tracking-[0.15em]" style={{ color: ACC }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span style={{ color: ACC }} aria-hidden>{card.icon}</span>
+                    <h3 className="text-[20px] font-semibold leading-tight md:text-[24px]" style={{ color: INK, letterSpacing: '-0.02em' }}>{card.title}</h3>
                   </div>
-                  <h3 className="flex items-center gap-3 text-[22px] font-semibold leading-tight md:col-span-4 md:text-[26px]" style={{ color: INK, letterSpacing: '-0.025em' }}>
-                    <span className="hidden md:inline-flex" style={{ color: ACC }} aria-hidden>{card.icon}</span>
-                    {card.title}
-                  </h3>
-                  <p className="max-w-md text-[15.5px] leading-relaxed md:col-span-4" style={{ color: INK_SOFT }}>{card.body}</p>
-                  <div className="md:col-span-3 md:flex md:justify-end">
+                  <p className="pl-9 text-[15px] md:col-span-4 md:pl-0" style={{ color: INK_SOFT }}>{WAY_SHORT[card.title] ?? card.body}</p>
+                  <div className="pl-9 md:col-span-3 md:flex md:justify-end md:pl-0">
                     {card.href ? (
                       <Link href={card.href} className={ctaClass} style={{ color: INK }}>{cta}</Link>
                     ) : (
@@ -435,21 +343,14 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
         </div>
       </section>
 
-      {/* ── Finale ─────────────────────────────────────────────────────────── */}
-      <section data-tone="paper" data-scrub aria-label="Help create the next opportunity" className="relative flex min-h-[100svh] flex-col items-center justify-center px-6 pb-[18svh] pt-[16svh] text-center" style={v({ '--e': 1 })}>
-        <div className="relative z-10 flex max-w-5xl flex-col items-center" style={{ opacity: REVEAL, transform: RISE }}>
-          <Label>Help Create The Next Opportunity</Label>
-          <h2 className={`${HEAD} mt-8 text-[clamp(2.3rem,9.4vw,5.6rem)] leading-[1.03]`} style={{ color: INK, letterSpacing: TRACK }}>
-            Every contribution helps create more <span style={{ color: ACC }}>practical paid work opportunities.</span>
+      {/* ── Final action ───────────────────────────────────────────────────── */}
+      <section data-tone="paper" data-scrub aria-label="Help create the next opportunity" className="relative flex min-h-[86svh] flex-col items-center justify-center px-6 pb-[18svh] pt-[14svh] text-center" style={v({ '--e': 1 })}>
+        <div className="relative z-10 flex max-w-4xl flex-col items-center" style={{ opacity: REVEAL, transform: RISE }}>
+          <h2 className={`${HEAD} text-[clamp(2.6rem,11vw,6.2rem)] leading-[1.02]`} style={{ color: INK, letterSpacing: TRACK }}>
+            Help create the <span style={{ color: ACC }}>next opportunity.</span>
           </h2>
-          <p className="mt-8 max-w-md text-[17px] leading-relaxed" style={{ color: INK_SOFT }}>
-            Support the equipment, training and resources that let people build confidence, skills and income through real local jobs.
-          </p>
-          <div className="mt-12 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
-            <a href="#wishlist" className={`${pillBase} w-full text-white sm:w-auto`} style={{ background: BTN_GREEN, boxShadow: '0 10px 30px -8px rgba(28,124,84,0.55)' }}>
-              Support A Wishlist Item
-              {p.arrow}
-            </a>
+          <div className="mt-10 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
+            {primary('w-full sm:w-auto')}
             <Link href="/services" className={`${pillBase} w-full border sm:w-auto`} style={{ borderColor: 'rgb(var(--sc-ink) / 0.25)', color: INK }}>
               Book A Job
               {p.arrow}
@@ -465,7 +366,6 @@ export default function GetInvolvedStory(p: GetInvolvedStoryProps) {
             Support $50
           </button>
         </div>
-        {/* Soft hand-off into the footer's white. */}
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[20svh]" style={{ background: 'linear-gradient(to bottom, rgb(var(--sc-bg) / 0), #fff)' }} />
       </section>
 
