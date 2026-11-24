@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import SponsorModal from './SponsorModal';
+import GetInvolvedStory from './GetInvolvedStory';
+import { GET_INVOLVED_STORY } from '@/app/ui/home/flags';
 import type { FundraisingItem } from '@/app/api/fundraising/route';
 import type { SiteImpactStats } from '@/app/api/site-impact-stats/route';
 import type { SocialProofItem } from '@/app/api/social-proof/route';
@@ -114,7 +116,9 @@ const AMOUNT_PRESETS = [
   { label: '$100', cents: 10000 },
 ];
 
-function FundraisingCard({ item }: { item: FundraisingItem }) {
+// compact (story layout only): hides the explanatory blocks; picker, progress
+// and checkout are unchanged.
+function FundraisingCard({ item, compact = false }: { item: FundraisingItem; compact?: boolean }) {
   const [picking, setPicking] = useState(false);
   const defaultCents = (() => {
     const rem = item.goal_amount_cents - item.raised_amount_cents;
@@ -219,14 +223,16 @@ function FundraisingCard({ item }: { item: FundraisingItem }) {
           <p className="mt-4 text-sm leading-7" style={{ color: c.muted }}>{item.short_reason}</p>
         )}
 
+        {!compact && (
         <div className="mt-5 border-l-2 pl-4" style={{ borderColor: c.mustard }}>
           <p className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: c.leaf }}>How this creates paid work</p>
           <p className="mt-2 text-sm font-bold leading-6" style={{ color: c.green }}>
             {item.employment_impact || 'This helps Buds At Work turn community demand into practical paid shifts with the right equipment, training and support.'}
           </p>
         </div>
+        )}
 
-        {item.who_it_helps && (
+        {!compact && item.who_it_helps && (
           <p className="mt-4 text-xs font-black uppercase tracking-[0.08em]" style={{ color: c.muted }}>
             Supports: {item.who_it_helps}
           </p>
@@ -751,6 +757,36 @@ export default function GetInvolvedClient({ items, stats, socialItems, heroImage
       cta: 'Sponsor A Shift',
     },
   ];
+
+  if (GET_INVOLVED_STORY) {
+    // Story layout (visual only): same copy, links, forms and handlers.
+    const sumGoal = items.reduce((acc, it) => acc + it.goal_amount_cents, 0);
+    const sumRaised = items.reduce((acc, it) => acc + it.raised_amount_cents, 0);
+    const fundedPct = items.length > 0 && sumGoal > 0 ? Math.round((sumRaised / sumGoal) * 100) : null;
+    return (
+      <GetInvolvedStory
+        heroImageUrl={heroImageUrl}
+        heroMissing={heroMissing}
+        onHeroError={() => setHeroMissing(true)}
+        heroAlt={HERO_ALT}
+        fundedPct={fundedPct}
+        stats={stats}
+        currentPaidJobs={currentPaidJobs}
+        remainingJobs={remainingJobs}
+        nextJobsTarget={nextJobsTarget}
+        socialLinks={<SocialLinks />}
+        socialFeed={socialItems.length === 0 ? <EmptySocialFallback /> : <SocialFeed items={socialItems} />}
+        wishlistCards={featuredItems.length === 0 ? null : featuredItems.map((item) => <FundraisingCard key={item.id} item={item} compact />)}
+        otherWays={otherWays.map(({ icon, ...card }) => ({ ...card, icon: <ActionIcon type={icon} /> }))}
+        arrow={<Arrow />}
+        check={<CheckIcon />}
+        donating={donating}
+        onDonate={handleDonate}
+        onOpenSponsor={() => setShowSponsorModal(true)}
+        sponsorModal={<SponsorModal open={showSponsorModal} onClose={() => setShowSponsorModal(false)} />}
+      />
+    );
+  }
 
   return (
     <div className="-mx-4 -mt-8 overflow-hidden bg-white md:-mx-8 md:-mt-10">
