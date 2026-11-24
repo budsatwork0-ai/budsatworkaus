@@ -68,3 +68,9 @@ export const HOME_CAROUSEL_CLEAN_BG = process.env.NEXT_PUBLIC_HOME_CAROUSEL_CLEA
 // Off unless NEXT_PUBLIC_HOME_HERO_SHEET_TRANSITION=1. Production stays off;
 // enable on a Preview deployment (or locally) by setting that env var.
 export const HOME_HERO_SHEET_TRANSITION = process.env.NEXT_PUBLIC_HOME_HERO_SHEET_TRANSITION === '1';
+
+// Header logo stays on one line on phones (24 Nov 2026, Jackson's request):
+// "Buds At Work" never wraps, the header Book button reads "Book" under 400px,
+// and on /services (already the booking page) it is hidden on phones so the
+// sign-in pill fits. Off unless NEXT_PUBLIC_HEADER_LOGO_NOWRAP=1.
+export const HEADER_LOGO_NOWRAP = process.env.NEXT_PUBLIC_HEADER_LOGO_NOWRAP === '1';
