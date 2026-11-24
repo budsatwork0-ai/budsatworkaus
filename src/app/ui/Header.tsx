@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js';
 import { brand } from './theme';
 import { ServicesAuthBar } from '@/components/ServicesAuthBar';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { BOOK_SERVICE_CTA } from '@/app/ui/home/flags';
+import { BOOK_SERVICE_CTA, HOME_HERO_SHEET_TRANSITION } from '@/app/ui/home/flags';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -120,6 +120,16 @@ export default function Header() {
     return () => obs.disconnect();
   }, [pathname]);
 
+  // Art-directed home (HOME_HERO_SHEET_TRANSITION): the page tells the header
+  // whether the canvas behind it is dark, only when that flips (not per pixel).
+  const [storyDark, setStoryDark] = React.useState(true);
+  React.useEffect(() => {
+    if (!HOME_HERO_SHEET_TRANSITION) return;
+    const onTone = (e: Event) => setStoryDark(Boolean((e as CustomEvent<{ dark?: boolean }>).detail?.dark));
+    window.addEventListener('home:header-tone', onTone);
+    return () => window.removeEventListener('home:header-tone', onTone);
+  }, []);
+
   if (pathname?.startsWith('/dashboard')) return null;
 
   const onServices = pathname?.startsWith('/services');
@@ -145,6 +155,8 @@ export default function Header() {
   const isHome = pathname === '/';
   const showLight = isHome && !scrolled;
   const hideHomeBook = isHome && heroOnScreen;
+  const storyGlass = HOME_HERO_SHEET_TRANSITION && isHome && scrolled && !menuOpen;
+  const lightText = (showLight || (storyGlass && storyDark)) && !menuOpen;
 
   const linkBase = 'hover:underline transition-[color,opacity] duration-150';
 
@@ -161,12 +173,14 @@ export default function Header() {
         className={cx(
           'sticky top-0 z-50 transition-all',
           scrolled || menuOpen
-            ? 'bg-white/90 backdrop-blur'
+            ? (storyGlass ? 'backdrop-blur-md' : 'bg-white/90 backdrop-blur')
             : 'bg-transparent'
         )}
         style={{
-          color: showLight && !menuOpen ? '#fff' : brand.text,
-          background: showLight && !menuOpen ? 'rgba(0,0,0,0.12)' : undefined,
+          color: lightText ? '#fff' : brand.text,
+          background: showLight && !menuOpen
+            ? 'rgba(0,0,0,0.12)'
+            : storyGlass ? 'rgb(var(--home-canvas, 247 245 240) / 0.74)' : undefined,
         }}
       >
         <div className="mx-auto max-w-6xl px-6 md:px-8 py-5 flex items-center justify-between">
@@ -174,7 +188,7 @@ export default function Header() {
             href="/"
             className={cx('font-bold text-2xl transition-colors', showLight && !menuOpen && 'drop-shadow-md')}
             onClick={() => handleNavClick('/')}
-            style={{ color: showLight && !menuOpen ? '#fff' : brand.accent }}
+            style={{ color: lightText ? '#fff' : brand.accent }}
           >
             Buds At Work
           </Link>
@@ -253,10 +267,10 @@ export default function Header() {
                     padding: '0 18px',
                     fontSize: '14px',
                     borderRadius: '999px',
-                    border: showLight && !menuOpen
+                    border: lightText
                       ? '1.5px solid rgba(255,255,255,0.45)'
                       : `1.5px solid ${brand.border}`,
-                    color: showLight && !menuOpen ? '#fff' : brand.text,
+                    color: lightText ? '#fff' : brand.text,
                     background: 'transparent',
                   }}
                 >
@@ -269,8 +283,8 @@ export default function Header() {
             <button
               className="md:hidden p-2 rounded-xl border transition-colors hover:bg-gray-50"
               style={{
-                borderColor: showLight && !menuOpen ? 'rgba(255,255,255,0.45)' : brand.border,
-                color: showLight && !menuOpen ? '#fff' : brand.primary,
+                borderColor: lightText ? 'rgba(255,255,255,0.45)' : brand.border,
+                color: lightText ? '#fff' : brand.primary,
               }}
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}

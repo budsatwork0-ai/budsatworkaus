@@ -15,7 +15,7 @@ const Arrow = ({ dir = 'right' }: { dir?: 'left' | 'right' }) => (
 );
 
 // Coverflow: one large active card, smaller neighbours either side, transform-based.
-export default function ServicesCoverflow({ services }: { services: CarouselService[] }) {
+export default function ServicesCoverflow({ services, onActiveChange }: { services: CarouselService[]; onActiveChange?: (index: number) => void }) {
   const n = services.length;
   const [active, setActive] = useState(0);
   const [reduce, setReduce] = useState(false);
@@ -34,6 +34,8 @@ export default function ServicesCoverflow({ services }: { services: CarouselServ
     md.addEventListener('change', sync);
     return () => { mq.removeEventListener('change', sync); md.removeEventListener('change', sync); };
   }, []);
+
+  useEffect(() => { onActiveChange?.(active); }, [active, onActiveChange]);
 
   const go = useCallback((i: number) => setActive(Math.max(0, Math.min(n - 1, i))), [n]);
 
