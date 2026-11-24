@@ -74,3 +74,9 @@ export const HOME_HERO_SHEET_TRANSITION = process.env.NEXT_PUBLIC_HOME_HERO_SHEE
 // and on /services (already the booking page) it is hidden on phones so the
 // sign-in pill fits. Off unless NEXT_PUBLIC_HEADER_LOGO_NOWRAP=1.
 export const HEADER_LOGO_NOWRAP = process.env.NEXT_PUBLIC_HEADER_LOGO_NOWRAP === '1';
+
+// Homepage "Who we are" founding story (24 Nov 2026, Jackson's request):
+// Jacko as founder, Silvan as the reason the company exists. Off unless
+// NEXT_PUBLIC_HOME_FOUNDING_STORY=1. Production stays off; enable on a
+// Preview deployment (or locally) by setting that env var.
+export const HOME_FOUNDING_STORY = process.env.NEXT_PUBLIC_HOME_FOUNDING_STORY === '1';

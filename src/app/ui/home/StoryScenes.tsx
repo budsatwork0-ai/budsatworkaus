@@ -12,6 +12,7 @@ import { Instrument_Serif } from 'next/font/google';
 import ServicesCoverflow from './ServicesCoverflow';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import type { CarouselService } from './ServicesCarousel';
+import { HOME_FOUNDING_STORY } from './flags';
 
 const serif = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], display: 'swap', preload: false });
 
@@ -211,18 +212,33 @@ function Label({ n, children, className = '' }: { n: string; children: React.Rea
 }
 
 // ── Scene 2: manifesto, scroll-scrubbed word illumination ────────────────────
-const MANIFESTO: { w: string; accent?: boolean; note?: boolean }[] = (
-  "We're a small crew from Logan. |note We show up when we say we will, quote prices that mean something, and take |pride| in every window, yard and home we touch."
-)
-  .split(/\s+/)
-  .reduce<{ w: string; accent?: boolean; note?: boolean }[]>((acc, raw) => {
+type ManifestoWord = { w: string; accent?: boolean; note?: boolean };
+
+function manifestoWords(src: string): ManifestoWord[] {
+  return src.split(/\s+/).reduce<ManifestoWord[]>((acc, raw) => {
     if (raw === '|note') { acc[acc.length - 1].note = true; return acc; }
     if (raw.startsWith('|')) acc.push({ w: raw.replace(/\|/g, ''), accent: true });
     else acc.push({ w: raw });
     return acc;
   }, []);
+}
+
+// Original copy. Restored automatically when HOME_FOUNDING_STORY is off.
+const MANIFESTO_ORIGINAL = manifestoWords(
+  "We're a small crew from Logan. |note We show up when we say we will, quote prices that mean something, and take |pride| in every window, yard and home we touch."
+);
+
+// Founding story (24 Nov 2026, Jackson's request): Jacko as founder, Silvan as
+// the reason the company exists. ¹ sits after "keeping."; accent on "Silvan".
+const MANIFESTO_FOUNDING = manifestoWords(
+  "It started with one support worker and one mate who wanted a job worth keeping. |note So we built the kind of work that makes room for people like |Silvan|, and every window, yard and home we take on keeps that door open."
+);
 
 function Manifesto() {
+  const MANIFESTO = HOME_FOUNDING_STORY ? MANIFESTO_FOUNDING : MANIFESTO_ORIGINAL;
+  const footnote = HOME_FOUNDING_STORY
+    ? 'Founded by Jackson. Started with Silvan.'
+    : 'Working across Logan & South Brisbane. Insured · Vetted crew · NDIS-ready.';
   const n = MANIFESTO.length;
   const k = (n + 3) / 0.78;
   return (
@@ -252,7 +268,7 @@ function Manifesto() {
           className="max-w-md text-[12.5px] leading-relaxed md:text-[13px]"
           style={{ fontFamily: MONO, color: INK_SOFT, opacity: 'clamp(0, calc(var(--p) * 2.2 - 1.1), 1)' }}
         >
-          <span style={{ color: ACC }}>1</span>&nbsp; Working across Logan &amp; South Brisbane. Insured · Vetted crew · NDIS-ready.
+          <span style={{ color: ACC }}>1</span>&nbsp; {footnote}
         </p>
       </div>
     </section>
