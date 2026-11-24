@@ -5,11 +5,17 @@ import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { publicTheme } from '@/lib/design-system/themes';
 import { MARKETING_SERVICE_LIST } from '@/lib/marketing-services';
+
+// Art-directed scenes, loaded only when HOME_HERO_SHEET_TRANSITION is on (preview).
+// HOME_STORY_SCENES false falls back to the earlier six-frame StorySections.
+const HOME_STORY_SCENES = true;
+const StoryScenes = HOME_HERO_SHEET_TRANSITION ? dynamic(() => import('./StoryScenes')) : null;
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────────
 const BRAND = publicTheme.color;
@@ -184,7 +190,13 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="relative" style={{ background: BRAND.bg, color: BRAND.text }}>
+    <div
+      className="relative"
+      data-story-canvas={HOME_HERO_SHEET_TRANSITION || undefined}
+      style={HOME_HERO_SHEET_TRANSITION
+        ? ({ background: BRAND.bg, color: BRAND.text, '--sc-bg': '11 26 18', '--sc-ink': '243 240 232', '--sc-acc': '143 217 174' } as React.CSSProperties)
+        : { background: BRAND.bg, color: BRAND.text }}
+    >
 
       {/* ════════════════════════════════════════════════ HERO — full-screen video ══ */}
       <section
@@ -192,19 +204,23 @@ export default function HomePage() {
         data-home-hero
         data-story-frame="hero"
         className={HOME_HERO_SHEET_TRANSITION
-          ? 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10 pb-16 md:pb-20'
+          ? 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10'
           : 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10'}
         style={{
           minHeight: '100svh',
           marginLeft: 'calc(-50vw + 50%)',
           marginRight: 'calc(-50vw + 50%)',
           width: '100vw',
+          ...(HOME_HERO_SHEET_TRANSITION ? { clipPath: 'inset(-100px 0 0 0)' } : {}),
         }}
       >
         {/* Full-bleed video — extends behind header */}
         <div
           className="absolute z-0"
-          style={{ top: '-100px', left: 0, right: 0, bottom: 0 }}
+          data-hero-media={HOME_HERO_SHEET_TRANSITION || undefined}
+          style={HOME_HERO_SHEET_TRANSITION
+            ? { top: '-100px', left: 0, right: 0, bottom: 0, transformOrigin: '50% 40%', willChange: 'transform' }
+            : { top: '-100px', left: 0, right: 0, bottom: 0 }}
         >
           {/* Mobile: static thumbnail */}
           {HERO_VIDEO_ON_MOBILE ? (
@@ -252,7 +268,14 @@ export default function HomePage() {
           </>)}
         </div>
 
-        {HERO_MODERN ? <ModernHeroText word={ROTATING_WORDS[wordIndex]} show={heroIn} /> : (<>
+        {HOME_HERO_SHEET_TRANSITION && (<>
+          {/* Scroll-driven dim + soft dissolve into the continuous canvas below. */}
+          <div data-hero-dim aria-hidden className="pointer-events-none absolute inset-0 z-[2]" style={{ background: 'rgb(11 26 18)', opacity: 0 }} />
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[34svh]" style={{ background: 'linear-gradient(to bottom, rgb(var(--sc-bg) / 0) 0%, rgb(var(--sc-bg) / 0.55) 55%, rgb(var(--sc-bg)) 100%)' }} />
+        </>)}
+        {HERO_MODERN ? (HOME_HERO_SHEET_TRANSITION
+          ? <div data-hero-copy className="relative z-10 w-full" style={{ willChange: 'transform, opacity' }}><ModernHeroText word={ROTATING_WORDS[wordIndex]} show={heroIn} /></div>
+          : <ModernHeroText word={ROTATING_WORDS[wordIndex]} show={heroIn} />) : (<>
         {/* Hero text */}
         <div className="relative z-10 px-5 sm:px-8 max-w-3xl mx-auto w-full">
           {/* Location chip */}
@@ -425,7 +448,11 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════ CONTENT ══ */}
-      {HOME_MODERN_SECTIONS ? (HOME_HERO_SHEET_TRANSITION ? <StorySections ctaRef={ctaSectionRef} /> : <ModernSections ctaRef={ctaSectionRef} />) : (
+      {HOME_MODERN_SECTIONS ? (HOME_HERO_SHEET_TRANSITION
+        ? (HOME_STORY_SCENES && StoryScenes
+          ? <StoryScenes ctaRef={ctaSectionRef} services={SERVICES} steps={STEPS} promises={PROMISES} hd={HOME_BA_HD_PHOTOS} accent={BRAND.accent} />
+          : <StorySections ctaRef={ctaSectionRef} />)
+        : <ModernSections ctaRef={ctaSectionRef} />) : (
       /* Clean white below the hero — no overlap, no floating band */
       <div className="relative overflow-hidden">
 
@@ -937,8 +964,9 @@ function HeroScrollCue() {
   const reduce = useReducedMotion();
   return (
     <motion.div
+      data-hero-cue
       className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2"
-      style={{ bottom: '8rem', color: 'rgba(255,255,255,0.5)' }}
+      style={{ bottom: HOME_STORY_SCENES ? 'calc(2.25rem + env(safe-area-inset-bottom))' : '8rem', color: 'rgba(255,255,255,0.5)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.2, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
