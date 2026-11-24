@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js';
 import { brand } from './theme';
 import { ServicesAuthBar } from '@/components/ServicesAuthBar';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { BOOK_SERVICE_CTA, HOME_HERO_SHEET_TRANSITION } from '@/app/ui/home/flags';
+import { BOOK_SERVICE_CTA, HOME_HERO_SHEET_TRANSITION, HEADER_LOGO_NOWRAP } from '@/app/ui/home/flags';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -34,11 +34,13 @@ function BookServiceButton({
   style,
   onClick,
   tabIndex,
+  compact = false,
 }: {
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
   tabIndex?: number;
+  compact?: boolean;
 }) {
   return (
     <Link
@@ -51,8 +53,14 @@ function BookServiceButton({
         className,
       )}
       style={style}
+      aria-label={compact ? 'Book a service' : undefined}
     >
-      Book a service
+      {compact ? (
+        <>
+          <span aria-hidden className="min-[400px]:hidden">Book</span>
+          <span aria-hidden className="hidden min-[400px]:inline">Book a service</span>
+        </>
+      ) : 'Book a service'}
     </Link>
   );
 }
@@ -183,10 +191,17 @@ export default function Header() {
             : storyGlass ? 'rgb(var(--home-canvas, 247 245 240) / 0.74)' : undefined,
         }}
       >
-        <div className="mx-auto max-w-6xl px-6 md:px-8 py-5 flex items-center justify-between">
+        <div className={HEADER_LOGO_NOWRAP
+          ? 'mx-auto max-w-6xl px-5 min-[400px]:px-6 md:px-8 py-5 flex items-center justify-between gap-3'
+          : 'mx-auto max-w-6xl px-6 md:px-8 py-5 flex items-center justify-between'}>
           <Link
             href="/"
-            className={cx('font-bold text-2xl transition-colors', showLight && !menuOpen && 'drop-shadow-md')}
+            className={cx(
+              HEADER_LOGO_NOWRAP
+                ? 'shrink-0 whitespace-nowrap font-bold text-[22px] min-[400px]:text-2xl transition-colors'
+                : 'font-bold text-2xl transition-colors',
+              showLight && !menuOpen && 'drop-shadow-md',
+            )}
             onClick={() => handleNavClick('/')}
             style={{ color: lightText ? '#fff' : brand.accent }}
           >
@@ -208,11 +223,12 @@ export default function Header() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className={HEADER_LOGO_NOWRAP ? 'flex min-w-0 items-center gap-2 min-[400px]:gap-3' : 'flex items-center gap-3'}>
             {BOOK_SERVICE_CTA && (
               <div
                 className={cx(
                   'overflow-hidden transition-[max-width,opacity] duration-300 ease-out',
+                  HEADER_LOGO_NOWRAP && onServices && 'hidden md:block',
                   hideHomeBook
                     ? 'max-w-0 opacity-0 pointer-events-none'
                     : 'max-w-[12rem] opacity-100',
@@ -222,6 +238,7 @@ export default function Header() {
                 <BookServiceButton
                   onClick={() => handleNavClick('/services')}
                   tabIndex={hideHomeBook ? -1 : undefined}
+                  compact={HEADER_LOGO_NOWRAP}
                   style={{
                     background: brand.accent,
                     height: '38px',
