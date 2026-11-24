@@ -1,6 +1,6 @@
 'use client';
 
-import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST, BOOK_SERVICE_CTA, HOME_CAROUSEL_CLEAN_BG } from './flags';
+import { HOME_MODERN_SECTIONS, HOME_STATS_ROW, HOME_BA_SLIDER, HOME_BA_HD_PHOTOS, HOME_FULLSCREEN_SECTIONS, HOME_RICH_SERVICES, HOME_SERVICES_CAROUSEL, HOME_SERVICES_COVERFLOW, HOME_SERVICES_FIRST, BOOK_SERVICE_CTA, HOME_CAROUSEL_CLEAN_BG, HOME_HERO_SHEET_TRANSITION } from './flags';
 import ServicesCoverflow from './ServicesCoverflow';
 import ServicesCarousel from './ServicesCarousel';
 import BeforeAfterSlider from './BeforeAfterSlider';
@@ -190,7 +190,9 @@ export default function HomePage() {
       <section
         data-cursor-exclude
         data-home-hero
-        className="relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10"
+        className={HOME_HERO_SHEET_TRANSITION
+          ? 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10 pb-16 md:pb-20'
+          : 'relative flex flex-col items-center justify-center text-center -mt-8 md:-mt-10'}
         style={{
           minHeight: '100svh',
           marginLeft: 'calc(-50vw + 50%)',
@@ -931,7 +933,19 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
     { val: 0, suf: '', pre: '', lbl: 'Surprise fees' },
   ];
   return (
-    <div className="bg-white" style={{ fontFamily: MS_FONT }}>
+    <div
+      className={HOME_HERO_SHEET_TRANSITION
+        ? 'relative z-10 bg-white rounded-t-[28px] md:rounded-t-[36px] -mt-7 md:-mt-9 shadow-[0_-12px_32px_rgba(0,0,0,0.18)]'
+        : 'bg-white'}
+      style={{
+        fontFamily: MS_FONT,
+        ...(HOME_HERO_SHEET_TRANSITION ? {
+          marginLeft: 'calc(-50vw + 50%)',
+          marginRight: 'calc(-50vw + 50%)',
+          width: '100vw',
+        } : {}),
+      }}
+    >
       {/* Stats — light inline row (HOME_STATS_ROW) */}
       {HOME_STATS_ROW && (
       <FadeUp>
@@ -948,7 +962,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
       </FadeUp>
       )}
 
-      <div className="mx-auto max-w-5xl pt-20 pb-28 space-y-28">
+      <div className={HOME_HERO_SHEET_TRANSITION ? 'mx-auto max-w-5xl pt-9 md:pt-12 pb-28 space-y-28' : 'mx-auto max-w-5xl pt-20 pb-28 space-y-28'}>
         {(() => {
           const baSection = (<React.Fragment key="ba">
         {/* Before / after */}
@@ -1001,7 +1015,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
                 <h2 className="mt-2 text-[clamp(2.2rem,8vw,3.5rem)] font-bold leading-[1.05] text-neutral-900" style={{ letterSpacing: '-0.04em' }}>What we do<span style={{ color: MS_GREEN }}>.</span></h2>
                 <p className="mt-2.5 mx-auto max-w-md text-[16px] [@media(max-height:700px)]:text-[15px] leading-relaxed text-neutral-500">Practical services to make your life easier.</p>
               </FadeUp>
-              <div className={HOME_CAROUSEL_CLEAN_BG ? '-mx-10 md:mx-0' : '-mx-6 md:mx-0'}>{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
+              <div className={HOME_CAROUSEL_CLEAN_BG && !HOME_HERO_SHEET_TRANSITION ? '-mx-10 md:mx-0' : '-mx-6 md:mx-0'}>{HOME_SERVICES_COVERFLOW ? <ServicesCoverflow services={SERVICES} /> : <ServicesCarousel services={SERVICES} />}</div>
             </>
           ) : (<>
           <MsHeading title="What we do" sub="Pick a service and see your price instantly." />

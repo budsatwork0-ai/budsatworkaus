@@ -63,3 +63,8 @@ export const SHAKE_ONLY_FEEDBACK = process.env.NEXT_PUBLIC_SHAKE_ONLY_FEEDBACK =
 // NEXT_PUBLIC_HOME_CAROUSEL_CLEAN_BG=1. Production stays off; enable on a
 // Preview deployment (or locally) by setting that env var.
 export const HOME_CAROUSEL_CLEAN_BG = process.env.NEXT_PUBLIC_HOME_CAROUSEL_CLEAN_BG === '1';
+
+// Rounded white sheet overlapping the bottom of the home hero (24 Nov 2026).
+// Off unless NEXT_PUBLIC_HOME_HERO_SHEET_TRANSITION=1. Production stays off;
+// enable on a Preview deployment (or locally) by setting that env var.
+export const HOME_HERO_SHEET_TRANSITION = process.env.NEXT_PUBLIC_HOME_HERO_SHEET_TRANSITION === '1';
