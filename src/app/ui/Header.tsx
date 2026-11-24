@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js';
 import { brand } from './theme';
 import { ServicesAuthBar } from '@/components/ServicesAuthBar';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { BOOK_SERVICE_CTA, HOME_HERO_SHEET_TRANSITION, HEADER_LOGO_NOWRAP } from '@/app/ui/home/flags';
+import { BOOK_SERVICE_CTA, HOME_HERO_SHEET_TRANSITION, HEADER_LOGO_NOWRAP, GET_INVOLVED_STORY } from '@/app/ui/home/flags';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -132,7 +132,7 @@ export default function Header() {
   // whether the canvas behind it is dark, only when that flips (not per pixel).
   const [storyDark, setStoryDark] = React.useState(true);
   React.useEffect(() => {
-    if (!HOME_HERO_SHEET_TRANSITION) return;
+    if (!HOME_HERO_SHEET_TRANSITION && !GET_INVOLVED_STORY) return;
     const onTone = (e: Event) => setStoryDark(Boolean((e as CustomEvent<{ dark?: boolean }>).detail?.dark));
     window.addEventListener('home:header-tone', onTone);
     return () => window.removeEventListener('home:header-tone', onTone);
@@ -161,9 +161,12 @@ export default function Header() {
     pathname === href || pathname?.startsWith(href + '/');
 
   const isHome = pathname === '/';
-  const showLight = isHome && !scrolled;
+  // Get Involved story layout (GET_INVOLVED_STORY): same transparent-over-photo
+  // header and canvas-following glass as the art-directed home page.
+  const isStoryGetInvolved = GET_INVOLVED_STORY && pathname === '/get-involved';
+  const showLight = (isHome || isStoryGetInvolved) && !scrolled;
   const hideHomeBook = isHome && heroOnScreen;
-  const storyGlass = HOME_HERO_SHEET_TRANSITION && isHome && scrolled && !menuOpen;
+  const storyGlass = ((HOME_HERO_SHEET_TRANSITION && isHome) || isStoryGetInvolved) && scrolled && !menuOpen;
   const lightText = (showLight || (storyGlass && storyDark)) && !menuOpen;
 
   const linkBase = 'hover:underline transition-[color,opacity] duration-150';
