@@ -237,7 +237,7 @@ const MANIFESTO_FOUNDING = manifestoWords(
 function Manifesto() {
   const MANIFESTO = HOME_FOUNDING_STORY ? MANIFESTO_FOUNDING : MANIFESTO_ORIGINAL;
   const footnote = HOME_FOUNDING_STORY
-    ? 'Founded by Jackson. Built for Silvan.'
+    ? 'Founded by Jackson. Started with Silvan.'
     : 'Working across Logan & South Brisbane. Insured · Vetted crew · NDIS-ready.';
   const n = MANIFESTO.length;
   const k = (n + 3) / 0.78;
