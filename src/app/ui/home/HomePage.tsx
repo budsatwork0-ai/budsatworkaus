@@ -938,7 +938,7 @@ function HeroScrollCue() {
   return (
     <motion.div
       className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2"
-      style={{ bottom: '4.5rem', color: 'rgba(255,255,255,0.5)' }}
+      style={{ bottom: '8rem', color: 'rgba(255,255,255,0.5)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.2, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
