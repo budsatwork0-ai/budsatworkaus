@@ -962,11 +962,11 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
       </FadeUp>
       )}
 
-      <div className={HOME_HERO_SHEET_TRANSITION ? 'mx-auto max-w-5xl pt-9 md:pt-12 pb-28 space-y-28' : 'mx-auto max-w-5xl pt-20 pb-28 space-y-28'}>
+      <div className={HOME_HERO_SHEET_TRANSITION ? 'mx-auto max-w-5xl pt-14 md:pt-16 pb-20 space-y-12 md:space-y-24' : 'mx-auto max-w-5xl pt-20 pb-28 space-y-28'}>
         {(() => {
           const baSection = (<React.Fragment key="ba">
         {/* Before / after */}
-        <section className={HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined}>
+        <section className={HOME_HERO_SHEET_TRANSITION ? undefined : (HOME_FULLSCREEN_SECTIONS ? FS_SECTION : undefined)}>
           <div className="px-6"><MsHeading title="See the difference" sub="A recent window clean by the Buds." /></div>
           {HOME_BA_SLIDER ? (
             <FadeUp delay={0.06}>
@@ -1007,7 +1007,7 @@ function ModernSections({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement | n
           </React.Fragment>);
           const servicesSection = (<React.Fragment key="services">
         {/* Services — clean list */}
-        <section className={HOME_SERVICES_COVERFLOW ? (HOME_SERVICES_FIRST ? 'bg-white px-6 pt-0 pb-12 md:pb-16' : 'bg-white px-6 py-12 md:py-16') : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
+        <section className={HOME_SERVICES_COVERFLOW ? (HOME_SERVICES_FIRST ? (HOME_HERO_SHEET_TRANSITION ? 'bg-white px-6 pt-0 pb-0' : 'bg-white px-6 pt-0 pb-12 md:pb-16') : 'bg-white px-6 py-12 md:py-16') : HOME_FULLSCREEN_SECTIONS ? `px-6 ${FS_SECTION}` : 'px-6'}>
           {HOME_SERVICES_CAROUSEL ? (
             <>
               <FadeUp className="text-center">
